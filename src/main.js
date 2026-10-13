@@ -81,7 +81,7 @@ async function boot() {
   const sim = new Sim({ aircraft: AIRCRAFT_IDS.includes(wantAircraft) ? wantAircraft : 'micro' });
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(CFG.camera.fov, innerWidth / innerHeight, 0.01, 12);
+  const camera = new THREE.PerspectiveCamera(CFG.camera.fov, innerWidth / innerHeight, 0.01, 60);
   // Yield between heavy steps so the progress bar paints.
   const tick = () => new Promise((r) => setTimeout(r, 0));
   let stepN = 0;
@@ -375,6 +375,7 @@ async function boot() {
     const heading = sim.heli ? sim.heli.heading() : camRig.yaw;
     camRig.sizeScale += ((sim.aircraft === 'chinook' ? 1.45 : 1) - camRig.sizeScale) * Math.min(1, rd * 3);
     camRig.update(Math.max(rd, 1e-4), camTarget, heading, sim.carriedCargo().length ? view.bagPosCarried : null, sim);
+    kitchen.garden.update(rd * worldSpeed, camTarget, camera, sim); // grass wind, shadow follow
 
     // Audio bed follows the rotor.
     const h = sim.heli;

@@ -335,7 +335,7 @@ export function handleGeometry(radius, tube, arc = Math.PI * 1.25) {
 export function cupModel(C) {
   const g = new THREE.Group();
   const glaze = glazeMaterial(C.glaze);
-  const isTeacup = C.id === 'teacup';
+  const isTeacup = C.id === 'teacup' || C.shape === 'teacup';
   const geo = vesselGeometry({
     rOutBottom: isTeacup ? C.rOut * 0.82 : C.rOut * 0.97, rOut: C.rOut,
     rIn: C.rIn, rInBottom: isTeacup ? C.rIn * 0.86 : C.rIn * 0.97,
@@ -365,12 +365,12 @@ export function cupModel(C) {
   if (C.saucer) {
     const sg = saucerGeometry(C.saucer, 0.008);
     const s = new THREE.Mesh(sg, glazeMaterial(0xf2ece0));
-    s.position.y = -C.baseY;
+    s.position.y = (C.standY || 0) - C.baseY;
     s.receiveShadow = true; s.castShadow = true;
     g.add(s);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(C.saucer - 0.006, 0.0012, 6, 64), glazeMaterial(C.rim));
     ring.rotation.x = Math.PI / 2;
-    ring.position.y = -C.baseY + 0.0075;
+    ring.position.y = (C.standY || 0) - C.baseY + 0.0075;
     g.add(ring);
   }
   g.position.set(C.x, C.baseY, C.z);

@@ -20,8 +20,8 @@ const f = (x, d = 3) => Number(x).toFixed(d);
   const p0 = sim.heli.pos.clone();
   run(sim, 2);
   check('heli rests on pad', sim.state === 'flying' && sim.heli.pos.distanceTo(p0) < 0.01, `moved ${f(sim.heli.pos.distanceTo(p0), 4)} m`);
-  const bagsOk = sim.bags.length === 3 && sim.bags.every((b) => b.attach && b.attach.kind === 'peg' && b.pos.y > 0.03);
-  check('three bags hang from the stand', bagsOk, sim.bags.map((b) => f(b.pos.y)).join(', '));
+  const bagsOk = sim.bags.length === sim.pegs.length && sim.pegs.every((p) => p.bag && p.bag.attach.kind === 'peg' && p.bag.pos.y > p.tip.y - 0.22);
+  check('a bag hangs from every peg on both stands', bagsOk, sim.bags.map((b) => f(b.pos.y)).join(', '));
 }
 
 // 2. Assist on: lift off, hover, neutral stick holds attitude level and sinks/climbs on command.

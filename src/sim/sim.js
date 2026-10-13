@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RAPIER, GROUPS, Track } from './physics.js';
 import { CFG } from '../config.js';
-import { CUPS, PAD, STATION, DISCARD, TABLE } from './layout.js';
+import { CUPS, PAD, STATION, STATIONS, DISCARD, TABLE } from './layout.js';
 import { buildStaticWorld } from './staticWorld.js';
 import { createAircraft, gearDrop, AIRCRAFT_IDS } from './aircraft.js';
 import { TeaBag } from './teabag.js';
@@ -24,9 +24,10 @@ class Cup {
 }
 
 class Peg {
-  constructor(i) {
+  constructor(i, S = STATION, station = 0) {
     this.index = i;
-    this.tip = new THREE.Vector3(STATION.x + STATION.pegXs[i], STATION.pegY + 0.0045, STATION.z + STATION.pegReach - 0.004);
+    this.station = station;
+    this.tip = new THREE.Vector3(S.x + S.pegXs[i], S.y + S.pegY + 0.0045, S.z + S.pegReach - 0.004);
     this.bag = null;
     this.emptyFor = 99;
   }
@@ -75,7 +76,8 @@ export class Sim {
     this.events = [];
     this.assist = true;
     this.cups = CUPS.map((c) => new Cup(c));
-    this.pegs = STATION.pegXs.map((_, i) => new Peg(i));
+    // Kitchen pegs first (pegs[1] is the kitchen's middle peg), then the garden stand's.
+    this.pegs = STATIONS.flatMap((S, si) => S.pegXs.map((_, i) => new Peg(i, S, si)));
     this.bags = [];
     this.debris = [];
     this.drips = [];
@@ -389,7 +391,7 @@ export class Sim {
     this.spawnHeli();
     for (const p of this.pegs) this.refillPeg(p);
     // Guarantee usable cargo even if every bag slot was taken by bags in cups.
-    if (!this.pegs.some((p) => p.bag)) {
+    if (!this.pegs.some((p) => p.bag && p.station === 0)) {
       const p = this.pegs[1];
       const victim = this.bags.find((b) => !b.attach);
       if (victim) this.removeBag(victim);

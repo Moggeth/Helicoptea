@@ -73,7 +73,7 @@ export const CFG = {
     dragLinear: 0.03,
     airDrag: 0.0025,
     attachRadius: 0.042,
-    maxBags: 7,
+    maxBags: 11,            // six on the two stands, room for bags left steeping in cups
     pegRefillDelay: 2.0,
     brewTime: 14,           // s for a fully immersed fresh bag to take a cup ~63% of the way
     potencyLife: 110,       // s of full immersion before a bag is spent

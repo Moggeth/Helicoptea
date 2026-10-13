@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { TABLE, ROOM, PAD, STATION, CUPS, DISCARD, TEAPOT, SUGAR, VASE, JUG, PLATE, BOOKS, SPOON } from '../sim/layout.js';
 import * as TX from './textures.js';
+import { buildGarden } from './garden.js';
 import { cupModel, glazeMaterial, vesselGeometry, saucerGeometry, handleGeometry } from './models.js';
 
 const V2 = (x, y) => new THREE.Vector2(x, y);
@@ -126,23 +127,9 @@ export function buildKitchen(scene, renderer, quality, progress) {
   }
   progress?.('Laying the table');
 
-  // Room shell.
+  // Room: tiled floor and ceiling (walls, window and door are in the house shell, see garden.js).
   {
     const plaster = new THREE.MeshStandardMaterial({ map: TX.plasterTexture(), roughness: 0.95 });
-    const back = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.maxX - ROOM.minX, ROOM.ceilingY - ROOM.floorY), plaster);
-    back.position.set(0, (ROOM.ceilingY + ROOM.floorY) / 2, ROOM.minZ);
-    back.receiveShadow = true;
-    scene.add(back);
-    for (const sx of [-1, 1]) {
-      const side = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.maxZ - ROOM.minZ, ROOM.ceilingY - ROOM.floorY), plaster);
-      side.rotation.y = -sx * Math.PI / 2;
-      side.position.set(sx > 0 ? ROOM.maxX : ROOM.minX, (ROOM.ceilingY + ROOM.floorY) / 2, (ROOM.maxZ + ROOM.minZ) / 2);
-      scene.add(side);
-    }
-    const front = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.maxX - ROOM.minX, ROOM.ceilingY - ROOM.floorY), plaster);
-    front.rotation.y = Math.PI;
-    front.position.set(0, (ROOM.ceilingY + ROOM.floorY) / 2, ROOM.maxZ);
-    scene.add(front);
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.maxX - ROOM.minX, ROOM.maxZ - ROOM.minZ), new THREE.MeshStandardMaterial({ map: TX.floorTexture(), roughness: 0.8 }));
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(0, ROOM.floorY, (ROOM.maxZ + ROOM.minZ) / 2);
@@ -153,21 +140,10 @@ export function buildKitchen(scene, renderer, quality, progress) {
     ceil.position.set(0, ROOM.ceilingY, (ROOM.maxZ + ROOM.minZ) / 2);
     scene.add(ceil);
 
-    // Window behind the table: bright blurred garden, painted frame and mullions, sill with a plant.
-    const winW = 1.5, winH = 1.05, winY = 0.62;
-    const view = new THREE.Mesh(new THREE.PlaneGeometry(winW, winH), new THREE.MeshBasicMaterial({ map: TX.windowViewTexture(), toneMapped: false, color: 0xf2efe6 }));
-    view.position.set(-0.25, winY, ROOM.minZ + 0.002);
-    scene.add(view);
-    const frameMat = new THREE.MeshStandardMaterial({ color: 0xf4efe6, roughness: 0.6 });
-    const bar = (w, h, x, y) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.05), frameMat); m.position.set(-0.25 + x, winY + y, ROOM.minZ + 0.02); scene.add(m); };
-    bar(winW + 0.1, 0.05, 0, winH / 2 + 0.025); bar(winW + 0.1, 0.05, 0, -winH / 2 - 0.025);
-    bar(0.05, winH, -winW / 2 - 0.025, 0); bar(0.05, winH, winW / 2 + 0.025, 0);
-    bar(0.025, winH, 0, 0); bar(winW, 0.022, 0, 0.12);
-    const sill = new THREE.Mesh(new THREE.BoxGeometry(winW + 0.2, 0.03, 0.14), frameMat);
-    sill.position.set(-0.25, winY - winH / 2 - 0.06, ROOM.minZ + 0.07);
-    scene.add(shadowed(sill));
+    // Pot plant on the windowsill.
+    const winY = 0.62, winH = 1.05;
     const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.045, 0.1, 20), glazeMaterial(0xb7664a, { roughness: 0.6 }));
-    pot.position.set(-0.75, winY - winH / 2 - 0.0, ROOM.minZ + 0.07);
+    pot.position.set(-0.75, winY - winH / 2 + 0.005, ROOM.minZ + 0.07);
     scene.add(shadowed(pot));
     const leafMat = new THREE.MeshStandardMaterial({ color: 0x4f7a43, roughness: 0.7, side: THREE.DoubleSide });
     for (let i = 0; i < 9; i++) {
@@ -243,49 +219,9 @@ export function buildKitchen(scene, renderer, quality, progress) {
     scene.add(shadowed(pad, false, true));
   }
 
-  // Tea stand: oak base, two posts, crossbar and brass pegs.
-  {
-    const S = STATION;
-    const g = new THREE.Group();
-    const standWood = new THREE.MeshStandardMaterial({ color: 0x9a6a42, roughness: 0.55, map: wood.map });
-    const base = new THREE.Mesh(new THREE.BoxGeometry(S.baseHalf[0] * 2, S.baseHalf[1] * 2, S.baseHalf[2] * 2), standWood);
-    base.position.set(0, S.baseHalf[1], 0);
-    g.add(base);
-    for (const sx of [-1, 1]) {
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(S.postHalf, S.postHalf * 1.15, S.postHeight, 16), standWood);
-      post.position.set(sx * S.postX, S.postHeight / 2, 0);
-      g.add(post);
-      const knob = new THREE.Mesh(new THREE.SphereGeometry(S.postHalf * 1.5, 16, 12), standWood);
-      knob.position.set(sx * S.postX, S.postHeight + 0.004, 0);
-      g.add(knob);
-    }
-    const bar = new THREE.Mesh(new THREE.CylinderGeometry(S.barHalf, S.barHalf, S.postX * 2, 16), standWood);
-    bar.rotation.z = Math.PI / 2;
-    bar.position.y = S.barY;
-    g.add(bar);
-    const brass = new THREE.MeshStandardMaterial({ color: 0xd4a548, roughness: 0.28, metalness: 1 });
-    for (const px of S.pegXs) {
-      const peg = new THREE.Mesh(new THREE.CylinderGeometry(0.0018, 0.0022, S.pegReach, 10), brass);
-      peg.rotation.x = Math.PI / 2;
-      peg.position.set(px, S.pegY, S.pegReach / 2);
-      g.add(peg);
-      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.0034, 12, 8), brass);
-      tip.position.set(px, S.pegY + 0.002, S.pegReach);
-      g.add(tip);
-    }
-    // little sign
-    const c = document.createElement('canvas'); c.width = 256; c.height = 64;
-    const ctx = c.getContext('2d');
-    ctx.fillStyle = '#efe4cf'; ctx.fillRect(0, 0, 256, 64);
-    ctx.fillStyle = '#7a3b26'; ctx.font = 'bold 34px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText('TEA BAGS', 128, 45);
-    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.025), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 }));
-    sign.position.set(0, S.baseHalf[1] * 2 + 0.0002, 0.02);
-    sign.rotation.x = -Math.PI / 2;
-    g.add(sign);
-    g.position.set(S.x, 0, S.z);
-    scene.add(shadowed(g));
-  }
+  // Tea stands: the kitchen's, and the garden table's (built with the garden).
+  const teaStand = (S) => scene.add(shadowed(buildTeaStand(S, wood)));
+  teaStand(STATION);
 
   // Cups.
   for (const C of CUPS) {
@@ -455,5 +391,49 @@ export function buildKitchen(scene, renderer, quality, progress) {
     scene.add(shadowed(g));
   }
   progress?.('Setting out the china');
+  out.garden = buildGarden(scene, quality, out, teaStand);
   return out;
+}
+
+// Tea stand: oak base, two posts, crossbar and brass pegs.
+function buildTeaStand(S, wood) {
+  const g = new THREE.Group();
+  const standWood = new THREE.MeshStandardMaterial({ color: 0x9a6a42, roughness: 0.55, map: wood.map });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(S.baseHalf[0] * 2, S.baseHalf[1] * 2, S.baseHalf[2] * 2), standWood);
+  base.position.set(0, S.baseHalf[1], 0);
+  g.add(base);
+  for (const sx of [-1, 1]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(S.postHalf, S.postHalf * 1.15, S.postHeight, 16), standWood);
+    post.position.set(sx * S.postX, S.postHeight / 2, 0);
+    g.add(post);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(S.postHalf * 1.5, 16, 12), standWood);
+    knob.position.set(sx * S.postX, S.postHeight + 0.004, 0);
+    g.add(knob);
+  }
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(S.barHalf, S.barHalf, S.postX * 2, 16), standWood);
+  bar.rotation.z = Math.PI / 2;
+  bar.position.y = S.barY;
+  g.add(bar);
+  const brass = new THREE.MeshStandardMaterial({ color: 0xd4a548, roughness: 0.28, metalness: 1 });
+  for (const px of S.pegXs) {
+    const peg = new THREE.Mesh(new THREE.CylinderGeometry(0.0018, 0.0022, S.pegReach, 10), brass);
+    peg.rotation.x = Math.PI / 2;
+    peg.position.set(px, S.pegY, S.pegReach / 2);
+    g.add(peg);
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.0034, 12, 8), brass);
+    tip.position.set(px, S.pegY + 0.002, S.pegReach);
+    g.add(tip);
+  }
+  // little sign
+  const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#efe4cf'; ctx.fillRect(0, 0, 256, 64);
+  ctx.fillStyle = '#7a3b26'; ctx.font = 'bold 34px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText('TEA BAGS', 128, 45);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.025), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 }));
+  sign.position.set(0, S.baseHalf[1] * 2 + 0.0002, 0.02);
+  sign.rotation.x = -Math.PI / 2;
+  g.add(sign);
+  g.position.set(S.x, S.y, S.z);
+  return g;
 }

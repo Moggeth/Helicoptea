@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CFG } from '../config.js';
 import { RAPIER, GROUPS } from '../sim/physics.js';
-import { TABLE } from '../sim/layout.js';
+import { TABLE, surfaceY } from '../sim/layout.js';
 import { cloneHeliPart, makeMaterials, teabagAssets } from './models.js';
 import { buildRealisticHelicopter } from './heliModel.js';
 import { TeaSurface, teaColor } from './water.js';
@@ -486,7 +486,7 @@ export class View {
       if (s.age > 28) s.mesh.visible = false;
     }
     this.updateAir(dt);
-    const floorFn = (x, z) => (Math.abs(x) < TABLE.halfX && Math.abs(z) < TABLE.halfZ ? 0.001 : -0.76);
+    const floorFn = (x, z) => surfaceY(x, z) + 0.001;
     this.fx.update(dt, floorFn, this.windFn);
     this.smoke.update(dt, floorFn, this.windFn);
   }
