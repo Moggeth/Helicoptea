@@ -244,7 +244,35 @@ const climb = (sim) => { run(sim, 1.6, () => ({ ...zero(), collective: 1 })); ru
   check('the latch lets go once the bucket is empty', k.vol === 0 && !k.latched && !k.valveOpen, `${ml(k.vol)}`);
 }
 
-// 10. Cost.
+// 10. Feedback events: wheels touch down, a dragged hose scrapes, a snapping hose snatches.
+{
+  const sim = new Sim({ aircraft: 'skycrane' });
+  const seen = new Set();
+  const tap = () => { for (const e of sim.drainEvents()) seen.add(e.type); };
+  const step = (secs, fn) => { const n = Math.round(secs / sim.dt); for (let i = 0; i < n; i++) { sim.step(fn ? fn() : zero()); tap(); } };
+  step(1.6, () => ({ ...zero(), collective: 1 }));
+  step(1.0, () => ({ ...zero(), reel: 1 }));
+  step(1.0);
+  step(0.5, () => ({ ...zero(), collective: -1 }));
+  const ap = new Autopilot();
+  ap.target.set(sim.heli.pos.x, 0.16, sim.heli.pos.z); ap.maxSpeed = 0.2;
+  step(3, () => ap.update(sim.heli));
+  ap.target.set(sim.heli.pos.x + 0.25, 0.16, sim.heli.pos.z);
+  step(3, () => ap.update(sim.heli));
+  check('a hose dragged across the table scrapes', seen.has('scrape'));
+  ap.target.set(sim.heli.pos.x, 0.45, sim.heli.pos.z); ap.maxSpeed = 0.5;
+  step(2.5, () => ({ ...ap.update(sim.heli), collective: 1 }));
+  check('climbing away snaps the slack hose taut (snatch)', seen.has('snatch'));
+  const fly = () => (sim.heli ? ap.update(sim.heli) : zero());
+  ap.target.set(-0.56, 0.4, 0.24); ap.maxSpeed = 0.25;
+  step(6, fly);
+  ap.target.set(-0.56, 0.2, 0.24); ap.maxSpeed = 0.1;
+  step(4, fly);
+  step(3, () => ({ ...(sim.heli ? ap.update(sim.heli) : zero()), collective: -1 }));
+  check('landing on the wheels gives a touchdown', seen.has('touchdown') && sim.state === 'flying', [...seen].join(', ') + (sim.heli ? ` at ${sim.heli.pos.toArray().map((v) => f(v)).join(',')} grounded ${sim.heli.grounded} clear ${f(sim.heli.skidClearance, 4)}` : ''));
+}
+
+// 11. Cost.
 {
   const sim = new Sim({ aircraft: 'skycrane' });
   sim.heli.tank.vol = TANK_CAPACITY * 0.8;

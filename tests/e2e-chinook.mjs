@@ -84,7 +84,7 @@ try {
     await page.keyboard.press('KeyV');
     await sleep(400);
     s = await st(page);
-    check('V switches to the micro heli on the pad', s.aircraft === 'micro' && s.type === 'micro' && s.y < 0.07, `aircraft ${s.aircraft} y=${s.y?.toFixed(3)}`);
+    check('V switches to the next aircraft (the skycrane) on the pad', s.aircraft === 'skycrane' && s.type === 'skycrane' && s.y < 0.07, `aircraft ${s.aircraft} y=${s.y?.toFixed(3)}`);
     await page.keyboard.press('Escape');
     await sleep(300);
     await page.click('.aircraft-row [data-id="chinook"]');

@@ -130,6 +130,32 @@ class Hose {
         if (wet) { this.submerged = wet; this.depth = wet.waterY - s.pos.y; }
       }
     }
+    this.feedback(dt);
+  }
+
+  // Feedback events shared with the other cargo: a slack hose snapping taut is a 'snatch'; hose dragged
+  // across a surface 'scrape's.
+  feedback(dt) {
+    const sim = this.sim, head = this.segs[this.n - 1];
+    const d = this.anchorWorld.distanceTo(head.pos);
+    const taut = d > this.length * 0.96;
+    if (taut && this.wasSlack) {
+      _c.copy(head.pos).sub(this.anchorWorld).normalize();
+      const rel = _d.copy(head.vel).sub(this.heli.vel).dot(_c);
+      if (rel > 0.12) sim.emit('snatch', { pos: head.pos.clone(), speed: rel, mass: CFG.skycrane.hose.headMass + (this.n - 1) * CFG.skycrane.hose.segMass, hose: true });
+    }
+    if (d < this.length * 0.93) this.wasSlack = true; else if (taut) this.wasSlack = false;
+    this.scrapeT = (this.scrapeT || 0) + dt;
+    if (this.scrapeT > 0.12) {
+      for (const s of this.segs) {
+        const hs = Math.hypot(s.vel.x, s.vel.z);
+        if (hs > 0.08 && Math.abs(s.vel.y) < 0.05 && s.pos.y < s.r + 0.0025 && s.pos.y > -0.01) {
+          this.scrapeT = 0;
+          sim.emit('scrape', { pos: s.pos.clone(), speed: hs * 0.5, hose: true });
+          break;
+        }
+      }
+    }
   }
 
   afterStep() { for (const s of this.segs) s.track.capture(s.body); }
