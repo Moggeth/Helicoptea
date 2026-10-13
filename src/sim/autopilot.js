@@ -19,10 +19,11 @@ export class Autopilot {
     const ap = aim || p;
     const ex = this.target.x - ap.x, ez = this.target.z - ap.z;
     if (Math.hypot(ex, ez) < 0.06) { this.ix += ex * dt; this.iz += ez * dt; } else { this.ix *= 0.99; this.iz *= 0.99; }
+    this.ix = THREE.MathUtils.clamp(this.ix, -0.02, 0.02); this.iz = THREE.MathUtils.clamp(this.iz, -0.02, 0.02);
     const dist = Math.hypot(ex, ez);
-    const sp = Math.min(this.maxSpeed, dist * 1.4);
+    const sp = Math.min(this.maxSpeed, dist * 0.9);
     let vdx = dist > 1e-4 ? ex / dist * sp : 0, vdz = dist > 1e-4 ? ez / dist * sp : 0;
-    let ax = (vdx - v.x) * 2.6 + this.ix * 3, az = (vdz - v.z) * 2.6 + this.iz * 3;
+    let ax = (vdx - v.x) * 1.7 + this.ix * 2, az = (vdz - v.z) * 1.7 + this.iz * 2;
     if (swingVel) { ax -= swingVel.x * 0.9; az -= swingVel.z * 0.9; }
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(heli.quat); fwd.y = 0; fwd.normalize();
     const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0));

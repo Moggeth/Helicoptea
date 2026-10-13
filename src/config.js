@@ -4,6 +4,7 @@
 
 export const CFG = {
   physics: {
+    worldSpeed: 0.55,      // sim seconds per real second: a slower world reads as a bigger, heavier one (Froude scaling)
     hz: 240,               // fixed simulation rate
     maxStepsPerFrame: 12,  // catch-up cap (50 ms of simulation per rendered frame)
     maxFrameDt: 0.1,       // longer stalls (background tab, debugger) are dropped, not replayed
@@ -14,40 +15,41 @@ export const CFG = {
 
   heli: {
     mass: 0.024,                       // 24 g micro helicopter
-    inertia: [5.0e-5, 6.0e-5, 3.6e-5], // body axes: x = pitch, y = yaw, z = roll
+    inertia: [1.5e-4, 1.8e-4, 1.1e-4], // body axes: x = pitch, y = yaw, z = roll (heavy: ~3x a real micro heli)
     rotorRadius: 0.1,
     hookOffset: [0, -0.046, 0],         // cargo hook, directly below the centre of mass
     rotorHubOffset: [0, 0.053, 0],
     skidDrop: 0.047,                   // centre of mass to skid bottom
     thrustToWeight: 2.3,               // full collective, heli alone
-    thrustLag: 0.07,                   // blade pitch + inflow response (s)
-    spoolTime: 0.3,                    // governor response (s)
+    thrustLag: 0.22,                   // blade pitch + inflow response (s); slow, like a big rotor
+    spoolTime: 0.5,                    // governor response (s)
     governorDroop: 0.07,               // rotor speed sag at full collective
     groundEffectMax: 1.22,
     translationalLift: 0.08,
-    dragPlane: 0.05,                   // rotor H-force, N per m/s in the rotor plane
-    dragAxial: 0.065,                  // N per m/s along the rotor axis
-    dragQuad: 0.02,                    // N per (m/s)^2 body drag
-    angDamp: [2.4e-4, 1.7e-4, 2.0e-4], // rotor aerodynamic damping, N m per rad/s
-    cyclicTorque: 5.0e-4,              // N m at full cyclic deflection
-    yawTorque: 3.0e-4,
+    dragPlane: 0.01,                   // rotor H-force, N per m/s in the rotor plane (low: momentum carries)
+    dragAxial: 0.035,                  // N per m/s along the rotor axis
+    dragQuad: 0.22,                    // N per (m/s)^2 body drag: caps top speed, lets slow drift glide
+    angDamp: [4.3e-4, 3.0e-4, 3.6e-4], // rotor aerodynamic damping, N m per rad/s
+    cyclicTorque: 9.0e-4,              // N m at full cyclic deflection
+    yawTorque: 5.0e-4,
     reactionTorque: 6.0e-5,            // main-rotor torque change with collective (yaw coupling)
     collectiveRate: 0.55,              // assist off: collective change per second at full stick
     idleCollective: 0.12,
   },
 
   assist: {
-    maxTilt: 0.38,          // rad of commanded tilt at full cyclic (~22 deg)
-    tiltKp: 190,            // attitude natural frequency^2
-    tiltKd: 18,
+    maxTilt: 0.24,          // rad of commanded tilt at full cyclic (~14 deg)
+    tiltSlew: 0.45,         // rad/s: how fast the commanded attitude moves (smooth, heavy feel)
+    tiltKp: 75,             // attitude stiffness: firm enough to hold against string and wash torques
+    tiltKd: 12,
     torqueLimit: 1.6,       // x cyclicTorque
-    driftDamping: 0.11,     // rad of counter-tilt per m/s of drift, only near neutral cyclic
-    driftTiltMax: 0.09,
-    yawRate: 2.2,           // rad/s at full yaw input
-    yawKp: 14,
-    climbRate: 0.55,        // m/s at full collective input
-    sinkRate: 0.42,
-    vKp: 8,                 // vertical speed loop (1/s)
+    driftDamping: 0.04,     // rad of counter-tilt per m/s of drift, only near neutral cyclic (a little)
+    driftTiltMax: 0.05,
+    yawRate: 1.4,           // rad/s at full yaw input
+    yawKp: 8,
+    climbRate: 0.42,        // m/s at full collective input
+    sinkRate: 0.34,
+    vKp: 4.5,               // vertical speed loop (1/s)
     vKi: 1.3,               // integrator (g per m/s per s): learns cargo weight, so lifting a bag sags first
     integMin: -0.5,
     integMax: 1.4,

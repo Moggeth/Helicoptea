@@ -239,3 +239,6 @@ body:not(.touch-ui) .rotate-nudge { display: none !important; }
 .panel button:focus-visible, .panel input:focus-visible, .panel select:focus-visible, .crash button:focus-visible, #start-btn:focus-visible { outline: 3px solid var(--honey); outline-offset: 3px; }
 .panel label.opt:focus-within { background: rgba(242,184,75,0.14); border-radius: 8px; }
 body.pad-nav .panel :focus, body.pad-nav .crash :focus, body.pad-nav #start-btn:focus { outline: 3px solid var(--honey); outline-offset: 3px; }
+.weight-row { display: inline-flex; align-items: center; gap: 6px; }
+.weight-row small { font-size: 11px; color: var(--ink-soft); }
+.weight-row input { width: 140px; accent-color: var(--terracotta); }

@@ -79,6 +79,7 @@ export class Helicopter {
     this.predVel = new THREE.Vector3();
     this.impactAcc = 0;
     this.turb = [0, 0, 0];
+    this.cmdPitch = 0; this.cmdRoll = 0;
     this.updateCached();
   }
 
@@ -123,6 +124,10 @@ export class Helicopter {
     // Bumpless transfer when the assist is toggled.
     if (this.lastAssist !== assist) {
       if (assist) {
+        _fwd.set(0, 0, -1).applyQuaternion(q); _fwd.y = 0; _fwd.normalize();
+        _right.crossVectors(_fwd, Y);
+        this.cmdPitch = THREE.MathUtils.clamp(Math.atan2(up.dot(_fwd), up.y), -A.maxTilt, A.maxTilt);
+        this.cmdRoll = THREE.MathUtils.clamp(Math.atan2(up.dot(_right), up.y), -A.maxTilt, A.maxTilt);
         const cur = this.thrust * Math.max(up.y, 0.5);
         this.integ = this.grounded || this.thrust < 1e-6 ? 0 : THREE.MathUtils.clamp(cur / weight - 1, A.integMin, A.integMax);
       }
@@ -171,7 +176,8 @@ export class Helicopter {
     const vAx = up.dot(vel);
     _c.copy(up).multiplyScalar(vAx);
     _d.copy(vel).sub(_c);
-    F.addScaledVector(_d, -H.dragPlane).addScaledVector(_c, -H.dragAxial).addScaledVector(vel, -H.dragQuad * vel.length());
+    // Quadratic drag mostly in the rotor plane: caps cruise speed but lets the heli drop hard.
+    F.addScaledVector(_d, -H.dragPlane - H.dragQuad * _d.length()).addScaledVector(_c, -H.dragAxial).addScaledVector(vel, -0.02 * vel.length());
 
     body.resetForces(true);
     body.resetTorques(true);
@@ -195,9 +201,13 @@ export class Helicopter {
       if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, -1);
       _fwd.normalize();
       _right.crossVectors(_fwd, Y);
+      // The commanded attitude glides towards the stick (heavy, smooth), but is then held firmly.
+      const step = A.tiltSlew * dt;
+      this.cmdPitch += THREE.MathUtils.clamp(ctl.pitch * A.maxTilt - this.cmdPitch, -step, step);
+      this.cmdRoll += THREE.MathUtils.clamp(ctl.roll * A.maxTilt - this.cmdRoll, -step, step);
       const desired = new THREE.Vector3(0, 1, 0)
-        .addScaledVector(_fwd, Math.tan(ctl.pitch * A.maxTilt))
-        .addScaledVector(_right, Math.tan(ctl.roll * A.maxTilt));
+        .addScaledVector(_fwd, Math.tan(this.cmdPitch))
+        .addScaledVector(_right, Math.tan(this.cmdRoll));
       const neutral = 1 - Math.min(1, Math.hypot(ctl.pitch, ctl.roll) * 1.6);
       if (neutral > 0) {
         const dx = THREE.MathUtils.clamp(-vel.x * A.driftDamping, -A.driftTiltMax, A.driftTiltMax);

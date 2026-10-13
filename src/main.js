@@ -106,6 +106,11 @@ async function boot() {
   let paused = false;
   let started = false;
   const state = { assist: store.get('assist', '1') === '1' };
+  // World weight: how slowly the whole world runs (a slower world reads as bigger and heavier).
+  let weight = parseFloat(store.get('weight', '0.75'));
+  if (!(weight >= 0 && weight <= 1)) weight = 0.75;
+  const speedOf = (w) => 1 - 0.6 * w;
+  let worldSpeed = params.get('worldSpeed') ? parseFloat(params.get('worldSpeed')) : speedOf(weight);
   sim.assist = state.assist;
   const hud = new Hud($('hud'), {
     action: (a, el) => doAction(a, el),
@@ -113,6 +118,7 @@ async function boot() {
     setting: (k, v) => {
       if (k === 'quality') { store.set('quality', v); location.reload(); }
       if (k === 'debug') { debug.enabled = v; store.set('debug', v ? '1' : '0'); }
+      if (k === 'weight') { weight = v; worldSpeed = speedOf(v); store.set('weight', String(v)); }
     },
   });
   const flow = new Flow(sim, hud);
@@ -126,7 +132,7 @@ async function boot() {
     paused = p;
     audio.suspend(p);
     input.enabled = !p;
-    if (p) hud.openPause({ quality: quality.setting, debug: debug.enabled });
+    if (p) hud.openPause({ quality: quality.setting, debug: debug.enabled, weight });
     else hud.closeModal();
   }
 
@@ -144,7 +150,7 @@ async function boot() {
       case 'pause': setPaused(!paused); break;
       case 'resume': setPaused(false); break;
       case 'help': if (hud.modalKind === 'help') hud.closeModal(); else { hud.openHelp(); } break;
-      case 'closehelp': hud.closeModal(); if (paused) hud.openPause({ quality: quality.setting, debug: debug.enabled }); break;
+      case 'closehelp': hud.closeModal(); if (paused) hud.openPause({ quality: quality.setting, debug: debug.enabled, weight }); break;
       case 'helptab': hud.setHelpTab(el.dataset.tab); break;
       case 'mute': audio.setMuted(!audio.muted); hud.setVolume(audio.volume, audio.muted); break;
       case 'debug': debug.enabled = !debug.enabled; store.set('debug', debug.enabled ? '1' : '0'); break;
@@ -154,7 +160,7 @@ async function boot() {
       case 'closecontroller':
         input.pads.cancelWizard();
         hud.closeModal();
-        if (paused) hud.openPause({ quality: quality.setting, debug: debug.enabled });
+        if (paused) hud.openPause({ quality: quality.setting, debug: debug.enabled, weight });
         break;
       case 'padbind':
         if (!input.pads.startWizard((v) => hud.showWizard(v))) hud.toast('Press any button on your controller first so the browser can see it');
@@ -272,7 +278,7 @@ async function boot() {
     let steps = 0;
     const tPhys = performance.now();
     if (started && !paused) {
-      acc += frameDt;
+      acc += frameDt * worldSpeed;
       while (acc >= dt && steps < CFG.physics.maxStepsPerFrame) {
         sim.step(ctl);
         acc -= dt;
@@ -312,7 +318,7 @@ async function boot() {
 
     // Camera.
     const rd = started && !paused ? frameDt : 0;
-    view.update(alpha, rd, camera);
+    view.update(alpha, rd * worldSpeed, camera); // world effects share the world's clock
     camRig.orbitYaw = input.camOrbit.yaw;
     camRig.orbitPitch = THREE.MathUtils.clamp(input.camOrbit.pitch, -0.35, 0.7);
     camRig.zoom = THREE.MathUtils.clamp(1 + input.camOrbit.zoom, CFG.camera.minDistance / CFG.camera.distance, CFG.camera.maxDistance / CFG.camera.distance);
@@ -332,7 +338,7 @@ async function boot() {
     });
 
     // HUD.
-    if (started && !paused) flow.update(frameDt);
+    if (started && !paused) flow.update(frameDt * worldSpeed);
     if (!sim.assist && h) {
       const extra = sim.carriedBag() ? sim.carriedBag().mass : 0;
       hud.setCollective(h.collective, Math.min(1, (CFG.heli.mass + extra) / (CFG.heli.mass * CFG.heli.thrustToWeight)));
@@ -360,7 +366,7 @@ async function boot() {
   requestAnimationFrame(frame);
 
   // Expose a tiny handle for console debugging and automated checks.
-  window.__helicoptea = { post, Autopilot, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
+  window.__helicoptea = { get worldSpeed() { return worldSpeed; }, post, Autopilot, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
 }
 
 boot().catch((err) => showError('Helicoptea failed to start. Please reload.', err));

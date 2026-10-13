@@ -49,7 +49,10 @@ async function open(viewport, opts = {}) {
   const logs = [];
   page.on('console', (m) => logs.push(`[${m.type()}] ${m.text()}`));
   page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
-  await page.goto(base + (opts.query || ''), { waitUntil: 'load' });
+  // Scripted timings assume real-time world speed; the default (heavier, slower) world is checked separately.
+  const q = opts.query || '';
+  const query = opts.defaultSpeed ? q : (q ? q + '&' : '?') + 'worldSpeed=1';
+  await page.goto(base + query, { waitUntil: 'load' });
   await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
   return { ctx, page, logs };
 }
@@ -241,6 +244,22 @@ try {
     await ctx.close();
   }
 
+  // ------------------------------------------------------------ default (heavy) world speed
+  if (!only || only === 'heavy') {
+    const { ctx, page } = await open({ width: 1280, height: 720 }, { defaultSpeed: true });
+    await start(page);
+    const ws = await page.evaluate(() => window.__helicoptea.worldSpeed);
+    await page.keyboard.down('KeyW'); await sleep(2600); await page.keyboard.up('KeyW');
+    await sleep(2500);
+    const s = await st(page);
+    check('default heavy world (speed 0.55): W lifts off and assist settles', Math.abs(ws - 0.55) < 1e-6 && s.y > 0.15 && Math.abs(s.vy) < 0.06, `worldSpeed ${ws} y=${s.y?.toFixed(3)} vy=${s.vy?.toFixed(3)}`);
+    await page.keyboard.press('Escape'); await sleep(200);
+    await page.evaluate(() => { const r = document.querySelector('[data-setting=weight]'); r.value = '0'; r.dispatchEvent(new Event('input')); });
+    const ws2 = await page.evaluate(() => window.__helicoptea.worldSpeed);
+    check('Weight slider changes world speed live', Math.abs(ws2 - 1) < 1e-6, `light -> ${ws2}`);
+    await ctx.close();
+  }
+
   // ------------------------------------------------------------ variable frame rate (30 fps cap)
   if (!only || only === 'fps') {
     const { ctx, page } = await open({ width: 1280, height: 720 }, { query: '?fps=30' });
@@ -291,7 +310,7 @@ try {
     await press(8);
     let u = await ui();
     check('pad: Back/View opens the pause menu', u.paused && u.modal === 'Paused', JSON.stringify(u));
-    for (let i = 0; i < 5; i++) await press(13);
+    for (let i = 0; i < 6; i++) await press(13);
     u = await ui();
     check('pad: d-pad moves menu focus', /Settings/.test(u.focus), `focus "${u.focus}"`);
     await press(0);
