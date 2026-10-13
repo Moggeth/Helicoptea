@@ -1,6 +1,6 @@
 # Helicoptea
 
-Fly a 24 g scale-model helicopter (a deliberately serious, realistic light utility helicopter) around a cosy kitchen table, hook a tea bag on its string, and dip it into a cup until the tea turns the colour you like. The bag swings, soaks up water, gets heavier, drips, and pulls on the helicopter the whole time. Crash hard and it explodes into its parts.
+Fly a 24 g scale-model helicopter (a deliberately serious, realistic light utility helicopter) around a cosy kitchen table, out through the back door or the open window into a little tea garden, hook a tea bag on its string, and dip it into a cup until the tea turns the colour you like. The bag swings, soaks up water, gets heavier, drips, and pulls on the helicopter the whole time. Crash hard and it explodes into its parts.
 
 Three.js (r169) for rendering, Rapier 3D (0.14, WASM) for rigid bodies and contacts. Everything visual and audible is generated procedurally at runtime, so there are no external asset files (see [docs/ATTRIBUTION.md](docs/ATTRIBUTION.md)).
 
@@ -11,6 +11,10 @@ Pick on the start screen, in **Pause → Aircraft**, or press **V** in flight (`
 ## Milk
 
 A Bambi-style milk bucket hangs on its own little hanger beside a stoneware milk crock. Hook it like a bag, lower it into the crock and it fills through a one-way valve in its base until the levels match; lift it out and it keeps the milk. Fly it over a cup and hold **G** (gamepad **RB**, touch **Pour**) to open the release valve: the milk falls as a stream that the rotor wash pushes about. Milk that lands in a cup mixes in and lightens the tea; milk that misses splashes and leaves a puddle that slowly soaks in. A full bucket weighs about 16 g, sloshes, and slops over the rim if you jerk it. See [docs/DESIGN.md](docs/DESIGN.md#milk-srcsimmilkjs).
+
+## The house and the tea garden
+
+Seven cups to brew in: the mug and teacup on the kitchen table, a teacup on the windowsill, a mug by the kettle on the counter, and in the garden a teacup on the garden table, a mug on the tree stump and one on the bench. The garden table has its own tea stand. Fly out through the back door or, more carefully, through a pane of the open window; under the rose arch; low over the meadow grass and watch the rotor wash flatten it. No missions: it's an obstacle course for practising. See [docs/DESIGN.md](docs/DESIGN.md#house-and-tea-garden-srcsimhousejs-srcrendergardenjs).
 
 ## Rotor wash, AO
 
@@ -38,7 +42,7 @@ Click **Start flying** (this also unlocks browser audio).
 ## Tests
 
 ```bash
-npm run check                        # headless physics checks, both aircraft (Node only, ~2 min)
+npm run check                        # headless physics checks: both aircraft and the house + garden (Node only)
 node tests/e2e.mjs                   # browser checks against npm run preview (port 4178)
 node tests/e2e.mjs http://localhost:5178/ --headed --only=desktop
 node tests/e2e-chinook.mjs           # Chinook through keyboard, gamepad and touch, picker, breakup
@@ -75,7 +79,7 @@ node tests/e2e-milk.mjs              # milk bucket: hook, dip, carry, pour with 
 - `?debug=1` or the backquote key shows frame time, physics time, body counts, draw calls, live inputs, assist state, collective, thrust/weight, rotor speed, cargo mass, wetness, immersion, string tension and brew levels. F4 (with the overlay open) draws the physics colliders.
 - `?quality=low|medium|high` overrides automatic quality (also in the pause menu). `?fps=30` caps rendering to test variable frame rates (physics stays at 240 Hz).
 - `window.__helicoptea` exposes the sim, view, input and an `Autopilot` class for console experiments.
-- **All tuning lives in [src/config.js](src/config.js)**: physics rate, helicopter mass/inertia/thrust/drag/damping, assist gains, cargo mass, water capacity, buoyancy, liquid drag, soak/drain/brew times, crash thresholds, camera and input curves. Table layout is in [src/sim/layout.js](src/sim/layout.js).
+- **All tuning lives in [src/config.js](src/config.js)**: physics rate, helicopter mass/inertia/thrust/drag/damping, assist gains, cargo mass, water capacity, buoyancy, liquid drag, soak/drain/brew times, crash thresholds, camera and input curves. Table, house and garden layout is in [src/sim/layout.js](src/sim/layout.js).
 - Startup logs one line with load time, quality tier, pixel ratio, GPU and Rapier version. Fatal errors and WebGL context loss show a recoverable error screen. Nothing is logged per frame.
 
 ## Project layout

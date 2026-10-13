@@ -241,8 +241,8 @@ export function buildKitchen(scene, renderer, quality, progress) {
   }
 
   // Tea stands: the kitchen's, and the garden table's (built with the garden).
-  const teaStand = (S) => scene.add(shadowed(buildTeaStand(S, wood)));
-  teaStand(STATION);
+  const teaStand = (S) => buildTeaStand(S, wood);
+  scene.add(shadowed(teaStand(STATION)));
 
   // Cups.
   for (const C of CUPS) {

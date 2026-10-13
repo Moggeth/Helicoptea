@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ROOM, WALL_T, GARDEN, PATIO, GTABLE, GTEAPOT, GJAR, GCHAIRS, ARCH, BIRDBATH, STUMP, BENCH, TREE, POTS, HEDGE, GARDEN_STATION } from '../sim/layout.js';
+import { TABLE, ROOM, WALL_T, GARDEN, PATIO, GTABLE, GTEAPOT, GJAR, GCHAIRS, ARCH, BIRDBATH, STUMP, BENCH, TREE, POTS, HEDGE, GARDEN_STATION } from '../sim/layout.js';
 import { glazeMaterial, handleGeometry } from './models.js';
 import { Batcher, T, boxUV, planeUV, blobGeometry } from './batch.js';
 import { flagTexture, boardTexture, barkTexture, leafTexture, foliageTexture, groundTexture, grassMask, makeNoise } from './gardenTextures.js';
@@ -16,6 +16,7 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
   const tier = quality.name;
   const q = tier === 'high' ? 1 : tier === 'medium' ? 0.55 : 0.3;
   const shadows = quality.shadows > 0;
+  const decor = { cast: tier === 'high' }; // small decor casts shadows only on the high tier
   const fy = ROOM.floorY;
   const rnd = mulberry(4242);
   const b = new Batcher();
@@ -56,7 +57,7 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
     patio.receiveShadow = true;
     scene.add(patio);
     // Edging between patio and lawn.
-    b.add(new THREE.BoxGeometry(pw, 0.02, 0.05), new THREE.MeshStandardMaterial({ map: flags, roughness: 0.9 }), T((PATIO.minX + PATIO.maxX) / 2, fy + 0.01, PATIO.minZ), 0xcfc2aa);
+    b.add(new THREE.BoxGeometry(pw, 0.02, 0.05), new THREE.MeshStandardMaterial({ map: flags, roughness: 0.9 }), T((PATIO.minX + PATIO.maxX) / 2, fy + 0.01, PATIO.minZ), 0xcfc2aa, { cast: false });
   }
   const mask = grassMask(tier === 'high' ? 512 : 384);
   const grass = new Grass(scene, quality, mask, shadows && tier === 'high');
@@ -86,12 +87,12 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
       for (let i = 0; i < nb; i++) {
         const t = (i + 0.5) / nb;
         const hh = H + (rnd() - 0.5) * 0.015;
-        b.add(boxUV(0.098, hh, 0.018, 1), fenceMat, T(x0 + (x1 - x0) * t, fy + hh / 2 + 0.05, z0 + (z1 - z0) * t, yaw), shade(rnd, 0.85, 1.05));
+        b.add(boxUV(0.098, hh, 0.018, 1), fenceMat, T(x0 + (x1 - x0) * t, fy + hh / 2 + 0.05, z0 + (z1 - z0) * t, yaw), shade(rnd, 0.85, 1.05), decor);
       }
       const np = Math.max(1, Math.round(len / 1.8));
       for (let i = 0; i <= np; i++) {
         const t = i / np;
-        b.add(boxUV(0.09, H + 0.12, 0.09, 1), fenceMat, T(x0 + (x1 - x0) * t, fy + (H + 0.12) / 2, z0 + (z1 - z0) * t, yaw), 0x9a8c7a);
+        b.add(boxUV(0.09, H + 0.12, 0.09, 1), fenceMat, T(x0 + (x1 - x0) * t, fy + (H + 0.12) / 2, z0 + (z1 - z0) * t, yaw), 0x9a8c7a, decor);
       }
       for (const y of [0.25, H - 0.15]) b.add(boxUV(len, 0.07, 0.03, 1), fenceMat, T((x0 + x1) / 2, fy + y, (z0 + z1) / 2, yaw), 0x8d7f6e, { cast: false });
       b.add(boxUV(len, 0.12, 0.03, 1), fenceMat, T((x0 + x1) / 2, fy + 0.06, (z0 + z1) / 2, yaw), 0x7b7064, { cast: false });
@@ -107,7 +108,7 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
     for (let i = 0; i < nSeg; i++) {
       const x = G.minX + (i + 0.5) / nSeg * (G.maxX - G.minX);
       const g = blobGeometry(0.5, 2, i * 1.7, 0.12);
-      b.add(g, leafy, T(x, fy + hh * 0.5, hz, rnd() * 6, 0, 0, (G.maxX - G.minX) / nSeg * 1.25, hh * 1.0, hd * 1.05), 0xb8c8a8);
+      b.add(g, leafy, T(x, fy + hh * 0.5, hz, rnd() * 6, 0, 0, (G.maxX - G.minX) / nSeg * 1.25, hh * 1.0, hd * 1.05), 0xb8c8a8, decor);
     }
     const pts = [];
     const n = Math.round(2600 * q);
@@ -132,7 +133,7 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
       b.add(boxUV(0.05, h, 0.05, 1), teak, T(Tb.x + sx * (Tb.halfX - 0.07), fy + h / 2, Tb.z + sz * (Tb.halfZ - 0.06)), 0xd8c8b0);
     }
     for (const sz of [-1, 1]) b.add(boxUV(Tb.halfX * 2 - 0.1, 0.06, 0.025, 1), teak, T(Tb.x, top - 0.06, Tb.z + sz * (Tb.halfZ - 0.06)), 0xd8c8b0);
-    teaStand(GARDEN_STATION);
+    bakeGroup(b, teaStand(GARDEN_STATION));
     // Teapot: cream glaze with a green band.
     const P = GTEAPOT;
     const g = new THREE.Group();
@@ -159,8 +160,7 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
     g.add(handle);
     g.position.set(P.x, top, P.z);
     g.rotation.y = Math.PI * 0.85;
-    g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-    scene.add(g);
+    bakeGroup(b, g);
     // Jam jar of garden flowers.
     const J = GJAR;
     const jarGlass = new THREE.MeshPhysicalMaterial({ color: 0xd8ebe4, roughness: 0.05, transparent: true, opacity: 0.35, depthWrite: false });
@@ -178,12 +178,12 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
       const a = i / 5 * Math.PI * 2 + 0.3, lean = 0.025 + rnd() * 0.02;
       const tip = new THREE.Vector3(J.x + Math.cos(a) * lean, top + J.h + 0.05 + rnd() * 0.04, J.z + Math.sin(a) * lean);
       const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(J.x + Math.cos(a) * 0.01, top + 0.01, J.z + Math.sin(a) * 0.01), new THREE.Vector3(J.x + Math.cos(a) * 0.012, top + J.h, J.z + Math.sin(a) * 0.012), tip);
-      b.add(new THREE.TubeGeometry(curve, 10, 0.0022, 5, false), stemMat, null);
+      b.add(new THREE.TubeGeometry(curve, 10, 0.0022, 5, false), stemMat, null, 0xffffff, decor);
       for (let k = 0; k < 8; k++) {
         const pa = k / 8 * Math.PI * 2;
-        b.add(new THREE.SphereGeometry(0.011, 8, 5), foliage, T(tip.x + Math.cos(pa) * 0.011, tip.y, tip.z + Math.sin(pa) * 0.011, -pa, 0, 0, 1, 0.3, 0.5), heads[i]);
+        b.add(new THREE.SphereGeometry(0.011, 8, 5), foliage, T(tip.x + Math.cos(pa) * 0.011, tip.y, tip.z + Math.sin(pa) * 0.011, -pa, 0, 0, 1, 0.3, 0.5), heads[i], decor);
       }
-      b.add(new THREE.SphereGeometry(0.0055, 8, 6), foliage, T(tip.x, tip.y + 0.002, tip.z), 0xc98a1b);
+      b.add(new THREE.SphereGeometry(0.0055, 8, 6), foliage, T(tip.x, tip.y + 0.002, tip.z), 0xc98a1b, decor);
     }
     // Bistro chairs (painted iron): seat, splayed legs, hoop back.
     for (const [x, z, yaw] of GCHAIRS) {
@@ -238,7 +238,7 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
     }
     leafGroups.push(leafCards(scene, grass.uniforms, pts, { size: 0.085, hue: 108, light: 0.9, cast: shadows && tier === 'high', shadows }));
     const rose = [0xd94f6e, 0xf0a5b5, 0xc23a55];
-    for (const [x, y, z] of blooms) b.add(blobGeometry(0.015, 1, x * 9, 0.3), foliage, T(x, y, z, rnd() * 6, 0, 0, 1, 0.7, 1), rose[Math.floor(rnd() * 3)]);
+    for (const [x, y, z] of blooms) b.add(blobGeometry(0.015, 1, x * 9, 0.3), foliage, T(x, y, z, rnd() * 6, 0, 0, 1, 0.7, 1), rose[Math.floor(rnd() * 3)], decor);
   }
 
   // ---------------------------------------------------------------- bird bath, stump, bench, pots
@@ -280,7 +280,7 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
       const pp = [V2(0.0001, 0), V2(r * 0.75, 0), V2(r * 0.95, h * 0.85), V2(r * 1.05, h * 0.86), V2(r * 1.05, h), V2(r * 0.92, h), V2(r * 0.9, h * 0.92), V2(0.0001, h * 0.92)];
       b.add(new THREE.LatheGeometry(pp, 28), terracotta, T(x, fy, z), shade(rnd, 0.9, 1.05));
       b.add(new THREE.CircleGeometry(r * 0.9, 20), soil, T(x, fy + h * 0.92, z, 0, -Math.PI / 2));
-      b.add(blobGeometry(r * 0.75, 1, x, 0.25), leafy, T(x, fy + h + r * 0.25, z, 0, 0, 0, 1, 0.8, 1), 0xb0c0a0);
+      b.add(blobGeometry(r * 0.75, 1, x, 0.25), leafy, T(x, fy + h + r * 0.25, z, 0, 0, 0, 1, 0.8, 1), 0xb0c0a0, decor);
       for (let k = 0; k < Math.round(70 * q + 20); k++) {
         _v.set(rnd() * 2 - 1, rnd() * 0.9 + 0.1, rnd() * 2 - 1).normalize();
         herbs.push([x + _v.x * r * 0.85, fy + h + r * 0.2 + _v.y * r * 0.7, z + _v.z * r * 0.85, _v.x, _v.y, _v.z]);
@@ -312,12 +312,12 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
     for (let i = 0; i < Math.round(28 * q + 6); i++) {
       const [dx, y, dz, r] = R.canopy[Math.floor(rnd() * R.canopy.length)];
       _v.set(rnd() * 2 - 1, -rnd(), rnd() * 2 - 1).normalize();
-      b.add(new THREE.SphereGeometry(0.035, 12, 9), glazeMaterial(0xffffff, { roughness: 0.45, extra: { clearcoat: 0.3 } }), T(R.x + dx + _v.x * r * 0.9, y + _v.y * r * 0.8, R.z + dz + _v.z * r * 0.9), rnd() < 0.7 ? 0xb3261e : 0x9fb53a);
+      b.add(new THREE.SphereGeometry(0.035, 12, 9), glazeMaterial(0xffffff, { roughness: 0.45, extra: { clearcoat: 0.3 } }), T(R.x + dx + _v.x * r * 0.9, y + _v.y * r * 0.8, R.z + dz + _v.z * r * 0.9), rnd() < 0.7 ? 0xb3261e : 0x9fb53a, decor);
     }
   }
 
   // ---------------------------------------------------------------- beyond the fence: neighbours' trees
-  {
+  if (tier !== 'low') {
     const n = Math.round(14 * q + 4);
     for (let i = 0; i < n; i++) {
       const side = i % 3;
@@ -346,6 +346,7 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
   const sunOff = sun.position.clone().sub(sun.target.position);
   const texel = (sun.shadow.camera.right - sun.shadow.camera.left) / sun.shadow.mapSize.x;
   const centre = new THREE.Vector3();
+  const tableShadow = sun.target.position.clone();
   return {
     grass,
     update(dt, focus, camera, sim) {
@@ -353,7 +354,7 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
       wind.uTime.value = t;
       // Breeze slowly veers and freshens.
       const bd = 0.6 + 0.35 * Math.sin(t * 0.05);
-      wind.uBreeze.value.set(Math.cos(bd), Math.sin(bd), 0.75 + 0.25 * Math.sin(t * 0.13 + 1), 0.6);
+      wind.uBreeze.value.set(Math.cos(bd), Math.sin(bd), 0.55 + 0.2 * Math.sin(t * 0.13 + 1), 0.65);
       // Rotor wakes on the lawn: grass leans with a little lag and springs back slower than it flattens.
       const air = sim && sim.air;
       for (let i = 0; i < 2; i++) {
@@ -372,8 +373,10 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
       // Dense grass around the camera and what it's looking at.
       centre.copy(camera.position).lerp(focus, 0.6);
       grass.update(centre, camera);
-      // The sun's shadow map follows the action (snapped to texels to stop shimmering).
-      _c.copy(focus);
+      // The sun's shadow map follows the action (snapped to texels to stop shimmering). Over the kitchen
+      // table it stays framed on the table exactly as before.
+      const away = Math.max(Math.abs(focus.x) - TABLE.halfX, Math.abs(focus.z - 0.05) - TABLE.halfZ, 0);
+      _c.copy(tableShadow).lerp(focus, THREE.MathUtils.smoothstep(away, 0.1, 0.6));
       _c.x = Math.round(_c.x / texel) * texel; _c.z = Math.round(_c.z / texel) * texel; _c.y = Math.round(_c.y / texel) * texel;
       sun.target.position.copy(_c);
       sun.position.copy(_c).add(sunOff);
@@ -510,6 +513,12 @@ function taperTube(curve, r0, r1, seg, radial) {
   }
   g.computeVertexNormals();
   return g;
+}
+
+// Static groups (the garden's tea stand and teapot) go into the batches: a few draw calls instead of a dozen.
+function bakeGroup(b, group) {
+  group.updateMatrixWorld(true);
+  group.traverse((o) => { if (o.isMesh) b.add(o.geometry, o.material, o.matrixWorld); });
 }
 
 function shade(rnd, a, b) { const k = a + (b - a) * rnd(); return new THREE.Color(k, k, k).getHex(); }

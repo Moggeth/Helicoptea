@@ -6,7 +6,7 @@ import { GARDEN } from '../sim/layout.js';
 // pressed-flat core and rings of gusts running outward). The wakes come from the sim's air field.
 export const windUniforms = () => ({
   uTime: { value: 0 },
-  uBreeze: { value: new THREE.Vector4(0.8, 0.6, 0.85, 0.6) }, // dir x, dir z, speed (m/s), gustiness
+  uBreeze: { value: new THREE.Vector4(0.8, 0.6, 0.6, 0.6) }, // dir x, dir z, speed (m/s), gustiness
   uWake0: { value: new THREE.Vector4(0, 0, 0, 0.1) },         // impingement x, z, wake speed, footprint radius
   uWake1: { value: new THREE.Vector4(0, 0, 0, 0.1) },
   uHub0: { value: new THREE.Vector4() },                      // rotor hub x, y, z, induced velocity (for foliage)
@@ -27,7 +27,7 @@ export const WIND_GLSL = `
     vec2 n = d / r;
     float v;
     if (r < R) { v = wk.z * (r / R); press = wk.z * (1.0 - r / R); }
-    else v = wk.z * pow(R / r, 0.8) * exp(-(r - R) / (6.0 * R));
+    else v = wk.z * pow(R / r, 0.6) * exp(-(r - R) / (8.0 * R));
     v *= 0.78 + 0.22 * sin(r * 45.0 - uTime * 26.0);              // gust rings running outward
     float sw = sin(uTime * 7.0 + gHash12(floor(p * 40.0)) * 6.28) * 0.9 * (1.0 - smoothstep(0.0, 1.6 * R, r));
     n = mat2(cos(sw), -sin(sw), sin(sw), cos(sw)) * n;             // churning near the core
@@ -86,7 +86,7 @@ const VERT_HEAD = `
     float sp = length(wv);
     vec2 lean = vec2(cos(h1 * 6.2832), sin(h1 * 6.2832)) * (0.12 + 0.25 * h2.y) * mix(1.0, 0.4, flower);
     float give = (0.75 + 0.6 * mk.g) * mix(1.0, 0.7, flower);
-    vec2 bend = lean + (sp > 1e-4 ? wv / sp : vec2(0.0)) * atan(sp * sp * 0.2) * 1.2 * give;
+    vec2 bend = lean + (sp > 1e-4 ? wv / sp : vec2(0.0)) * atan(sp * sp * 0.45) * 1.25 * give;
     bend += (sp > 1e-4 ? vec2(-wv.y, wv.x) / sp : vec2(0.0)) * sin(uTime * (5.0 + 5.0 * h2.y) + h1 * 6.28 + dot(root, vec2(23.0, 17.0))) * (0.03 + 0.07 * sp) * give;
     bend += normalize(lean + 1e-4) * press * 0.7;
     float theta = clamp(length(bend), 0.0, 1.5);
@@ -125,7 +125,7 @@ export class Grass {
     const G = GARDEN;
     // Layers per quality tier: cell size (m) and window size in cells. The far layer covers the garden.
     const near = tier === 'high' ? { cell: 0.0058, n: 340 } : tier === 'medium' ? { cell: 0.0085, n: 170 } : { cell: 0.012, n: 104 };
-    const farCell = tier === 'high' ? 0.03 : tier === 'medium' ? 0.042 : 0.058;
+    const farCell = tier === 'high' ? 0.03 : tier === 'medium' ? 0.05 : 0.065;
     const far = { cell: farCell, nx: Math.ceil((G.maxX - G.minX) / farCell), nz: Math.ceil((G.maxZ - G.minZ) / farCell) };
     this.near = this.layer(near.n, near.n, near.cell, { width: 0.0026, hMin: 0.03, hMax: 0.26, near: true, segs: tier === 'low' ? 2 : 3 }, shadows);
     this.far = this.layer(far.nx, far.nz, far.cell, { width: 0.0075, hMin: 0.03, hMax: 0.24, near: false, segs: 2 }, shadows);

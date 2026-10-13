@@ -8,7 +8,7 @@ import { Batcher, T, boxUV, planeUV } from './batch.js';
 // The kitchen's walls as solid brick with plaster inside, the open back door and casement window, and
 // the roof seen from the garden.
 export function buildHouseShell(scene, quality) {
-  const b = new Batcher();
+  const b = new Batcher(), panes = new Batcher();
   const fy = ROOM.floorY, cy = ROOM.ceilingY;
   const plasterTex = TX.plasterTexture();
   plasterTex.repeat.set(1 / 1.6, 1 / 1.23);
@@ -30,7 +30,7 @@ export function buildHouseShell(scene, quality) {
   // Back wall pieces: brick volume, plaster skin on the room side.
   for (const [x0, x1, y0, y1] of backWallPieces()) {
     const w = x1 - x0, h = y1 - y0;
-    b.add(boxUV(w, h, WALL_T - 0.002, 1), brick, T((x0 + x1) / 2, (y0 + y1) / 2, zm));
+    b.add(boxUV(w, h, WALL_T - 0.002, 1), brick, T((x0 + x1) / 2, (y0 + y1) / 2, zm), 0xffffff, { cast: false }); // the sun is on the garden side
     const yy0 = Math.max(y0, fy), yy1 = Math.min(y1, cy);
     const ix0 = Math.max(x0, ROOM.minX), ix1 = Math.min(x1, ROOM.maxX);
     if (yy1 > yy0 && ix1 > ix0) b.add(planeUV(ix1 - ix0, yy1 - yy0, 1), plaster, T((ix0 + ix1) / 2, (yy0 + yy1) / 2, zi + 0.0005), 0xffffff, { cast: false });
@@ -71,10 +71,7 @@ export function buildHouseShell(scene, quality) {
     b.add(new THREE.BoxGeometry(s.w, fw, fd), paint, s.matrix(0, -s.h / 2 + fw / 2));
     b.add(new THREE.BoxGeometry(fw, s.h, fd), paint, s.matrix(-s.w / 2 + fw / 2, 0));
     b.add(new THREE.BoxGeometry(fw, s.h, fd), paint, s.matrix(s.w / 2 - fw / 2, 0));
-    const pane = new THREE.Mesh(new THREE.PlaneGeometry(s.w - 2 * fw, s.h - 2 * fw), glass);
-    pane.applyMatrix4(s.matrix(0, 0));
-    pane.userData.noAO = true;
-    scene.add(pane);
+    panes.add(new THREE.PlaneGeometry(s.w - 2 * fw, s.h - 2 * fw), glass, s.matrix(0, 0), 0xffffff, { cast: false, receive: false });
   }
 
   // Back door: frame, threshold, and the door itself swung right round against the wall inside.
@@ -93,10 +90,7 @@ export function buildHouseShell(scene, quality) {
     b.add(new THREE.BoxGeometry(dw - 0.02, dh - 0.02, 0.045), doorPaint, leaf.matrix(0, 0, 0));
     // Raised panels (lower half) and glazing bars (upper half).
     for (const sx of [-1, 1]) b.add(new THREE.BoxGeometry(dw * 0.36, dh * 0.3, 0.012), doorPaint, leaf.matrix(sx * dw * 0.22, -dh * 0.25, 0.024), 0xe8efe9);
-    const gl = new THREE.Mesh(new THREE.PlaneGeometry(dw * 0.78, dh * 0.38), glass);
-    gl.applyMatrix4(leaf.matrix(0, dh * 0.2, 0.024));
-    gl.userData.noAO = true;
-    scene.add(gl);
+    panes.add(new THREE.PlaneGeometry(dw * 0.78, dh * 0.38), glass, leaf.matrix(0, dh * 0.2, 0.024), 0xffffff, { cast: false, receive: false });
     b.add(new THREE.BoxGeometry(0.02, dh * 0.38, 0.012), doorPaint, leaf.matrix(0, dh * 0.2, 0.028));
     b.add(new THREE.BoxGeometry(dw * 0.78, 0.02, 0.012), doorPaint, leaf.matrix(0, dh * 0.2, 0.028));
     b.add(new THREE.SphereGeometry(0.022, 12, 8), new THREE.MeshStandardMaterial({ color: 0xc9a14a, metalness: 1, roughness: 0.3 }), leaf.matrix(dw * 0.4, -0.05, 0.05));
@@ -129,5 +123,6 @@ export function buildHouseShell(scene, quality) {
   b.add(new THREE.CylinderGeometry(0.03, 0.03, eaveY - fy, 10), dark, T(ROOM.minX - WALL_T - 0.05, (eaveY + fy) / 2, zo - 0.05), 0xffffff, { cast: false });
 
   b.build(scene);
+  for (const m of panes.build(scene)) m.userData.noAO = true;
 }
 

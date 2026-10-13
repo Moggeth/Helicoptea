@@ -282,7 +282,10 @@ export class TeaBag {
       if (Math.abs(x) < TABLE.halfX && Math.abs(z) < TABLE.halfZ && y < r && y > -0.03) y = r;
       for (const c of this.sim.cups) {
         const dx = x - c.x, dz = z - c.z;
-        const d = Math.hypot(dx, dz);
+        // Cheap reject: both cases below need the point inside the cup's footprint and below its rim.
+        const reach = c.rOut + r;
+        if (y >= c.topY || dx > reach || dx < -reach || dz > reach || dz < -reach) continue;
+        const d = Math.sqrt(dx * dx + dz * dz);
         if (y < c.topY && y > c.baseY && d < c.rOut + r && d > c.rIn - r) {
           const toIn = d - (c.rIn - r), toOut = (c.rOut + r) - d;
           const nd = toIn < toOut ? c.rIn - r : c.rOut + r;
