@@ -27,11 +27,12 @@ export const CFG = {
     groundEffectMax: 1.22,
     translationalLift: 0.08,
     dragPlane: 0.006,                  // rotor H-force, N per m/s in the rotor plane (low: momentum carries)
-    dragAxial: 0.03,                   // N per m/s along the rotor axis: damps climbs and sinks, but low enough that tilting doesn't snap velocity onto the thrust line
+    dragAxial: 0.055,                  // N per m/s along the rotor axis (inflow): damps climbs and gives the flare kick when you pull up at speed
     dragQuad: 0.04,                    // N per (m/s)^2 in the rotor plane: a soft speed cap, otherwise you drift like a rocket
-    angDamp: [4.0e-4, 3.0e-4, 3.0e-4], // rotor aerodynamic damping, N m per rad/s
+    angDamp: [4.0e-4, 2.2e-4, 3.0e-4], // rotor aerodynamic damping, N m per rad/s
+    weathervane: 1.0e-3,               // tail fin: yaw torque per (m/s)^2 of sideslip, nose turns into the airflow at speed
     cyclicTorque: 1.2e-3,              // N m at full cyclic deflection
-    yawTorque: 6.0e-4,
+    yawTorque: 1.0e-3,                 // pedal authority: enough to swing the nose round at the top of a J-turn
     reactionTorque: 6.0e-5,            // main-rotor torque change with collective (yaw coupling)
     collectiveRate: 0.25,              // assist off: collective change per second at full stick (fine: little drag to hide mistakes)
     idleCollective: 0.12,
@@ -45,7 +46,7 @@ export const CFG = {
     torqueLimit: 1.6,       // x cyclicTorque
     driftDamping: 0.04,     // rad of counter-tilt per m/s of drift, only near neutral cyclic (a little)
     driftTiltMax: 0.05,
-    yawRate: 1.4,           // rad/s at full yaw input
+    yawRate: 2.4,           // rad/s at full yaw input (brisk pedal turns)
     yawKp: 8,
     climbRate: 0.42,        // m/s at full collective input
     sinkRate: 0.34,
@@ -167,13 +168,13 @@ export const CFG = {
     aftWakeLoss: 0.008,                // aft rotor in the front rotor's wake loses a little lift (more set up a pitch oscillation)
     diffCollective: 0.045,             // max differential collective, fraction of one rotor's max thrust
     latCyclic: 0.08,                   // rad of lateral disc tilt at full roll input (~4.5 deg)
-    yawCyclic: 0.05,                   // rad of opposite disc tilt at full yaw input
+    yawCyclic: 0.14,                   // rad of opposite disc tilt at full yaw input (pedal turns at the top of a J-turn)
     dragAxial: 0.06,                   // per rotor, N per m/s through the disc (inflow change): damps climbs and sinks
     dragPlane: 0.006,                  // per rotor H-force, N per m/s in the disc plane (acts at the hub)
     dragLinear: 0.01,                  // fuselage and rotor-wash drag at the CG, N per m/s
     dragQuad: 0.16,                    // horizontal body drag, N per (m/s)^2: soft speed cap, momentum carries
     sideDrag: 0.02,                    // fuselage side area aft of the CG (weathervane), N per m/s
-    angDamp: [5.5e-3, 3.0e-3, 2.2e-3], // flapping/hub damping, N m per rad/s (pitch: tandem rotors resist pitching strongly)
+    angDamp: [5.5e-3, 1.8e-3, 2.2e-3], // flapping/hub damping, N m per rad/s (pitch: tandem rotors resist pitching strongly)
     reactionK: 1.9e-3,                 // rotor torque ~ k T^1.5; cancels between the rotors at equal thrust
     collectiveRate: 0.2,                // assist off: fine collective trim
     idleCollective: 0.12,

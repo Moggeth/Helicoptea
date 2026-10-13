@@ -191,6 +191,9 @@ export class Helicopter {
     const wb = _c.copy(wWorld).applyQuaternion(_qi);
     const damp = 0.35 + 0.65 * this.rotorSpeed;
     const tb = _d.set(-H.angDamp[0] * wb.x * damp, -H.angDamp[1] * wb.y * damp, -H.angDamp[2] * wb.z * damp);
+    // Weathervaning: the tail fin turns the nose into the relative airflow, in proportion to speed.
+    const vb = _a.copy(vel).applyQuaternion(_qi);
+    tb.y += -H.weathervane * vb.x * Math.hypot(vb.x, vb.z);
     // Main rotor reaction torque: more collective, more yaw to the right that must be countered.
     tb.y += -H.reactionTorque * (T / weight - 1);
 

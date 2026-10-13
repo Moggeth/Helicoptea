@@ -192,7 +192,7 @@ try {
     await page.evaluate(() => { window.__pilot.on = false; });
     await page.keyboard.down('KeyW'); await sleep(1400); await page.keyboard.up('KeyW');
     await page.keyboard.press('KeyF');
-    await page.keyboard.down('KeyS'); await sleep(900); await page.keyboard.up('KeyS');
+    await page.keyboard.down('KeyS'); await sleep(2200); await page.keyboard.up('KeyS'); // collective trims finely now: hold it down
     await page.waitForFunction(() => window.__helicoptea.sim.state === 'destroyed', null, { timeout: 8000 }).catch(() => {});
     await sleep(120);
     await shot(page, '09-explosion');
