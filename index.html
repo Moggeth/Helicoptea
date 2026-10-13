@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#2a1d16" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Helicoptea</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M14 34h36v8a14 14 0 0 1-14 14h-8a14 14 0 0 1-14-14z' fill='%23d8462f'/%3E%3Cpath d='M50 37h4a6 6 0 0 1 0 12h-5' fill='none' stroke='%23d8462f' stroke-width='4'/%3E%3Cpath d='M8 14h48' stroke='%232a1d16' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M32 14v14' stroke='%232a1d16' stroke-width='4'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <canvas id="game" aria-label="Helicoptea game view"></canvas>
+
+  <div id="loading" class="overlay show" role="status" aria-live="polite">
+    <div class="load-card">
+      <div class="logo">
+        <svg class="steam" viewBox="0 0 120 50" aria-hidden="true"><path d="M40 46c-8-10 8-14 0-24s8-14 0-20" /><path d="M60 46c-8-10 8-14 0-24s8-14 0-20" /><path d="M80 46c-8-10 8-14 0-24s8-14 0-20" /></svg>
+        <h1>Helicop<span>tea</span></h1>
+        <p class="tagline">Tiny helicopters. Dangling tea bags. A very steady hand.</p>
+      </div>
+      <div class="bar"><div class="fill" id="load-fill"></div></div>
+      <p class="load-status" id="load-status">Warming the pot…</p>
+      <button id="start-btn" class="primary hidden" type="button">Start flying</button>
+      <p class="load-hint hidden" id="start-hint">Sound on? Best with headphones.</p>
+    </div>
+  </div>
+
+  <div id="unsupported" class="overlay" role="alert">
+    <div class="panel">
+      <h2>This kitchen needs WebGL 2</h2>
+      <p>Your browser or device couldn't start WebGL&nbsp;2, which Helicoptea uses for its lighting and physics view. Try a recent Chrome, Edge, Firefox or Safari, and check that hardware acceleration is switched on.</p>
+    </div>
+  </div>
+
+  <div id="error" class="overlay" role="alert">
+    <div class="panel">
+      <h2>Something spilled</h2>
+      <p id="error-msg">An unexpected error stopped the game.</p>
+      <button class="primary" type="button" onclick="location.reload()">Reload</button>
+    </div>
+  </div>
+
+  <div id="hud" class="hidden"></div>
+  <div id="touch" class="hidden"></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

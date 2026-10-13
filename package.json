@@ -1,0 +1,23 @@
+{
+  "name": "helicoptea",
+  "version": "0.1.0",
+  "description": "Tiny helicopters, dangling tea bags, cosy kitchen table. Three.js + Rapier.",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "check": "node tests/sim-checks.mjs"
+  },
+  "author": "",
+  "license": "UNLICENSED",
+  "type": "module",
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.14.0",
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.48.2",
+    "vite": "^5.4.10"
+  },
+  "private": true
+}
