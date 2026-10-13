@@ -40,7 +40,7 @@ export class Debug {
       `physics ${physAvg.toFixed(2)} ms/frame  ${f.steps} steps @ ${CFG.physics.hz} Hz  step ${s.lastStepMs.toFixed(3)} ms`,
       `bodies ${s.world.bodies.len()}  colliders ${s.world.colliders.len()}  bags ${s.bags.length}  debris ${s.debris.length}  drips ${s.drips.length}`,
       `draw calls ${info.render.calls}  tris ${(info.render.triangles / 1000).toFixed(1)}k  dpr ${f.dpr.toFixed(2)} (x${f.dprScale.toFixed(2)})  ${f.quality.name}`,
-      `input [${f.source}${f.gamepad.connected ? ' pad' : ''}] pitch${n(f.ctl.pitch)} roll${n(f.ctl.roll)} yaw${n(f.ctl.yaw)} coll${n(f.ctl.collective)}`,
+      `input [${f.source}${f.gamepad.connected ? ` | ${f.gamepad.id.slice(0, 36)}` : ''}] pitch${n(f.ctl.pitch)} roll${n(f.ctl.roll)} yaw${n(f.ctl.yaw)} coll${n(f.ctl.collective)}`,
       `assist ${s.assist ? 'ON ' : 'OFF'}  state ${s.state}`,
     ];
     if (h) {

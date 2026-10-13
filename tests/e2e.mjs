@@ -29,12 +29,22 @@ report.browser = `${path.basename(CHROME)} ${browser.version()}${headed ? ' (hea
 
 async function open(viewport, opts = {}) {
   const ctx = await browser.newContext({ viewport, deviceScaleFactor: opts.dpr || 1, hasTouch: !!opts.touch, isMobile: !!opts.mobile });
-  if (opts.gamepad) await ctx.addInitScript(() => {
-    // Emulated standard-mapping gamepad driven by window.__pad (for mapping checks only).
-    window.__pad = { axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
-    const pad = () => ({ id: 'Emulated Xbox Controller (STANDARD GAMEPAD)', index: 0, connected: true, mapping: 'standard', axes: window.__pad.axes, buttons: window.__pad.buttons, timestamp: performance.now() });
-    navigator.getGamepads = () => [pad(), null, null, null];
-  });
+  if (opts.gamepad) await ctx.addInitScript((kind) => {
+    // Emulated gamepad driven by window.__pad. 'standard' looks like Steam Input's Xbox pad;
+    // 'raw' looks like an unknown HID controller with a non-standard layout and resting trigger axes.
+    const std = kind === 'standard';
+    window.__rumbles = [];
+    window.__pad = {
+      present: true,
+      id: std ? 'Xbox 360 Controller (XInput STANDARD GAMEPAD)' : 'Emulated HID pad (Vendor: 28de Product: 1304)',
+      mapping: std ? 'standard' : '',
+      axes: std ? [0, 0, 0, 0] : [0, 0, -1, 0, 0, -1],
+      buttons: Array.from({ length: std ? 17 : 14 }, () => ({ pressed: false, value: 0 })),
+    };
+    const act = { playEffect: (type, p) => { window.__rumbles.push({ type, ...p }); return Promise.resolve('complete'); } };
+    const pad = () => ({ id: window.__pad.id, index: 0, connected: true, mapping: window.__pad.mapping, axes: window.__pad.axes.slice(), buttons: window.__pad.buttons.map((b) => ({ ...b })), timestamp: performance.now(), vibrationActuator: act });
+    navigator.getGamepads = () => (window.__pad.present ? [pad(), null, null, null] : [null, null, null, null]);
+  }, opts.gamepad);
   const page = await ctx.newPage();
   const logs = [];
   page.on('console', (m) => logs.push(`[${m.type()}] ${m.text()}`));
@@ -245,8 +255,13 @@ try {
 
   // ------------------------------------------------------------ emulated gamepad
   if (!only || only === 'gamepad') {
-    const { ctx, page } = await open({ width: 1280, height: 720 }, { gamepad: true });
-    await start(page);
+    const { ctx, page } = await open({ width: 1280, height: 720 }, { gamepad: 'standard' });
+    const press = async (i, hold = 90) => { await page.evaluate((i) => { window.__pad.buttons[i] = { pressed: true, value: 1 }; }, i); await sleep(hold); await page.evaluate((i) => { window.__pad.buttons[i] = { pressed: false, value: 0 }; }, i); await sleep(90); };
+    const ui = () => page.evaluate(() => ({ started: window.__helicoptea.started, paused: window.__helicoptea.paused, modal: document.querySelector('.overlay.show:not(#loading)')?.querySelector('h2')?.textContent || null, focus: document.activeElement?.textContent?.trim() || document.activeElement?.tagName }));
+    await sleep(300);
+    await press(0);
+    await sleep(700);
+    check('pad: A on the start screen starts the game', (await ui()).started);
     await page.evaluate(() => { window.__pad.axes[1] = -1; });
     await sleep(1200);
     await page.evaluate(() => { window.__pad.axes[1] = 0; });
@@ -270,7 +285,74 @@ try {
     check('emulated gamepad: Start restarts', s.y < 0.07 && s.state === 'flying');
     const src = await page.evaluate(() => window.__helicoptea.input.source);
     check('HUD switches to gamepad prompts', src === 'gamepad');
+    await press(3); // assist back on
+
+    // Menus from the pad.
+    await press(8);
+    let u = await ui();
+    check('pad: Back/View opens the pause menu', u.paused && u.modal === 'Paused', JSON.stringify(u));
+    for (let i = 0; i < 5; i++) await press(13);
+    u = await ui();
+    check('pad: d-pad moves menu focus', /Settings/.test(u.focus), `focus "${u.focus}"`);
+    await press(0);
+    u = await ui();
+    check('pad: A opens Controller settings', u.modal === 'Controller', JSON.stringify(u));
+    const listed = await page.evaluate(() => document.querySelector('.pad-item b')?.textContent + ' | ' + document.querySelector('.pad-item span')?.textContent);
+    check('controller panel lists the pad and its layout', /standard layout/.test(listed), listed);
+    await page.screenshot({ path: path.join(outDir, '15-controller-settings.png') });
+    await press(1);
+    u = await ui();
+    check('pad: B goes back to the pause menu', u.modal === 'Paused', JSON.stringify(u));
+    await press(1);
+    u = await ui();
+    check('pad: B resumes', !u.paused && !u.modal, JSON.stringify(u));
+
+    // Crash, rumble, A restarts.
+    await page.evaluate(() => { const s = window.__helicoptea.sim; s.heli.body.setTranslation({ x: s.heli.pos.x, y: 0.25, z: s.heli.pos.z }, true); s.heli.body.setLinvel({ x: 0, y: -3, z: 0 }, true); });
+    await sleep(400);
+    s = await st(page);
+    const rumbles = await page.evaluate(() => window.__rumbles.slice());
+    check('pad: crash plays a strong rumble', s.state === 'destroyed' && rumbles.some((r) => r.strongMagnitude >= 0.9), `${rumbles.length} rumble effects`);
+    await press(0);
+    await sleep(300);
+    s = await st(page);
+    check('pad: A restarts after a crash', s.state === 'flying', s.state);
+
+    // Disconnect mid-flight.
+    await page.evaluate(() => { window.__pad.axes[1] = -1; });
+    await sleep(500);
+    await page.evaluate(() => { window.__pad.present = false; const e = new Event('gamepaddisconnected'); Object.defineProperty(e, 'gamepad', { value: { index: 0, id: window.__pad.id } }); window.dispatchEvent(e); });
+    await sleep(300);
+    const after = await page.evaluate(() => ({ paused: window.__helicoptea.paused, ctl: { ...window.__helicoptea.input.gp } }));
+    check('pad disconnect pauses and releases inputs', after.paused && after.ctl.collective === 0, JSON.stringify(after));
     await ctx.close();
+
+    // Unknown-layout controller: bind it with the wizard, then fly with it.
+    {
+      const { ctx, page } = await open({ width: 1280, height: 720 }, { gamepad: 'raw' });
+      await start(page);
+      const press = async (i) => { await page.evaluate((i) => { window.__pad.buttons[i] = { pressed: true, value: 1 }; }, i); await sleep(120); await page.evaluate((i) => { window.__pad.buttons[i] = { pressed: false, value: 0 }; }, i); await sleep(150); };
+      const move = async (i, v) => { await page.evaluate(([i, v]) => { window.__pad.axes[i] = v; }, [i, v]); await sleep(150); await page.evaluate(([i]) => { window.__pad.axes[i] = i === 2 || i === 5 ? -1 : 0; }, [i]); await sleep(150); };
+      await press(0); // let the browser 'see' it
+      await page.evaluate(() => { window.__helicoptea.doAction('controller'); window.__helicoptea.doAction('padbind'); });
+      await sleep(200);
+      const prompt1 = await page.evaluate(() => document.querySelector('.wz-prompt')?.textContent);
+      await page.screenshot({ path: path.join(outDir, '16-bind-wizard.png') });
+      await move(1, -1); await move(0, 1); await move(4, -1); await move(3, 1);
+      for (const b of [2, 5, 9, 8, 3]) await press(b);
+      const saved = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.includes('bind.')).map((k) => localStorage.getItem(k))[0]);
+      check('bind wizard walks through the steps and saves a binding', /LIFT/.test(prompt1 || '') && !!saved && saved.includes('"index":4'), (prompt1 || '') + ' -> ' + (saved || 'none').slice(0, 120));
+      await page.evaluate(() => window.__helicoptea.doAction('closecontroller'));
+      await page.evaluate(() => { window.__pad.axes[1] = -1; });
+      await sleep(1200);
+      await page.evaluate(() => { window.__pad.axes[1] = 0; });
+      let s = await st(page);
+      check('bound controller flies (custom lift axis)', s.y > 0.12, `y=${s.y.toFixed(3)}`);
+      await press(5);
+      s = await st(page);
+      check('bound controller toggles assist on its chosen button', s.assist === false);
+      await ctx.close();
+    }
   }
 
   // ------------------------------------------------------------ touch emulation (phone landscape + portrait)

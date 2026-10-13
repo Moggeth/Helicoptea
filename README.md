@@ -41,7 +41,10 @@ node tests/e2e.mjs http://localhost:5178/ --headed --only=desktop
 | Restart flight | R | Start | ↻ (top right) |
 | Reset sandbox | Shift+R | Pause menu | Pause menu |
 | Camera | C recenter, mouse drag orbit, wheel zoom | B or R3 recenter, D-pad orbit/zoom | View button |
-| Pause / help / mute / debug | Esc, H, M, ` (or F3) | Back, X | ‖ and ? buttons |
+| Pause / help / mute / debug | Esc, H, M, ` (or F3) | Back/View, X | ‖ and ? buttons |
+| Menus | Arrow keys/Tab, Enter | D-pad or left stick, A select, B back | Tap |
+
+**Steam Controller and other gamepads**: any controller the browser exposes works. Standard layouts (Xbox, PlayStation, Switch Pro, and the Steam Controller through Steam Input) need no setup; anything else can be bound in **Pause → Controller → Bind buttons…**. The same screen has a live stick test, dead zone, response curve, per-axis sensitivity, inversion and rumble. Menus, pause, help and the crash screen are fully driven from the pad. For the Steam Controller specifically, see [docs/STEAM-CONTROLLER.md](docs/STEAM-CONTROLLER.md).
 
 **Collective is a rate on every device**: push to add lift, pull to reduce it, let go to hold. With Flight Assist off this trims the collective setting directly (shown by the bar on the left, with a hover mark). With Flight Assist on it commands a climb or sink speed. Because the stick never maps to an absolute throttle position, switching between keyboard, gamepad and touch never makes the throttle jump.
 
@@ -72,7 +75,7 @@ Simulation, rendering, input, game flow and UI are separate: the sim runs headle
 
 ## Known limitations
 
-- **Not verified on a physical phone, a physical gamepad or a VR/AR device.** Touch was verified with Chrome's touch emulation and real CDP touch events; gamepad with an emulated standard-mapping pad. See [docs/VERIFICATION.md](docs/VERIFICATION.md).
+- **Not verified on a physical phone or a physical gamepad (including your Steam Controller).** Touch was verified with Chrome's touch emulation and real CDP touch events; gamepad with an emulated standard-mapping pad. See [docs/VERIFICATION.md](docs/VERIFICATION.md).
 - Audio is procedural and was checked for errors and wiring only, not listened to by a person.
 - The string's physics is a Rapier rope joint (max-distance constraint, so it can go slack). The visible string is a verlet line pinned to both real attachment points; it avoids the table, cups and main props but does not wrap around arbitrary objects or collide with itself.
 - Tea is a shaded surface with ripples, a plume around the bag and splash droplets, not a fluid simulation. Cups do not spill.

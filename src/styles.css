@@ -220,3 +220,22 @@ body:not(.touch-ui) .rotate-nudge { display: none !important; }
   .prompt { bottom: auto; top: calc(62px + var(--safe-t)); }
 }
 @media (prefers-reduced-motion: reduce) { .steam path, .touch-btn.attach.ready { animation: none; } }
+
+/* controller panel */
+.pad-panel { width: min(560px, 100%); }
+.pad-item { display: grid; grid-template-columns: 1fr; gap: 2px; padding: 8px 10px; border-radius: 10px; background: rgba(42,29,22,0.06); margin-top: 6px; font-size: 14px; }
+.pad-item.on { box-shadow: inset 0 0 0 2px var(--sage); }
+.pad-item span { color: var(--ink-soft); font-size: 13px; }
+.pad-item small { color: var(--ink-soft); opacity: 0.6; font-size: 10.5px; overflow-wrap: anywhere; }
+.pad-test { display: flex; gap: 16px; align-items: center; margin: 12px 0 18px; }
+.pad-stick { position: relative; width: 64px; height: 64px; border-radius: 50%; background: rgba(42,29,22,0.08); box-shadow: inset 0 0 0 1px rgba(42,29,22,0.2); flex: none; }
+.pad-stick .dot { position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--terracotta); }
+.pad-stick span { position: absolute; top: 68px; left: -10px; right: -10px; text-align: center; font-size: 10.5px; color: var(--ink-soft); }
+.pad-raw { font: 11px/1.4 ui-monospace, Consolas, monospace; color: var(--ink-soft); white-space: pre-wrap; overflow-wrap: anywhere; }
+.pad-wizard { margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: rgba(242,184,75,0.18); }
+.pad-wizard .wz-step { margin: 0; font-size: 12px; }
+.pad-wizard .wz-prompt { margin: 4px 0 0; font-size: 17px; color: var(--ink); }
+.pad-settings input[type=range] { width: 170px; accent-color: var(--terracotta); }
+.panel button:focus-visible, .panel input:focus-visible, .panel select:focus-visible, .crash button:focus-visible, #start-btn:focus-visible { outline: 3px solid var(--honey); outline-offset: 3px; }
+.panel label.opt:focus-within { background: rgba(242,184,75,0.14); border-radius: 8px; }
+body.pad-nav .panel :focus, body.pad-nav .crash :focus, body.pad-nav #start-btn:focus { outline: 3px solid var(--honey); outline-offset: 3px; }

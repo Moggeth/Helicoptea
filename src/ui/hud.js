@@ -1,4 +1,5 @@
 import { teaColor } from '../render/water.js';
+import { prettyName } from '../input/gamepad.js';
 
 const ICONS = {
   restart: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/></svg>',
@@ -137,7 +138,7 @@ export class Hud {
     this.refreshKeys();
     this.crashEl.classList.add('show');
   }
-  hideCrash() { this.crashEl.classList.remove('show'); }
+  hideCrash() { this.crashEl.classList.remove('show'); if (this.crashEl.contains(document.activeElement)) document.activeElement.blur(); }
 
   setVolume(v, muted) {
     this.vol.value = String(v);
@@ -194,6 +195,7 @@ export class Hud {
               ${['auto', 'high', 'medium', 'low'].map((q) => `<option value="${q}" ${opts.quality === q ? 'selected' : ''}>${q[0].toUpperCase() + q.slice(1)}</option>`).join('')}
             </select></label>
           <label class="opt">Debug overlay <input type="checkbox" data-setting="debug" ${opts.debug ? 'checked' : ''}/></label>
+          <label class="opt">Controller <button class="secondary" style="padding:6px 12px" data-act="controller">Settings</button></label>
           <label class="opt">Show tips again <button class="secondary" style="padding:6px 12px" data-act="resethints">Replay</button></label>
         </div>
         <p class="help-note">Reset sandbox clears every cup and bag. Restart flight keeps your brewing. Quality changes reload the page.</p>
@@ -201,7 +203,7 @@ export class Hud {
     this.modal.querySelector('[data-setting=quality]').addEventListener('change', (e) => this.h.setting('quality', e.target.value));
     this.modal.querySelector('[data-setting=debug]').addEventListener('change', (e) => this.h.setting('debug', e.target.checked));
     this.modal.classList.add('show');
-    this.modal.querySelector('[data-act=resume]').focus();
+    this.focusFirst();
   }
 
   openHelp() {
@@ -217,9 +219,10 @@ export class Hud {
         <p class="help-note"><b>Collective</b> works the same on every device: push up to add lift, down to reduce it, and let go to hold.
         With Flight Assist on it sets a climb or sink speed and the heli levels itself when you centre the cyclic.
         With Assist off you trim the collective yourself (the bar on the left shows it) and the heli stays tilted until you correct it.</p>
-        <div class="row"><button class="primary" style="margin-top:0" data-act="closehelp">Got it</button></div>
+        <div class="row"><button class="primary" style="margin-top:0" data-act="closehelp">Got it</button><button class="secondary" data-act="controller">Controller settings</button></div>
       </div>`;
     this.modal.classList.add('show');
+    this.focusFirst();
   }
 
   helpRows(tab) {
@@ -228,7 +231,8 @@ export class Hud {
         ['<kbd>Space</kbd>', 'Hook a bag / release it'], ['<kbd>F</kbd>', 'Flight Assist on / off'], ['<kbd>R</kbd>', 'Restart flight'], ['<kbd>Shift</kbd>+<kbd>R</kbd>', 'Reset sandbox'],
         ['<kbd>C</kbd>', 'Recenter camera (drag to orbit, wheel to zoom)'], ['<kbd>M</kbd>', 'Mute'], ['<kbd>Esc</kbd>', 'Pause'], ['<kbd>`</kbd>', 'Debug overlay']],
       gamepad: [['Right stick', 'Cyclic: tilt'], ['Left stick ↕', 'Collective (or triggers RT / LT)'], ['Left stick ↔', 'Yaw'], ['<kbd>A</kbd>', 'Hook / release'], ['<kbd>Y</kbd>', 'Flight Assist on / off'],
-        ['<kbd>Start</kbd>', 'Restart flight'], ['<kbd>B</kbd> / R3', 'Recenter camera'], ['D-pad', 'Orbit and zoom camera'], ['<kbd>Back</kbd>', 'Pause'], ['<kbd>X</kbd>', 'Controls']],
+        ['<kbd>Start</kbd>', 'Restart flight'], ['<kbd>B</kbd> / R3', 'Recenter camera'], ['D-pad', 'Orbit and zoom camera'], ['<kbd>Back</kbd> / <kbd>View</kbd>', 'Pause menu'], ['<kbd>X</kbd>', 'Controls'],
+        ['After a crash', '<kbd>A</kbd> also restarts'], ['In menus', 'D-pad or left stick to move, <kbd>A</kbd> select, <kbd>B</kbd> back, ◀ ▶ adjust sliders']],
       touch: [['Left thumb', 'Up / down: collective. Left / right: yaw'], ['Right thumb', 'Cyclic: tilt in any direction'], ['<kbd>Hook</kbd>', 'Hook / release (glows when a loop is in reach)'],
         ['<kbd>Assist</kbd>', 'Flight Assist on / off'], ['<kbd>View</kbd>', 'Recenter camera'], ['↻ (top right)', 'Restart flight']],
     };
@@ -240,5 +244,135 @@ export class Hud {
     this.modal.querySelector('.help-grid').innerHTML = this.helpRows(tab);
   }
 
-  closeModal() { this.modal.classList.remove('show'); this.modalKind = null; }
+  closeModal() { this.modal.classList.remove('show'); this.modalKind = null; document.activeElement?.blur?.(); }
+
+  // ---------------------------------------------------------------- controller settings
+  openController(pads) {
+    this.modalKind = 'controller';
+    this.pads = pads;
+    const S = pads.settings;
+    const slider = (key, label, min, max, step) => `<label class="opt">${label}<input type="range" data-pad="${key}" min="${min}" max="${max}" step="${step}" value="${S[key]}" /></label>`;
+    const check = (key, label) => `<label class="opt">${label}<input type="checkbox" data-pad="${key}" ${S[key] ? 'checked' : ''} /></label>`;
+    this.modal.innerHTML = `
+      <div class="panel menu pad-panel" role="dialog" aria-label="Controller settings">
+        <h2>Controller</h2>
+        <div class="pad-list"></div>
+        <div class="pad-test" aria-hidden="true">
+          <div class="pad-stick"><div class="dot l"></div><span>Lift / turn</span></div>
+          <div class="pad-stick"><div class="dot r"></div><span>Tilt</span></div>
+          <div class="pad-raw"></div>
+        </div>
+        <div class="pad-wizard hidden"><p class="wz-step"></p><p class="wz-prompt"></p><div class="row"><button class="secondary" data-act="wizskip">Skip this one</button><button class="secondary" data-act="wizcancel">Cancel</button></div></div>
+        <div class="row stack pad-settings">
+          ${slider('deadZone', 'Stick dead zone', 0, 0.4, 0.01)}
+          ${slider('expo', 'Fine control near centre', 0, 0.9, 0.05)}
+          ${slider('cyclic', 'Tilt sensitivity', 0.3, 1.5, 0.05)}
+          ${slider('collective', 'Lift sensitivity', 0.3, 1.5, 0.05)}
+          ${slider('yaw', 'Turn sensitivity', 0.3, 1.5, 0.05)}
+          ${check('invertPitch', 'Invert tilt forward / back')}
+          ${check('invertCollective', 'Invert lift')}
+          ${check('triggers', 'Triggers also control lift')}
+          ${check('rumble', 'Rumble')}
+        </div>
+        <div class="row pad-actions">
+          <button class="primary" style="margin-top:0" data-act="closecontroller">Done</button>
+          <button class="secondary" data-act="padbind">Bind buttons…</button>
+          <button class="secondary" data-act="padreset">Reset binding</button>
+          <button class="secondary" data-act="padrumble">Test rumble</button>
+        </div>
+        <p class="help-note">Using a <b>Steam Controller</b>? Browsers only see it as a gamepad through Steam Input: add your browser to Steam as a Non-Steam Game with the <b>Gamepad</b> layout and open Helicoptea from there (steps in the README). If it appears above as a standard layout it just works; otherwise use <b>Bind buttons…</b>.</p>
+      </div>`;
+    this.modal.querySelectorAll('[data-pad]').forEach((el) => {
+      el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', () => {
+        S[el.dataset.pad] = el.type === 'checkbox' ? el.checked : parseFloat(el.value);
+        pads.saveSettings();
+      });
+    });
+    this.modal.classList.add('show');
+    this.updateController();
+    this.focusFirst();
+  }
+
+  showWizard(view) {
+    const wz = this.modal.querySelector('.pad-wizard');
+    if (!wz) return;
+    const others = this.modal.querySelectorAll('.pad-settings, .pad-actions');
+    if (!view || view.done) {
+      wz.classList.add('hidden');
+      others.forEach((e) => e.classList.remove('hidden'));
+      if (view && view.done) this.toast(`Saved binding for ${prettyName(view.id)}`);
+      this.focusFirst();
+      return;
+    }
+    wz.classList.remove('hidden');
+    others.forEach((e) => e.classList.add('hidden'));
+    wz.querySelector('.wz-step').textContent = `Step ${view.step} of ${view.total}`;
+    wz.querySelector('.wz-prompt').innerHTML = view.prompt;
+  }
+
+  updateController() {
+    if (this.modalKind !== 'controller' || !this.pads) return;
+    const pads = this.pads;
+    const list = pads.list();
+    const el = this.modal.querySelector('.pad-list');
+    const html = list.length
+      ? list.map((g) => `<div class="pad-item ${g.index === pads.activeIndex ? 'on' : ''}"><b>${prettyName(g.id)}</b><span>${g.mapping === 'standard' && !pads.isCustom(g) ? 'standard layout, ready' : (pads.isCustom(g) ? 'custom binding' : 'unknown layout: press Bind buttons…')}${g.vibrationActuator ? ' · rumble' : ''}</span><small>${g.id}</small></div>`).join('')
+      : '<div class="pad-item"><b>No controller detected</b><span>Connect one and press any of its buttons: browsers hide controllers until then.</span></div>';
+    if (el.innerHTML !== html) el.innerHTML = html;
+    const o = pads.out, r = pads.raw;
+    const place = (sel, x, y) => { const d = this.modal.querySelector(sel); if (d) d.style.transform = `translate(${x * 26}px, ${-y * 26}px)`; };
+    place('.dot.l', o.yaw, o.collective);
+    place('.dot.r', o.roll, o.pitch);
+    const raw = this.modal.querySelector('.pad-raw');
+    if (raw) raw.textContent = r ? `axes ${r.axes.map((a) => a.toFixed(2)).join(' ')}\nbuttons ${r.buttons.map((b, i) => (b > 0.05 ? i : null)).filter((x) => x !== null).join(' ') || 'none pressed'}` : '';
+  }
+
+  // ---------------------------------------------------------------- menu navigation (gamepad)
+  navContainer() {
+    if (this.modal.classList.contains('show')) return this.modal;
+    if (this.crashEl.classList.contains('show')) return this.crashEl;
+    const load = document.getElementById('loading');
+    if (load && load.classList.contains('show') && !load.classList.contains('fade')) return load;
+    return null;
+  }
+
+  focusables(c) {
+    return [...c.querySelectorAll('button, input, select')].filter((e) => e.offsetParent !== null && !e.disabled && !e.closest('.hidden'));
+  }
+
+  focusFirst() {
+    const c = this.navContainer();
+    if (!c) return;
+    const f = this.focusables(c);
+    if (f[0]) f[0].focus({ preventScroll: true });
+  }
+
+  nav(dir) {
+    const c = this.navContainer();
+    if (!c) return;
+    const f = this.focusables(c);
+    if (!f.length) return;
+    let i = f.indexOf(document.activeElement);
+    const cur = f[i];
+    if ((dir === 'left' || dir === 'right') && cur) {
+      const d = dir === 'right' ? 1 : -1;
+      if (cur.type === 'range') { cur.value = String(parseFloat(cur.value) + d * parseFloat(cur.step || 0.05)); cur.dispatchEvent(new Event('input')); return; }
+      if (cur.tagName === 'SELECT') { cur.selectedIndex = Math.max(0, Math.min(cur.options.length - 1, cur.selectedIndex + d)); cur.dispatchEvent(new Event('change')); return; }
+    }
+    const step = dir === 'up' || dir === 'left' ? -1 : 1;
+    i = i < 0 ? 0 : (i + step + f.length) % f.length;
+    f[i].focus();
+    f[i].scrollIntoView?.({ block: 'nearest' });
+  }
+
+  confirm() {
+    const c = this.navContainer();
+    if (!c) return false;
+    let el = document.activeElement;
+    if (!el || !c.contains(el)) { this.focusFirst(); el = document.activeElement; if (!el || !c.contains(el)) return false; }
+    if (el.type === 'checkbox') { el.checked = !el.checked; el.dispatchEvent(new Event('change')); return true; }
+    if (el.type === 'range' || el.tagName === 'SELECT') return true;
+    el.click();
+    return true;
+  }
 }

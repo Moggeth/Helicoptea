@@ -1,4 +1,5 @@
 import { CFG } from '../config.js';
+import { Gamepads } from './gamepad.js';
 
 // Merges keyboard, gamepad and touch into one control state.
 // Axes (all -1..1): pitch (+ forward), roll (+ right), yaw (+ right), collective (+ up).
@@ -22,15 +23,6 @@ function shape(x) {
   const e = CFG.input.expo;
   return s * ((1 - e) * n + e * n * n * n);
 }
-function radial(x, y) {
-  const m = Math.hypot(x, y);
-  const dz = CFG.input.deadZone;
-  if (m < dz) return [0, 0];
-  const n = Math.min(1, (m - dz) / (1 - dz));
-  const e = CFG.input.expo;
-  const k = ((1 - e) * n + e * n * n * n) / m;
-  return [x * k, y * k];
-}
 
 export class Input {
   constructor(touchRoot) {
@@ -39,8 +31,6 @@ export class Input {
     this.ctl = { pitch: 0, roll: 0, yaw: 0, collective: 0 };
     this.actions = [];
     this.source = 'keyboard';
-    this.gamepadIndex = null;
-    this.gpPrev = [];
     this.gp = { pitch: 0, roll: 0, yaw: 0, collective: 0, connected: false, id: '' };
     this.touch = { pitch: 0, roll: 0, yaw: 0, collective: 0, active: false };
     this.camOrbit = { yaw: 0, pitch: 0, zoom: 0 };
@@ -62,17 +52,8 @@ export class Input {
     window.addEventListener('keyup', (e) => { this.keys.delete(e.code); });
     window.addEventListener('blur', () => this.clearAll());
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.clearAll(); });
-    window.addEventListener('gamepadconnected', (e) => {
-      this.gamepadIndex = e.gamepad.index;
-      this.notices.push(`Controller connected`);
-    });
-    window.addEventListener('gamepaddisconnected', (e) => {
-      if (e.gamepad.index === this.gamepadIndex) {
-        this.gamepadIndex = null;
-        Object.assign(this.gp, { pitch: 0, roll: 0, yaw: 0, collective: 0, connected: false });
-        this.notices.push('Controller disconnected — inputs released');
-      }
-    });
+    this.pads = new Gamepads();
+    this.menuMode = false;
     // Mouse orbit (desktop): drag on the canvas, wheel to zoom.
     this.dragging = null;
     if (touchRoot) this.buildTouch(touchRoot);
@@ -194,7 +175,7 @@ export class Input {
       const step = rate * dt;
       this.kb[a] = Math.abs(t - c) < step ? t : c + Math.sign(t - c) * step;
     }
-    this.pollGamepad();
+    this.pollGamepad(dt);
     const pick = (a) => {
       const vals = [this.kb[a], this.gp[a], shape(this.touch[a])];
       let best = 0;
@@ -209,38 +190,19 @@ export class Input {
     return this.ctl;
   }
 
-  pollGamepad() {
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    let gp = this.gamepadIndex !== null ? pads[this.gamepadIndex] : null;
-    if (!gp) for (const p of pads) if (p && p.connected) { gp = p; this.gamepadIndex = p.index; break; }
-    if (!gp) { this.gp.connected = false; return; }
-    this.gp.connected = true;
-    this.gp.id = gp.id;
-    const ax = gp.axes;
-    const [lx, ly] = radial(ax[0] || 0, ax[1] || 0);
-    const [rx, ry] = radial(ax[2] || 0, ax[3] || 0);
-    const b = (i) => (gp.buttons[i] ? gp.buttons[i].value : 0);
-    const trig = (b(7) - b(6));
-    this.gp.yaw = lx;
-    this.gp.collective = Math.abs(trig) > Math.abs(ly) ? trig : -ly;
-    this.gp.roll = rx;
-    this.gp.pitch = -ry;
-    if (Math.abs(lx) + Math.abs(ly) + Math.abs(rx) + Math.abs(ry) + Math.abs(trig) > 0.05) this.source = 'gamepad';
-    const map = { 0: 'attach', 1: 'recenter', 3: 'assist', 9: 'restart', 8: 'pause', 11: 'recenter' };
-    gp.buttons.forEach((btn, i) => {
-      const pressed = btn.pressed;
-      if (pressed && !this.gpPrev[i]) {
-        this.source = 'gamepad';
-        if (map[i]) this.actions.push(map[i]);
-        if (i === 2) this.actions.push('help');
-      }
-      this.gpPrev[i] = pressed;
-    });
-    // D-pad orbits/zooms the camera.
-    if (b(14)) this.camOrbit.yaw += 0.03;
-    if (b(15)) this.camOrbit.yaw -= 0.03;
-    if (b(12)) this.camOrbit.zoom -= 0.02;
-    if (b(13)) this.camOrbit.zoom += 0.02;
+  pollGamepad(dt) {
+    const used = this.pads.poll(dt, this.menuMode);
+    const o = this.pads.out;
+    this.gp.pitch = o.pitch; this.gp.roll = o.roll; this.gp.yaw = o.yaw; this.gp.collective = o.collective;
+    this.gp.connected = !!this.pads.raw;
+    this.gp.id = this.pads.raw ? this.pads.raw.id : '';
+    if (used) this.source = 'gamepad';
+    for (const e of this.pads.takeEvents()) this.actions.push(e);
+    for (const n of this.pads.takeNotices()) { this.notices.push(n.text); if (n.type === 'disconnected') this.actions.push('padLost'); }
+    if (this.pads.cam) {
+      this.camOrbit.yaw += this.pads.cam.yaw * 0.03;
+      this.camOrbit.zoom += this.pads.cam.zoom * 0.02;
+    }
   }
 
   takeActions() { const a = this.actions; this.actions = []; return a; }

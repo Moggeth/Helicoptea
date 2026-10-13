@@ -145,8 +145,29 @@ async function boot() {
       case 'debug': debug.enabled = !debug.enabled; store.set('debug', debug.enabled ? '1' : '0'); break;
       case 'skiphints': flow.skip(); break;
       case 'resethints': flow.replay(); setPaused(false); break;
+      case 'controller': hud.openController(input.pads); break;
+      case 'closecontroller':
+        input.pads.cancelWizard();
+        hud.closeModal();
+        if (paused) hud.openPause({ quality: quality.setting, debug: debug.enabled });
+        break;
+      case 'padbind':
+        if (!input.pads.startWizard((v) => hud.showWizard(v))) hud.toast('Press any button on your controller first so the browser can see it');
+        break;
+      case 'wizskip': input.pads.skipWizardStep(); break;
+      case 'wizcancel': input.pads.cancelWizard(); hud.showWizard(null); break;
+      case 'padreset': { const g = input.pads.active(); if (g) { input.pads.resetBinding(g); hud.toast('Binding reset to the default layout'); } break; }
+      case 'padrumble': if (input.pads.canRumble()) input.pads.rumble(0.9, 0.6, 350); else hud.toast('This controller does not report rumble support to the browser'); break;
       default: break;
     }
+  }
+
+  // Back button in menus: close the innermost panel.
+  function back() {
+    if (input.pads.wizard) { doAction('wizcancel'); return; }
+    if (hud.modalKind === 'controller') doAction('closecontroller');
+    else if (hud.modalKind === 'help') doAction('closehelp');
+    else if (paused) setPaused(false);
   }
 
   // Pause safely on focus loss.
@@ -179,6 +200,14 @@ async function boot() {
     if (started) return;
     started = true;
     audio.unlock();
+    // A gamepad press doesn't count as a user gesture for audio in every browser: offer a one-tap fix.
+    setTimeout(() => {
+      if (audio.ctx && audio.ctx.state !== 'running') {
+        hud.toast('Sound is waiting for a click or key press (browser rule)', 5);
+        const wake = () => { audio.unlock(); removeEventListener('pointerdown', wake); removeEventListener('keydown', wake); };
+        addEventListener('pointerdown', wake); addEventListener('keydown', wake);
+      }
+    }, 400);
     $('loading').classList.add('fade');
     setTimeout(() => $('loading').classList.remove('show'), 500);
     $('hud').classList.remove('hidden');
@@ -209,14 +238,23 @@ async function boot() {
     const frameDt = Math.min((now - last) / 1000, CFG.physics.maxFrameDt);
     last = now;
 
+    // The gamepad drives menus whenever one is showing (start screen, pause, help, settings, crash).
+    input.menuMode = !started || hud.modalKind !== null || crashShown;
     const ctl = input.update(frameDt);
     for (const a of input.takeActions()) {
+      if (a.startsWith('nav-')) { hud.nav(a.slice(4)); continue; }
+      if (a === 'confirm') { if (!hud.confirm() && !started) begin(); continue; }
+      if (a === 'back') { if (started) back(); continue; }
+      if (a === 'padLost') { if (started && input.source === 'gamepad') setPaused(true); continue; }
       if (!started) continue;
+      if (a === 'pause' && !paused && (hud.modalKind === 'help' || hud.modalKind === 'controller')) { back(); continue; }
       if (paused && !['pause', 'resume', 'help', 'mute', 'debug', 'restart', 'reset'].includes(a)) { if (a === 'attach') setPaused(false); continue; }
       doAction(a);
     }
     for (const n of input.takeNotices()) hud.toast(n);
     hud.setDevice(input.source);
+    document.body.classList.toggle('pad-nav', input.source === 'gamepad');
+    hud.updateController();
     if (input.attachBtn) {
       input.attachBtn.classList.toggle('ready', !!sim.attachCandidate());
       input.attachBtn.querySelector('.lbl').textContent = sim.carriedBag() ? 'Drop' : 'Hook';
@@ -249,8 +287,20 @@ async function boot() {
             : e.reason === 'rollover' ? 'Tipped over. Keep it level near the surface.' : 'Down she goes.';
         hud.showCrash(why);
         crashShown = true;
+        if (input.source === 'gamepad') hud.focusFirst();
       }
       if (e.type === 'restart') { crashShown = false; hud.hideCrash(); }
+    }
+    // Rumble as physical feedback (only when flying with a controller).
+    if (input.source === 'gamepad') {
+      for (const e of events) {
+        if (e.type === 'crash') input.pads.rumble(1, 0.8, 450);
+        else if (e.type === 'bump') input.pads.rumble(Math.min(0.6, e.dv * 0.5), 0.3, 90);
+        else if (e.type === 'attach') input.pads.rumble(0, 0.35, 50);
+        else if (e.type === 'release') input.pads.rumble(0, 0.25, 40);
+        else if (e.type === 'splash') input.pads.rumble(0.1, Math.min(0.5, 0.15 + e.speed * 0.4), 90);
+        else if (e.type === 'rotorTick') input.pads.rumble(0.25, 0.4, 30);
+      }
     }
 
     // Camera.
