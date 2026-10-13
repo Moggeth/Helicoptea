@@ -18,7 +18,7 @@ const _pinA = new THREE.Vector3(), _pinL = new THREE.Vector3(), _pinQ = new THRE
 const rand = (a, b) => a + Math.random() * (b - a);
 // First person hides the airframe around the pilot's eye but keeps its shadow on the table.
 const SHADOW_ONLY = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
-const FP_HIDE = { heliModel: ['fuselage', 'tailBoom', 'tail'], chinookModel: ['noseCab', 'cabin', 'aftCabin', 'fwdPylon'] };
+const FP_HIDE = { micro: ['fuselage', 'tailBoom', 'tail'], chinook: ['noseCab', 'cabin', 'aftCabin', 'fwdPylon'], skycrane: ['cockpit'] };
 
 // Presentation layer: mirrors simulation state into the Three.js scene and turns sim events into effects.
 export class View {
@@ -121,8 +121,9 @@ export class View {
   setFirstPerson(on) {
     if (this.firstPerson === on) return;
     this.firstPerson = on;
+    const models = { micro: this.heliModel, chinook: this.chinookModel, skycrane: this.skycrane.model };
     for (const [key, names] of Object.entries(FP_HIDE)) {
-      const U = this[key].userData;
+      const U = models[key].userData;
       const spinning = new Set([...(U.rotors || []), U.rotor].filter(Boolean)); // rotors keep drawing
       const visit = (o) => {
         if (spinning.has(o)) return;

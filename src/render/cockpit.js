@@ -228,7 +228,7 @@ export class Cockpit {
     this.sun.shadow.normalBias = 0.00004;
     this.sun.shadow.radius = 3;
     this.scene.add(this.hemi, this.sun, this.sun.target);
-    this.interiors = { micro: this.buildMicro(), chinook: this.buildChinook() };
+    this.interiors = { micro: this.buildMicro(), chinook: this.buildChinook(), skycrane: this.buildSkycrane() };
     for (const it of Object.values(this.interiors)) { it.group.visible = false; this.scene.add(it.group); }
     this.kind = null;
     this.buildPip();
@@ -516,6 +516,70 @@ export class Cockpit {
     return { group: root, crew, panel: P.panel, shadow: { c: V(0, 0.004, -0.072), r: 0.017 } };
   }
 
+  // ---------------------------------------------------------------- skycrane (S-64-style)
+  // A glazed ellipsoidal pod with two crew side by side, analogue instruments, ribs over the bubble.
+  buildSkycrane() {
+    const M = materials('micro');
+    M.lining = new THREE.MeshStandardMaterial({ map: fabric('#5c5f5e', [18, 10]), roughness: 0.95, side: THREE.BackSide });
+    M.suit = new THREE.MeshStandardMaterial({ map: fabric('#3b4a5a', [3, 3]), roughness: 0.9 });
+    M.seat = new THREE.MeshStandardMaterial({ map: fabric('#2f3236', [4, 4]), roughness: 0.9 });
+    const s = 0.34;
+    const C = V(0, 0.004, -0.068), R = V(0.0128, 0.0148, 0.0185);
+    const root = new THREE.Group();
+    // Same ellipsoid split as the outside: glass above, the tub below, a little inside both.
+    const glassGeo = new THREE.SphereGeometry(1, 48, 28, 0, Math.PI * 2, 0, Math.PI * 0.62).scale(R.x * 0.985, R.y * 0.985, R.z * 0.985).translate(C.x, C.y, C.z);
+    const tubGeo = new THREE.SphereGeometry(1, 48, 20, 0, Math.PI * 2, Math.PI * 0.6, Math.PI * 0.4).scale(R.x * 0.985, R.y * 0.985, R.z * 0.985).translate(C.x, C.y, C.z);
+    const glass = new THREE.Mesh(glassGeo, M.glass); glass.userData.keep = true; glass.renderOrder = 5;
+    const tub = new THREE.Mesh(tubGeo, M.lining); tub.userData.keep = true; tub.castShadow = tub.receiveShadow = true;
+    root.add(glass, tub);
+    // Ribs over the bubble, the sill ring, and an opaque back wall into the spine.
+    for (const a of [-0.55, 0, 0.55]) {
+      const rib = new THREE.TorusGeometry(1, 0.03, 6, 40, Math.PI);
+      rib.rotateY(Math.PI / 2 + a);
+      rib.scale(R.x * 0.975, R.y * 0.975, R.z * 0.975).translate(C.x, C.y, C.z);
+      root.add(new THREE.Mesh(rib, M.post));
+    }
+    const sill = new THREE.TorusGeometry(1, 0.028, 6, 56).rotateX(Math.PI / 2).scale(0.0118 * 0.98, 0.0118, 0.0172 * 0.98).translate(C.x, C.y - 0.0055, C.z);
+    root.add(new THREE.Mesh(sill, M.post));
+    const back = new THREE.Mesh(new THREE.CircleGeometry(1, 40).scale(R.x * 0.9, R.y * 0.75, 1).translate(0, C.y, -0.0545), M.lining);
+    root.add(back);
+    root.add(box(M.floor, 0.02, 0.0005, 0.016, 0, -0.0018, -0.069));
+    // Glare shield, panel (analogue), centre console.
+    const hood = new THREE.Mesh(hoodGeometry(0.019, 0.0812, 0.0784, 0.0058, 0.0012, 0.0003), M.glare);
+    hood.position.x = -0.0095;
+    root.add(hood);
+    const P = this.panelGroup('micro', M, 0.0185, 0.0066);
+    P.group.position.set(0, 0.0023, -0.0790);
+    P.group.rotation.x = -0.2;
+    root.add(P.group);
+    root.add(box(M.panelBody, 0.0042, 0.0045, 0.0085, 0, -0.0005, -0.0725, -0.4, 0, 0, 0.0004));
+    for (const sx of [-1, 1]) {
+      const x = sx * 0.0048;
+      root.add(box(M.seat, 0.0052, 0.0013, 0.005, x, 0.0024, -0.0650, 0, 0, 0, 0.0005));
+      root.add(box(M.seat, 0.0052, 0.0078, 0.0012, x, 0.0066, -0.0622, -0.1, 0, 0, 0.0005));
+      root.add(box(M.seatFrame, 0.0044, 0.0035, 0.0044, x, -0.0002, -0.0650));
+    }
+    const crew = [];
+    for (const [sx, self] of [[1, true], [-1, false]]) {
+      const x = sx * 0.0048;
+      const A = this.pilotRig(M, {
+        x, hipY: 0.0038, hipZ: -0.0646, kneeY: 0.0046, kneeZ: -0.0697, shY: 0.0089, shZ: -0.0638,
+        pedalY: -0.0006, pedalZ: -0.0748, floorY: -0.0018, cycZ: -0.0694, cycLen: 0.0040, cycTilt: 0.2,
+        colX: x - 0.0031, colY: 0.0026, colZ: -0.0634, colLen: 0.0042,
+        elbowR: V(x + 0.0028, 0.0052, -0.0652), elbowL: V(x - 0.0028, 0.0054, -0.0650),
+      }, s, root, { self });
+      A.scale = s;
+      crew.push(A);
+    }
+    const keep = [P.group];
+    for (const A of crew) keep.push(...A.pedals.map((p) => p.g), A.cyclic.g, A.collective.g);
+    mergeStatic(root, keep);
+    for (const g of keep) mergeStatic(g, []);
+    root.traverse((o) => { if (o.isMesh && !o.material.transparent) { o.castShadow = o.receiveShadow = true; } });
+    glass.castShadow = false;
+    return { group: root, crew, panel: P.panel, shadow: { c: V(0, 0.004, -0.068), r: 0.02 } };
+  }
+
   // ---------------------------------------------------------------- picture-in-picture (hook camera)
   buildPip() {
     this.pipScene = new THREE.Scene();
@@ -560,6 +624,8 @@ export class Cockpit {
     this.camera.updateProjectionMatrix();
   }
 
+  has(type) { return !!this.interiors[type]; }
+
   // h: live aircraft (or null while the crash freeze plays), quat: drawn body orientation.
   update(dt, h, sim, quat, gearDrop, active) {
     const kind = h ? h.type : this.kind;
@@ -580,7 +646,7 @@ export class Cockpit {
     if (h) {
       const c = h.ctlEcho || { pitch: 0, roll: 0, yaw: 0 };
       for (const A of it.crew) this.animatePilot(A, c, h.collective);
-      const L = h.type === 'chinook' ? 90 : 32;
+      const L = { chinook: 90, skycrane: 94 }[h.type] || 32;
       it.panel.update(dt, readFlight(h, sim, L, gearDrop));
     }
   }

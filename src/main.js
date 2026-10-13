@@ -500,7 +500,7 @@ async function boot() {
     camRig.sizeScale += (({ chinook: 1.45, skycrane: 1.55 }[sim.aircraft] || 1) - camRig.sizeScale) * Math.min(1, rd * 3);
     const look = input.takeLook();
     if (fp.crashT > 0) fp.crashT -= frameDt;
-    const fpView = started && fp.mode === 'cockpit' && (!!sim.heli || fp.crashT > 0);
+    const fpView = started && fp.mode === 'cockpit' && cockpit.has(sim.aircraft) && (!!sim.heli || fp.crashT > 0);
     const fpLive = fpView && !!sim.heli;
     if (fpView) {
       if (!lensFp) fpRig.reset();

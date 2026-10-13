@@ -45,7 +45,7 @@ The low-hover scenario (wash active, bags nearby) is harder than the earlier ove
 
 ### 2026-10-14: first-person cockpit
 
-- `node tests/e2e-cockpit.mjs`: 37/37. Toggle by 1, HUD button, pause menu (and from inside it), gamepad L3 tap, touch button; mouse, hold-L3 + right stick, D-pad and touch-drag free-look; wheel zoom; look-ahead; hook-camera inset and its Off setting; crash flash then pull-out to the wreck, restart back into the seat, 12 crash/restart cycles; Chinook cockpit, crash debris with real materials; inset clear of the touch sticks and buttons; LB left free for the skycrane.
+- `node tests/e2e-cockpit.mjs`: 40/40 (rebased onto the skycrane merge). Toggle by 1, HUD button, pause menu (and from inside it), gamepad L3 tap, touch button; mouse, hold-L3 + right stick, D-pad and touch-drag free-look; wheel zoom; look-ahead; hook-camera inset and its Off setting; crash flash then pull-out to the wreck, restart back into the seat, 12 crash/restart cycles; Chinook and skycrane cockpits, crash and restart for each, crash debris with real materials; inset clear of the touch sticks and buttons; LB left free for the skycrane.
 - Desktop 1600×900 high: 120 fps (headless cap) in the cockpit and in chase; 837 vs 740 draw calls per frame including AO passes and the hook camera. Phone landscape emulated (844×390, medium, CPU ×4): 52 fps in the cockpit.
 - Near-plane: nose held 4 mm from the mug and from the windowsill edge, no visible clipping (screenshots `test-results/cockpit/e2e-clip-*.png`). Walls can't get that close because the rotor strikes first.
 - `tests/e2e.mjs` 52/52, `tests/e2e-milk.mjs` 19/19, `tests/e2e-chinook.mjs` 17/17 on the same build (chase view unchanged).

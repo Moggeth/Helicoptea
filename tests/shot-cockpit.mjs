@@ -24,7 +24,7 @@ await page.waitForFunction(() => window.__helicoptea?.started);
 await page.evaluate(() => { try { window.__helicoptea.doAction('skiphints'); } catch { /* */ } });
 await sleep(1200);
 await page.screenshot({ path: `${outDir}/${which}-0-chase.png` });
-await page.keyboard.press('KeyX');
+await page.keyboard.press('Digit1');
 await sleep(800);
 await page.screenshot({ path: `${outDir}/${which}-1-pad.png` });
 await page.keyboard.down('KeyW'); await sleep(1100); await page.keyboard.up('KeyW');
