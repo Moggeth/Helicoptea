@@ -43,7 +43,7 @@ function pilot(sim, ap) {
   check('bucket hangs still from its hanger', k && k.attach && k.attach.kind === 'peg' && k.pos.y > 0.04 && k.vel.length() < 0.01, `y ${f(k.pos.y)} v ${f(k.vel.length(), 4)}`);
   check('bucket starts empty at its dry mass', k.vol === 0 && Math.abs(k.mass - CFG.milk.dryMass) < 1e-9, `${f(k.mass * 1000, 2)} g`);
   check('bucket holds about 12 ml', BUCKET.CAPACITY > 10e-6 && BUCKET.CAPACITY < 14e-6, ml(BUCKET.CAPACITY));
-  check('three bags still hang from the stand', sim.bags.length === 3 && sim.bags.every((b) => b.attach && b.attach.kind === 'peg'));
+  check('a bag still hangs from every peg on both stands', sim.bags.length === sim.pegs.length && sim.bags.every((b) => b.attach && b.attach.kind === 'peg'));
 }
 
 // 2. Physics of filling, without a pilot: lower the bucket into the bowl on a kinematic line.
