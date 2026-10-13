@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CHINOOK_PARTS } from '../sim/chinook.js';
 import { CFG } from '../config.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // A serious, scale-model CH-47-style tandem-rotor transport, built procedurally: lofted square-section
 // fuselage with the ramp upsweep, multi-pane cockpit glazing with two crew inside, forward pylon fairing,
@@ -204,7 +205,11 @@ function livery() {
   g.fillStyle = 'rgba(12,12,10,0.85)'; g.fillRect(0.42 * W, vOf(-0.0745), 0.16 * W, vOf(-0.068) - vOf(-0.0745));
   // Stencils: serial on both sides of the aft fuselage, small warning text near the door.
   const stencil = (text, u, z, size, flip, color = 'rgba(14,14,10,0.92)') => {
-    g.save(); g.translate(u * W, vOf(z)); g.rotate(flip ? Math.PI / 2 : -Math.PI / 2);
+    // Around-the-section u runs up the right side and down the left; v runs nose to tail. Both sides
+    // are reflections of the canvas, so the text basis is mirrored to read nose-wards on the right
+    // and tail-wards on the left, the right way up.
+    g.save(); g.translate(u * W, vOf(z));
+    if (flip) g.transform(0, 1, 1, 0, 0, 0); else g.transform(0, -1, -1, 0, 0, 0);
     g.fillStyle = color; g.font = `bold ${size}px "Arial Narrow", "Roboto Condensed", Arial, sans-serif`; g.textAlign = 'center';
     g.fillText(text, 0, size * 0.35); g.restore();
   };
@@ -526,11 +531,40 @@ export function buildChinook(M = chinookMaterials()) {
     rotors.push(rotor);
   });
 
+  // Static meshes of each part merge by material (draw calls), leaving the spinning rotors and the beacon.
+  const keep = [...rotors, parts.aftPylon.userData.beacon];
+  for (const p of CHINOOK_PARTS) if (!p.blade) mergeStatic(parts[p.name], keep);
+  for (const r of rotors) for (const gh of r.userData.ghosts) mergeStatic(gh, []);
   for (const p of CHINOOK_PARTS) if (!p.blade) root.add(parts[p.name]);
   root.traverse((o) => { if (o.isMesh && !(Array.isArray(o.material) ? false : o.material.transparent)) { o.castShadow = true; o.receiveShadow = true; } });
   nose.castShadow = true; nose.receiveShadow = true;
   root.userData = { parts, rotors, beacon: parts.aftPylon.userData.beacon };
   return root;
+}
+
+function mergeStatic(part, keep) {
+  part.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(part.matrixWorld).invert();
+  const byMat = new Map();
+  const victims = [];
+  part.traverse((o) => {
+    if (!o.isMesh || Array.isArray(o.material) || keep.includes(o)) return;
+    for (let a = o.parent; a && a !== part; a = a.parent) if (keep.includes(a)) return;
+    const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
+    if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+    g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+    g.clearGroups();
+    if (!byMat.has(o.material)) byMat.set(o.material, []);
+    byMat.get(o.material).push(g);
+    victims.push(o);
+  });
+  for (const o of victims) o.parent.remove(o);
+  for (const [mat, geos] of byMat) {
+    const merged = mergeGeometries(geos, false);
+    if (!merged) continue;
+    part.add(new THREE.Mesh(merged, mat));
+  }
 }
 
 // Clone of one part for a debris body (centred on the part origin), scorched, with ember glow hooks.

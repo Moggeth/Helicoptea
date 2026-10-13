@@ -4,6 +4,10 @@ Fly a 24 g scale-model helicopter (a deliberately serious, realistic light utili
 
 Three.js (r169) for rendering, Rapier 3D (0.14, WASM) for rigid bodies and contacts. Everything visual and audible is generated procedurally at runtime, so there are no external asset files (see [docs/ATTRIBUTION.md](docs/ATTRIBUTION.md)).
 
+## Two aircraft
+
+Pick on the start screen, in **Pause → Aircraft**, or press **V** in flight (`?aircraft=chinook` in the URL also works; the choice is remembered). The **micro heli** is the nimble single-rotor original. The **Chinook** is a 94 g tandem-rotor heavy lifter: two counter-rotating rotors, no tail rotor, three cargo hooks, much more inertia, and its own breakup. See [docs/DESIGN.md](docs/DESIGN.md#chinook-srcsimchinookjs).
+
 ## Rotor wash, AO
 
 The rotor's downwash is a small fluid simulation (wake column plus a 2D outwash solver over the table). It pushes the dangling bag and strings, buffets the helicopter near surfaces, ripples the linen runner, blows steam and dust, nods the flowers, and dimples and sprays the tea. Ambient occlusion (GTAO) grounds everything on desktop. See [docs/DESIGN.md](docs/DESIGN.md).
@@ -30,9 +34,10 @@ Click **Start flying** (this also unlocks browser audio).
 ## Tests
 
 ```bash
-npm run check                        # headless physics checks (Node only, ~1 min)
+npm run check                        # headless physics checks, both aircraft (Node only, ~2 min)
 node tests/e2e.mjs                   # browser checks against npm run preview (port 4178)
 node tests/e2e.mjs http://localhost:5178/ --headed --only=desktop
+node tests/e2e-chinook.mjs           # Chinook through keyboard, gamepad and touch, picker, breakup
 ```
 
 `tests/sim-checks.mjs` drives the real simulation with the same stick inputs a player produces (via a scripted autopilot) and asserts physical outcomes: hover, assist on/off behaviour, peg pickup, swing and load transfer, immersion, wetness and mass, per-cup brewing, extraction and draining, release onto the saucer, landing, crash thresholds, and bounded crash/restart cycles.
@@ -46,7 +51,8 @@ node tests/e2e.mjs http://localhost:5178/ --headed --only=desktop
 | Cyclic (tilt) | Arrow keys (or I J K L) | Right stick | Right thumb stick |
 | Collective | W / S | Left stick up/down, or RT / LT | Left thumb up/down |
 | Yaw | A / D (or Q / E) | Left stick left/right | Left thumb left/right |
-| Hook / release | Space | A | Hook button |
+| Hook / release | Space (Chinook: each press hooks the nearest bag to a free hook; with none in reach it drops them all) | A | Hook button |
+| Switch aircraft | V | Pause menu | Pause menu |
 | Flight Assist | F | Y | Assist button |
 | Restart flight | R | Start | ↻ (top right) |
 | Reset sandbox | Shift+R | Pause menu | Pause menu |

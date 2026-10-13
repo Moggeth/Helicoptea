@@ -49,6 +49,15 @@ const fly = (sim, ap, x, y, z, secs, speed = 0.3, aim = null) => {
   check('hover: collective near half', h.collective > 0.4 && h.collective < 0.65, `collective ${f(h.collective)}`);
 }
 
+// 2b. Downwash: each rotor drives its own wake column into the table's outwash field.
+{
+  const sim = make();
+  run(sim, 0.8, () => ({ ...zero(), collective: 1 }));
+  run(sim, 1.5);
+  const [a, b] = sim.air.wakes;
+  check('downwash: two wake columns reach the table', a.active && b.active && a.vg > 0.3 && b.vg > 0.3 && a.hit.distanceTo(b.hit) > 0.1, `vg ${f(a.vg, 2)} / ${f(b.vg, 2)} m/s, ${f(a.hit.distanceTo(b.hit), 3)} m apart, outwash ${f(sim.air.maxSpeed(), 2)} m/s`);
+}
+
 // 3. Pitch is differential collective: nose-down stick unloads the front rotor and loads the aft one.
 {
   const sim = make();
