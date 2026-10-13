@@ -7,7 +7,8 @@ import { Sim } from '../src/sim/sim.js';
 import { Autopilot } from '../src/sim/autopilot.js';
 import { TeaBag } from '../src/sim/teabag.js';
 import { CFG } from '../src/config.js';
-import { GARDEN, BACKDOOR, WINDOW, ROOM, PAD } from '../src/sim/layout.js';
+import { GARDEN, BACKDOOR, WINDOW, ROOM, PAD, RADIO, COUNTER, TREE, LAMP } from '../src/sim/layout.js';
+import { gearDrop } from '../src/sim/aircraft.js';
 
 await initPhysics();
 const results = [];
@@ -127,6 +128,59 @@ function pilot(sim) {
   check('the back wall beside the window is solid', !!wall && Math.abs(wall.timeOfImpact - (0 - ROOM.minZ)) < 0.01, wall ? f(wall.timeOfImpact) : 'none');
   const door = ray({ x: (BACKDOOR.x0 + BACKDOOR.x1) / 2, y: 0.3, z: 0 }, { x: 0, y: 0, z: -1 }, 2.0);
   check('the doorway is open', !door || door.timeOfImpact > 1.9, door ? f(door.timeOfImpact) : 'clear');
+}
+
+// 6. Things to play with: napkins blow about, the lamp swings, the cat bats at bags, the radio switches on
+// when you land on it, apples drop when you buzz the tree, and a sandbox reset tidies it all up.
+{
+  const sim = new Sim();
+  const { goto } = pilot(sim);
+  const napkin = sim.props.items.find((i) => i.def.id === 'napkin');
+  const n0 = napkin.body.translation();
+  goto(n0.x - 0.12, 0.12, n0.z, 6, { speed: 0.2 });
+  const n1 = napkin.body.translation();
+  check('rotor wash moves the napkin', Math.hypot(n1.x - n0.x, n1.z - n0.z) > 0.03 || n1.y < -0.1, `moved ${f(Math.hypot(n1.x - n0.x, n1.z - n0.z))} m, y ${f(n1.y)}`);
+  const lamp = sim.props.lamp.body;
+  lamp.applyImpulse({ x: 0.12, y: 0, z: 0 }, true);
+  let maxSwing = 0;
+  run(sim, 1.0, () => { const t = lamp.translation(); maxSwing = Math.max(maxSwing, Math.hypot(t.x - LAMP.x, t.z - LAMP.z)); return sim.heli ? new Autopilot().update(sim.heli) : zero(); });
+  const top = lamp.translation();
+  check('the pendant lamp swings on its cord and stays hung', maxSwing > 0.03 && Math.abs(Math.hypot(top.x - LAMP.x, top.y - ROOM.ceilingY + LAMP.length, top.z - LAMP.z)) < 0.2, `swing ${f(maxSwing)} m`);
+  // Cat: a bag dangling into reach gets a swipe.
+  const c = sim.props.cat;
+  const bag = new TeaBag(sim, c.shoulder.clone().addScaledVector(c.fwd, 0.2).add(new THREE.Vector3(0, 0.02, 0)), new THREE.Quaternion());
+  sim.bags.push(bag);
+  const bp0 = bag.pos.clone();
+  let swiped = 0, maxV = 0;
+  run(sim, 1.5, () => { swiped = c.swipes; maxV = Math.max(maxV, bag.vel.length()); return zero(); });
+  check('the cat swipes at a bag in reach and knocks it', swiped > 0 && maxV > 0.3 && bag.pos.distanceTo(bp0) > 0.05, `swipes ${swiped}, bag speed ${f(maxV)} m/s`);
+  // Radio: land on it (placed there by the harness), lift off, land again.
+  const land = () => {
+    sim.heli.body.setTranslation({ x: RADIO.x, y: COUNTER.top + RADIO.h + gearDrop(sim.aircraft) + 0.002, z: RADIO.z }, true);
+    sim.heli.body.setLinvel({ x: 0, y: 0, z: 0 }, true); sim.heli.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    sim.heli.body.setRotation({ x: 0, y: Math.SQRT1_2, z: 0, w: Math.SQRT1_2 }, true);
+    run(sim, 1.5, () => ({ ...zero(), collective: -1 }));
+  };
+  sim.restartFlight();
+  land();
+  const on1 = sim.props.radio.on;
+  run(sim, 0.6, () => ({ ...zero(), collective: 1 }));
+  land();
+  check('landing on the radio switches it on, landing again switches it off', on1 === true && sim.props.radio.on === false && sim.state === 'flying', `on ${on1} then ${sim.props.radio.on}`);
+  // Apples.
+  sim.restartFlight();
+  const can = TREE.canopy[1];
+  sim.heli.body.setTranslation({ x: TREE.x + can[0], y: can[1] - can[3] - 0.12, z: TREE.z + can[2] + 0.1 }, true);
+  sim.heli.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+  const hold = new Autopilot(); hold.target.set(TREE.x + can[0], can[1] - can[3] - 0.12, TREE.z + can[2] + 0.1);
+  let dropped = 0;
+  for (let i = 0; i < 8 && sim.state === 'flying'; i++) { run(sim, 2, () => (sim.heli ? hold.update(sim.heli) : zero())); dropped = Math.max(dropped, sim.props.apples.length); }
+  check('buzzing the apple tree shakes apples down (a few at most)', dropped > 0 && sim.props.apples.length <= 4, `apples ${dropped}, state ${sim.state}`);
+  sim.resetSandbox();
+  run(sim, 0.1);
+  const n2 = napkin.body.translation();
+  check('reset sandbox puts the props back', Math.hypot(n2.x - n0.x, n2.z - n0.z) < 0.005 && sim.props.apples.length === 0 && !sim.props.radio.on);
+  check('dynamic bodies stay bounded', sim.world.bodies.len() < 40, `${sim.world.bodies.len()} bodies`);
 }
 
 const failed = results.filter((r) => !r.ok);

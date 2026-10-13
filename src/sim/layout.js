@@ -33,6 +33,11 @@ export const CUPS = [
     bottom: 0.009, water: 0.074, handleYaw: Math.PI * 0.75, glaze: 0xc9663e, rim: 0xf0e2c8 },
   { id: 'bench', name: 'Bench mug', x: -1.32, z: -5.5, standY: -0.31, baseY: -0.31, rOut: 0.045, rIn: 0.041, height: 0.088,
     bottom: 0.008, water: 0.068, handleYaw: 0, glaze: 0xf3f1ea, rim: 0x2b4a8a },
+  // Secrets: the garden gnome's own teacup, and a chipped mug left on the chimney stack.
+  { id: 'gnome', name: "Gnome's teacup", shape: 'teacup', x: -2.43, z: -3.0, standY: -0.56, baseY: -0.56, rOut: 0.046, rIn: 0.0415, height: 0.058,
+    bottom: 0.007, water: 0.045, handleYaw: Math.PI * 0.5, glaze: 0xe8c547, rim: 0xc0392b },
+  { id: 'chimney', name: 'Chimney mug', x: 1.69, z: 0.1, standY: 3.4, baseY: 3.4, rOut: 0.047, rIn: 0.0415, height: 0.096,
+    bottom: 0.009, water: 0.074, handleYaw: Math.PI, glaze: 0x3f5e4a, rim: 0xd8d0bf },
 ];
 
 export const DISCARD = { x: 0.5, z: -0.29, radius: 0.078, rimHeight: 0.013, thickness: 0.006 };
@@ -75,6 +80,31 @@ export const TREE = { x: 2.75, z: -5.55, trunkR: 0.09, trunkTop: 0.95, canopy: [
 export const POTS = [[-1.25, -1.86, 0.12, 0.24], [-0.92, -1.9, 0.09, 0.17], [2.05, -1.88, 0.13, 0.28]]; // x, z, r, height
 export const HEDGE = { z0: GARDEN.minZ, z1: GARDEN.minZ + 0.45, top: ROOM.floorY + 1.35 };
 export const MEADOW_Z = -4.7; // long grass beyond this line
+
+// Roof (gable along x) and the chimney stack on its back slope, near the ridge.
+export const ROOF = { eaveZ: ROOM.minZ - WALL_T - 0.28, eaveY: ROOM.floorY + 2.6 - 0.05 + 0.02, ridgeZ: (ROOM.maxZ + ROOM.minZ) / 2, rise: 1.13,
+  frontEaveZ: ROOM.maxZ + WALL_T + 0.28, halfX: (ROOM.maxX - ROOM.minX) / 2 + WALL_T + 0.2, thick: 0.05 };
+export const CHIMNEY = { x: 1.575, z: 0.1, halfX: 0.225, halfZ: 0.22, top: 3.4, pots: [[1.45, -0.02], [1.45, 0.22]], potR: 0.075, potH: 0.28 };
+// The play space: everything outside it is walled off (invisible walls behind fences and the house).
+export const BOUNDS = { minX: GARDEN.minX, maxX: GARDEN.maxX, minZ: GARDEN.minZ, maxZ: ROOF.frontEaveZ + 0.1, top: ROOM.floorY + 8 };
+
+// Kitchen charm.
+export const FRIDGE = { x0: ROOM.minX, x1: ROOM.minX + 0.68, z0: 0.9, z1: 1.5, top: ROOM.floorY + 1.8 };
+export const RADIO = { x: ROOM.maxX - 0.2, z: -0.8, halfX: 0.06, halfZ: 0.13, h: 0.16 }; // on the counter
+export const CLOCK = { x: -1.62, y: 1.2, r: 0.14 };                                         // on the back wall, inside
+export const FRAMES = [
+  { wall: 'left', z: -0.55, y: 0.78, w: 0.42, h: 0.32 },
+  { wall: 'left', z: 0.15, y: 0.9, w: 0.26, h: 0.34 },
+  { wall: 'front', x: -0.5, y: 0.82, w: 0.56, h: 0.4 },
+];
+export const CURTAINS = { rail: 1.24, panels: [[-1.24, -1.06], [0.52, 0.68]], depth: 0.07 };
+export const LAMP = { x: 0.05, z: 0.05, length: 0.45, shadeR: 0.16, shadeH: 0.14 };           // hangs from the ceiling
+export const MOBILE = { x: -1.45, z: 1.15, length: 0.42, arm: 0.26, scale: 2 };              // toy planes on a ceiling mobile
+
+// Garden characters.
+export const CAT = { x: -1.76, z: -5.5, yaw: -1.25 };   // sits on the bench, guarding the bench mug
+export const GNOME = { x: -2.55, z: -3.0, yaw: Math.PI / 2 };
+export const LANTERN = { x: BACKDOOR.x1 + 0.22, y: BACKDOOR.top + 0.05, z: ROOM.minZ - WALL_T - 0.07 };
 
 // Height of the solid surface under a point (for particles landing and the like).
 export function surfaceY(x, z) {

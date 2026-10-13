@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { CHAIRS, TABLE, ROOM, PAD, STATION, CUPS, DISCARD, TEAPOT, SUGAR, VASE, JUG, PLATE, BOOKS, SPOON } from '../sim/layout.js';
+import { CHAIRS, TABLE, ROOM, PAD, STATION, CUPS, DISCARD, TEAPOT, SUGAR, VASE, JUG, PLATE, BOOKS } from '../sim/layout.js';
 import * as TX from './textures.js';
 import { buildGarden } from './garden.js';
 import { cupModel, glazeMaterial, vesselGeometry, saucerGeometry, handleGeometry } from './models.js';
@@ -52,7 +52,7 @@ function clothMaterial(map, uniforms, amp, drape) {
   return m;
 }
 
-export function buildKitchen(scene, renderer, quality, progress) {
+export function buildKitchen(scene, renderer, quality, progress, sim) {
   const out = { cups: [], sun: null, lamp: null, animated: [] };
   // Shared air-field uniforms for cloth (filled by the view each frame).
   out.clothUniforms = { uAir: { value: null }, uAirRect: { value: new THREE.Vector4(-1.02, -0.68, 2.04, 1.36) }, uTime: { value: 0 }, uAirRange: { value: 4 } };
@@ -186,6 +186,7 @@ export function buildKitchen(scene, renderer, quality, progress) {
     const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, ROOM.ceilingY - 1.1, 6), new THREE.MeshStandardMaterial({ color: 0x222222 }));
     cord.position.set(0.05, (ROOM.ceilingY + 1.1) / 2, 0.05);
     scene.add(cord);
+    out.pendant = { shade, bulb, cord }; // it swings: see charm.js
     // Windsor chairs: oak seat, turned splayed legs, spindle back with a bent top rail.
     const chairMat = new THREE.MeshStandardMaterial({ color: 0x8a5f40, map: wood.map, roughness: 0.6 });
     const turned = (() => {
@@ -369,7 +370,7 @@ export function buildKitchen(scene, renderer, quality, progress) {
     p.position.set(PLATE.x, 0, PLATE.z);
     scene.add(shadowed(p));
     const bis = new THREE.MeshStandardMaterial({ color: 0xcf9a55, roughness: 0.85 });
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < (quality.liteProps ? 4 : 2); i++) { // the top two are loose (see props.js) unless props are lite
       const b = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.006, 24), bis);
       b.position.set(PLATE.x - 0.025 + i * 0.016, PLATE.h * 0.6 + 0.004 + i * 0.0035, PLATE.z + (i % 2 ? 0.01 : -0.01));
       b.rotation.set(0.15 * (i % 2 ? 1 : -1), 0, 0.12);
@@ -395,24 +396,9 @@ export function buildKitchen(scene, renderer, quality, progress) {
     });
   }
 
-  // Teaspoon.
-  {
-    const metal = new THREE.MeshStandardMaterial({ color: 0xd8dadf, metalness: 1, roughness: 0.18 });
-    const g = new THREE.Group();
-    const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.012, 16, 8, 0, Math.PI * 2, Math.PI * 0.6, Math.PI * 0.4), metal);
-    bowl.scale.set(1, 0.4, 1.5);
-    bowl.position.y = 0.006;
-    g.add(bowl);
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.0018, 0.1), metal);
-    handle.position.set(0, 0.002, 0.065);
-    handle.rotation.x = -0.04;
-    g.add(handle);
-    g.position.set(SPOON.x, 0, SPOON.z);
-    g.rotation.y = SPOON.yaw;
-    scene.add(shadowed(g));
-  }
+  // (The teaspoon is loose: see props.js and charm.js.)
   progress?.('Setting out the china');
-  out.garden = buildGarden(scene, quality, out, teaStand);
+  out.garden = buildGarden(scene, quality, out, teaStand, sim);
   return out;
 }
 

@@ -6,6 +6,7 @@ import { buildStaticWorld } from './staticWorld.js';
 import { createAircraft, gearDrop, AIRCRAFT_IDS } from './aircraft.js';
 import { TeaBag } from './teabag.js';
 import { AirField } from './air.js';
+import { Props } from './props.js';
 import { MilkSystem } from './milk.js';
 
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _q = new THREE.Quaternion();
@@ -92,6 +93,7 @@ export class Sim {
     this.spawnHeli();
     for (const p of this.pegs) this.refillPeg(p);
     this.milk = new MilkSystem(this);
+    this.props = new Props(this, !!opts.lite);
   }
 
   register(collider, info) { this.colliderInfo.set(collider.handle, info); }
@@ -407,6 +409,7 @@ export class Sim {
     this.drips.length = 0;
     for (const c of this.cups) { c.brew = 0; c.steep = 0; }
     this.milk.reset();
+    this.props.reset();
     this.air.clear();
     for (const p of this.pegs) { p.bag = null; }
     this.restartFlight();
@@ -422,6 +425,7 @@ export class Sim {
     if (this.heli) this.heli.applyForces(dt, ctl, this.assist);
     for (const b of this.bags) b.applyForces(dt);
     this.milk.applyForces(dt, ctl);
+    this.props.applyForces(dt);
 
     this.world.step(this.eventQueue);
     this.time += dt;
@@ -437,7 +441,7 @@ export class Sim {
       if (heliInfo) {
         const other = heliInfo === i1 ? i2 : i1;
         if (other.kind === 'bag') { bagHeliHit = Math.max(bagHeliHit, imp); return; }
-        if (other.kind === 'debris') return; // loose wreckage nudges, it doesn't destroy
+        if (other.kind === 'debris' || other.kind === 'prop') return; // loose wreckage and props nudge, they don't destroy
         anyContact = true;
         const dv = imp / this.heli.def.mass;
         if (dv > impact) { impact = dv; impactPos = other; }
@@ -512,6 +516,7 @@ export class Sim {
       this.updateRope(b);
     }
     this.milk.afterStep(dt);
+    this.props.afterStep(dt);
     if (this.heli) {
       let load = 0;
       for (const b of this.carriedCargo()) load += b.tension;

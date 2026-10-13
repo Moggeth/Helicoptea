@@ -5,6 +5,7 @@ import { Batcher, T, boxUV, planeUV, blobGeometry } from './batch.js';
 import { flagTexture, boardTexture, barkTexture, leafTexture, foliageTexture, groundTexture, grassMask, makeNoise } from './gardenTextures.js';
 import { Grass, WIND_GLSL } from './grass.js';
 import { buildHouseShell } from './houseShell.js';
+import { buildCharm } from './charm.js';
 
 const V2 = (x, y) => new THREE.Vector2(x, y);
 const _v = new THREE.Vector3(), _c = new THREE.Vector3();
@@ -12,7 +13,7 @@ const _v = new THREE.Vector3(), _c = new THREE.Vector3();
 // The tea garden behind the kitchen: patio, lawn and meadow grass, borders, a garden table with its own
 // tea stand and cup, a rose arch, bird bath, stump, bench and an apple tree, all walled in by a fence
 // and hedge under an open sky. Decor and grass density scale with the quality tier.
-export function buildGarden(scene, quality, kitchen, teaStand) {
+export function buildGarden(scene, quality, kitchen, teaStand, sim) {
   const tier = quality.name;
   const q = tier === 'high' ? 1 : tier === 'medium' ? 0.55 : 0.3;
   const shadows = quality.shadows > 0;
@@ -336,6 +337,7 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
   }
 
   b.build(scene);
+  const charm = sim ? buildCharm(scene, quality, kitchen, sim) : null;
 
   // ---------------------------------------------------------------- per-frame
   const wind = grass.uniforms;
@@ -349,8 +351,10 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
   const tableShadow = sun.target.position.clone();
   return {
     grass,
+    charm,
     update(dt, focus, camera, sim) {
       t += dt;
+      if (charm) charm.update(dt, sim, camera);
       wind.uTime.value = t;
       // Breeze slowly veers and freshens.
       const bd = 0.6 + 0.35 * Math.sin(t * 0.05);

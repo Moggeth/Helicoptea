@@ -80,7 +80,9 @@ async function boot() {
   await initPhysics();
   setProgress(0.3, 'Filling the cups…');
   const wantAircraft = params.get('aircraft') || store.get('aircraft', 'micro');
-  const sim = new Sim({ aircraft: AIRCRAFT_IDS.includes(wantAircraft) ? wantAircraft : 'micro' });
+  // Phones and the low tier get fewer loose props (they also sleep when still).
+  quality.liteProps = IS_TOUCH || quality.name === 'low';
+  const sim = new Sim({ aircraft: AIRCRAFT_IDS.includes(wantAircraft) ? wantAircraft : 'micro', lite: quality.liteProps });
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(CFG.camera.fov, innerWidth / innerHeight, 0.01, 60);
@@ -89,7 +91,7 @@ async function boot() {
   let stepN = 0;
   const kitchenSteps = ['Lighting the kitchen', 'Laying the table', 'Hanging the curtains', 'Setting out the china'];
   await tick();
-  const kitchen = buildKitchen(scene, renderer, quality, (msg) => { stepN++; setProgress(0.3 + 0.4 * stepN / kitchenSteps.length, `${msg}…`); });
+  const kitchen = buildKitchen(scene, renderer, quality, (msg) => { stepN++; setProgress(0.3 + 0.4 * stepN / kitchenSteps.length, `${msg}…`); }, sim);
   await tick();
   const view = new View(scene, sim, quality, kitchen);
   const camRig = new FollowCamera(camera);
@@ -110,6 +112,7 @@ async function boot() {
   const input = new Input($('touch'));
   input.bindCanvas(canvas);
   const audio = new Audio();
+  if (kitchen.garden.charm) kitchen.garden.charm.audio = audio; // the radio and the cat
   const debug = new Debug(sim, renderer, scene);
   if (params.get('debug') === '1' || store.get('debug', '0') === '1') debug.enabled = true;
 

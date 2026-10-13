@@ -112,7 +112,7 @@ function buildCupColliders(C, add, box, cyl) {
   const mid = (C.rOut + C.rIn) / 2;
   const halfT = (C.rOut - C.rIn) / 2;
   cyl(C.rOut, C.bottom / 2, C.x, C.baseY + C.bottom / 2, C.z, 'cup', 'ceramic');
-  ring(add, C.x, C.z, mid, halfT, C.baseY, C.height, 22, 'cup');
+  ring(add, C.x, C.z, mid, halfT, C.baseY, C.height, C.standY === undefined ? 22 : 16, 'cup'); // cups beyond the table: fewer, still overlapping, wall segments
   // Handle: two short arms and an upright grip, outside the wall.
   const hx = Math.cos(C.handleYaw), hz = -Math.sin(C.handleYaw);
   const at = (d) => [C.x + hx * d, C.z + hz * d];

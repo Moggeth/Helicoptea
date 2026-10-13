@@ -42,10 +42,10 @@ export function buildHouseShell(scene, quality) {
     b.add(boxUV(WALL_T, wallH, hz, 1), brick, T(x, fy + wallH / 2 - 0.05, czz), 0xffffff, { cast: false });
   }
   for (const sx of [-1, 1]) {
-    const x = sx > 0 ? ROOM.maxX : ROOM.minX;
+    const x = sx > 0 ? ROOM.maxX - 0.0005 : ROOM.minX + 0.0005; // just proud of the brick behind it
     b.add(planeUV(ROOM.maxZ - ROOM.minZ, cy - fy, 1), plaster, T(x, (cy + fy) / 2, czz, -sx * Math.PI / 2), 0xffffff, { cast: false });
   }
-  b.add(planeUV(ROOM.maxX - ROOM.minX, cy - fy, 1), plaster, T(0, (cy + fy) / 2, ROOM.maxZ, Math.PI), 0xffffff, { cast: false });
+  b.add(planeUV(ROOM.maxX - ROOM.minX, cy - fy, 1), plaster, T(0, (cy + fy) / 2, ROOM.maxZ - 0.0005, Math.PI), 0xffffff, { cast: false });
 
   // Window: architraves inside and out, a full-depth mullion and transom, sill inside, stone sill outside.
   const W = WINDOW, wx0 = W.x - W.w / 2, wx1 = W.x + W.w / 2, wy0 = W.y - W.h / 2, wy1 = W.y + W.h / 2;

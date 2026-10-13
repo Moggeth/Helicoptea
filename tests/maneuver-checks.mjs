@@ -15,7 +15,7 @@ const f = (x, d = 2) => Number(x).toFixed(d);
 function setup(type) {
   const sim = new Sim(type === 'chinook' ? { aircraft: 'chinook' } : undefined);
   const ap = new Autopilot();
-  ap.yaw = -Math.PI / 2; ap.maxSpeed = 0.3; ap.target.set(-0.7, 0.5, 0.0); // clear lane above everything, nose to +x
+  ap.yaw = -Math.PI / 2; ap.maxSpeed = 0.3; ap.target.set(-0.7, 0.5, -0.32); // clear lane above everything (and beside the pendant lamp), nose to +x
   for (let i = 0; i < 240 * 8 && sim.heli; i++) sim.step(ap.update(sim.heli));
   return sim;
 }

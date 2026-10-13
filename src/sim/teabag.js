@@ -221,7 +221,8 @@ export class TeaBag {
     // Strings run at half the physics rate; a free bag at rest in still air lets its string sleep.
     this.strPhase = !this.strPhase;
     if (!this.strPhase) return;
-    const still = !this.attach && this.vel.lengthSq() < 2.5e-5 && !this.sim.air.near(this.pos, 0.4);
+    // (A bag hanging quietly on a stand's peg counts as still too.)
+    const still = (!this.attach || this.attach.kind === 'peg') && this.vel.lengthSq() < 2.5e-5 && !this.sim.air.near(this.pos, 0.4);
     if (still && this.strSettled) { this.strRender0.set(this.strRender1); return; }
     this.stepString(dt * 2);
     this.strSettled = still && this.strMotion < 1e-5;
@@ -236,10 +237,16 @@ export class TeaBag {
     let motion = 0;
     const air = this.sim.air, fl = CFG.air.stringFlutter;
     const windy = air.anyWake && air.near(this.pos, 0.4);
+    // Only the cups and props the string could reach are worth testing.
+    const reach = seg * N + 0.08;
+    const nc = this.nearCups || (this.nearCups = []), ns = this.nearCols || (this.nearCols = []);
+    nc.length = 0; ns.length = 0;
+    for (const c of this.sim.cups) if (Math.abs(c.x - this.pos.x) < reach + c.rOut && Math.abs(c.z - this.pos.z) < reach + c.rOut) nc.push(c);
+    for (const sc of STRING_COLLIDERS) if (Math.abs(sc[0] - this.pos.x) < reach + sc[2] && Math.abs(sc[1] - this.pos.z) < reach + sc[2]) ns.push(sc);
     for (let i = 0; i <= N; i++) {
       const k = i * 3;
       const x = s[k], y = s[k + 1], z = s[k + 2];
-      const wet = this.inWater(x, y, z);
+      const wet = this.inWater(x, y, z, nc);
       const damp = wet ? 0.8 : 0.992;
       let ax = 0, ay = 0, az = 0;
       if (!wet && windy) {
@@ -275,8 +282,8 @@ export class TeaBag {
     this.strMotion = motion;
   }
 
-  inWater(x, y, z) {
-    for (const c of this.sim.cups) {
+  inWater(x, y, z, cups = this.sim.cups) {
+    for (const c of cups) {
       const dx = x - c.x, dz = z - c.z;
       if (dx * dx + dz * dz < c.rIn * c.rIn && y < c.waterY && y > c.floorY) return true;
     }
@@ -289,7 +296,7 @@ export class TeaBag {
       const k = i * 3;
       let x = s[k], y = s[k + 1], z = s[k + 2];
       if (Math.abs(x) < TABLE.halfX && Math.abs(z) < TABLE.halfZ && y < r && y > -0.03) y = r;
-      for (const c of this.sim.cups) {
+      for (const c of this.nearCups || this.sim.cups) {
         const dx = x - c.x, dz = z - c.z;
         // Cheap reject: both cases below need the point inside the cup's footprint and below its rim.
         const reach = c.rOut + r;
@@ -303,7 +310,7 @@ export class TeaBag {
           else if (d > 1e-6) { x = c.x + dx / d * nd; z = c.z + dz / d * nd; }
         } else if (d < c.rIn && y < c.floorY + r && y > c.baseY - 0.01) y = c.floorY + r;
       }
-      for (const [cx, cz, cr, top] of STRING_COLLIDERS) {
+      for (const [cx, cz, cr, top] of this.nearCols || STRING_COLLIDERS) {
         const dx = x - cx, dz = z - cz;
         const d2 = dx * dx + dz * dz;
         if (d2 < cr * cr && y < top + r && y > -0.02) {
