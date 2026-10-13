@@ -10,13 +10,14 @@ export function initPhysics() {
 }
 
 // Collision groups: upper 16 bits membership, lower 16 bits filter.
-export const G = { WORLD: 1, HELI: 2, BAG: 4, DEBRIS: 8, ROTOR: 16 };
+export const G = { WORLD: 1, HELI: 2, BAG: 4, DEBRIS: 8, ROTOR: 16, HOSE: 32 };
 const grp = (member, filter) => ((member & 0xffff) << 16) | (filter & 0xffff);
 export const GROUPS = {
-  world: grp(G.WORLD, G.HELI | G.BAG | G.DEBRIS | G.ROTOR),
+  world: grp(G.WORLD, G.HELI | G.BAG | G.DEBRIS | G.ROTOR | G.HOSE),
   heli: grp(G.HELI, G.WORLD | G.BAG | G.DEBRIS),
   rotor: grp(G.ROTOR, G.WORLD), // loose wreckage never counts as a rotor strike
-  bag: grp(G.BAG, G.WORLD | G.HELI | G.BAG | G.DEBRIS),
+  bag: grp(G.BAG, G.WORLD | G.HELI | G.BAG | G.DEBRIS | G.HOSE),
+  hose: grp(G.HOSE, G.WORLD | G.BAG), // the skycrane's snorkel: never the airframe or its own segments
   debris: grp(G.DEBRIS, G.WORLD | G.HELI | G.BAG | G.DEBRIS),
   queryWorld: grp(0xffff, G.WORLD),
 };

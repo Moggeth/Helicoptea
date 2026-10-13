@@ -83,6 +83,7 @@ export class AirField {
   // The rotors driving the air right now: hub (body frame), thrust and radius.
   rotorsOf(heli) {
     if (heli.type === 'chinook') return CFG.chinook.hubs.map((h, i) => ({ hub: h, T: heli.rotorT[i], R: CFG.chinook.rotorRadius }));
+    if (heli.type === 'skycrane') return [{ hub: CFG.skycrane.hub, T: heli.thrust, R: CFG.skycrane.rotorRadius }];
     return [{ hub: CFG.heli.rotorHubOffset, T: heli.thrust, R: CFG.heli.rotorRadius }];
   }
 

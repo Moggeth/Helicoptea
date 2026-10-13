@@ -200,4 +200,82 @@ export const CFG = {
       integMax: 1.4,
     },
   },
+
+  // Skycrane tanker (S-64 Air-Crane style), about 1:110: a skeletal crane spine with a glass cockpit pod,
+  // a six-blade main rotor, a four-blade tail rotor high on the left of the tail pylon, and a belly tank
+  // filled through a snorkel hose. One main rotor: pitch and roll are disc tilt (thrust line plus hub
+  // moment), yaw is the tail rotor fighting the main rotor's torque.
+  skycrane: {
+    inertia: [1.7e-3, 2.0e-3, 9.5e-4], // pitch, yaw, roll (kg m^2), dry
+    rotorRadius: 0.1,
+    hub: [0, 0.047, 0],                // mast straight over the dry CG
+    tailHub: [-0.012, 0.045, 0.128],   // left side of the tail pylon; its disc spins about body X
+    tailRadius: 0.021,
+    hooks: [[0, -0.031, 0.04]],        // it is a crane: one cargo hook behind the tank
+    gearDrop: 0.041,
+    thrustToWeight: 2.1,               // empty; about 1.5 with a full tank
+    thrustLag: 0.07,
+    cyclicLag: 0.06,
+    tailLag: 0.05,
+    spoolTime: 0.4,
+    governorDroop: 0.08,
+    groundEffectMax: 1.2,
+    translationalLift: 0.08,
+    cyclicMax: 0.08,                   // rad of disc tilt at full stick
+    hubStiffness: 0.025,               // N m per rad of disc tilt at full rotor speed (articulated head)
+    tailMax: 0.06,                     // N of tail rotor thrust either way
+    reactionK: 1.9e-3,                 // main rotor torque ~ k T^1.5
+    dragAxial: 0.06,
+    dragPlane: 0.008,
+    dragLinear: 0.012,
+    dragQuad: 0.18,
+    sideDrag: 0.025,
+    angDamp: [5.5e-3, 3.5e-3, 2.6e-3],
+    collectiveRate: 0.3,
+    idleCollective: 0.12,
+    impactDv: 0.85,
+    explosionImpulse: 1.05,
+    tank: {
+      half: [0.015, 0.009, 0.03],      // interior (m): 32 ml
+      center: [0, -0.0155, -0.002],
+      doorArea: 1.7e-4,                // m^2 with both belly doors fully open (a salvo empties it in about a second)
+      doorSlew: 1.4,                   // keyboard/touch: doors open at this rate while held (1/s); a trigger is direct
+      doorClose: 4,                    // doors swing shut this fast (1/s)
+      pumpRate: 2.2e-5,                // m^3/s at full pump: fills in about 1.5 s
+      pumpSpool: 0.3,
+      sloshFrac: 0.5,
+      sloshDamping: 0.08,
+    },
+    hose: {
+      segments: 9,
+      anchor: [0.011, -0.025, -0.024], // front right of the tank
+      minLength: 0.014,
+      maxLength: 0.17,
+      startLength: 0.07,
+      reelSpeed: 0.07,                 // m/s
+      radius: 0.0019,
+      segMass: 0.0005,
+      headMass: 0.004,                 // weighted intake: it sinks
+      headRadius: 0.003,
+    },
+    assist: {
+      maxTilt: 0.22,
+      tiltSlew: 0.8,
+      tiltKp: 45,
+      tiltKd: 9,
+      trimKi: 3,
+      trimMax: 0.75,
+      driftDamping: 0.04,
+      driftTiltMax: 0.05,
+      yawRate: 0.8,
+      yawKp: 7,
+      yawKi: 8,
+      climbRate: 0.32,
+      sinkRate: 0.26,
+      vKp: 6,
+      vKi: 1.0,
+      integMin: -0.5,
+      integMax: 1.6,
+    },
+  },
 };

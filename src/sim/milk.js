@@ -155,7 +155,9 @@ export class MilkBucket extends TeaBag {
     }
 
     // ---- contents: pressure at the base, valves, rim flooding, spilling.
-    this.valveOpen = !!(ctl && ctl.pour) && !!this.attach && this.attach.kind === 'heli' && sim.state === 'flying';
+    const onHook = !!this.attach && this.attach.kind === 'heli' && sim.state === 'flying';
+    if (!onHook || this.vol <= 0) this.latched = false;
+    this.valveOpen = onHook && (!!(ctl && ctl.pour) || this.latched);
     this.fillH = heightOf(this.vol);
     const cosT = Math.max(0, this.surfN.dot(_up));
     const pIn = this.fillH * cosT * this.gFelt;          // pressure / density at the base (m^2/s^2)
@@ -315,7 +317,7 @@ export class MilkSystem {
     this.puddles = [];
     this.nextPuddle = 1;
     this.run = 0;
-    this.src = { valve: { acc: 0, run: 0, live: false, was: false }, spill: { acc: 0, run: 0, live: false, was: false } };
+    this.src = { valve: { acc: 0, run: 0, live: false, was: false }, spill: { acc: 0, run: 0, live: false, was: false }, doors: { acc: 0, run: 0, live: false, was: false } };
     this.land = new Map();
     this.splashAcc = null;
     this.lowSince = 0;
@@ -447,7 +449,8 @@ export class MilkSystem {
   }
 
   // Liquid leaving the bucket gathers into stream parcels (bounded count; overflow merges, never vanishes).
-  emit(name, vol, pos, vel, milk, brew) {
+  // spread: { u, v } half-width vectors (world) of a wide outlet, such as the skycrane's belly doors.
+  emit(name, vol, pos, vel, milk, brew, spread = null) {
     const s = this.src[name];
     if (!s.was) s.run = ++this.run;
     s.live = true;
@@ -458,6 +461,7 @@ export class MilkSystem {
     s.acc += vol;
     s.pos = (s.pos || new THREE.Vector3()).copy(pos);
     s.vel = (s.vel || new THREE.Vector3()).copy(vel);
+    s.spread = spread;
     if (this.sim.stepCount % M.parcelEvery === 0) this.flush(name, false);
   }
 
@@ -473,8 +477,10 @@ export class MilkSystem {
       tgt.vol += s.acc;
     } else {
       const j = 0.06; // a stream wobbles a little
-      ps.push({ p: s.pos.clone(), v: s.vel.clone().add(new THREE.Vector3((Math.random() - 0.5) * j, 0, (Math.random() - 0.5) * j)),
-        vol: s.acc, milk: s.milk, brew: s.brew, age: 0, run: s.run, last, src: name });
+      const p = s.pos.clone();
+      if (s.spread) p.addScaledVector(s.spread.u, Math.random() * 2 - 1).addScaledVector(s.spread.v, Math.random() * 2 - 1);
+      ps.push({ p, v: s.vel.clone().add(new THREE.Vector3((Math.random() - 0.5) * j, 0, (Math.random() - 0.5) * j)),
+        vol: s.acc, milk: s.milk, brew: s.brew, age: 0, run: s.run, last, src: name, wide: !!s.spread });
     }
     s.acc = 0;
   }
@@ -540,6 +546,17 @@ export class MilkSystem {
     return false;
   }
 
+  // A burst tank: the contents fly out in all directions (bounded: merges into the cap if needed).
+  burst(pos, vel, vol, milk, brew) {
+    const n = 14;
+    for (let i = 0; i < n; i++) {
+      const v = new THREE.Vector3(Math.random() - 0.5, Math.random() * 0.8, Math.random() - 0.5).normalize().multiplyScalar(0.4 + Math.random() * 0.8).add(vel);
+      const q = { p: pos.clone(), v, vol: vol / n, milk, brew, age: 0, run: ++this.run, last: true, src: 'spill', wide: true };
+      if (this.parcels.length < M.maxParcels) this.parcels.push(q);
+      else this.parcels[this.parcels.length - 1].vol += q.vol;
+    }
+  }
+
   splash(at, q, share) {
     const sp = q.v.length();
     if (!this.splashAcc) this.splashAcc = { pos: at.clone(), vol: 0, speed: 0, milk: q.milk, brew: q.brew, n: 0 };
@@ -589,6 +606,25 @@ export class MilkSystem {
     if (this.lowSince > 4) { this.removeBucket(); this.spawnBucket(); }
   }
 
+  // Combos: a salvo empties the skycrane's tank (or latches the bucket's valve open); auto-fill is the
+  // skycrane's snorkel routine. Each returns what happened, for a toast.
+  salvo() {
+    const h = this.sim.heli;
+    if (!h || this.sim.state !== 'flying') return null;
+    if (h.tank) return h.salvo();
+    const k = this.bucket;
+    if (!k || !this.sim.carriedCargo().includes(k)) return null;
+    if (k.latched) { k.latched = false; return 'closed'; }
+    if (k.vol <= 1e-8) return 'empty';
+    k.latched = true;
+    return 'latched';
+  }
+
+  autoFill() {
+    const h = this.sim.heli;
+    return h && h.tank && this.sim.state === 'flying' ? h.autoFill() : null;
+  }
+
   // Total milk anywhere (for conservation checks): vessels, bucket, stream, puddles.
   totalMilk() {
     let t = 0;
@@ -597,6 +633,8 @@ export class MilkSystem {
     for (const q of this.parcels) t += q.vol * q.milk;
     for (const s of Object.values(this.src)) t += s.acc * (s.milk ?? 1);
     for (const pd of this.puddles) t += pd.vol * pd.milk;
+    const tk = this.sim.heli && this.sim.heli.tank;
+    if (tk) t += tk.vol * tk.milk;
     return t + this.gone;
   }
 }

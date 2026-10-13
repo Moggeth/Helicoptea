@@ -300,6 +300,7 @@ export class Sim {
     const up = heli.up.clone();
     const rotorPhase = heli.rotorPhase, rotorSpeed = heli.rotorSpeed;
     const blades = def.parts.filter((p) => p.blade).map((p) => (heli.bladePose ? heli.bladePose(p) : null));
+    heli.crashing = true; // the skycrane's tank bursts rather than being put away
     for (const c of heli.colliders) this.unregister(c);
     for (const r of heli.rotors) this.unregister(r);
     heli.destroy();
