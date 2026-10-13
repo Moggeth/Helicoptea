@@ -38,6 +38,10 @@ Press **1** (gamepad **L3**, a click of the left stick, or the cockpit icon top 
 
 Look around by dragging the mouse (wheel to zoom), holding **L3** and using the right stick (the cyclic centres while you look) or the D-pad, or dragging any open part of a touch screen. **C** (gamepad **B**, touch **View**) looks ahead again. Look down to see through the chin windows. For dipping, a downward **hook camera** shows the bag or bucket with its height over the tea (on the skycrane it is a belly camera on the snorkel and doors, with the tank level and the intake's height); it appears as an inset (bottom right, or top centre on touch screens) and on the panel display. **Pause → Hook camera** can show it in the chase view too, or hide it. A crash from the cockpit shakes and flashes in the seat, then pulls out to the wreck; restarting puts you back in the seat. See [docs/DESIGN.md](docs/DESIGN.md#cockpit-view-srcrendercockpitjs-srcrendercockpitcamjs).
 
+## Judging height
+
+Every hanging load (bags, the bucket, the skycrane's intake) casts a soft shadow straight down onto whatever is below it, including the tea, and the shadow tightens and darkens as the load closes on the surface. When a load is right over a cup's opening its rim glints, and with a load low over a cup the chase camera closes in and looks a little more steeply into it. An optional plumb line drops from the lowest load (or the hook) to a small laser dot with the height beside it. Each is a switch in the pause menu (the plumb line starts off). See [docs/DESIGN.md](docs/DESIGN.md#depth-cues-srcrenderdepthcuesjs).
+
 ## Rotor wash, AO
 
 The rotor's downwash is a small fluid simulation (wake column plus a 2D outwash solver over the table). It pushes the dangling bag and strings, buffets the helicopter near surfaces, ripples the linen runner, blows steam and dust, nods the flowers, and dimples and sprays the tea. Ambient occlusion (GTAO) grounds everything on desktop. See [docs/DESIGN.md](docs/DESIGN.md).
@@ -70,6 +74,7 @@ node tests/e2e.mjs http://localhost:5178/ --headed --only=desktop
 node tests/e2e-chinook.mjs           # Chinook through keyboard, gamepad and touch, picker, breakup
 node tests/e2e-milk.mjs              # milk bucket: hook, dip, carry, pour with G / RB / touch, puddles
 node tests/e2e-skycrane.mjs          # skycrane: snorkel, pump, doors, salvo, auto-fill on keyboard, gamepad and touch
+node tests/e2e-depth.mjs http://localhost:4192/   # depth cues: shadows on table and tea, plumb line, rim glint, camera, toggles
 ```
 
 `tests/sim-checks.mjs` drives the real simulation with the same stick inputs a player produces (via a scripted autopilot) and asserts physical outcomes: hover, assist on/off behaviour, peg pickup, swing and load transfer, immersion, wetness and mass, per-cup brewing, extraction and draining, release onto the saucer, landing, crash thresholds, and bounded crash/restart cycles.

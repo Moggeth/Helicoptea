@@ -339,6 +339,7 @@ export class View {
       const hd = h.groundDist;
       const hub = _p.set(0, CFG.heli.rotorHubOffset[1], 0).applyQuaternion(this.heliQuat).add(this.heliPos);
       this.heliBlob.visible = hd < 1.1;
+      this.heliBlobHd = hd;
       this.heliBlob.position.set(hub.x, hub.y - hd + 0.0012, hub.z);
       const sz = 0.09 + hd * 0.15;
       this.heliBlob.scale.set(sz, sz * 1.3, 1);
@@ -646,6 +647,7 @@ export class View {
     const hd = Math.min(h.rotorGround[0], h.rotorGround[1]);
     const hub = _p.set(0, 0.048, 0).applyQuaternion(this.heliQuat).add(this.heliPos);
     this.heliBlob.visible = hd < 1.1;
+    this.heliBlobHd = hd;
     this.heliBlob.position.set(hub.x, hub.y - hd + 0.0012, hub.z);
     const sz = 0.12 + hd * 0.15;
     this.heliBlob.scale.set(sz * 0.9, sz * 2.0, 1);

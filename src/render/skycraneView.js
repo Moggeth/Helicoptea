@@ -79,6 +79,7 @@ export class SkycraneView {
     const hd = h.groundDist;
     const hub = _p.set(...CFG.skycrane.hub).applyQuaternion(view.heliQuat).add(view.heliPos);
     view.heliBlob.visible = hd < 1.1;
+    view.heliBlobHd = hd;
     view.heliBlob.position.set(hub.x, hub.y - hd + 0.0012, hub.z);
     const sz = 0.12 + hd * 0.15;
     view.heliBlob.scale.set(sz * 0.8, sz * 1.9, 1);

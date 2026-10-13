@@ -13,6 +13,10 @@ export class FollowCamera {
     this.orbitPitch = 0;
     this.zoom = 1;
     this.sizeScale = 1;      // bigger aircraft: stand further back
+    this.dip = 0;            // 0..1, how squarely a load hangs low over a cup (depth-cue option)
+    this.dipK = 0;
+    this.elev = CFG.camera.elevation;
+    this.bias = CFG.camera.cargoLookBias;
     this.focus = new THREE.Vector3(-0.56, 0.08, 0.24);
     this.pos = new THREE.Vector3(-0.56, 0.3, 0.7);
     this.look = this.focus.clone();
@@ -43,14 +47,21 @@ export class FollowCamera {
     this.yaw += dy * (1 - Math.exp(-dt * C.yawFollow));
 
     // Focus: between the heli and the bag so both stay in frame.
+    // Dipping: close in on the load and look a little more steeply into the cup. A lower camera shows
+    // vertical gaps closer to full height, but the near rim then hides the middle of the tea (at 21 deg
+    // only the far third of a mug's tea is visible), so it eases the other way and gets closer instead.
+    this.dipK += (this.dip - this.dipK) * (1 - Math.exp(-dt * 1.4));
+    const k = this.dipK;
+    this.elev = C.elevation + (C.dipElevation - C.elevation) * k;
+    this.bias = C.cargoLookBias + (C.dipLookBias - C.cargoLookBias) * k;
     const f = this._t.copy(target);
-    if (bagPos) f.lerp(bagPos, C.cargoLookBias);
+    if (bagPos) f.lerp(bagPos, this.bias);
     this.focus.lerp(f, 1 - Math.exp(-dt * C.lookFollow));
-    const wantDist = (bagPos ? C.cargoDistance : C.distance) * this.zoom * this.sizeScale;
+    const wantDist = (bagPos ? C.cargoDistance : C.distance) * (1 - (1 - C.dipDistance) * k) * this.zoom * this.sizeScale;
     this.dist += (wantDist - this.dist) * (1 - Math.exp(-dt * 2.5));
 
     const yaw = this.yaw + this.orbitYaw;
-    const el = THREE.MathUtils.clamp(C.elevation + this.orbitPitch + extraLookDown, 0.08, 1.35);
+    const el = THREE.MathUtils.clamp(this.elev + this.orbitPitch + extraLookDown, 0.08, 1.35);
     const back = this._d.set(Math.sin(yaw), 0, Math.cos(yaw)); // behind the nose (nose is -z at yaw 0)
     const desired = new THREE.Vector3()
       .copy(this.focus)

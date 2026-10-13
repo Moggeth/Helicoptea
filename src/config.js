@@ -138,6 +138,9 @@ export const CFG = {
     posFollow: 14,          // 1/s
     lookFollow: 22,
     cargoLookBias: 0.38,
+    dipElevation: 0.6,      // rad (~34 deg) with a load low over a cup (Dipping camera option)
+    dipLookBias: 0.62,      // frame nearer the load
+    dipDistance: 0.78,      // of the carrying distance
     fov: 50,
   },
 

@@ -142,6 +142,20 @@ export class Hud {
     if (nm.textContent !== name) nm.textContent = name;
   }
 
+  // Plumb-line height readout, a small label beside the laser dot.
+  setPlumb(r) {
+    if (!this.plumbEl) {
+      this.plumbEl = document.createElement('div');
+      this.plumbEl.className = 'plumb-read hidden';
+      this.root.appendChild(this.plumbEl);
+    }
+    const el = this.plumbEl;
+    if (!r) { if (!el.classList.contains('hidden')) el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    el.style.transform = `translate(${Math.round(r.x + 10)}px, ${Math.round(r.y - 8)}px)`;
+    if (el.textContent !== r.text) el.textContent = r.text;
+  }
+
   flash(strength) {
     this.fpFlash.style.opacity = String(Math.max(0, Math.min(1, strength)));
   }
@@ -264,6 +278,7 @@ export class Hud {
             <select data-setting="loadCam">
               ${[['auto', 'In the cockpit'], ['always', 'Always'], ['off', 'Off']].map(([v, nm]) => `<option value="${v}" ${opts.loadCam === v ? 'selected' : ''}>${nm}</option>`).join('')}
             </select></label>
+          ${[['shadows', 'Load shadows'], ['plumb', 'Plumb line and height'], ['cupHint', 'Glint when over a cup'], ['dipCam', 'Close-in camera over a cup']].map(([k, nm]) => `<label class="opt">${nm} <input type="checkbox" data-cue="${k}" ${opts.cues && opts.cues[k] ? 'checked' : ''}/></label>`).join('')}
           <div class="opt aircraft-row" role="radiogroup" aria-label="Aircraft">Aircraft
             <span>${[['micro', 'Micro heli'], ['chinook', 'Chinook'], ['skycrane', 'Skycrane']].map(([id, nm]) => `<button class="secondary${opts.aircraft === id ? ' on' : ''}" style="padding:6px 12px" role="radio" aria-checked="${opts.aircraft === id}" data-act="aircraft" data-id="${id}">${nm}</button>`).join(' ')}</span></div>
         </div>
@@ -280,6 +295,7 @@ export class Hud {
       });
     }
     this.modal.querySelector('[data-setting=loadCam]').addEventListener('change', (e) => this.h.setting('loadCam', e.target.value));
+    for (const el of this.modal.querySelectorAll('[data-cue]')) el.addEventListener('change', () => this.h.setting(`cue.${el.dataset.cue}`, el.checked));
     this.modal.classList.add('show');
     this.focusFirst();
   }

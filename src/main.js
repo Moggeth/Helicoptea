@@ -16,6 +16,7 @@ import { Post } from './render/post.js';
 import { AIRCRAFT_IDS, AIRCRAFT_NAMES, gearDrop } from './sim/aircraft.js';
 import { CockpitRig, LoadCamera, SEATS } from './render/cockpitCam.js';
 import { Cockpit } from './render/cockpit.js';
+import { DepthCues, DEPTH_DEFAULTS } from './render/depthCues.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -95,7 +96,10 @@ async function boot() {
   await tick();
   const view = new View(scene, sim, quality, kitchen);
   const camRig = new FollowCamera(camera);
+  const depth = new DepthCues(scene, sim, view);
+  for (const k of Object.keys(DEPTH_DEFAULTS)) depth.set(k, store.get(`cue.${k}`, DEPTH_DEFAULTS[k] ? '1' : '0') === '1');
   const post = new Post(renderer, scene, camera, quality);
+  depth.linearBlend = post.enabled;
   // First person: pilot's-eye rig, cockpit interiors drawn over the world, and the belly hook camera.
   const loadCam = new LoadCamera(renderer, quality);
   const cockpit = new Cockpit(renderer, scene, quality, kitchen, loadCam);
@@ -145,6 +149,7 @@ async function boot() {
       if (k === 'weight') { weight = v; worldSpeed = speedOf(v); store.set('weight', String(v)); }
       if (k === 'fpFov' || k === 'fpMotion' || k === 'fpVibration') { fp[{ fpFov: 'fov', fpMotion: 'motion', fpVibration: 'vibration' }[k]] = v; store.set(k, String(v)); }
       if (k === 'loadCam') { fp.loadCam = v; store.set('loadCam', v); }
+      if (k.startsWith('cue.')) { depth.set(k.slice(4), v); store.set(k, v ? '1' : '0'); }
     },
   });
   const flow = new Flow(sim, hud);
@@ -164,7 +169,7 @@ async function boot() {
     else hud.closeModal();
   }
 
-  function pauseOpts() { return { quality: quality.setting, debug: debug.enabled, aircraft: sim.aircraft, weight, view: fp.mode, fpFov: fp.fov, fpMotion: fp.motion, fpVibration: fp.vibration, loadCam: fp.loadCam }; }
+  function pauseOpts() { return { quality: quality.setting, debug: debug.enabled, aircraft: sim.aircraft, weight, view: fp.mode, fpFov: fp.fov, fpMotion: fp.motion, fpVibration: fp.vibration, loadCam: fp.loadCam, cues: { ...depth.settings } }; }
 
   function setView(mode) {
     if (mode !== 'chase' && mode !== 'cockpit') return;
@@ -548,10 +553,17 @@ async function boot() {
       camRig.orbitPitch = THREE.MathUtils.clamp(input.camOrbit.pitch, -0.35, 0.7);
       camRig.zoom = THREE.MathUtils.clamp(1 + input.camOrbit.zoom, CFG.camera.minDistance / CFG.camera.distance, CFG.camera.maxDistance / CFG.camera.distance);
       camTarget.copy(view.focusPoint());
-      camRig.update(Math.max(rd, 1e-4), camTarget, heading, sim.carriedCargo().length ? view.bagPosCarried : null, sim);
+      camRig.dip = depth.dip;
+      // The skycrane's snorkel is its load: with the dipping camera on, frame the intake as well.
+      const hh = sim.heli, hoseOut = depth.settings.dipCam && hh && hh.type === 'skycrane' && hh.hose.length > 0.06;
+      const cargoFocus = sim.carriedCargo().length ? view.bagPosCarried : hoseOut ? view.skycrane.curvePts[view.skycrane.curvePts.length - 1] : null;
+      camRig.update(Math.max(rd, 1e-4), camTarget, heading, cargoFocus, sim);
     }
     kitchen.garden.update(rd * worldSpeed, view.focusPoint(), camera, sim); // grass wind, shadow follow (also in first person)
     fp.wasLive = fpLive;
+    camera.updateMatrixWorld();
+    depth.update(rd * worldSpeed, camera, innerWidth, innerHeight);
+    hud.setPlumb(crashShown ? null : depth.readout);
     fp.flash = Math.max(0, fp.flash - frameDt * 1.6);
     hud.flash(fp.flash * fp.flash);
 
@@ -627,7 +639,7 @@ async function boot() {
   requestAnimationFrame(frame);
 
   // Expose a tiny handle for console debugging and automated checks.
-  window.__helicoptea = { get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
+  window.__helicoptea = { depth, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
 }
 
 boot().catch((err) => showError('Helicoptea failed to start. Please reload.', err));

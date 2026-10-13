@@ -144,9 +144,23 @@ A serious, scale-accurate light utility helicopter (single turbine, two-blade te
 - **Hook camera.** A gimballed camera at the cargo hook looks straight down with the nose at the top, rendered into a 224–384 px target every 1–3 frames by quality, re-using the frame's shadow maps. It feeds the inset and the panel display. On the skycrane it hangs under the front of the tank, between the snorkel and the belly doors, and the readout gives the tank level and where the intake is. The readout gives the lowest load's height above the tea, table or floor, its immersion, or the bucket's fill.
 - **Crash and restart.** A crash from the cockpit holds the seat for 0.4 s with shake and a flash, then the chase camera (parked at the pilot's eye all along) pulls out to the wreck. Restart resets the head and looks ahead.
 
+## Depth cues ([src/render/depthCues.js](../src/render/depthCues.js))
+
+The core skill is judging how high a dangling load is over a cup rim. Each cue is presentation only and has its own pause-menu switch (stored as `helicoptea.cue.*`).
+
+- **Load shadows** (on): one round shadow per hanging load (up to four: the Chinook's three hooks, the bucket, the skycrane's intake), placed straight below it on the first thing a vertical line meets. Liquid counts: over a cup's opening the shadow lies on the tea (drawn after the tea surface) and is clipped to the inside of the cup, so it never spills over the rim. It reads as the soft skylight shadow from the window rather than the sun's: the penumbra grows with height (2.1 load half-widths plus a third of the height) and the hard core shrinks to nothing by about 15 cm, while opacity rises from about 0.12 far off to 0.72 at contact and fades out between 65 cm and a metre. The airframe's shadow gets the same treatment (darker close in, still faint at a metre). With the switch off the older blobs come back.
+- **Linear blending**: behind the AO composer the scene blends in linear light, so a 50% black only looks about 25% dark after the sRGB output. The shadows convert their alpha (`1 - (1 - a)^2.2`) when the composer is on, so they look the same on every tier. The older blobs were nearly invisible on desktop for this reason.
+- **Rim glint** (on): while a load that fits is over a vessel's opening (centre within the inner radius less 55% of its half-width, up to 25 cm above the rim), a thin warm ring on the rim fades in, fading out over about 80 ms.
+- **Dipping camera** (on): see Camera below.
+- **Plumb line** (off): a faint line from the lowest load's bottom (or the hook with nothing on it) to a small red dot on the surface below, with the height in centimetres beside the dot.
+- **Cost**: four quads, a line, a dot and a ring, one ray cast per load and one for the plumb line per frame. Same on every tier.
+- **Not done**: a stereoscopic mode. Anaglyph or side-by-side would render the world, AO and cockpit passes twice, which is not cheap on the mobile tier.
+
 ## Camera ([src/render/camera.js](../src/render/camera.js))
 
 Horizon-stable chase camera: follows heading only, smoothed at 2.2/s, never roll or pitch. It frames a point 38% of the way from the helicopter to the bag, pulls back while carrying, ray-casts against scenery, and stays above the table. Position smoothing is tight (14/s) to avoid a disconnected feel. After a crash it follows the fuselage wreck. C recenters; the mouse can orbit and zoom.
+
+The default 30° elevation was reviewed for dipping. Going lower (21°) shows vertical gaps closer to full height, but the near rim then hides the middle of the tea: at 21° only the far third of a mug's tea is visible, at 30° about half. So with a load low over a vessel (the **Dipping camera** option) it eases to 34°, frames 62% of the way to the load and closes in to 78% of the carrying distance; the skycrane's intake counts as its load once the hose is out.
 
 ## Presentation
 
