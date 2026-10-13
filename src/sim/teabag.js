@@ -136,14 +136,35 @@ export class TeaBag {
       }
     }
     this.immersion = sub;
+    const sp0 = this.vel.length();
+    const windy = this.sim.air.near(this.pos);
     this.cup = sub > 0.01 ? cup : null;
 
-    // Air drag.
-    const sp = this.vel.length();
-    if (sp > 1e-4) {
-      const k = C.airDrag * (0.3 + sp);
-      const fac = -(mass / dt) * (1 - Math.exp(-k * dt / mass));
+    if (sub < 0.95 && !windy && sp0 > 1e-4) {
+      const k = C.airDrag * (0.3 + sp0);
+      const fac = -(mass / dt) * (1 - Math.exp(-k * dt / mass)) * (1 - sub);
       body.addForce({ x: this.vel.x * fac, y: this.vel.y * fac, z: this.vel.z * fac }, true);
+    }
+    // Air drag against the moving air (rotor wake and outwash), at three points down the bag so a gust
+    // makes it flutter and twist. Flat-plate model: broadside drag much larger than edge-on.
+    if (sub < 0.95 && windy) {
+      const air = this.sim.air;
+      const dryPart = 1 - sub;
+      const mPt = mass / 3;
+      for (const sy of [-0.75, 0, 0.75]) {
+        _p.set(0, sy * C.bagHalf[1], 0).applyQuaternion(this.quat).add(this.pos);
+        air.sample(_p.x, _p.y, _p.z, _f);
+        _f.multiplyScalar(CFG.air.bagDrag);
+        _r.copy(_p).sub(this.pos);
+        _v.crossVectors(_w, _r).add(this.vel).sub(_f); // velocity relative to the air
+        _vn.copy(_n).multiplyScalar(_v.dot(_n));
+        _vt.copy(_v).sub(_vn);
+        const kn = (C.airDrag * 0.3 + 0.5 * 1.2 * 1.2 * 0.00288 * _vn.length()) * dryPart / 3;
+        const kt = (C.airDrag * 0.3 + 0.5 * 1.2 * 0.1 * 0.00288 * _vt.length()) * dryPart / 3;
+        _f.copy(_vn).multiplyScalar(-(mPt / dt) * (1 - Math.exp(-kn * dt / mPt)));
+        _f.addScaledVector(_vt, -(mPt / dt) * (1 - Math.exp(-kt * dt / mPt)));
+        body.addForceAtPoint({ x: _f.x, y: _f.y, z: _f.z }, { x: _p.x, y: _p.y, z: _p.z }, true);
+      }
     }
 
     // Wetness: soaks while immersed, drains (with drips) after extraction.
@@ -180,7 +201,13 @@ export class TeaBag {
   afterStep(dt) {
     this.track.capture(this.body);
     this.updateCached();
-    this.stepString(dt);
+    // Strings run at half the physics rate; a free bag at rest in still air lets its string sleep.
+    this.strPhase = !this.strPhase;
+    if (!this.strPhase) return;
+    const still = !this.attach && this.vel.lengthSq() < 2.5e-5 && !this.sim.air.near(this.pos, 0.4);
+    if (still && this.strSettled) { this.strRender0.set(this.strRender1); return; }
+    this.stepString(dt * 2);
+    this.strSettled = still && this.strMotion < 1e-5;
   }
 
   // String verlet: pinned at the bag; the loop end is pinned to the peg or hook while attached.
@@ -189,13 +216,23 @@ export class TeaBag {
     const seg = (this.attach ? this.attach.length : C.ropeLength) / N;
     const g = CFG.physics.gravity * dt * dt;
     const end = this.attach ? this.attach.endWorld() : null;
+    let motion = 0;
+    const air = this.sim.air, fl = CFG.air.stringFlutter;
+    const windy = air.wake.active && air.near(this.pos, 0.4);
     for (let i = 0; i <= N; i++) {
       const k = i * 3;
       const x = s[k], y = s[k + 1], z = s[k + 2];
-      const damp = this.inWater(x, y, z) ? 0.8 : 0.992;
-      s[k] += (x - p[k]) * damp;
-      s[k + 1] += (y - p[k + 1]) * damp - g;
-      s[k + 2] += (z - p[k + 2]) * damp;
+      const wet = this.inWater(x, y, z);
+      const damp = wet ? 0.8 : 0.992;
+      let ax = 0, ay = 0, az = 0;
+      if (!wet && windy) {
+        air.sample(x, y, z, _f);
+        ax = (_f.x * dt - (x - p[k])) * fl; ay = (_f.y * dt - (y - p[k + 1])) * fl; az = (_f.z * dt - (z - p[k + 2])) * fl;
+      }
+      motion = Math.max(motion, Math.abs(x - p[k]) + Math.abs(y - p[k + 1]) + Math.abs(z - p[k + 2]));
+      s[k] += (x - p[k]) * damp + ax;
+      s[k + 1] += (y - p[k + 1]) * damp - g + ay;
+      s[k + 2] += (z - p[k + 2]) * damp + az;
       p[k] = x; p[k + 1] = y; p[k + 2] = z;
     }
     for (let it = 0; it < 6; it++) {
@@ -218,6 +255,7 @@ export class TeaBag {
     if (end) { s[N * 3] = end.x; s[N * 3 + 1] = end.y; s[N * 3 + 2] = end.z; }
     this.strRender0.set(this.strRender1);
     this.strRender1.set(s);
+    this.strMotion = motion;
   }
 
   inWater(x, y, z) {

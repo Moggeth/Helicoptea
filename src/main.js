@@ -12,6 +12,7 @@ import { Hud } from './ui/hud.js';
 import { Flow } from './game/flow.js';
 import { Debug } from './debug.js';
 import { Autopilot } from './sim/autopilot.js';
+import { Post } from './render/post.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -36,13 +37,15 @@ window.addEventListener('unhandledrejection', (e) => showError('Something failed
 // ---------------------------------------------------------------- quality
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 const PRESETS = {
-  high: { name: 'high', dprCap: 2, shadows: 2048, particles: 520, textureSize: 2048, steam: 1, antialias: true, transmission: true },
-  medium: { name: 'medium', dprCap: 1.5, shadows: 1024, particles: 360, textureSize: 1024, steam: 0.7, antialias: true, transmission: false },
-  low: { name: 'low', dprCap: 1, shadows: 512, particles: 220, textureSize: 1024, steam: 0.4, antialias: false, transmission: false },
+  high: { name: 'high', dprCap: 2, shadows: 2048, particles: 520, textureSize: 2048, steam: 1, antialias: true, transmission: true, ao: true, aoSamples: 16 },
+  medium: { name: 'medium', dprCap: 1.5, shadows: 1024, particles: 360, textureSize: 1024, steam: 0.7, antialias: true, transmission: false, ao: !IS_TOUCH, aoSamples: 8 },
+  low: { name: 'low', dprCap: 1, shadows: 512, particles: 220, textureSize: 1024, steam: 0.4, antialias: false, transmission: false, ao: false },
 };
 const qualitySetting = params.get('quality') || store.get('quality', 'auto');
 const quality = { ...(PRESETS[qualitySetting] || (IS_TOUCH ? PRESETS.medium : PRESETS.high)) };
 quality.setting = qualitySetting;
+if (params.get('ao') === '0') quality.ao = false;
+if (params.get('ao') === '1') quality.ao = true;
 
 function setProgress(frac, text) {
   $('load-fill').style.width = `${Math.round(frac * 100)}%`;
@@ -62,6 +65,7 @@ async function boot() {
   } catch (err) {
     $('loading').classList.remove('show'); $('unsupported').classList.add('show'); console.warn('[Helicoptea] renderer failed', err); return;
   }
+  renderer.info.autoReset = false; // the AO composer renders several passes per frame; count them all
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -85,6 +89,7 @@ async function boot() {
   await tick();
   const view = new View(scene, sim, quality, kitchen);
   const camRig = new FollowCamera(camera);
+  const post = new Post(renderer, scene, camera, quality);
   setProgress(0.78, 'Warming the shaders…');
   await tick();
   if (renderer.compileAsync) await renderer.compileAsync(scene, camera);
@@ -186,6 +191,7 @@ async function boot() {
     camera.fov = w / h < 1 ? 62 : CFG.camera.fov;
     camera.updateProjectionMatrix();
     view.setParticleScale(h * renderer.getPixelRatio(), camera.fov);
+    post.setSize(w, h);
   }
   addEventListener('resize', resize);
   resize();
@@ -227,6 +233,7 @@ async function boot() {
   const fpsCap = parseFloat(params.get('fps')) || 0;
   let lastRender = 0;
   let crashShown = false;
+  let renderedFrames = 0;
   const camTarget = new THREE.Vector3();
   const tmp = new THREE.Vector3();
 
@@ -334,7 +341,9 @@ async function boot() {
     hud.update(frameDt);
 
     const tR = performance.now();
-    renderer.render(scene, camera);
+    renderer.info.reset();
+    post.render();
+    renderedFrames++;
     const renderMs = performance.now() - tR;
 
     // Dynamic resolution: protect frame rate before touching simulation quality.
@@ -351,7 +360,7 @@ async function boot() {
   requestAnimationFrame(frame);
 
   // Expose a tiny handle for console debugging and automated checks.
-  window.__helicoptea = { Autopilot, sim, view, camRig, input, audio, renderer, quality, doAction, get paused() { return paused; }, get started() { return started; } };
+  window.__helicoptea = { post, Autopilot, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
 }
 
 boot().catch((err) => showError('Helicoptea failed to start. Please reload.', err));

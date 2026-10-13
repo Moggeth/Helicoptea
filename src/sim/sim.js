@@ -5,6 +5,7 @@ import { CUPS, PAD, STATION, DISCARD, TABLE } from './layout.js';
 import { buildStaticWorld } from './staticWorld.js';
 import { Helicopter, HELI_PARTS } from './helicopter.js';
 import { TeaBag } from './teabag.js';
+import { AirField } from './air.js';
 
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _q = new THREE.Quaternion();
 
@@ -83,6 +84,7 @@ export class Sim {
     this.lastStepMs = 0;
     this.heliId = 0;
     buildStaticWorld(this);
+    this.air = new AirField(this);
     this.spawnHeli();
     for (const p of this.pegs) this.refillPeg(p);
   }
@@ -329,6 +331,11 @@ export class Sim {
       this.heli.destroy();
       this.heli = null;
     }
+    // Clear wreckage off the pad so the new helicopter doesn't spawn inside it.
+    for (const d of [...this.debris]) {
+      const t = d.body.translation();
+      if (Math.hypot(t.x - PAD.x, t.z - PAD.z) < PAD.radius + 0.12 && t.y < 0.15) this.removeDebris(d);
+    }
     this.spawnHeli();
     for (const p of this.pegs) this.refillPeg(p);
     // Guarantee usable cargo even if every bag slot was taken by bags in cups.
@@ -346,6 +353,7 @@ export class Sim {
     for (const d of [...this.debris]) this.removeDebris(d);
     this.drips.length = 0;
     for (const c of this.cups) { c.brew = 0; c.steep = 0; }
+    this.air.clear();
     for (const p of this.pegs) { p.bag = null; }
     this.restartFlight();
     this.emit('reset', {});
@@ -356,6 +364,7 @@ export class Sim {
     const t0 = performance.now();
     const dt = this.dt;
     for (const c of this.cups) c.steep = 0;
+    if (this.stepCount % CFG.air.updateEvery === 0) this.air.update(dt * CFG.air.updateEvery);
     if (this.heli) this.heli.applyForces(dt, ctl, this.assist);
     for (const b of this.bags) b.applyForces(dt);
 
@@ -373,6 +382,7 @@ export class Sim {
       if (heliInfo) {
         const other = heliInfo === i1 ? i2 : i1;
         if (other.kind === 'bag') { bagHeliHit = Math.max(bagHeliHit, imp); return; }
+        if (other.kind === 'debris') return; // loose wreckage nudges, it doesn't destroy
         anyContact = true;
         const dv = imp / CFG.heli.mass;
         if (dv > impact) { impact = dv; impactPos = other; }

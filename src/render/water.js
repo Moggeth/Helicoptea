@@ -44,6 +44,7 @@ export class TeaSurface {
         uRadius: { value: cup.rIn },
         uRipples: { value: this.ripples },
         uBag: { value: new THREE.Vector4(0, 0, 0, 0) },
+        uWash: { value: new THREE.Vector4(0, 0, 0, 0.03) },
         uSun: { value: sunDir.clone().normalize() },
         uSky: { value: new THREE.Color(1.0, 0.97, 0.9) },
       },
@@ -60,6 +61,7 @@ export class TeaSurface {
         uniform vec3 uColor, uPlume, uSun, uSky;
         uniform vec4 uRipples[${MAX_RIPPLES}];
         uniform vec4 uBag;
+        uniform vec4 uWash;
         varying vec3 vWorld; varying vec2 vLocal;
         float hash(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
         float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
@@ -81,6 +83,13 @@ export class TeaSurface {
             float back = 2.0 * uRadius - front;
             float env2 = exp(-age * 2.8) * exp(-pow((dist - back) * 60.0, 2.0)) * r.w * 0.5;
             grad -= (d / dist) * cos((dist - back) * k) * env2;
+          }
+          // Rotor downwash pressing a dimple into the tea, with wind-roughened chop around it.
+          if (uWash.z > 0.001) {
+            vec2 dw = vLocal - uWash.xy;
+            float r2 = dot(dw, dw) / (uWash.w * uWash.w);
+            grad += dw / (uWash.w * uWash.w) * 2.0 * uWash.z * exp(-r2) * 0.9;
+            grad += uWash.z * 0.5 * vec2(noise(vLocal * 260.0 + uTime * 9.0) - 0.5, noise(vLocal * 260.0 - uTime * 8.0 + 3.0) - 0.5);
           }
           // Gentle idle shimmer.
           grad += 0.05 * vec2(noise(vLocal * 120.0 + uTime * 0.6) - 0.5, noise(vLocal * 120.0 - uTime * 0.5 + 7.0) - 0.5);
@@ -127,6 +136,12 @@ export class TeaSurface {
     u.uColor.value.copy(this.color);
     u.uPlume.value.copy(this.plumeColor);
     u.uOpacity.value = THREE.MathUtils.lerp(0.42, 0.97, Math.pow(this.displayBrew, 0.55));
+    // Wash dimple: set by the view while the rotor wake lands in this cup, eased in and out.
+    this.washS = (this.washS || 0) + ((this.wash || 0) - (this.washS || 0)) * Math.min(1, dt * 6);
+    this.wash = 0;
+    const wk = this.air && this.air.wake;
+    if (wk && wk.active) u.uWash.value.set(wk.hit.x - cup.x, wk.hit.z - cup.z, this.washS, Math.max(0.012, (wk.footR || 0.08) * 0.35));
+    else u.uWash.value.z = this.washS;
     const steep = cup.steep;
     u.uBag.value.set(cup.bagPos.x - cup.x, cup.bagPos.z - cup.z, Math.max(u.uBag.value.z * Math.exp(-dt * 0.8), steep), 0);
   }

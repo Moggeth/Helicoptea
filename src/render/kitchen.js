@@ -11,8 +11,50 @@ function shadowed(m, cast = true, receive = true) {
   return m;
 }
 
+// Linen that ripples in moving air. The air field (u, w per cell) arrives as a texture; displacement is a
+// travelling flutter along the local flow, strongest where the outwash is fastest. drape = 1 for the
+// hanging ends (they flap sideways, sampling the air at the table edge above them).
+function clothMaterial(map, uniforms, amp, drape) {
+  const m = new THREE.MeshStandardMaterial({ map, roughness: 0.95 });
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, uniforms);
+    sh.uniforms.uAmp = { value: amp };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', `#include <common>
+        uniform sampler2D uAir; uniform vec4 uAirRect; uniform float uTime; uniform float uAmp; uniform float uAirRange;
+        vec2 airAt(vec2 xz) {
+          vec2 uv = (xz - uAirRect.xy) / uAirRect.zw;
+          if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return vec2(0.0);
+          return (texture2D(uAir, uv).rg * 2.0 - 1.0) * uAirRange;
+        }
+        float flutter(vec2 xz, vec2 a) {
+          float s = length(a);
+          if (s < 0.02) return 0.0;
+          vec2 d = a / s;
+          float ph = dot(xz, d) * 110.0 - uTime * (14.0 + 6.0 * s) + sin(dot(xz, vec2(-d.y, d.x)) * 60.0 + uTime * 3.0) * 1.3;
+          float lift = clamp(s * s * 0.25, 0.0, 1.0);
+          return uAmp * lift * (0.55 + 0.45 * sin(ph));
+        }`)
+      .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
+        vec3 wp0 = (modelMatrix * vec4(position, 1.0)).xyz;
+        ${drape ? 'vec2 probe = vec2(sign(wp0.x) * 0.84, wp0.z);' : 'vec2 probe = wp0.xz;'}
+        vec2 air0 = airAt(probe);
+        float e = 0.004;
+        float h0 = flutter(wp0.xz${drape ? '+ vec2(0.0, wp0.y)' : ''}, air0);
+        float hx = flutter(wp0.xz + vec2(e, 0.0)${drape ? '+ vec2(0.0, wp0.y)' : ''}, air0);
+        float hz = flutter(wp0.xz + vec2(0.0, e)${drape ? '+ vec2(0.0, wp0.y)' : ''}, air0);
+        ${drape ? 'float hang = clamp(-wp0.y / 0.2, 0.0, 1.0); h0 *= hang; hx *= hang; hz *= hang;' : 'float edge = smoothstep(0.08, 0.18, abs(position.y)); h0 *= 0.45 + edge; hx *= 0.45 + edge; hz *= 0.45 + edge;'}
+        objectNormal = normalize(objectNormal + vec3(-(hx - h0) / e, (hz - h0) / e, 0.0) * 0.6);`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        transformed.z += h0;`);
+  };
+  return m;
+}
+
 export function buildKitchen(scene, renderer, quality, progress) {
   const out = { cups: [], sun: null, lamp: null, animated: [] };
+  // Shared air-field uniforms for cloth (filled by the view each frame).
+  out.clothUniforms = { uAir: { value: null }, uAirRect: { value: new THREE.Vector4(-1.02, -0.68, 2.04, 1.36) }, uTime: { value: 0 }, uAirRange: { value: 4 } };
 
   // Lighting: soft morning daylight through the window behind the table, a warm pendant and a room env map.
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -63,16 +105,22 @@ export function buildKitchen(scene, renderer, quality, progress) {
   }
   // Linen runner across the table's length (under the play area).
   {
-    const runner = new THREE.Mesh(new THREE.PlaneGeometry(TABLE.halfX * 2 + 0.06, 0.36, 1, 1), new THREE.MeshStandardMaterial({ map: TX.linenTexture(), roughness: 0.95 }));
+    // The runner ripples in the rotor outwash (vertex displacement driven by the air-field texture).
+    const linen = TX.linenTexture();
+    const runnerMat = clothMaterial(linen, out.clothUniforms, 0.006, 0);
+    const runner = new THREE.Mesh(new THREE.PlaneGeometry(TABLE.halfX * 2 + 0.06, 0.36, quality.name === 'high' ? 260 : 150, quality.name === 'high' ? 40 : 22), runnerMat);
     runner.rotation.x = -Math.PI / 2;
     runner.position.set(0, 0.0007, 0.0);
     runner.receiveShadow = true;
+    runner.userData.noAO = false;
     scene.add(runner);
-    // draping ends
+    // Draping ends hang over the table edges and flap more freely.
+    const drapeMat = clothMaterial(linen, out.clothUniforms, 0.012, 1);
     for (const sx of [-1, 1]) {
-      const drape = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.36), runner.material);
+      const drape = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.2, 30, 16), drapeMat);
       drape.rotation.set(0, sx * Math.PI / 2, 0);
       drape.position.set(sx * (TABLE.halfX + 0.031), -0.1, 0);
+      drape.userData.edgeX = sx * TABLE.halfX;
       scene.add(drape);
     }
   }

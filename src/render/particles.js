@@ -69,7 +69,8 @@ export class ParticlePool {
     this.kind[i] = o.kind ?? 0;
   }
 
-  update(dt, floorFn) {
+  update(dt, floorFn, windFn) {
+    const wv = this._wv || (this._wv = { x: 0, y: 0, z: 0, set(a, b, c) { this.x = a; this.y = b; this.z = c; return this; }, addScaledVector(v, s) { this.x += v.x * s; this.y += v.y * s; this.z += v.z * s; return this; } });
     let n = this.count;
     for (let i = 0; i < n; i++) {
       this.age[i] += dt;
@@ -82,6 +83,14 @@ export class ParticlePool {
       const k = i * 3;
       const dr = Math.exp(-this.drag[i] * dt);
       this.v[k] *= dr; this.v[k + 1] = this.v[k + 1] * dr - this.grav[i] * dt; this.v[k + 2] *= dr;
+      if (windFn) {
+        // Light particles (smoke, steam, dust) ride the rotor wash; heavy ones (sparks, drops) barely.
+        const c = Math.min(1, dt * (this.kind[i] === 1 ? 0.6 : 4.5));
+        windFn(this.p[k], this.p[k + 1], this.p[k + 2], wv);
+        this.v[k] += (wv.x - this.v[k]) * c * (wv.x !== 0 ? 1 : 0);
+        this.v[k + 1] += wv.y * c * 0.6;
+        this.v[k + 2] += (wv.z - this.v[k + 2]) * c * (wv.z !== 0 ? 1 : 0);
+      }
       this.p[k] += this.v[k] * dt; this.p[k + 1] += this.v[k + 1] * dt; this.p[k + 2] += this.v[k + 2] * dt;
       if (floorFn && this.kind[i] === 1) {
         const fy = floorFn(this.p[k], this.p[k + 2]);

@@ -193,6 +193,15 @@ const f = (x, d = 3) => Number(x).toFixed(d);
   check('no duplicate explosion for the same crash', sim.debris.length === debrisN);
   sim.restartFlight();
   check('restart flight restores heli on pad', sim.state === 'flying' && sim.heli.grounded !== undefined);
+  // Crash right on the pad, then restart: the new heli must not spawn into the wreck and explode.
+  for (let k = 0; k < 4; k++) {
+    sim.heli.body.setTranslation({ x: sim.heli.pos.x, y: 0.12, z: sim.heli.pos.z }, true);
+    sim.heli.body.setLinvel({ x: 0, y: -2.5, z: 0 }, true);
+    run(sim, 0.6);
+    sim.restartFlight();
+  }
+  run(sim, 2);
+  check('restart onto a wrecked pad does not re-explode', sim.state === 'flying', `state ${sim.state}, debris ${sim.debris.length}`);
 
   const sim2 = new Sim();
   sim2.assist = true;

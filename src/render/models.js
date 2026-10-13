@@ -221,17 +221,22 @@ export function cloneHeliPart(heliModel, name) {
     g.add(hub);
   }
   // Scorched: darker paint and a brief ember glow that cools (animated by the view).
+  const embers = [];
+  const scorch = (src) => {
+    if (!src || src.visible === false) return src;
+    const m = src.clone();
+    if (m.color) m.color.multiplyScalar(0.55);
+    if ('emissive' in m && !m.isShaderMaterial) { m.emissive = new THREE.Color(0x8a2400); m.emissiveIntensity = 0.0; embers.push(m); }
+    return m;
+  };
   g.traverse((o) => {
     if (!o.isMesh || !o.material) return;
     o.castShadow = true;
-    const m = o.material.clone();
-    if (m.color) m.color.multiplyScalar(0.55);
-    if ('emissive' in m) { m.emissive = new THREE.Color(0xff5a1a); m.emissiveIntensity = 0.0; }
-    if (m.transparent) o.visible = false;
-    o.material = m;
+    const isGlass = Array.isArray(o.material) ? o.material.some((m) => m.transparent) : o.material.transparent;
+    if (isGlass && !Array.isArray(o.material)) { o.visible = false; return; }
+    o.material = Array.isArray(o.material) ? o.material.map(scorch) : scorch(o.material);
   });
-  g.userData.embers = [];
-  g.traverse((o) => { if (o.isMesh && o.material.emissive) g.userData.embers.push(o.material); });
+  g.userData.embers = embers;
   return g;
 }
 

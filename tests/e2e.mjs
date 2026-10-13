@@ -5,7 +5,7 @@ import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const base = process.argv.find((a) => a.startsWith('http')) || 'http://localhost:4178/';
+const base = process.argv.find((a) => a.startsWith('http')) || 'http://localhost:4179/';
 const headed = process.argv.includes('--headed');
 const only = (process.argv.find((a) => a.startsWith('--only=')) || '').slice(7);
 const outDir = path.resolve('test-results');
@@ -62,11 +62,11 @@ const st = (page) => page.evaluate(() => {
 async function fps(page, ms = 4000) {
   return page.evaluate((ms) => new Promise((resolve) => {
     const times = []; let last = performance.now(); const t0 = last;
-    const r = window.__helicoptea.renderer.info.render; const f0 = r.frame;
+    const H = window.__helicoptea; const f0 = H.frames;
     const f = (t) => { times.push(t - last); last = t; if (t - t0 < ms) requestAnimationFrame(f); else {
       times.sort((a, b) => a - b);
       const avg = times.reduce((a, b) => a + b, 0) / times.length;
-      resolve({ renderedFps: +((r.frame - f0) / ((t - t0) / 1000)).toFixed(1), frames: times.length, avgMs: +avg.toFixed(2), fps: +(1000 / avg).toFixed(1), p95Ms: +times[Math.floor(times.length * 0.95)].toFixed(2), maxMs: +times[times.length - 1].toFixed(2) });
+      resolve({ renderedFps: +((H.frames - f0) / ((t - t0) / 1000)).toFixed(1), frames: times.length, avgMs: +avg.toFixed(2), fps: +(1000 / avg).toFixed(1), p95Ms: +times[Math.floor(times.length * 0.95)].toFixed(2), maxMs: +times[times.length - 1].toFixed(2) });
     } };
     requestAnimationFrame(f);
   }), ms);
@@ -230,7 +230,7 @@ try {
     await page.keyboard.press('Escape');
     await sleep(300);
     s = await st(page);
-    check('resume after pause', !s.paused && s.state === 'flying');
+    check('resume after pause', !s.paused && s.state === 'flying', JSON.stringify({ paused: s.paused, state: s.state, y: s.y }));
     await page.keyboard.press('Shift+KeyR');
     await sleep(400);
     s = await st(page);

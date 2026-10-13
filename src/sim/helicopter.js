@@ -5,14 +5,14 @@ import { CFG } from '../config.js';
 // Body frame: nose towards -Z, right +X, up +Y. Origin is the centre of mass.
 // Parts are shared with the render model and the destruction system so wreckage is recognisable.
 export const HELI_PARTS = [
-  { name: 'fuselage', pos: [0, 0.002, -0.006], half: [0.017, 0.02, 0.038], mass: 0.0095, collide: true },
-  { name: 'tailBoom', pos: [0, 0.008, 0.078], half: [0.0045, 0.0045, 0.05], mass: 0.0018, collide: true },
-  { name: 'tail', pos: [0.0, 0.02, 0.128], half: [0.004, 0.019, 0.011], mass: 0.0012, collide: true },
-  { name: 'skidL', pos: [-0.025, -0.04, -0.004], half: [0.0035, 0.0065, 0.046], mass: 0.0015, collide: true },
-  { name: 'skidR', pos: [0.025, -0.04, -0.004], half: [0.0035, 0.0065, 0.046], mass: 0.0015, collide: true },
-  { name: 'mast', pos: [0, 0.033, 0], half: [0.006, 0.012, 0.006], mass: 0.0016, collide: false },
-  { name: 'bladeA', pos: [0.05, 0.043, 0], half: [0.05, 0.0018, 0.0065], mass: 0.0009, collide: false, blade: 1 },
-  { name: 'bladeB', pos: [-0.05, 0.043, 0], half: [0.05, 0.0018, 0.0065], mass: 0.0009, collide: false, blade: -1 },
+  { name: 'fuselage', pos: [0, 0.005, -0.006], half: [0.0185, 0.034, 0.056], mass: 0.0095, collide: true },
+  { name: 'tailBoom', pos: [0, 0.0095, 0.098], half: [0.0055, 0.0055, 0.053], mass: 0.0018, collide: true },
+  { name: 'tail', pos: [0.0, 0.02, 0.149], half: [0.004, 0.021, 0.013], mass: 0.0012, collide: true },
+  { name: 'skidL', pos: [-0.0265, -0.0405, -0.005], half: [0.0035, 0.0062, 0.05], mass: 0.0015, collide: true },
+  { name: 'skidR', pos: [0.0265, -0.0405, -0.005], half: [0.0035, 0.0062, 0.05], mass: 0.0015, collide: true },
+  { name: 'mast', pos: [0, 0.047, 0], half: [0.006, 0.007, 0.006], mass: 0.0016, collide: false },
+  { name: 'bladeA', pos: [0.05, 0.053, 0], half: [0.05, 0.0015, 0.0045], mass: 0.0009, collide: false, blade: 1 },
+  { name: 'bladeB', pos: [-0.05, 0.053, 0], half: [0.05, 0.0015, 0.0045], mass: 0.0009, collide: false, blade: -1 },
 ];
 
 const Y = new THREE.Vector3(0, 1, 0);
@@ -78,6 +78,7 @@ export class Helicopter {
     this.ctlEcho = { pitch: 0, roll: 0, yaw: 0, collective: 0 };
     this.predVel = new THREE.Vector3();
     this.impactAcc = 0;
+    this.turb = [0, 0, 0];
     this.updateCached();
   }
 
@@ -219,6 +220,15 @@ export class Helicopter {
       tb.x += -ctl.pitch * H.cyclicTorque * rs2;
       tb.z += -ctl.roll * H.cyclicTorque * rs2;
       tb.y += -ctl.yaw * H.yawTorque * rs2;
+    }
+    // Ground-effect recirculation: a cushion of re-ingested air buffets the rotor when hovering low.
+    const cushion = Math.max(0, 1 - this.groundDist / (1.6 * H.rotorRadius)) * Math.min(1.5, this.thrustFrac * 2.2) * CFG.air.buffet;
+    for (let a = 0; a < 3; a++) {
+      this.turb[a] += (-this.turb[a] * 6 + (Math.random() * 2 - 1) * 38) * dt;
+    }
+    if (cushion > 0.01 && !this.grounded) {
+      const amp = H.cyclicTorque * 0.22 * cushion;
+      tb.x += this.turb[0] * amp; tb.z += this.turb[1] * amp; tb.y += this.turb[2] * amp * 0.5;
     }
     tb.applyQuaternion(q).add(tWorld);
     body.addTorque({ x: tb.x, y: tb.y, z: tb.z }, true);

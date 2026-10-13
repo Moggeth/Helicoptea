@@ -1,8 +1,18 @@
 # Helicoptea
 
-Fly a 24 g toy helicopter around a cosy kitchen table, hook a tea bag on its string, and dip it into a cup until the tea turns the colour you like. The bag swings, soaks up water, gets heavier, drips, and pulls on the helicopter the whole time. Crash hard and it explodes into its parts.
+Fly a 24 g scale-model helicopter (a deliberately serious, realistic light utility helicopter) around a cosy kitchen table, hook a tea bag on its string, and dip it into a cup until the tea turns the colour you like. The bag swings, soaks up water, gets heavier, drips, and pulls on the helicopter the whole time. Crash hard and it explodes into its parts.
 
 Three.js (r169) for rendering, Rapier 3D (0.14, WASM) for rigid bodies and contacts. Everything visual and audible is generated procedurally at runtime, so there are no external asset files (see [docs/ATTRIBUTION.md](docs/ATTRIBUTION.md)).
+
+## Rotor wash, AO
+
+The rotor's downwash is a small fluid simulation (wake column plus a 2D outwash solver over the table). It pushes the dangling bag and strings, buffets the helicopter near surfaces, ripples the linen runner, blows steam and dust, nods the flowers, and dimples and sprays the tea. Ambient occlusion (GTAO) grounds everything on desktop. See [docs/DESIGN.md](docs/DESIGN.md).
+
+## Playing while it's being developed
+
+- **http://localhost:4178/** is the stable build (`releases/stable`, rebuilt only after the tests pass; `releases/stable/VERSION.txt` names the commit).
+- **http://localhost:5178/** is the dev server (`npm run dev`) and may break mid-change.
+- Tests run against `npm run build` served on 4179: `npx vite preview --port 4179`.
 
 ## Run it
 

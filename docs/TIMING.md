@@ -11,3 +11,4 @@ All times local (AEDT), 2026-10-13. One continuous session by Claude.
 | 20:40–20:50 | First browser run; Chrome e2e harness; fixes to debris clones, explosion look, assist integrator, mobile layout, stale dev-server cache; e2e 37/37, physics 31/31 |
 | 20:50–20:55 | Throttled performance runs, README and docs |
 | 21:05–21:25 | Full controller support: new gamepad layer (any mapping, bind wizard, settings, rumble), pad-driven menus, Steam Controller guide, 13 new browser checks |
+| 21:35–22:45 | Stable/dev split (4178 stable, 5178 dev, 4179 tests); GTAO; rotor-downwash air field and its consumers (cloth, tea, bags, strings, steam, dust, flowers, buffeting); realistic helicopter model; wreck-on-pad fix; performance pass |

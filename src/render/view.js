@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { CFG } from '../config.js';
 import { RAPIER, GROUPS } from '../sim/physics.js';
 import { TABLE } from '../sim/layout.js';
-import { buildHelicopter, cloneHeliPart, makeMaterials, teabagAssets } from './models.js';
+import { cloneHeliPart, makeMaterials, teabagAssets } from './models.js';
+import { buildRealisticHelicopter } from './heliModel.js';
 import { TeaSurface, teaColor } from './water.js';
 import { ParticlePool } from './particles.js';
 import { StringMesh } from './strings.js';
@@ -19,7 +20,7 @@ export class View {
     this.quality = quality;
     this.time = 0;
     this.M = makeMaterials(quality);
-    this.heliModel = buildHelicopter(this.M);
+    this.heliModel = buildRealisticHelicopter(quality);
     scene.add(this.heliModel);
     this.bagAssets = teabagAssets();
     this.bags = new Map();
@@ -28,6 +29,7 @@ export class View {
     this.stringMat = new THREE.MeshStandardMaterial({ color: 0xf5efe2, roughness: 0.8, emissive: 0x3a3428, emissiveIntensity: 0.25 });
     this.surfaces = sim.cups.map((c) => {
       const s = new TeaSurface(c, kitchen.sun.position.clone().sub(kitchen.sun.target.position));
+      s.air = sim.air;
       scene.add(s.mesh);
       return s;
     });
@@ -81,6 +83,17 @@ export class View {
     scene.add(this.guide);
 
     this.animated = kitchen.animated;
+    // Air field -> texture for the cloth shader.
+    const air = sim.air;
+    this.airData = new Uint8Array(air.nx * air.nz * 4);
+    this.airTex = new THREE.DataTexture(this.airData, air.nx, air.nz, THREE.RGBAFormat);
+    this.airTex.magFilter = this.airTex.minFilter = THREE.LinearFilter;
+    this.clothUniforms = kitchen.clothUniforms;
+    this.clothUniforms.uAir.value = this.airTex;
+    this.windFn = (x, y, z, o) => sim.air.sample(x, y, z, o);
+    this.dustAcc = 0;
+    this.sprayAcc = 0;
+    this.flowerWind = new THREE.Vector3();
     this.steamAcc = 0;
     this.downwashAcc = 0;
     this.heliPos = new THREE.Vector3();
@@ -222,6 +235,7 @@ export class View {
       U.rotor.userData.disc.material.uniforms.uOpacity.value = Math.min(1, h.rotorSpeed) * 0.9;
       for (const gh of U.ghosts) gh.children.forEach((m) => { m.material.opacity = 0.14 * h.rotorSpeed; });
       U.tailRotor.rotation.x = h.tailPhase;
+      if (U.beacon) U.beacon.emissiveIntensity = (this.time * 1.4) % 1 < 0.12 ? 3 : 0.05;
       this.wreckFocus = null;
       // contact shadow
       const hd = h.groundDist;
@@ -263,6 +277,7 @@ export class View {
         const tag = this.bagAssets.makeTag();
         const string = new StringMesh(b.N + 1, 0.00085, this.stringMat);
         string.pts = new Float32Array((b.N + 1) * 3);
+        string.mesh.userData.noAO = true;
         this.scene.add(group, tag, string.mesh);
         v = { group, tag, string, rippleAcc: 0 };
         this.bags.set(b.id, v);
@@ -355,7 +370,7 @@ export class View {
       v.mesh.position.copy(_p);
       v.mesh.quaternion.copy(_q);
       v.age = (v.age || 0) + dt;
-      const glow = Math.max(0, 1.6 * Math.exp(-v.age * 1.1) - 0.05);
+      const glow = Math.max(0, 1.4 * Math.exp(-v.age * 2.2) - 0.03);
       for (const m of v.mesh.userData.embers) m.emissiveIntensity = glow;
       if (v.smoke > 0) {
         v.smoke -= dt;
@@ -407,10 +422,65 @@ export class View {
       s.mesh.material.opacity = 0.85 * Math.max(0, 1 - s.age / 28);
       if (s.age > 28) s.mesh.visible = false;
     }
-    for (const a of (this.animated || [])) a.obj.rotation.z = a.base.z + Math.sin(this.time * 1.3 + a.phase) * 0.03;
+    this.updateAir(dt);
     const floorFn = (x, z) => (Math.abs(x) < TABLE.halfX && Math.abs(z) < TABLE.halfZ ? 0.001 : -0.76);
-    this.fx.update(dt, floorFn);
-    this.smoke.update(dt, floorFn);
+    this.fx.update(dt, floorFn, this.windFn);
+    this.smoke.update(dt, floorFn, this.windFn);
+  }
+
+  // Rotor wash presentation: cloth texture, flowers, dust and tea spray.
+  updateAir(dt) {
+    const air = this.sim.air, d = this.airData, R = 4;
+    for (let k = 0, n = air.nx * air.nz; k < n; k++) {
+      d[k * 4] = Math.max(0, Math.min(255, (air.u[k] / R * 0.5 + 0.5) * 255));
+      d[k * 4 + 1] = Math.max(0, Math.min(255, (air.w[k] / R * 0.5 + 0.5) * 255));
+      d[k * 4 + 2] = 0; d[k * 4 + 3] = 255;
+    }
+    this.airTex.needsUpdate = true;
+    this.clothUniforms.uTime.value = this.time;
+    // Flowers nod and shiver in the wash.
+    for (const a of (this.animated || [])) {
+      a.obj.getWorldPosition(_p);
+      air.sample(_p.x, _p.y, _p.z, this.flowerWind);
+      const s = this.flowerWind.length();
+      a.wind = (a.wind || 0) + (s - (a.wind || 0)) * Math.min(1, dt * 4);
+      const jitter = Math.sin(this.time * (9 + a.phase) ) * 0.04 * Math.min(1, a.wind);
+      a.obj.rotation.z = a.base.z + Math.sin(this.time * 1.3 + a.phase) * 0.03 + this.flowerWind.x * 0.12 + jitter;
+      a.obj.rotation.x = a.base.x - this.flowerWind.z * 0.12 + jitter * 0.7;
+    }
+    const wk = air.wake;
+    if (!wk.active || !wk.vg) return;
+    // Dust and crumbs lifted where the outwash is fastest (they then ride the flow, showing it).
+    if (wk.hit.y < 0.02 && wk.vg > 1.2) {
+      this.dustAcc += dt * (wk.vg - 1.2) * 30 * this.quality.steam;
+      while (this.dustAcc > 1) {
+        this.dustAcc -= 1;
+        const a = Math.random() * Math.PI * 2, r = wk.footR * (1 + Math.random() * 0.8);
+        const x = wk.hit.x + Math.cos(a) * r, z = wk.hit.z + Math.sin(a) * r;
+        if (Math.abs(x) > TABLE.halfX || Math.abs(z) > TABLE.halfZ) continue;
+        this.smoke.emit({ p: [x, 0.002, z], v: [Math.cos(a) * 0.3, rand(0.02, 0.08), Math.sin(a) * 0.3], life: rand(0.8, 1.6), size0: rand(0.0018, 0.0032), size1: 0.0015,
+          col0: [0.93, 0.88, 0.78], alpha: 0.55, grav: 0.4, drag: 0.5 });
+      }
+    }
+    // Tea under the rotor: spray mist and a ring of wind ripples.
+    this.sprayAcc += dt;
+    for (let i = 0; i < this.sim.cups.length; i++) {
+      const c = this.sim.cups[i];
+      const dx = wk.hit.x - c.x, dz = wk.hit.z - c.z;
+      if (Math.hypot(dx, dz) > c.rIn + wk.footR * 0.6 || Math.abs(wk.hit.y - c.waterY) > 0.03) continue;
+      const surf = this.surfaces[i];
+      surf.wash = Math.min(1.5, wk.vg * wk.vg * 0.12);
+      if (this.sprayAcc > 0.05 && wk.vg > 1.6) {
+        const col = teaColor(c.brew, _c);
+        for (let k = 0; k < 3; k++) {
+          const a = Math.random() * Math.PI * 2, r = c.rIn * (0.6 + Math.random() * 0.35);
+          this.smoke.emit({ p: [c.x + Math.cos(a) * r, c.waterY + 0.002, c.z + Math.sin(a) * r], v: [Math.cos(a) * 0.4, rand(0.15, 0.4), Math.sin(a) * 0.4], life: 0.5, size0: 0.0025, size1: 0.001,
+            col0: [col.r * 1.2, col.g * 1.2, col.b * 1.2], alpha: 0.7, grav: 6, drag: 0.6, kind: 1 });
+        }
+        surf.addRipple(c.x + Math.cos(Math.random() * 6.28) * c.rIn * 0.7, c.z + Math.sin(Math.random() * 6.28) * c.rIn * 0.7, 0.3 * surf.wash, this.time);
+      }
+    }
+    if (this.sprayAcc > 0.05) this.sprayAcc = 0;
   }
 
   // Screen positions of cups (for the subtle brew indicator in the HUD).

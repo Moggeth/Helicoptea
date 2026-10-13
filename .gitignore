@@ -5,3 +5,4 @@ logs/
 *.log
 .vite/
 test-results/
+releases/

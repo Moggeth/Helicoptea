@@ -42,6 +42,24 @@ Severity is the helicopter's velocity change not explained by flight forces (res
 
 On destruction the body is removed, the bag is released, and eight debris bodies (fuselage, tail boom, tail, both skids, mast, both blades) inherit the helicopter's velocity and spin plus an explosion impulse. Blades keep spinning. Nearby bags get shoved. Effects: flash light, fireball, sparks that bounce, smoke, smoking and glowing wreckage, a scorch decal, camera shake and a layered explosion sound. Debris retires after 13 s, at most 34 pieces (oldest wreck first). Particles come from fixed pools. The state machine prevents a second explosion from the same crash.
 
+## Rotor downwash ([src/sim/air.js](../src/sim/air.js))
+
+A small fluid simulation, run at 60 Hz inside the fixed-step sim:
+
+- **Wake column**: momentum theory. Induced velocity v_i = sqrt(T / (2 ρ A)) (about 1.7–2 m/s at hover), accelerating towards 2 v_i as the wake contracts. A ray from the hub along the thrust axis finds where it lands.
+- **Outwash layer**: a 60 × 40 grid (3.4 cm cells) over the table holds a thin 2D incompressible flow. The impingement footprint is a mass source sized so the flow leaves its edge at the arriving wake speed. A warm-started pressure solve spreads it radially and steers it around the cups, teapot, sugar bowl, vase, jug, books and stand. Semi-Lagrangian advection carries gusts, and the field decays once the helicopter leaves. When the air is still, the solve is skipped.
+- `sample(x, y, z)` gives the 3D air velocity (column plus outwash fading over ~3.5 cm of height).
+
+Physical consumers: tea bags (flat-plate drag against moving air, at three points so they flutter and twist), the visible strings, and ground-effect recirculation buffeting on the helicopter when hovering within ~1.6 rotor radii of a surface. Visual consumers: the linen runner and its hanging ends ripple (vertex displacement driven by the air field as a texture), steam, smoke and dust ride the flow, flowers nod, and tea under the rotor gets a pressure dimple, wind chop, ripples and spray.
+
+## Ambient occlusion ([src/render/post.js](../src/render/post.js))
+
+GTAO (Three.js `GTAOPass`) with a 12 cm world radius, tuned for the miniature scale. It runs on the high tier and on desktop medium, and is off on touch devices and the low tier (`?ao=0` / `?ao=1` override). Transparent and effect-only meshes (tea, glass, rotor blur, strings, decals, particles) are excluded from the occlusion pass.
+
+## Helicopter model ([src/render/heliModel.js](../src/render/heliModel.js))
+
+A serious, scale-accurate light utility helicopter (single turbine, two-blade teetering rotor, skid gear), deliberately realistic against the cosy setting. The fuselage is lofted from superellipse sections with a flat floor, true glazing (windscreen, chin windows, door windows), a cabin lining, seats, instrument panel and a pilot. It has an engine fairing with intakes and exhausts, a tapered boom with stripes and registration, a stabiliser with endplates and nav lights, a swept fin and ventral fin with tail skid, and a tail rotor with gearbox. The skids have arched cross tubes and upturned toes, and the rotor head has a swashplate, pitch links and grips. A navy/white/red livery has panel lines, rivets (bump map) and a blinking beacon. Each part's static meshes are merged by material to keep draw calls low. Lower quality tiers use fewer loft segments.
+
 ## Camera ([src/render/camera.js](../src/render/camera.js))
 
 Horizon-stable chase camera: follows heading only, smoothed at 2.2/s, never roll or pitch. It frames a point 38% of the way from the helicopter to the bag, pulls back while carrying, ray-casts against scenery, and stays above the table. Position smoothing is tight (14/s) to avoid a disconnected feel. After a crash it follows the fuselage wreck. C recenters; the mouse can orbit and zoom.
@@ -59,4 +77,6 @@ Quality tiers (auto: high on desktop, medium on touch devices) scale pixel ratio
 - **Assist climb integrator wound up** during long climbs and overshot altitude after release, and starting from a negative value on the pad prevented take-off. It now learns load mainly while holding altitude and resets on the ground.
 - **Debris clones copied the whole rotor group** onto the mast piece (a flying rotor disc). The mast clone now excludes it.
 - **Scripted pickup/dip flights** need the pilot to place the *bag* over the cup and then descend holding the helicopter still; steering the bag while it's inside the cup drags it against the rim and can pull the helicopter into the teapot. That is realistic, and a good lesson for players too.
+- **Loose wreckage counted as a rotor strike.** A fresh helicopter could explode on the pad when debris from the previous crash landed inside the rotor disc. Debris no longer collides with the rotor sensor or counts toward impact severity, and wreckage on the pad is cleared at restart.
+- **The air field was too expensive under CPU throttling** at 80 × 53 cells with 24 iterations, sampling strings every step. A coarser grid (60 × 40, 10 warm-started iterations), cheap distance culling, half-rate strings and sleeping strings for settled bags cut sim cost about 40% at 6× throttle.
 - **The in-app browser pane throttles hidden pages** to ~30 fps and stops rAF entirely, so performance and flight tests use local Chrome via `playwright-core` instead.

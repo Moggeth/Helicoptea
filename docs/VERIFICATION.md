@@ -26,9 +26,20 @@ From the debug overlay (desktop, high): CPU render submission 0.6–0.8 ms per f
 
 **Not measured**: GPU time on a phone, a real mobile GPU, thermal throttling, battery. The 60 fps phone target is unverified until run on a physical device; quality "medium" plus dynamic resolution is the mitigation in place.
 
+### 2026-10-13 evening: realistic helicopter, AO and downwash build
+
+| Scenario | Quality | Rendered fps | Notes |
+|---|---|---|---|
+| Desktop low hover in wash | high + AO | 120 (cap) | 1600×900 |
+| Desktop low hover in wash | high + AO | 120 (cap) | 2560×1440 |
+| Phone landscape emulated | medium (no AO) | 120 (cap) | 844×390 at DPR 1.5 |
+| Phone landscape, CPU ×6 | medium | 40.5 | was 52 for the previous build in the same scenario; sim 6.7 ms and CPU render submit 10.7 ms per frame at ×6 |
+
+The low-hover scenario (wash active, bags nearby) is harder than the earlier over-the-mug measurement.
+
 ## Automated checks (all passing)
 
-- `npm run check`: 31/31 headless physics checks, including the full takeoff → hook → carry → dip → brew → extract → drain → release on saucer → land loop, swing (29.7° string angle after a hard sideways input) and load transfer (3.0 cm path difference vs. no bag), wet bag mass 3 → 11.6 g still liftable, brewing only in the immersed cup, crash at 1.4 m/s vs. survivable assisted landing, 25 crash/restart cycles bounded.
+- `npm run check`: 32/32 headless physics checks (added: restart onto a wrecked pad does not re-explode), including the full takeoff → hook → carry → dip → brew → extract → drain → release on saucer → land loop, swing (29.7° string angle after a hard sideways input) and load transfer (3.0 cm path difference vs. no bag), wet bag mass 3 → 11.6 g still liftable, brewing only in the immersed cup, crash at 1.4 m/s vs. survivable assisted landing, 25 crash/restart cycles bounded.
 - `node tests/e2e.mjs`: 50/50 browser checks (13 added for controller support on 2026-10-13: pad starts the game, pause/settings/back navigation, crash rumble and A-to-restart, disconnect pause, bind wizard and a bound unknown-layout pad). Original 37: keyboard lift-off, assist hold and levelling, assist off keeps tilt, attach prompt, Space attach/release, dip and brew, saucer release, landing, crash explosion with 8 debris parts, Restart Flight shown immediately and preserving brew, 20 crash/restart cycles, focus loss pauses and resumes, Shift+R reset, no console errors, 30 fps cap, emulated gamepad (lift, tilt, Y assist, Start restart, prompts switch), emulated touch (lift, two-thumb multi-touch, touch cancel releases both sticks, no page scroll), portrait layout keeps controls on screen.
 - Screenshots of each stage are written to `test-results/`.
 

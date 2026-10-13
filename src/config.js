@@ -17,7 +17,7 @@ export const CFG = {
     inertia: [5.0e-5, 6.0e-5, 3.6e-5], // body axes: x = pitch, y = yaw, z = roll
     rotorRadius: 0.1,
     hookOffset: [0, -0.046, 0],         // cargo hook, directly below the centre of mass
-    rotorHubOffset: [0, 0.042, 0],
+    rotorHubOffset: [0, 0.053, 0],
     skidDrop: 0.047,                   // centre of mass to skid bottom
     thrustToWeight: 2.3,               // full collective, heli alone
     thrustLag: 0.07,                   // blade pitch + inflow response (s)
@@ -86,6 +86,17 @@ export const CFG = {
     debrisLife: 13,
     maxDebris: 34,
     explosionImpulse: 1.25, // m/s radial
+  },
+
+  air: {
+    strength: 1.0,          // scales the rotor's induced velocity (momentum theory)
+    maxReach: 0.8,          // m, how far below the rotor the wake is traced
+    decay: 0.45,            // s, outwash dies away after the heli leaves
+    iterations: 10,         // pressure solve iterations per update (warm-started)
+    updateEvery: 4,         // physics steps per air update (240/4 = 60 Hz)
+    bagDrag: 1.0,           // scales wind forces on tea bags
+    stringFlutter: 0.06,
+    buffet: 1.0,            // ground-effect recirculation turbulence on the heli
   },
 
   camera: {
