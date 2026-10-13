@@ -77,6 +77,26 @@ A small fluid simulation, run at 60 Hz inside the fixed-step sim:
 
 Physical consumers: tea bags (flat-plate drag against moving air, at three points so they flutter and twist), the visible strings, and ground-effect recirculation buffeting on the helicopter when hovering within ~1.6 rotor radii of a surface. Visual consumers: the linen runner and its hanging ends ripple (vertex displacement driven by the air field as a texture), steam, smoke and dust ride the flow, flowers nod, and tea under the rotor gets a pressure dimple, wind chop, ripples and spray.
 
+## House and tea garden ([src/sim/house.js](../src/sim/house.js), [src/render/garden.js](../src/render/garden.js))
+
+The kitchen is now one room of a house. Its back wall (brick outside, plaster inside) has an open back door (0.8 x 2 m, the door swung flat against the wall inside) and an open casement window whose mullion and transom split it into four panes; the lower casements stand open square to the wall and the fanlights tilt out, so both are flyable but tight. Outside is a walled tea garden at floor level (7.2 x 4.8 m): a flagstone patio, a garden table with its own tea stand (three more pegs), a rose arch to fly through, a bird bath, a tree stump, a bench, an apple tree, a hedge and long meadow grass towards the back. The fences carry tall invisible walls so nothing leaves the garden; there is no lid on the sky.
+
+- **Cups**: five more, appended after the mug and teacup (tests index those two): a windowsill teacup, a counter mug by the kettle, a garden teacup on the garden table, a mug on the stump and one on the bench. `standY` is the surface a cup stands on (saucers sit there).
+- **Bags**: `STATIONS` lists both stands; pegs are kitchen first (pegs[1] is still the kitchen's middle peg). Restart guarantees bags on the kitchen stand; reset refills both. `maxBags` is 11. Bags dropped on the floor or lawn are still tidied away after a few seconds.
+- **Colliders** are primitives (`buildHouseColliders`), including the open sashes and the door leaf. The kitchen counter, upper cabinets, kettle and chairs are solid now too.
+- **Camera**: never below the floor; after smoothing it re-checks the line to the focus so it can't cut through a window bar or door frame.
+- **Shadows**: the sun's shadow map stays framed on the kitchen table as before and slides to follow the helicopter once it leaves the table.
+
+**Grass** ([src/render/grass.js](../src/render/grass.js)) is instanced blades on a world-locked jittered grid, so blades never swim: a dense layer follows the camera and a sparse layer of wider clumps covers the whole garden, cross-faded. A mask painted from the layout says where grass grows, how long it is (mown lawn to meadow) and where the border flowers are. Each blade bends along an arc of constant length; bend is `atan(k v^2)` (drag, saturating when pressed flat) plus a static lean and flutter. Wind is an ambient breeze with travelling gusts plus the rotor's outwash: wherever a wake from the air field lands on the lawn, a radial wall jet with a pressed-flat core, a churning swirl near the core and rings of gusts running outward. The grass lags the wake slightly and springs back slower than it flattens. Leaves on the tree, hedge, roses and herbs sway in the same breeze and shake under a rotor.
+
+| Tier | Dense layer | Garden layer | Decor |
+|---|---|---|---|
+| high | 340 x 340 blades, 5.8 mm apart | 3 cm clumps | all shadows, every leaf card |
+| medium (touch default) | 170 x 170, 8.5 mm | 5 cm | decor casts no shadows, ~55% leaves |
+| low | 104 x 104, 12 mm | 6.5 cm | ~30% leaves, no distant trees |
+
+Grass is excluded from AO and casts no shadows; it receives them only on high. Garden decor is merged by material (one draw call each).
+
 ## Ambient occlusion ([src/render/post.js](../src/render/post.js))
 
 GTAO (Three.js `GTAOPass`) with a 12 cm world radius, tuned for the miniature scale. It runs on the high tier and on desktop medium, and is off on touch devices and the low tier (`?ao=0` / `?ao=1` override). Transparent and effect-only meshes (tea, glass, rotor blur, strings, decals, particles) are excluded from the occlusion pass.

@@ -237,7 +237,7 @@ try {
     await page.keyboard.press('Shift+KeyR');
     await sleep(400);
     s = await st(page);
-    check('Shift+R resets the sandbox', s.brew.every((b) => b === 0) && s.debris === 0 && s.bags === 3, `bags ${s.bags} debris ${s.debris}`);
+    check('Shift+R resets the sandbox', s.brew.every((b) => b === 0) && s.debris === 0 && s.bags === 6, `bags ${s.bags} (3 per stand) debris ${s.debris}`);
     const errors = logs.filter((l) => l.includes('pageerror') || l.startsWith('[error]'));
     check('no console errors during desktop run', errors.length === 0, errors.slice(0, 3).join(' | '));
     report.perf.desktopRenderInfo = await page.evaluate(() => { const i = window.__helicoptea.renderer.info.render; return { calls: i.calls, triangles: i.triangles }; });

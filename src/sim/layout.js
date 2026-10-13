@@ -8,7 +8,7 @@ export const PAD = { x: -0.56, z: 0.24, radius: 0.105, height: 0.007 };
 
 // Tea stand: bags hang by their loops from three pegs pointing towards the launch side (+z).
 export const STATION = {
-  x: -0.52, z: -0.2,
+  x: -0.52, z: -0.2, y: 0,
   baseHalf: [0.12, 0.0075, 0.045],
   postX: 0.105, postHalf: 0.007, postHeight: 0.265,
   barY: 0.255, barHalf: 0.0055,
@@ -22,6 +22,17 @@ export const CUPS = [
     bottom: 0.009, water: 0.074, handleYaw: 0, glaze: 0x7f9c8a, rim: 0xf3eadc },
   { id: 'teacup', name: 'Teacup', x: 0.53, z: 0.17, baseY: 0.008, rOut: 0.05, rIn: 0.045, height: 0.064,
     bottom: 0.007, water: 0.05, handleYaw: -Math.PI * 0.5, glaze: 0xf2ece0, rim: 0x3f6aa6, saucer: 0.082 },
+  // Beyond the table (see the house and garden below). standY is the surface a cup stands on.
+  { id: 'sill', name: 'Windowsill cup', shape: 'teacup', x: 0.17, z: -1.39, standY: 0.05, baseY: 0.05, rOut: 0.044, rIn: 0.0395, height: 0.06,
+    bottom: 0.007, water: 0.047, handleYaw: Math.PI, glaze: 0xe9d6c4, rim: 0xb5534a },
+  { id: 'counter', name: 'Counter mug', x: 2.02, z: 0.42, standY: 0.14, baseY: 0.14, rOut: 0.047, rIn: 0.0415, height: 0.096,
+    bottom: 0.009, water: 0.074, handleYaw: Math.PI * 0.5, glaze: 0x2f4f6b, rim: 0xe9e2d4 },
+  { id: 'garden', name: 'Garden teacup', shape: 'teacup', x: 0.66, z: -2.8, standY: -0.05, baseY: -0.042, rOut: 0.05, rIn: 0.045, height: 0.064,
+    bottom: 0.007, water: 0.05, handleYaw: -Math.PI * 0.5, glaze: 0xf4efe2, rim: 0x5f8f5a, saucer: 0.082 },
+  { id: 'stump', name: 'Stump mug', x: 2.35, z: -4.15, standY: -0.44, baseY: -0.44, rOut: 0.047, rIn: 0.0415, height: 0.096,
+    bottom: 0.009, water: 0.074, handleYaw: Math.PI * 0.75, glaze: 0xc9663e, rim: 0xf0e2c8 },
+  { id: 'bench', name: 'Bench mug', x: -1.32, z: -5.5, standY: -0.31, baseY: -0.31, rOut: 0.045, rIn: 0.041, height: 0.088,
+    bottom: 0.008, water: 0.068, handleYaw: 0, glaze: 0xf3f1ea, rim: 0x2b4a8a },
 ];
 
 export const DISCARD = { x: 0.5, z: -0.29, radius: 0.078, rimHeight: 0.013, thickness: 0.006 };
@@ -35,6 +46,43 @@ export const JUG = { x: 0.74, z: -0.06, r: 0.034, h: 0.088 };
 export const PLATE = { x: 0.06, z: 0.36, r: 0.085, h: 0.009 };
 export const BOOKS = { x: -0.72, z: -0.34, books: [ [0.11, 0.024, 0.075, 0.1], [0.1, 0.02, 0.07, -0.08], [0.095, 0.03, 0.068, 0.05] ] };
 export const SPOON = { x: 0.24, z: -0.2, yaw: 0.5 };
+
+// ---------------------------------------------------------------- house and garden
+// The kitchen's back wall (z = ROOM.minZ) has an open back door and an open casement window onto a small
+// walled tea garden. The garden ground is level with the kitchen floor.
+export const WALL_T = 0.12;
+export const BACKDOOR = { x0: 0.78, x1: 1.58, top: ROOM.floorY + 2.0 };
+export const WINDOW = { x: -0.25, w: 1.5, y: 0.62, h: 1.05, bar: 0.05, mullion: 0.025, transomY: 0.74, transomH: 0.022 };
+export const SILL = { x: -0.25, w: 1.7, top: 0.05, h: 0.03, depth: 0.2 };
+export const COUNTER = { x0: ROOM.maxX - 0.66, x1: ROOM.maxX, z0: -1.0, z1: 1.4, top: ROOM.floorY + 0.9, upperY0: 0.9, upperY1: 1.5, upperDepth: 0.36 };
+export const KETTLE = { x: ROOM.maxX - 0.32, z: -0.35, r: 0.09, h: 0.2 };
+export const CHAIRS = [[0.2, 0.85, 0], [1.25, -0.2, -Math.PI / 2]];
+
+export const GARDEN = { minX: -3.4, maxX: 3.8, minZ: -6.4, maxZ: ROOM.minZ - WALL_T, groundY: ROOM.floorY, fenceH: 1.2 };
+export const PATIO = { minX: -1.7, maxX: 2.35, minZ: -2.4, maxZ: GARDEN.maxZ };
+export const GTABLE = { x: 0.35, z: -2.95, halfX: 0.55, halfZ: 0.34, top: -0.05, thickness: 0.03 };
+// A second tea stand on the garden table, so the garden can be played on its own.
+export const GARDEN_STATION = { ...STATION, x: 0.02, z: -3.06, y: GTABLE.top };
+export const STATIONS = [STATION, GARDEN_STATION];
+export const GTEAPOT = { x: 0.62, z: -3.12, r: 0.075, h: 0.11 };
+export const GJAR = { x: -0.12, z: -2.72, r: 0.035, h: 0.11 };
+export const GCHAIRS = [[0.0, -2.38, 0], [0.95, -2.42, 0.25]];
+export const ARCH = { x: 0.35, z: -4.0, halfW: 0.5, post: 0.03, top: 0.62 };
+export const BIRDBATH = { x: -1.55, z: -3.65, r: 0.25, stemR: 0.075, top: -0.14 };
+export const STUMP = { x: 2.35, z: -4.15, r: 0.19, top: -0.44 };
+export const BENCH = { x: -1.7, z: -5.55, halfX: 0.65, halfZ: 0.21, seat: -0.31, backTop: 0.12 };
+export const TREE = { x: 2.75, z: -5.55, trunkR: 0.09, trunkTop: 0.95, canopy: [[0, 1.55, 0, 0.62], [-0.45, 1.3, 0.25, 0.42], [0.4, 1.35, 0.2, 0.45], [0.05, 1.95, -0.1, 0.45]] };
+export const POTS = [[-1.25, -1.86, 0.12, 0.24], [-0.92, -1.9, 0.09, 0.17], [2.05, -1.88, 0.13, 0.28]]; // x, z, r, height
+export const HEDGE = { z0: GARDEN.minZ, z1: GARDEN.minZ + 0.45, top: ROOM.floorY + 1.35 };
+export const MEADOW_Z = -4.7; // long grass beyond this line
+
+// Height of the solid surface under a point (for particles landing and the like).
+export function surfaceY(x, z) {
+  if (Math.abs(x) < TABLE.halfX && Math.abs(z) < TABLE.halfZ) return 0;
+  if (Math.abs(x - GTABLE.x) < GTABLE.halfX && Math.abs(z - GTABLE.z) < GTABLE.halfZ) return GTABLE.top;
+  if (x > COUNTER.x0 && z > COUNTER.z0 && z < COUNTER.z1) return COUNTER.top;
+  return ROOM.floorY;
+}
 
 // Cylinders (x, z, radius, topY, bottomY) used by the visual string verlet to avoid obvious clipping.
 export function stringColliders() {

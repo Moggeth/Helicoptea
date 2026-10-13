@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CFG } from '../config.js';
 import { RAPIER, GROUPS } from '../sim/physics.js';
-import { TABLE } from '../sim/layout.js';
+import { TABLE, ROOM } from '../sim/layout.js';
 
 // Horizon-stable chase camera. Follows the helicopter's heading (never its roll), frames the
 // dangling bag, avoids scenery with a ray cast, and never jumps when cargo or the heli changes.
@@ -68,9 +68,20 @@ export class FollowCamera {
     }
     // Never below the table top when over it.
     if (Math.abs(desired.x) < TABLE.halfX + 0.05 && Math.abs(desired.z) < TABLE.halfZ + 0.05) desired.y = Math.max(desired.y, 0.03);
+    desired.y = Math.max(desired.y, ROOM.floorY + 0.03); // never under the floor or lawn
 
     if (this.pos.distanceTo(desired) > 1.5) this.pos.copy(desired);
     this.pos.lerp(desired, 1 - Math.exp(-dt * C.posFollow));
+    // The smoothed position can cut a corner through a window bar or door frame: keep it on the near side.
+    if (sim) {
+      const dir = this._t.copy(this.pos).sub(this.focus);
+      const len = dir.length();
+      if (len > 1e-4) {
+        dir.divideScalar(len);
+        const hit = sim.world.castRay(new RAPIER.Ray({ x: this.focus.x, y: this.focus.y, z: this.focus.z }, { x: dir.x, y: dir.y, z: dir.z }), len, true, undefined, GROUPS.queryWorld);
+        if (hit && hit.timeOfImpact > 0.02) this.pos.copy(this.focus).addScaledVector(dir, Math.max(0.06, hit.timeOfImpact - 0.02));
+      }
+    }
     this.look.lerp(this.focus, 1 - Math.exp(-dt * C.lookFollow * 1.5));
 
     this.camera.position.copy(this.pos);
