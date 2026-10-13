@@ -507,7 +507,7 @@ export class Sim {
       // Splash on entry.
       const imm = b.immersion > 0.05;
       if (imm && !b.wasImmersed) this.emit('splash', { cup: b.cup, pos: b.pos.clone(), speed: Math.abs(b.vel.y) + 0.3 * Math.hypot(b.vel.x, b.vel.z), bag: b });
-      if (!imm && b.wasImmersed && b.vel.y > 0.02) this.emit('extract', { pos: b.pos.clone(), speed: b.vel.y, bag: b });
+      if (!imm && b.wasImmersed && b.vel.y > 0.008) this.emit('extract', { pos: b.pos.clone(), speed: b.vel.y, bag: b });
       b.wasImmersed = imm;
       this.updateRope(b);
     }
