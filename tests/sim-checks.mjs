@@ -138,6 +138,8 @@ const f = (x, d = 3) => Number(x).toFixed(d);
     goto(-0.56, 0.3, 0.24, 7, { speed: 0.35 });
     goto(-0.56, 0.0, 0.24, 5, { speed: 0.1 });
     run(sim, 1);
+    const evTypes = new Set(sim.events.map((e) => e.type));
+    check('feedback events fire: extraction and touchdown', evTypes.has('extract') && evTypes.has('touchdown'), [...evTypes].filter((t) => ['snatch', 'extract', 'touchdown', 'scrape'].includes(t)).join(', '));
     check('lands back on the pad intact', sim.state === 'flying' && sim.heli.grounded, `y=${f(sim.heli ? sim.heli.pos.y : 0)} state ${sim.state}`);
   }
 }
@@ -177,6 +179,21 @@ const f = (x, d = 3) => Number(x).toFixed(d);
     });
     return { sim, maxAngle, dx: sim.heli.pos.x - p0.x, xs };
   };
+  // Hook a bag (string slack at the peg) and climb away hard: the string should snatch taut.
+  {
+    const sim = new Sim();
+    const ap = new Autopilot();
+    const peg = sim.pegs[1];
+    const go = (x, y, z, secs, speed) => { ap.target.set(x, y, z); ap.maxSpeed = speed; run(sim, secs * SLOW, () => (sim.heli ? ap.update(sim.heli) : zero())); };
+    go(sim.heli.pos.x, 0.42, sim.heli.pos.z, 2, 0.35);
+    go(peg.tip.x, 0.42, peg.tip.z + 0.004, 4, 0.3);
+    go(peg.tip.x, peg.tip.y + 0.04, peg.tip.z + 0.004, 3, 0.15);
+    sim.toggleAttach();
+    sim.drainEvents();
+    run(sim, 0.8, () => ({ ...zero(), collective: 1 }));
+    const sn = sim.drainEvents().filter((e) => e.type === 'snatch');
+    check('a slack string snatching taut is felt (snatch event)', sn.length > 0, sn.length ? `rel speed ${f(sn[0].speed)} m/s` : 'none');
+  }
   const a = trial(true), b = trial(false);
   check('acceleration makes the bag swing', a.maxAngle > 0.1, `max string angle ${f(a.maxAngle * 57.3, 1)} deg`);
   const diff = Math.max(...a.xs.map((x, i) => Math.abs(x - b.xs[i])));

@@ -120,6 +120,9 @@ export class View {
         case 'drip': this.dripLand(e); break;
         case 'crash': this.explode(e); camRig.addShake(0.012); break;
         case 'bump': camRig.addShake(Math.min(0.004, e.dv * 0.004)); this.dust(e.pos, e.dv); break;
+        case 'touchdown': camRig.addShake(Math.min(0.003, e.speed * 0.004)); this.dust(e.pos, Math.min(1, e.speed * 2)); break;
+        case 'scrape': if (Math.random() < 0.5) this.dust(e.pos, Math.min(0.6, e.speed)); break;
+        case 'snatch': camRig.addShake(Math.min(0.002, e.speed * 0.002)); break;
         case 'bagRemoved': this.retireBag(e.id); break;
         case 'debrisRemoved': this.retireDebris(e.id); break;
         case 'reset': this.pendingFx.length = 0; this.fx.clear(); this.smoke.clear(); for (const s of this.scorches) { s.mesh.visible = false; s.age = 99; } for (const s of this.surfaces) s.displayBrew = 0; break;

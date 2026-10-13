@@ -489,6 +489,16 @@ export class Sim {
       else if (heli.pos.y < -0.72 && heli.up.y < 0.5) this.crash('floor', 1);
       else if (impact > CFG.crash.bumpDv) this.emit('bump', { pos: heli.pos.clone(), dv: impact });
       if (bagHeliHit > 0.0005) this.emit('bagHit', { pos: heli.pos.clone(), dv: bagHeliHit / 0.004, material: 'heli' });
+      // Contact feedback: touchdowns and skid scrapes (sound, dust, rumble).
+      if (this.heli) {
+        const gr = heli.grounded || heli.skidClearance < 0.003;
+        if (gr && !heli.wasGrounded && heli.lastVy < -0.04) this.emit('touchdown', { pos: heli.pos.clone(), speed: -heli.lastVy });
+        const hs = Math.hypot(heli.vel.x, heli.vel.z);
+        heli.scrapeT = (heli.scrapeT || 0) + dt;
+        if (anyContact && heli.skidClearance < 0.004 && hs > 0.05 && heli.scrapeT > 0.07) { heli.scrapeT = 0; this.emit('scrape', { pos: heli.pos.clone(), speed: hs }); }
+        heli.wasGrounded = gr;
+        heli.lastVy = heli.vel.y;
+      }
     }
 
     for (const b of this.bags) {
@@ -496,7 +506,7 @@ export class Sim {
       // Splash on entry.
       const imm = b.immersion > 0.05;
       if (imm && !b.wasImmersed) this.emit('splash', { cup: b.cup, pos: b.pos.clone(), speed: Math.abs(b.vel.y) + 0.3 * Math.hypot(b.vel.x, b.vel.z), bag: b });
-      if (!imm && b.wasImmersed && b.vel.y > 0.05) this.emit('extract', { pos: b.pos.clone(), speed: b.vel.y, bag: b });
+      if (!imm && b.wasImmersed && b.vel.y > 0.02) this.emit('extract', { pos: b.pos.clone(), speed: b.vel.y, bag: b });
       b.wasImmersed = imm;
       this.updateRope(b);
     }
@@ -527,8 +537,16 @@ export class Sim {
         const jd = RAPIER.JointData.rope(b.attach.length, { x: h.x, y: h.y, z: h.z }, { x: 0, y: b.anchorY, z: 0 });
         b.attach.joint = this.world.createImpulseJoint(jd, heli.body, b.body, true);
       }
-      b.tension = d > b.attach.length * 0.985 ? b.mass * CFG.physics.gravity : 0;
-    } else b.tension = 0;
+      const taut = d > b.attach.length * 0.985;
+      b.tension = taut ? b.mass * CFG.physics.gravity : 0;
+      // Snatch: a slack string snapping taut jerks the bag and the helicopter (feedback event).
+      if (taut && b.wasSlack && b.attach.kind === 'heli' && this.heli) {
+        const dir = _a.copy(b.anchorWorld).sub(b.attach.endWorld()).normalize();
+        const rel = _b.copy(b.vel).sub(this.heli.vel).dot(dir);
+        if (rel > 0.12) this.emit('snatch', { pos: b.pos.clone(), speed: rel, mass: b.mass });
+      }
+      b.wasSlack = !taut;
+    } else { b.tension = 0; b.wasSlack = true; }
   }
 
   housekeeping(dt) {

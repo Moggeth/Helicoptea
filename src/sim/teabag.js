@@ -40,6 +40,7 @@ export class TeaBag {
     this.vel = new THREE.Vector3();
     this.anchorWorld = new THREE.Vector3();
     this.tension = 0;
+    this.cling = 0;
 
     // Visual string (verlet), simulated at the fixed rate so it is deterministic and interpolatable.
     const N = C.ropeSegments;
@@ -142,6 +143,14 @@ export class TeaBag {
         _f.addScaledVector(_vt, -(mPt / dt) * (1 - Math.exp(-kt * dt / mPt)));
         body.addForceAtPoint({ x: _f.x, y: _f.y, z: _f.z }, { x: _p.x, y: _p.y, z: _p.z }, true);
       }
+    }
+    // Meniscus cling: tea holds on to a soaked bag for a moment as it breaks the surface, so lifting
+    // out gives a little tug back through the string before it lets go.
+    if (this.immersion > 0.25 && sub < 0.25 && this.vel.y > 0.02) this.cling = 0.14;
+    if (this.cling > 0) {
+      this.cling -= dt;
+      const k = (this.cling / 0.14) * this.wetness * mass * g * 0.9;
+      body.addForce({ x: 0, y: -k, z: 0 }, true);
     }
     this.immersion = sub;
     const sp0 = this.vel.length();

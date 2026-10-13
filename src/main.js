@@ -362,6 +362,9 @@ async function boot() {
         else if (e.type === 'release') input.pads.rumble(0, 0.25, 40);
         else if (e.type === 'splash' || e.type === 'bucketSplash') input.pads.rumble(0.1, Math.min(0.5, 0.15 + e.speed * 0.4), 90);
         else if (e.type === 'rotorTick') input.pads.rumble(0.25, 0.4, 30);
+        else if (e.type === 'touchdown') input.pads.rumble(Math.min(0.7, e.speed * 0.9), 0.2, 80);
+        else if (e.type === 'scrape') input.pads.rumble(0.05, Math.min(0.35, e.speed * 0.5), 60);
+        else if (e.type === 'snatch') input.pads.rumble(Math.min(0.5, e.speed * 0.5), 0.3, 60);
       }
     }
 
@@ -385,6 +388,8 @@ async function boot() {
       thrustFrac: h ? h.thrustFrac / 0.9 : 0,
       load: h ? h.load : 0,
       heavy: sim.aircraft === 'chinook',
+      agility: h && h.body ? (() => { const w = h.body.angvel(); return Math.hypot(w.x, w.y, w.z) / 2.5; })() : 0,
+      cushion: h ? Math.max(0, 1 - h.groundDist / 0.18) * Math.min(1, h.thrustFrac * 2) : 0,
       pan: h ? tmp.copy(h.pos).project(camera).x : 0,
       dist: h ? camera.position.distanceTo(h.pos) : 1,
     });

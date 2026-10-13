@@ -89,7 +89,7 @@ export class Audio {
   updateRotor(state) {
     if (!this.ready) return;
     const t = this.ctx.currentTime;
-    const { alive, rotorSpeed, thrustFrac, load, pan, dist, heavy } = state;
+    const { alive, rotorSpeed, thrustFrac, load, pan, dist, heavy, agility = 0, cushion = 0 } = state;
     const rs = alive ? rotorSpeed : 0;
     // Blade-pass frequency (Hz): two blades on the toy rotor; three slower, broader blades per rotor
     // on the Chinook, whose second rotor (in place of a tail rotor) beats slightly against the first.
@@ -101,7 +101,9 @@ export class Audio {
     this.whine.frequency.setTargetAtTime(Math.max(40, (heavy ? 610 : 820) * rs * (1 - 0.06 * load)), t, 0.06);
     this.chop.frequency.setTargetAtTime(Math.max(1, bpf), t, 0.05);
     this.airF.frequency.setTargetAtTime(700 + 2200 * strain, t, 0.08);
-    this.airG.gain.setTargetAtTime(0.05 + 0.18 * strain, t, 0.06);
+    this.airG.gain.setTargetAtTime(0.05 + 0.18 * strain + 0.08 * cushion, t, 0.06);
+    // Blade slap: hard manoeuvring loads the blades and the chop bites harder.
+    this.chopDepth.gain.setTargetAtTime(0.12 + 0.28 * Math.min(1, agility), t, 0.05);
     this.tail.frequency.setTargetAtTime(Math.max(20, heavy ? bpf * 1.018 : bpf * 3.1), t, 0.05);
     this.tailF.frequency.setTargetAtTime(Math.max(50, heavy ? bpf * 2.4 : bpf * 6.2), t, 0.05);
     this.tailG.gain.setTargetAtTime(heavy ? 0.03 : 0.012, t, 0.1);
@@ -202,7 +204,29 @@ export class Audio {
             this.noiseBurst({ freq: 2400 + Math.random() * 1200, q: 2, gain: Math.min(0.06, 0.012 + e.vol * 1e6 * 0.02), decay: 0.035, pan });
           }
           break;
-        case 'extract': this.noiseBurst({ freq: 1400, q: 1.1, gain: 0.12, attack: 0.01, decay: 0.25, sweepTo: 2600, pan }); break;
+        case 'extract':
+          // a wet "shloop" as the tea lets go
+          this.noiseBurst({ freq: 900, q: 1.4, gain: 0.14, attack: 0.01, decay: 0.22, sweepTo: 2600, pan });
+          this.tone({ freq: 260, to: 820, gain: 0.07, attack: 0.01, decay: 0.16, pan });
+          break;
+        case 'touchdown': {
+          const s = Math.min(1, e.speed / 0.6);
+          this.tone({ freq: 120, to: 60, gain: 0.12 + 0.3 * s, attack: 0.003, decay: 0.16, pan });
+          this.noiseBurst({ freq: 600, q: 1.2, gain: 0.05 + 0.15 * s, decay: 0.08, pan });
+          this.noiseBurst({ freq: 2600, q: 5, gain: 0.03 * s, decay: 0.12, pan, delay: 0.03 }); // skid tubes ring
+          break;
+        }
+        case 'scrape':
+          if (now - (this.lastScrape || 0) > 0.06) { this.lastScrape = now; this.noiseBurst({ freq: 1800 + Math.random() * 600, q: 2.2, gain: Math.min(0.12, 0.03 + e.speed * 0.15), attack: 0.005, decay: 0.07, pan }); }
+          break;
+        case 'snatch': {
+          if (now - (this.lastSnatch || 0) < 0.15) break;
+          this.lastSnatch = now;
+          const s = Math.min(1, e.speed / 0.8);
+          this.tone({ freq: 210 + Math.random() * 30, to: 150, type: 'triangle', gain: 0.05 + 0.12 * s, attack: 0.002, decay: 0.18, pan }); // string twang
+          this.noiseBurst({ freq: 3200, q: 3, gain: 0.04 + 0.08 * s, decay: 0.03, pan });
+          break;
+        }
         case 'drip':
           if (e.cup) this.tone({ freq: 1500 + Math.random() * 700, to: 700, gain: 0.05, decay: 0.07, pan });
           else this.noiseBurst({ freq: 4000, q: 2, gain: 0.025, decay: 0.02, pan });
