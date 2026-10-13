@@ -50,6 +50,8 @@ export class Debug {
       lines.push(`collective ${h.collective.toFixed(2)}  thrust/W ${(h.thrust / ((h.def ? h.def.mass : CFG.heli.mass) * 9.81)).toFixed(2)}  rotor ${(h.rotorSpeed * 100).toFixed(0)}%  ground ${h.skidClearance.toFixed(3)} m${h.grounded ? ' (landed)' : ''}`);
     }
     if (b) lines.push(`cargo mass ${(b.mass * 1000).toFixed(1)} g  wet ${(b.wetness * 100).toFixed(0)}%  immersion ${(b.immersion * 100).toFixed(0)}%  tension ${(b.tension * 1000).toFixed(0)} mN  potency ${(b.potency * 100).toFixed(0)}%`);
+    const tk = h && h.tank;
+    if (tk) lines.push(`tank ${(tk.vol * 1e6).toFixed(1)} ml  doors ${(tk.doors * 100).toFixed(0)}%${tk.salvo ? ' SALVO' : ''}  pump ${(tk.pump * 100).toFixed(0)}% in ${(tk.flowIn * 1e6).toFixed(1)} out ${(tk.flowOut * 1e6).toFixed(1)} ml/s  hose ${(h.hose.length * 100).toFixed(1)} cm${h.hose.submerged ? ` in ${h.hose.submerged.name} ${(h.hose.depth * 1000).toFixed(0)} mm` : ''}${tk.auto ? ` auto:${tk.auto.phase}` : ''}  tail ${(h.tailT * 1000).toFixed(0)} mN  mass ${(h.body.mass() * 1000).toFixed(0)} g`);
     const k = s.milk.bucket;
     if (k) lines.push(`bucket ${(k.vol * 1e6).toFixed(1)} ml (${(k.fill * 100).toFixed(0)}%)  ${(k.mass * 1000).toFixed(1)} g  in ${(k.flowIn * 1e6).toFixed(1)} out ${(k.flowOut * 1e6).toFixed(1)} spill ${(k.spillRate * 1e6).toFixed(1)} ml/s  valve ${k.valveOpen ? 'OPEN' : 'shut'}  stream ${s.milk.parcels.length}  puddles ${s.milk.puddles.length}  crock ${(s.milk.bowl.vol * 1e6).toFixed(0)} ml`);
     lines.push(`cups ${s.cups.map((c) => `${c.name} ${(c.brew * 100).toFixed(0)}% milk ${((c.milk || 0) * 100).toFixed(1)}%`).join('  ')}`);

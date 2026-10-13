@@ -84,6 +84,15 @@ export class Flow {
   // Contextual milk prompts while the bucket is on a hook.
   milkPrompt(k) {
     const sim = this.sim, bk = sim.milk.bucket;
+    const h = sim.heli;
+    if (h && h.tank) {
+      const t = h.tank;
+      if (t.auto || t.salvo || t.pumping || t.flowOut > 0) return null;
+      if (h.hose.submerged && t.vol < t.capacity * 0.97) return `Intake in the milk: hold ${k('pump')} to pump`;
+      if (t.vol < 1e-7) return `Hover low over the milk crock and hold ${k('pump')} to pump (${k('autofill')}: auto-fill)`;
+      const cup = sim.cups.find((c) => Math.hypot(h.pos.x - c.x, h.pos.z - c.z) < c.rIn + 0.02);
+      return cup ? `${k('doors')} opens the belly doors over the ${cup.name.toLowerCase()} (${k('salvo')}: salvo)` : `Fly over a cup, then ${k('doors')} to drop the milk`;
+    }
     if (!bk || !sim.carriedCargo().includes(bk)) return null;
     if (bk.vessel && bk.vessel.isBowl) return bk.fill > 0.97 ? 'Full. Lift it out gently' : 'Hold it in the milk: it fills through its base';
     if (bk.vol < 1e-7) return 'Dip the bucket in the milk crock to fill it';

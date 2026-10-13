@@ -67,7 +67,7 @@ export function skycraneMaterials() {
     orange: new THREE.MeshPhysicalMaterial({ color: 0xec6a1c, roughness: 0.42, clearcoat: 0.5, clearcoatRoughness: 0.3 }),
     green: new THREE.MeshPhysicalMaterial({ color: 0x1d6a3a, roughness: 0.4, clearcoat: 0.5 }),
     white: new THREE.MeshPhysicalMaterial({ color: 0xf2efe8, roughness: 0.4, clearcoat: 0.4 }),
-    glass: new THREE.MeshPhysicalMaterial({ color: 0x2b3c44, roughness: 0.03, metalness: 0.2, transparent: true, opacity: 0.5, envMapIntensity: 2.6, clearcoat: 1, side: THREE.DoubleSide, depthWrite: false }),
+    glass: new THREE.MeshPhysicalMaterial({ color: 0x9cc3d4, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.32, envMapIntensity: 1.6, clearcoat: 1, side: THREE.DoubleSide, depthWrite: false }),
     frame: new THREE.MeshStandardMaterial({ color: 0x202224, roughness: 0.6 }),
     interior: new THREE.MeshStandardMaterial({ color: 0x2c2d2e, roughness: 0.9 }),
     suit: new THREE.MeshStandardMaterial({ color: 0x3b4a5a, roughness: 0.8 }),
@@ -124,7 +124,9 @@ export function buildSkycrane(M = skycraneMaterials()) {
     parts[p.name] = g;
   }
   // add(part, mesh) with the mesh built in body coordinates.
+  // add(part, geometry, material, x, y, z) or add(part, object3D, x, y, z)
   const add = (part, geo, mat, x = 0, y = 0, z = 0) => {
+    if (geo.isObject3D && typeof mat !== 'object') { z = y; y = x; x = mat ?? 0; }
     const m = geo.isObject3D ? geo : new THREE.Mesh(geo, mat);
     const q = P[part].pos;
     m.position.x += x - q[0]; m.position.y += y - q[1]; m.position.z += z - q[2];
@@ -162,7 +164,7 @@ export function buildSkycrane(M = skycraneMaterials()) {
     }
     const sill = new THREE.TorusGeometry(1, 0.03, 5, 48);
     sill.rotateX(Math.PI / 2);
-    sill.scale(0.0118, 1, 0.0172);
+    sill.scale(0.0118, 0.0118, 0.0172);
     add('cockpit', sill, M.frame, 0, cy - 0.0055, cz);
     // Crew: two seats side by side, helmets visible through the glass.
     for (const sx of [-0.0048, 0.0048]) {
@@ -228,7 +230,7 @@ export function buildSkycrane(M = skycraneMaterials()) {
     // the boom's square section rotated 45 degrees so a flat side faces up
     add('tailBoom', rod(V3(0, 0.0105, 0.05), V3(0, 0.031, 0.115), 0.0009), M.darkMetal); // drive shaft cover underneath
     const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.0013, 10, 8), M.beacon);
-    add('tailBoom', beacon, 0, 0.0245, 0.07);
+    add('tailBoom', beacon, 0, 0.0285, 0.07);
     parts.tailBoom.userData.beacon = beacon;
   }
 

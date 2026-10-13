@@ -22,7 +22,7 @@ export const STANDARD_BINDING = {
     roll: { type: 'axis', index: 2, sign: 1 },
   },
   triggers: { up: 7, down: 6 },
-  buttons: { attach: [0], pour: [5], recenter: [1, 11], help: [2], assist: [3], pause: [8], restart: [9], camLeft: [14], camRight: [15], zoomIn: [12], zoomOut: [13], up: [12], down: [13], left: [14], right: [15], confirm: [0], back: [1] },
+  buttons: { attach: [0], pour: [5], doors: [7], pump: [6], reelOut: [5], reelIn: [4], recenter: [1, 11], help: [2], assist: [3], pause: [8], restart: [9], camLeft: [14], camRight: [15], zoomIn: [12], zoomOut: [13], up: [12], down: [13], left: [14], right: [15], confirm: [0], back: [1] },
 };
 
 // Wizard steps: axes first (move), then buttons (press).
@@ -33,6 +33,10 @@ export const BIND_STEPS = [
   { key: 'roll', kind: 'axis', prompt: 'Push the <b>TILT</b> stick all the way <b>right</b>' },
   { key: 'attach', kind: 'button', prompt: 'Press the button for <b>Hook / release</b>' },
   { key: 'pour', kind: 'button', prompt: 'Press the button to <b>Pour milk</b> (held)' },
+  { key: 'doors', kind: 'button', prompt: 'Skycrane: pull the trigger (or press the button) for the <b>Belly doors</b>' },
+  { key: 'pump', kind: 'button', prompt: 'Skycrane: pull the trigger (or press the button) for the <b>Pump</b>' },
+  { key: 'reelOut', kind: 'button', prompt: 'Skycrane: press the button to <b>Reel the hose out</b>' },
+  { key: 'reelIn', kind: 'button', prompt: 'Skycrane: press the button to <b>Reel the hose in</b>' },
   { key: 'assist', kind: 'button', prompt: 'Press the button for <b>Flight Assist</b>' },
   { key: 'restart', kind: 'button', prompt: 'Press the button for <b>Restart flight</b>' },
   { key: 'pause', kind: 'button', prompt: 'Press the button for <b>Pause / menu</b>' },
@@ -82,7 +86,7 @@ export class Gamepads {
     });
   }
 
-  zero() { this.out.pitch = this.out.roll = this.out.yaw = this.out.collective = 0; this.pour = false; }
+  zero() { this.out.pitch = this.out.roll = this.out.yaw = this.out.collective = 0; this.pour = false; this.doors = 0; this.pump = 0; this.reel = 0; }
   list() { return [...(navigator.getGamepads ? navigator.getGamepads() : [])].filter(Boolean); }
   active() { const l = navigator.getGamepads ? navigator.getGamepads() : []; return this.activeIndex !== null ? l[this.activeIndex] : null; }
   hasBinding(gp) { return !!load(`bind.${gp.id}`, null); }
@@ -120,7 +124,9 @@ export class Gamepads {
     const a = B.axes;
     let [yaw, coll] = radial(axis(a.yaw), axis(a.collective), S);
     let [roll, pitch] = radial(axis(a.roll), axis(a.pitch), S);
-    if (S.triggers && B.triggers) {
+    // On the skycrane the triggers run the tank (doors and pump); collective stays on the left stick.
+    const tank = this.triggerMode === 'tank';
+    if (S.triggers && B.triggers && !tank) {
       const t = curve(val(gp, B.triggers.up) - val(gp, B.triggers.down), { deadZone: 0.06, expo: S.expo });
       if (Math.abs(t) > Math.abs(coll)) coll = t;
     }
@@ -130,7 +136,15 @@ export class Gamepads {
     this.out.pitch = clamp(pitch * S.cyclic * (S.invertPitch ? -1 : 1));
     this.out.roll = clamp(roll * S.cyclic);
     if (menuMode) this.zero();
-    else this.pour = (B.buttons.pour || []).some((i) => !!gp.buttons[i]?.pressed);
+    const held = (list) => (list || []).some((i) => !!gp.buttons[i]?.pressed);
+    const level = (list) => Math.max(0, ...(list || []).map((i) => val(gp, i)));
+    if (!menuMode) {
+      this.pour = !tank && held(B.buttons.pour);
+      this.doors = tank ? curve(level(B.buttons.doors), { deadZone: 0.04, expo: 0.3 }) : 0;
+      this.pump = tank ? Math.min(1, level(B.buttons.pump) * 1.15) : 0;
+      const both = held(B.buttons.reelOut) && held(B.buttons.reelIn);
+      this.reel = tank && !both ? (held(B.buttons.reelOut) ? 1 : 0) - (held(B.buttons.reelIn) ? 1 : 0) : 0;
+    }
 
     // Edge-triggered logical buttons.
     const prev = this.prev.get(gp.index)?.buttons || [];
@@ -153,6 +167,17 @@ export class Gamepads {
     } else {
       this.navRepeat.dir = null;
       for (const name of ['attach', 'assist', 'restart', 'pause', 'help', 'recenter']) if (any(btn[name])) this.events.push(name);
+      // Combos. Skycrane: two quick full pulls of the door trigger = salvo; both bumpers together = auto-fill.
+      // Bucket: a double-tap of the pour button latches its valve open.
+      const now = performance.now();
+      if (tank) {
+        const full = this.doors > 0.85;
+        if (full && !this.doorsWasFull) { if (now - (this.lastDoorPull || 0) < 400) { this.events.push('salvo'); this.lastDoorPull = 0; } else this.lastDoorPull = now; }
+        this.doorsWasFull = full;
+        if ((any(btn.reelOut) && held(btn.reelIn)) || (any(btn.reelIn) && held(btn.reelOut))) this.events.push('autofill');
+      } else if (any(btn.pour)) {
+        if (now - (this.lastPourTap || 0) < 350) { this.events.push('salvo'); this.lastPourTap = 0; } else this.lastPourTap = now;
+      }
       if (B.custom && any(btn.back)) this.events.push('recenter');
     }
     this.cam = {

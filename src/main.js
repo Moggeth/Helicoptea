@@ -144,6 +144,7 @@ async function boot() {
   const AIRCRAFT_TOASTS = {
     micro: 'Micro heli: 24 g, nimble, one hook',
     chinook: 'Chinook: tandem rotors, three hooks, a lot more mass to stop',
+    skycrane: 'Skycrane: snorkel the milk up, drop it through the belly doors',
   };
   function setAircraft(id) {
     if (!AIRCRAFT_IDS.includes(id)) return;
@@ -165,6 +166,18 @@ async function boot() {
         break;
       }
       case 'attach': if (!paused) sim.toggleAttach(); break;
+      case 'salvo': {
+        const r = paused ? null : sim.milk.salvo();
+        const T = { salvo: 'Salvo! Doors latched open', latched: 'Valve latched open', closed: 'Closed', empty: 'Nothing to drop: fill up first' };
+        if (r && T[r]) hud.toast(T[r], 1.6);
+        break;
+      }
+      case 'autofill': {
+        const r = paused ? null : sim.milk.autoFill();
+        if (r === 'started') hud.toast('Auto-fill: lowering the snorkel', 1.8);
+        else if (r === 'cancelled') hud.toast('Auto-fill off', 1.4);
+        break;
+      }
       case 'assist':
         sim.assist = !sim.assist; store.set('assist', sim.assist ? '1' : '0');
         hud.setAssist(sim.assist); flow.noteAssistToggled();
@@ -298,6 +311,8 @@ async function boot() {
 
     // The gamepad drives menus whenever one is showing (start screen, pause, help, settings, crash).
     input.menuMode = !started || hud.modalKind !== null || crashShown;
+    input.aircraft = sim.aircraft;
+    input.pads.triggerMode = sim.aircraft === 'skycrane' ? 'tank' : 'collective';
     const ctl = input.update(frameDt);
     for (const a of input.takeActions()) {
       if (a.startsWith('nav-')) { hud.nav(a.slice(4)); continue; }
@@ -318,7 +333,7 @@ async function boot() {
       input.attachBtn.classList.toggle('ready', !!cand);
       input.attachBtn.querySelector('.lbl').textContent = !cand && sim.carriedCargo().length ? 'Drop' : 'Hook';
       const bk = sim.milk.bucket, carryingBucket = !!(bk && sim.carriedCargo().includes(bk));
-      input.pourBtn.classList.toggle('hidden', !carryingBucket);
+      input.setTouchMode(sim.aircraft === 'skycrane', carryingBucket);
       input.pourBtn.classList.toggle('empty', carryingBucket && bk.vol < 1e-7);
       input.assistBtn.classList.toggle('on', sim.assist);
     }
@@ -352,6 +367,7 @@ async function boot() {
         if (input.source === 'gamepad') hud.focusFirst();
       }
       if (e.type === 'restart') { crashShown = false; hud.hideCrash(); }
+      if (e.type === 'autoFill') hud.toast({ pump: 'Intake in: pumping', up: e.full ? 'Tank full: reeling in' : 'Source dry: reeling in', done: 'Snorkel stowed' }[e.phase], 1.6);
     }
     // Rumble as physical feedback (only when flying with a controller).
     if (input.source === 'gamepad') {
@@ -376,7 +392,7 @@ async function boot() {
     camRig.zoom = THREE.MathUtils.clamp(1 + input.camOrbit.zoom, CFG.camera.minDistance / CFG.camera.distance, CFG.camera.maxDistance / CFG.camera.distance);
     camTarget.copy(view.focusPoint());
     const heading = sim.heli ? sim.heli.heading() : camRig.yaw;
-    camRig.sizeScale += ((sim.aircraft === 'chinook' ? 1.45 : 1) - camRig.sizeScale) * Math.min(1, rd * 3);
+    camRig.sizeScale += (({ chinook: 1.45, skycrane: 1.55 }[sim.aircraft] || 1) - camRig.sizeScale) * Math.min(1, rd * 3);
     camRig.update(Math.max(rd, 1e-4), camTarget, heading, sim.carriedCargo().length ? view.bagPosCarried : null, sim);
     kitchen.garden.update(rd * worldSpeed, camTarget, camera, sim); // grass wind, shadow follow
 
@@ -390,6 +406,7 @@ async function boot() {
       heavy: sim.aircraft === 'chinook',
       agility: h && h.body ? (() => { const w = h.body.angvel(); return Math.hypot(w.x, w.y, w.z) / 2.5; })() : 0,
       cushion: h ? Math.max(0, 1 - h.groundDist / 0.18) * Math.min(1, h.thrustFrac * 2) : 0,
+      crane: sim.aircraft === 'skycrane',
       pan: h ? tmp.copy(h.pos).project(camera).x : 0,
       dist: h ? camera.position.distanceTo(h.pos) : 1,
     });
@@ -409,6 +426,9 @@ async function boot() {
       hud.setCollective(h.collective, Math.min(1, (h.def.mass + extra) / (h.def.mass * h.def.thrustToWeight)));
     }
     hud.updateBrew(view.projectCups(camera, innerWidth, innerHeight), flow.steepTimers);
+    const tk = h && h.tank;
+    hud.setTank(tk && started ? { fill: tk.vol / tk.capacity, doors: tk.doors,
+      state: tk.auto ? `auto: ${tk.auto.phase === 'down' ? 'lowering' : tk.auto.phase === 'pump' ? 'pumping' : 'reeling in'}` : tk.salvo ? 'salvo' : tk.pumping ? 'pumping' : tk.flowOut > 0 ? 'dropping' : h.hose.submerged ? 'intake in' : '' } : null);
     hud.update(frameDt);
 
     const tR = performance.now();

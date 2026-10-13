@@ -470,7 +470,8 @@ export class Skycrane {
     if (TK.auto) {
       const A2 = TK.auto, H = C.hose;
       A2.t += dt;
-      if (Math.abs(reel) > 0.15 || pump > 0.15 || this.sim.state !== 'flying') TK.auto = null;
+      // (the button that started it may still be down for a moment: ignore inputs right at the start)
+      if ((A2.t > 0.4 && (Math.abs(reel) > 0.15 || pump > 0.15)) || this.sim.state !== 'flying') TK.auto = null;
       else if (A2.phase === 'down') {
         reel = 1;
         if (this.hose.submerged && this.hose.depth > 0.004) { A2.phase = 'pump'; A2.t = 0; this.sim.emit('autoFill', { phase: 'pump' }); }

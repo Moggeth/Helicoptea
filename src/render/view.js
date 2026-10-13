@@ -10,6 +10,8 @@ import { StringMesh } from './strings.js';
 import { radialTexture } from './textures.js';
 import { buildChinook, cloneChinookPart } from './chinookModel.js';
 import { MilkView } from './milkView.js';
+import { SkycraneView } from './skycraneView.js';
+import { cloneSkycranePart } from './skycraneModel.js';
 
 const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _c = new THREE.Color();
 const _pinA = new THREE.Vector3(), _pinL = new THREE.Vector3(), _pinQ = new THREE.Quaternion();
@@ -108,6 +110,7 @@ export class View {
     this.wreckFocus = null;
     this.cupScreen = [];
     this.milkView = new MilkView(this, kitchen.sun.position.clone().sub(kitchen.sun.target.position));
+    this.skycrane = new SkycraneView(this);
   }
 
   // ------------------------------------------------------------- events
@@ -206,9 +209,11 @@ export class View {
       sc.mesh.rotation.z = Math.random() * 6;
     }
     // Hand the heli's parts to debris meshes.
-    const heavy = e.aircraft === 'chinook';
+    const heavy = e.aircraft === 'chinook', sky = e.aircraft === 'skycrane';
     this.heliModel.visible = false;
     this.chinookModel.visible = false;
+    this.skycrane.hide();
+    if (sky) for (const d of e.parts) if (d.part.name === 'engines') this.pendingFx.push({ t: rand(0.25, 0.5), d });
     if (heavy) {
       // Fuel cells in the sponsons go up a moment later, then the engines.
       for (const d of e.parts) {
@@ -216,7 +221,7 @@ export class View {
       }
     }
     for (const d of e.parts) {
-      const mesh = heavy ? cloneChinookPart(this.chinookModel, d.part.name) : cloneHeliPart(this.heliModel, d.part.name);
+      const mesh = sky ? cloneSkycranePart(this.skycrane.model, d.part.name) : heavy ? cloneChinookPart(this.chinookModel, d.part.name) : cloneHeliPart(this.heliModel, d.part.name);
       this.scene.add(mesh);
       this.debris.set(d.id, { mesh, d, smoke: d.smoke });
     }
@@ -274,7 +279,12 @@ export class View {
     }
 
     // Helicopter.
-    if (sim.heli && sim.heli.type === 'chinook') {
+    if (!sim.heli || sim.heli.type !== 'skycrane') this.skycrane.hide();
+    if (sim.heli && sim.heli.type === 'skycrane') {
+      this.heliModel.visible = false;
+      this.chinookModel.visible = false;
+      this.skycrane.update(sim.heli, alpha, dt);
+    } else if (sim.heli && sim.heli.type === 'chinook') {
       this.heliModel.visible = false;
       this.updateChinook(sim.heli, alpha, dt);
     } else if (sim.heli) {
@@ -443,7 +453,7 @@ export class View {
       }
     }
     if (!sim.heli && sim.debris.length) {
-      const fus = sim.debris.find((d) => (d.part.name === 'fuselage' || d.part.name === 'cabin') && d.wreckId === sim.wreckCount);
+      const fus = sim.debris.find((d) => (d.part.name === 'fuselage' || d.part.name === 'cabin' || d.part.name === 'spine') && d.wreckId === sim.wreckCount);
       if (fus) { fus.track.sample(alpha, _p); this.wreckFocus = (this.wreckFocus || new THREE.Vector3()).lerp(_p, 0.1); }
     }
 

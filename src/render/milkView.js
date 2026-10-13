@@ -168,7 +168,7 @@ export class MilkView {
   updateStream() {
     const ps = this.sim.milk.parcels, k = this.sim.milk.bucket;
     let ns = 0, nb = 0;
-    const r = (vol, len) => THREE.MathUtils.clamp(Math.sqrt(vol / (Math.PI * Math.max(len, 0.004))), 0.0006, 0.0024);
+    const r = (vol, len, wide) => THREE.MathUtils.clamp(Math.sqrt(vol / (Math.PI * Math.max(len, 0.004))) * (wide ? 0.7 : 1), 0.0006, wide ? 0.0045 : 0.0024);
     const segment = (a, b, rad) => {
       _v.subVectors(b, a);
       const len = _v.length();
@@ -180,8 +180,10 @@ export class MilkView {
     };
     for (let i = 0; i < ps.length; i++) {
       const q = ps[i];
-      const prev = i > 0 && ps[i - 1].run === q.run ? ps[i - 1] : null;
-      const rad = r(q.vol, prev ? prev.p.distanceTo(q.p) : 0.006);
+      // the previous parcel of the same run (and lane, for a curtain from the belly doors)
+      let prev = null;
+      for (let b = i - 1; b >= 0 && b >= i - 4; b--) if (ps[b].run === q.run && (ps[b].lane || 0) === (q.lane || 0)) { prev = ps[b]; break; }
+      const rad = r(q.vol, prev ? prev.p.distanceTo(q.p) : 0.006, q.wide);
       if (prev && !prev.last) segment(prev.p, q.p, rad);
       _s.setScalar(rad * 1.15);
       _m.compose(q.p, _iq, _s);

@@ -89,9 +89,9 @@ export class Hud {
   key(action) {
     const d = this.device;
     const K = {
-      keyboard: { lift: '<kbd>W</kbd>', attach: '<kbd>Space</kbd>', assist: '<kbd>F</kbd>', restart: '<kbd>R</kbd>', pour: '<kbd>G</kbd>' },
-      gamepad: { lift: '<kbd>L-stick ↑</kbd>', attach: '<kbd>A</kbd>', assist: '<kbd>Y</kbd>', restart: '<kbd>Start</kbd>', pour: '<kbd>RB</kbd>' },
-      touch: { lift: 'left stick ↑', attach: '<kbd>Hook</kbd>', assist: '<kbd>Assist</kbd>', restart: '↻', pour: '<kbd>Pour</kbd>' },
+      keyboard: { lift: '<kbd>W</kbd>', attach: '<kbd>Space</kbd>', assist: '<kbd>F</kbd>', restart: '<kbd>R</kbd>', pour: '<kbd>G</kbd>', doors: '<kbd>G</kbd>', salvo: 'double-tap <kbd>G</kbd>', pump: '<kbd>T</kbd>', autofill: 'double-tap <kbd>T</kbd>', reel: '<kbd>Z</kbd> <kbd>X</kbd>' },
+      gamepad: { lift: '<kbd>L-stick ↑</kbd>', attach: '<kbd>A</kbd>', assist: '<kbd>Y</kbd>', restart: '<kbd>Start</kbd>', pour: '<kbd>RB</kbd>', doors: '<kbd>RT</kbd>', salvo: '<kbd>RT</kbd><kbd>RT</kbd>', pump: '<kbd>LT</kbd>', autofill: '<kbd>LB</kbd>+<kbd>RB</kbd>', reel: '<kbd>LB</kbd> <kbd>RB</kbd>' },
+      touch: { lift: 'left stick ↑', attach: '<kbd>Hook</kbd>', assist: '<kbd>Assist</kbd>', restart: '↻', pour: '<kbd>Pour</kbd>', doors: '<kbd>Doors</kbd>', salvo: 'double-tap <kbd>Doors</kbd>', pump: '<kbd>Pump</kbd>', autofill: 'double-tap <kbd>Pump</kbd>', reel: '<kbd>Hose ▲▼</kbd>' },
     };
     return K[d][action];
   }
@@ -109,6 +109,24 @@ export class Hud {
     this.collLabel.classList.toggle('hidden', on);
   }
   setInvite(show) { this.invite.classList.toggle('hidden', !show); }
+
+  // Skycrane tank gauge: milk level, door opening, pump/salvo/auto state.
+  setTank(t) {
+    if (!this.tankEl) {
+      const el = this.tankEl = document.createElement('div');
+      el.className = 'tank-gauge hidden';
+      el.innerHTML = '<div class="tg-bar"><div class="tg-fill"></div><div class="tg-door"></div></div><div class="tg-txt"><b>Milk</b><span class="tg-pct"></span><span class="tg-state"></span></div>';
+      this.root.appendChild(el);
+    }
+    const el = this.tankEl;
+    el.classList.toggle('hidden', !t);
+    if (!t) return;
+    el.querySelector('.tg-fill').style.height = `${Math.round(t.fill * 100)}%`;
+    el.querySelector('.tg-door').style.opacity = String(Math.min(1, t.doors * 1.5));
+    el.querySelector('.tg-pct').textContent = `${Math.round(t.fill * 100)}%`;
+    el.querySelector('.tg-state').textContent = t.state;
+    el.classList.toggle('pumping', t.state === 'pumping' || t.state.startsWith('auto'));
+  }
 
   setCollective(c, hoverEstimate) {
     this.coll.querySelector('.lvl').style.height = `${Math.round(c * 100)}%`;
@@ -200,7 +218,7 @@ export class Hud {
           <label class="opt">Controller <button class="secondary" style="padding:6px 12px" data-act="controller">Settings</button></label>
           <label class="opt">Show tips again <button class="secondary" style="padding:6px 12px" data-act="resethints">Replay</button></label>
           <div class="opt aircraft-row" role="radiogroup" aria-label="Aircraft">Aircraft
-            <span>${[['micro', 'Micro heli'], ['chinook', 'Chinook']].map(([id, nm]) => `<button class="secondary${opts.aircraft === id ? ' on' : ''}" style="padding:6px 12px" role="radio" aria-checked="${opts.aircraft === id}" data-act="aircraft" data-id="${id}">${nm}</button>`).join(' ')}</span></div>
+            <span>${[['micro', 'Micro heli'], ['chinook', 'Chinook'], ['skycrane', 'Skycrane']].map(([id, nm]) => `<button class="secondary${opts.aircraft === id ? ' on' : ''}" style="padding:6px 12px" role="radio" aria-checked="${opts.aircraft === id}" data-act="aircraft" data-id="${id}">${nm}</button>`).join(' ')}</span></div>
         </div>
         <p class="help-note">Reset sandbox clears every cup and bag. Restart flight keeps your brewing. Switching aircraft starts a fresh flight on the pad. Quality changes reload the page.</p>
       </div>`;
@@ -233,12 +251,12 @@ export class Hud {
   helpRows(tab) {
     const R = {
       keyboard: [['<kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd>', 'Cyclic: tilt forward, back and sideways (or I J K L)'], ['<kbd>W</kbd><kbd>S</kbd>', 'Collective: more / less lift'], ['<kbd>A</kbd><kbd>D</kbd>', 'Yaw: turn left / right'],
-        ['<kbd>Space</kbd>', 'Hook a bag or the milk bucket / release it (the Chinook has three hooks: Space drops them all)'], ['<kbd>G</kbd> (hold)', 'Pour milk from the bucket (dip it in the milk crock to fill it)'], ['<kbd>V</kbd>', 'Switch aircraft: micro heli / Chinook'], ['<kbd>F</kbd>', 'Flight Assist on / off'], ['<kbd>R</kbd>', 'Restart flight'], ['<kbd>Shift</kbd>+<kbd>R</kbd>', 'Reset sandbox'],
+        ['<kbd>Space</kbd>', 'Hook a bag or the milk bucket / release it (the Chinook has three hooks: Space drops them all)'], ['<kbd>G</kbd> (hold)', 'Pour milk: the bucket\'s valve, or the skycrane\'s belly doors (they open wider the longer you hold)'], ['Double-tap <kbd>G</kbd> or <kbd>Shift</kbd>+<kbd>G</kbd>', 'Salvo: dump the lot (latches the doors or the bucket valve open; again to close)'], ['<kbd>T</kbd> (hold)', 'Skycrane: pump milk up the snorkel (only with the intake under the surface)'], ['Double-tap <kbd>T</kbd> or <kbd>Shift</kbd>+<kbd>T</kbd>', 'Skycrane auto-fill: reel down, pump until full, reel up (any hose or pump key takes over)'], ['<kbd>Z</kbd> / <kbd>X</kbd> (hold)', 'Skycrane: reel the snorkel in / out'], ['<kbd>V</kbd>', 'Switch aircraft: micro heli / Chinook / skycrane'], ['<kbd>F</kbd>', 'Flight Assist on / off'], ['<kbd>R</kbd>', 'Restart flight'], ['<kbd>Shift</kbd>+<kbd>R</kbd>', 'Reset sandbox'],
         ['<kbd>C</kbd>', 'Recenter camera (drag to orbit, wheel to zoom)'], ['<kbd>M</kbd>', 'Mute'], ['<kbd>Esc</kbd>', 'Pause'], ['<kbd>`</kbd>', 'Debug overlay']],
-      gamepad: [['Right stick', 'Cyclic: tilt'], ['Left stick ↕', 'Collective (or triggers RT / LT)'], ['Left stick ↔', 'Yaw'], ['<kbd>A</kbd>', 'Hook / release'], ['<kbd>RB</kbd> (hold)', 'Pour milk from the bucket'], ['<kbd>Y</kbd>', 'Flight Assist on / off'],
+      gamepad: [['Right stick', 'Cyclic: tilt'], ['Left stick ↕', 'Collective (or triggers RT / LT)'], ['Left stick ↔', 'Yaw'], ['<kbd>A</kbd>', 'Hook / release'], ['<kbd>RB</kbd> (hold)', 'Pour milk from the bucket; double-tap latches the valve open'], ['Skycrane <kbd>RT</kbd>', 'Belly doors, analog: squeeze to trickle, pull fully to gush; two quick full pulls = salvo'], ['Skycrane <kbd>LT</kbd>', 'Pump (how hard you pull is how fast it pumps)'], ['Skycrane <kbd>LB</kbd> / <kbd>RB</kbd>', 'Reel the snorkel in / out; both together = auto-fill'], ['Skycrane', 'The triggers run the tank, so collective is on the left stick'], ['<kbd>Y</kbd>', 'Flight Assist on / off'],
         ['<kbd>Start</kbd>', 'Restart flight'], ['<kbd>B</kbd> / R3', 'Recenter camera'], ['D-pad', 'Orbit and zoom camera'], ['<kbd>Back</kbd> / <kbd>View</kbd>', 'Pause menu'], ['<kbd>X</kbd>', 'Controls'],
         ['After a crash', '<kbd>A</kbd> also restarts'], ['In menus', 'D-pad or left stick to move, <kbd>A</kbd> select, <kbd>B</kbd> back, ◀ ▶ adjust sliders']],
-      touch: [['Left thumb', 'Up / down: collective. Left / right: yaw'], ['Right thumb', 'Cyclic: tilt in any direction'], ['<kbd>Hook</kbd>', 'Hook / release (glows when a loop is in reach)'], ['<kbd>Pour</kbd> (hold)', 'Pour milk (appears while you carry the bucket)'],
+      touch: [['Left thumb', 'Up / down: collective. Left / right: yaw'], ['Right thumb', 'Cyclic: tilt in any direction'], ['<kbd>Hook</kbd>', 'Hook / release (glows when a loop is in reach)'], ['<kbd>Pour</kbd> (hold)', 'Pour milk (appears while you carry the bucket); double-tap latches it open'], ['<kbd>Doors</kbd> (hold)', 'Skycrane belly doors, opening wider as you hold; double-tap = salvo'], ['<kbd>Pump</kbd> (hold)', 'Skycrane pump; double-tap = auto-fill'], ['<kbd>Hose ▲</kbd> <kbd>Hose ▼</kbd>', 'Reel the snorkel in / out'],
         ['<kbd>Assist</kbd>', 'Flight Assist on / off'], ['<kbd>View</kbd>', 'Recenter camera'], ['↻ (top right)', 'Restart flight']],
     };
     return R[tab].map(([k, d]) => `<dt>${k}</dt><dd>${d}</dd>`).join('');

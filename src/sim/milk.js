@@ -462,7 +462,7 @@ export class MilkSystem {
     s.pos = (s.pos || new THREE.Vector3()).copy(pos);
     s.vel = (s.vel || new THREE.Vector3()).copy(vel);
     s.spread = spread;
-    if (this.sim.stepCount % M.parcelEvery === 0) this.flush(name, false);
+    if (this.sim.stepCount % (spread ? 2 * M.parcelEvery : M.parcelEvery) === 0) this.flush(name, false);
   }
 
   flush(name, last) {
@@ -477,10 +477,14 @@ export class MilkSystem {
       tgt.vol += s.acc;
     } else {
       const j = 0.06; // a stream wobbles a little
-      const p = s.pos.clone();
-      if (s.spread) p.addScaledVector(s.spread.u, Math.random() * 2 - 1).addScaledVector(s.spread.v, Math.random() * 2 - 1);
-      ps.push({ p, v: s.vel.clone().add(new THREE.Vector3((Math.random() - 0.5) * j, 0, (Math.random() - 0.5) * j)),
-        vol: s.acc, milk: s.milk, brew: s.brew, age: 0, run: s.run, last, src: name, wide: !!s.spread });
+      // A wide outlet (belly doors) pours as a curtain: three lanes across the opening.
+      const lanes = s.spread && ps.length + 3 <= M.maxParcels ? 3 : 1;
+      for (let lane = 0; lane < lanes; lane++) {
+        const p = s.pos.clone();
+        if (s.spread) p.addScaledVector(s.spread.u, lanes > 1 ? (lane - 1) * 0.75 + (Math.random() - 0.5) * 0.2 : Math.random() * 2 - 1).addScaledVector(s.spread.v, (Math.random() * 2 - 1) * 0.5);
+        ps.push({ p, v: s.vel.clone().add(new THREE.Vector3((Math.random() - 0.5) * j, 0, (Math.random() - 0.5) * j)),
+          vol: s.acc / lanes, milk: s.milk, brew: s.brew, age: 0, run: s.run, last, src: name, wide: !!s.spread, lane });
+      }
     }
     s.acc = 0;
   }

@@ -12,6 +12,9 @@ const KEYMAP = {
 };
 // Held, not edge-triggered: the milk bucket's valve stays open while the key is down.
 const POUR_KEYS = ['KeyG'];
+// Skycrane tank: T pumps (held), Z / X reel the snorkel in / out (held).
+const TANK_KEYS = { pump: ['KeyT'], reelIn: ['KeyZ'], reelOut: ['KeyX'] };
+const DOUBLE_TAP = 320; // ms
 const ACTION_KEYS = {
   Space: 'attach', Enter: 'attach', KeyV: 'aircraft', KeyF: 'assist', KeyR: 'restart', KeyC: 'recenter',
   Escape: 'pause', KeyP: 'pause', KeyH: 'help', Slash: 'help', KeyM: 'mute', Backquote: 'debug', F3: 'debug', KeyB: 'reset',
@@ -30,18 +33,22 @@ export class Input {
   constructor(touchRoot) {
     this.keys = new Set();
     this.kb = { pitch: 0, roll: 0, yaw: 0, collective: 0 };
-    this.ctl = { pitch: 0, roll: 0, yaw: 0, collective: 0, pour: false };
+    this.ctl = { pitch: 0, roll: 0, yaw: 0, collective: 0, pour: false, doors: 0, pump: 0, reel: 0 };
     this.actions = [];
     this.source = 'keyboard';
     this.gp = { pitch: 0, roll: 0, yaw: 0, collective: 0, connected: false, id: '' };
-    this.touch = { pitch: 0, roll: 0, yaw: 0, collective: 0, active: false, pour: false };
+    this.touch = { pitch: 0, roll: 0, yaw: 0, collective: 0, active: false, pour: false, doors: false, pump: false, reel: 0 };
     this.camOrbit = { yaw: 0, pitch: 0, zoom: 0 };
     this.enabled = true;
     this.notices = [];
+    this.lastTap = {};
+    this.aircraft = 'micro';
+    this.kbDoors = 0;
+    this.touchDoors = 0;
 
     window.addEventListener('keydown', (e) => {
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
-      const isGameKey = Object.values(KEYMAP).some((l) => l.includes(e.code)) || ACTION_KEYS[e.code] || POUR_KEYS.includes(e.code);
+      const isGameKey = Object.values(KEYMAP).some((l) => l.includes(e.code)) || ACTION_KEYS[e.code] || POUR_KEYS.includes(e.code) || Object.values(TANK_KEYS).some((l) => l.includes(e.code));
       if (isGameKey) e.preventDefault();
       if (e.repeat) return;
       this.keys.add(e.code);
@@ -50,6 +57,12 @@ export class Input {
       if (a === 'reset' && !e.shiftKey) a = null;
       if (e.code === 'KeyR' && e.shiftKey) a = 'reset';
       if (a) this.actions.push(a);
+      // Combos: Shift or a double-tap. G: salvo (dump everything). T: skycrane auto-fill.
+      const combo = { KeyG: 'salvo', KeyT: 'autofill' }[e.code];
+      if (combo) {
+        const now = performance.now();
+        if (e.shiftKey || now - (this.lastTap[e.code] || 0) < DOUBLE_TAP) { this.actions.push(combo); this.lastTap[e.code] = 0; } else this.lastTap[e.code] = now;
+      }
     }, { passive: false });
     window.addEventListener('keyup', (e) => { this.keys.delete(e.code); });
     window.addEventListener('blur', () => this.clearAll());
@@ -64,7 +77,7 @@ export class Input {
   clearAll() {
     this.keys.clear();
     Object.assign(this.kb, { pitch: 0, roll: 0, yaw: 0, collective: 0 });
-    Object.assign(this.touch, { pitch: 0, roll: 0, yaw: 0, collective: 0, pour: false });
+    Object.assign(this.touch, { pitch: 0, roll: 0, yaw: 0, collective: 0, pour: false, doors: false, pump: false, reel: 0 });
     this.pourBtn?.classList.remove('pressed');
     for (const s of this.sticks || []) s.release();
   }
@@ -160,14 +173,38 @@ export class Input {
     this.assistBtn = btn('assist', '<span class="lbl">Assist</span>', 'assist');
     btn('recenter', '<span class="lbl">View</span>', 'recenter');
     // Pour: held. Shown only while the milk bucket is on a hook.
-    const pour = this.pourBtn = document.createElement('button');
-    pour.className = 'touch-btn pour hidden';
-    pour.innerHTML = '<span class="ico">🥛</span><span class="lbl">Pour</span>';
-    const down = (e) => { e.preventDefault(); e.stopPropagation(); this.source = 'touch'; this.touch.pour = true; pour.classList.add('pressed'); pour.setPointerCapture?.(e.pointerId); };
-    const up = () => { this.touch.pour = false; pour.classList.remove('pressed'); };
-    pour.addEventListener('pointerdown', down);
-    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) pour.addEventListener(ev, up);
-    root.appendChild(pour);
+    // Held buttons; a double-tap fires a combo.
+    const hold = (cls, html, set, combo) => {
+      const b = document.createElement('button');
+      b.className = `touch-btn ${cls} hidden`;
+      b.innerHTML = html;
+      let last = 0;
+      b.addEventListener('pointerdown', (e) => {
+        e.preventDefault(); e.stopPropagation(); this.source = 'touch'; set(true); b.classList.add('pressed'); b.setPointerCapture?.(e.pointerId);
+        const now = performance.now();
+        if (combo && now - last < DOUBLE_TAP) { this.actions.push(combo); last = 0; } else last = now;
+      });
+      const up = () => { set(false); b.classList.remove('pressed'); };
+      for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, up);
+      root.appendChild(b);
+      return b;
+    };
+    // Pour (bucket): shown only while the bucket is on a hook. Double-tap latches the valve open.
+    this.pourBtn = hold('pour', '<span class="ico">🥛</span><span class="lbl">Pour</span>', (v) => { this.touch.pour = v; }, 'salvo');
+    // Skycrane tank: doors (open wider the longer you hold; double-tap = salvo), pump (double-tap = auto-fill), hose reel.
+    this.tankBtns = {
+      doors: hold('doors', '<span class="lbl">Doors</span>', (v) => { this.touch.doors = v; }, 'salvo'),
+      pump: hold('pump', '<span class="lbl">Pump</span>', (v) => { this.touch.pump = v; }, 'autofill'),
+      reelOut: hold('reel-out', '<span class="lbl">Hose ▼</span>', (v) => { this.touch.reel = v ? 1 : 0; }),
+      reelIn: hold('reel-in', '<span class="lbl">Hose ▲</span>', (v) => { this.touch.reel = v ? -1 : 0; }),
+    };
+  }
+
+  // Which touch buttons fit the aircraft and cargo (called by the game each frame).
+  setTouchMode(sky, carryingBucket) {
+    if (!this.pourBtn) return;
+    this.pourBtn.classList.toggle('hidden', !carryingBucket || sky);
+    for (const b of Object.values(this.tankBtns)) b.classList.toggle('hidden', !sky);
   }
 
   // ---------------------------------------------------------------- per frame
@@ -198,8 +235,19 @@ export class Input {
     this.ctl.roll = pick('roll');
     this.ctl.yaw = pick('yaw');
     this.ctl.collective = pick('collective');
-    this.ctl.pour = POUR_KEYS.some((c) => k.has(c)) || !!this.pads.pour || this.touch.pour;
-    if (!this.enabled) { this.ctl.pitch = this.ctl.roll = this.ctl.yaw = this.ctl.collective = 0; this.ctl.pour = false; }
+    // Tank controls (skycrane). Keys and touch open the doors progressively while held; a trigger is direct.
+    const sky = this.aircraft === 'skycrane';
+    const S = CFG.skycrane.tank;
+    const gHeld = POUR_KEYS.some((c) => k.has(c));
+    this.kbDoors = sky && gHeld ? Math.min(1, this.kbDoors + S.doorSlew * dt) : 0;
+    this.touchDoors = sky && this.touch.doors ? Math.min(1, this.touchDoors + S.doorSlew * dt) : 0;
+    this.ctl.doors = sky ? Math.max(this.kbDoors, this.touchDoors, this.pads.doors || 0) : 0;
+    this.ctl.pump = sky ? Math.max(TANK_KEYS.pump.some((c) => k.has(c)) ? 1 : 0, this.touch.pump ? 1 : 0, this.pads.pump || 0) : 0;
+    const reel = (TANK_KEYS.reelOut.some((c) => k.has(c)) ? 1 : 0) - (TANK_KEYS.reelIn.some((c) => k.has(c)) ? 1 : 0) + this.touch.reel + (this.pads.reel || 0);
+    this.ctl.reel = sky ? Math.max(-1, Math.min(1, reel)) : 0;
+    // The bucket's valve: G / RB / Pour; on the skycrane its hook's bucket opens with the doors.
+    this.ctl.pour = sky ? this.ctl.doors > 0.05 : gHeld || !!this.pads.pour || this.touch.pour;
+    if (!this.enabled) { this.ctl.pitch = this.ctl.roll = this.ctl.yaw = this.ctl.collective = 0; this.ctl.pour = false; this.ctl.doors = this.ctl.pump = this.ctl.reel = 0; }
     return this.ctl;
   }
 
