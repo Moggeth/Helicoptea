@@ -13,7 +13,7 @@ export function readFlight(h, sim, L, gearDrop) {
   _u.set(0, 1, 0).applyQuaternion(h.quat);
   const sL = Math.sqrt(L);
   const hs = Math.hypot(h.vel.x, h.vel.z);
-  const load = sim.carriedCargo().reduce((m, b) => m + b.mass, 0);
+  const load = sim.carriedCargo().reduce((m, b) => m + b.mass, 0) + (h.tankMass || 0);   // the skycrane reads its tank
   const hover = 1 / h.def.thrustToWeight;
   const trq = 60 * Math.pow(Math.max(0, h.thrustFrac) / hover, 1.5);
   return {
@@ -29,7 +29,7 @@ export function readFlight(h, sim, L, gearDrop) {
     tot: 560 + 3.2 * trq,
     n1: 62 + 0.36 * trq,
     loadKg: load * L * L * L,
-    hooked: sim.carriedCargo().length,
+    hooked: sim.carriedCargo().length + (h.tankMass > 1e-5 ? 1 : 0),
     slip: Math.max(-1, Math.min(1, (h.vel.x * _r.x + h.vel.z * _r.z) * 2.5)),
   };
 }

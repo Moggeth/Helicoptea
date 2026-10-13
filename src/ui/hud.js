@@ -126,7 +126,7 @@ export class Hud {
   }
 
   // The hook-camera inset: a frame and a readout laid over the picture the renderer draws.
-  setLoadCam(rect, text) {
+  setLoadCam(rect, text, name = 'HOOK CAM') {
     document.body.classList.toggle('pip-top', !!(rect && rect.top));
     if (!rect) { this.loadcam.classList.add('hidden'); return; }
     this.loadcam.classList.remove('hidden');
@@ -138,6 +138,8 @@ export class Hud {
       st.left = `${rect.x}px`; st.top = `${rect.y}px`; st.width = `${rect.s}px`; st.height = `${rect.s}px`;
     }
     if (this.loadRead.textContent !== text) this.loadRead.textContent = text;
+    const nm = this.loadcam.querySelector('.lc-name');
+    if (nm.textContent !== name) nm.textContent = name;
   }
 
   flash(strength) {

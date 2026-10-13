@@ -322,7 +322,26 @@ async function boot() {
   }
 
   // What the hook camera is looking at, in words: height of the lowest load over what is below it.
+  // Height of a point over the liquid, table or floor below it.
+  function heightOver(x, y, z) {
+    for (const v of sim.milk.vessels) if (Math.hypot(x - v.x, z - v.z) < v.rIn && y > v.waterY) return { d: y - v.waterY, what: v.isBowl ? 'milk' : 'tea' };
+    const hit = sim.world.castRay(new RAPIER.Ray({ x, y: y - 0.002, z }, { x: 0, y: -1, z: 0 }), 1.5, true, undefined, GROUPS.queryWorld);
+    if (!hit) return null;
+    const gy = y - 0.002 - hit.timeOfImpact;
+    return { d: y - gy, what: gy < -0.3 ? 'floor' : 'table' };
+  }
+
   function loadReadout() {
+    const hh = sim.heli;
+    if (hh && hh.type === 'skycrane' && hh.tank) {
+      // The skycrane's camera watches the snorkel and belly doors: tank level and where the intake is.
+      const TK = hh.tank, hose = hh.hose;
+      const tank = `Tank ${Math.round(100 * TK.vol / TK.capacity)}%`;
+      if (TK.doors > 0.02 && TK.vol > 0) return `${tank} · doors open`;
+      if (hose.submerged) return `${tank} · intake in ${hose.submerged.isBowl ? 'milk' : 'tea'}${TK.pumping ? ' · pumping' : ''}`;
+      const o = heightOver(hose.headWorld.x, hose.headWorld.y - 0.003, hose.headWorld.z);
+      return o ? `${tank} · intake ${(o.d * 100).toFixed(1)} cm above ${o.what}` : tank;
+    }
     const c = sim.carriedCargo();
     if (!c.length) return sim.attachCandidate() ? 'Loop in reach' : 'No load';
     const bk = sim.milk.bucket;
@@ -575,14 +594,16 @@ async function boot() {
     const showPip = wantLoadCam && fp.loadCam !== 'off' && !crashShown;
     if (wantLoadCam) {
       const hooks = h.def.hooks;
-      loadCam.update(view.heliPos, view.heliQuat, hooks[hooks.length === 3 ? 1 : 0], heading);
+      // The skycrane's camera sits under the front of the tank, between the snorkel and the doors.
+      const mount = h.type === 'skycrane' ? [0.004, -0.0335, -0.012] : hooks[hooks.length === 3 ? 1 : 0];
+      loadCam.update(view.heliPos, view.heliQuat, mount, heading);
       loadCam.render(scene);
     }
     const rect = showPip ? pipRect() : null;
     cockpit.setPipRect(rect, innerWidth, innerHeight);
     fp.readT -= frameDt;
     if (showPip && fp.readT <= 0) { fp.readT = 0.1; fp.readText = loadReadout(); }
-    hud.setLoadCam(rect, fp.readText);
+    hud.setLoadCam(rect, fp.readText, h && h.type === 'skycrane' ? 'BELLY CAM' : 'HOOK CAM');
     post.render();
     if (fpView) cockpit.render();
     if (showPip) cockpit.renderPip();
