@@ -4,9 +4,23 @@ Fly a 24 g scale-model helicopter (a deliberately serious, realistic light utili
 
 Three.js (r169) for rendering, Rapier 3D (0.14, WASM) for rigid bodies and contacts. Everything visual and audible is generated procedurally at runtime, so there are no external asset files (see [docs/ATTRIBUTION.md](docs/ATTRIBUTION.md)).
 
-## Two aircraft
+## Three aircraft
 
-Pick on the start screen, in **Pause → Aircraft**, or press **V** in flight (`?aircraft=chinook` in the URL also works; the choice is remembered). The **micro heli** is the nimble single-rotor original. The **Chinook** is a 94 g tandem-rotor heavy lifter: two counter-rotating rotors, no tail rotor, three cargo hooks, much more inertia, and its own breakup. See [docs/DESIGN.md](docs/DESIGN.md#chinook-srcsimchinookjs).
+Pick on the start screen, in **Pause → Aircraft**, or press **V** in flight (`?aircraft=chinook` in the URL also works; the choice is remembered). The **micro heli** is the nimble single-rotor original. The **Chinook** is a 94 g tandem-rotor heavy lifter: two counter-rotating rotors, no tail rotor, three cargo hooks, much more inertia, and its own breakup. See [docs/DESIGN.md](docs/DESIGN.md#chinook-srcsimchinookjs). The **skycrane** is the milk tanker (below).
+
+## Skycrane milk tanker
+
+The third aircraft (`?aircraft=skycrane`, the start screen, Pause → Aircraft, or **V**) is an S-64 Air-Crane-style skycrane in orange with a green stripe: a glass cockpit pod on a skeletal crane spine, a six-blade main rotor, a four-blade tail rotor high on the left of the tail pylon, long-legged wheeled gear and a belly tank. A snorkel hose made of real physics segments hangs from the tank, swings, drags and collides. Hover low over the milk crock (or any cup), get the intake under the surface and pump; the tank fills, the aircraft gets heavier and the milk sloshes. Over a cup, open the belly doors as little or as much as you like, or fire a salvo. See [docs/DESIGN.md](docs/DESIGN.md#skycrane-srcsimskycranejs).
+
+| Skycrane | Keyboard | Gamepad | Touch |
+|---|---|---|---|
+| Belly doors (analog) | hold G (opens wider as you hold) | RT (squeeze to trickle, pull to gush) | hold Doors |
+| Salvo: dump the lot | double-tap G, or Shift+G | two quick full RT pulls | double-tap Doors |
+| Pump | hold T | LT (analog speed) | hold Pump |
+| Reel the hose in / out | Z / X | LB / RB | Hose ▲ / Hose ▼ |
+| Auto-fill: reel down, pump till full, reel up | double-tap T, or Shift+T | LB + RB together | double-tap Pump |
+
+On the skycrane the gamepad triggers run the tank, so collective is on the left stick. Any hose or pump input takes over from auto-fill. The bucket gets a salvo too: double-tap G (or RB, or the Pour button) latches its valve open until it is empty.
 
 ## Milk
 
@@ -47,6 +61,7 @@ node tests/e2e.mjs                   # browser checks against npm run preview (p
 node tests/e2e.mjs http://localhost:5178/ --headed --only=desktop
 node tests/e2e-chinook.mjs           # Chinook through keyboard, gamepad and touch, picker, breakup
 node tests/e2e-milk.mjs              # milk bucket: hook, dip, carry, pour with G / RB / touch, puddles
+node tests/e2e-skycrane.mjs          # skycrane: snorkel, pump, doors, salvo, auto-fill on keyboard, gamepad and touch
 ```
 
 `tests/sim-checks.mjs` drives the real simulation with the same stick inputs a player produces (via a scripted autopilot) and asserts physical outcomes: hover, assist on/off behaviour, peg pickup, swing and load transfer, immersion, wetness and mass, per-cup brewing, extraction and draining, release onto the saucer, landing, crash thresholds, and bounded crash/restart cycles.
@@ -62,7 +77,8 @@ node tests/e2e-milk.mjs              # milk bucket: hook, dip, carry, pour with 
 | Yaw | A / D (or Q / E) | Left stick left/right | Left thumb left/right |
 | Hook / release | Space (Chinook: each press hooks the nearest bag or the milk bucket to a free hook; with none in reach it drops them all) | A | Hook button |
 | Pour milk (hold) | G | RB | Pour button (shown while carrying the bucket) |
-| Switch aircraft | V | Pause menu | Pause menu |
+| Salvo (latch the bucket valve open) | double-tap G, or Shift+G | double-tap RB | double-tap Pour |
+| Switch aircraft | V (micro, Chinook, skycrane) | Pause menu | Pause menu |
 | Flight Assist | F | Y | Assist button |
 | Restart flight | R | Start | ↻ (top right) |
 | Reset sandbox | Shift+R | Pause menu | Pause menu |

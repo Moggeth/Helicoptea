@@ -25,6 +25,7 @@ Open **Pause → Controller → Settings** (or press **Back/View** on the pad). 
 That's the Steam Controller as presented by Steam Input. Move the sticks or trackpads and the two dots will follow them. Rumble plays on crashes, bumps, hooking a bag and splashes. Press **Test rumble** to check it.
 
 - **"No controller detected"**: press any button on the controller. Browsers hide controllers until they see input. If it still doesn't appear, the browser wasn't launched through Steam, or Steam Input is off for that entry.
+- **Skycrane**: the triggers run the tank (RT belly doors, LT pump) and the bumpers reel the snorkel (LB in, RB out, both together for auto-fill). Collective stays on the left stick. On a custom binding these are steps in **Bind buttons…**.
 - **"Steam Controller · unknown layout"**: Chrome is reading the raw device instead of the Steam Input pad. Press **Bind buttons…** and follow the prompts (move a stick or trackpad, or press a button, for each control). The binding is saved for that controller.
 - Adjust **dead zone**, **fine control near centre**, the three sensitivities, inversion and rumble on the same screen. These are stored in the browser profile, so the separate Steam profile keeps its own settings.
 
