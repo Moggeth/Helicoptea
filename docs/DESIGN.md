@@ -110,6 +110,22 @@ The kitchen is now one room of a house. Its back wall (brick outside, plaster in
 
 Grass is excluded from AO and casts no shadows; it receives them only on high. Garden decor is merged by material (one draw call each).
 
+## Props, characters and easter eggs ([src/sim/props.js](../src/sim/props.js), [src/render/charm.js](../src/render/charm.js))
+
+Everything you can see in the house and garden is solid now, down to the curtains, picture frames, clock, fridge, radio, the sill plant's leaves, the herbs in the pots and the roses on the arch (the arch posts are fattened to take them in). The roof, gables, soffits and a chimney stack are solid too, and the play space is boxed by invisible walls behind the fences, in front of the house and a lid 8 m up.
+
+**Loose props** sit in the debris collision group: the helicopter, bags and wreckage push them about, but touching one never counts as a crash or a rotor strike. Napkins on both tables catch the air as flat plates (pressure on the face, skin friction, and a capped lift while they lie on something) and get blown off by a take-off right next to them. Sugar cubes, the teaspoon, the top two biscuits and a watering can just get knocked about. Forces are cleared every step (Rapier keeps user forces until reset) and capped at a few times the prop's weight. Props sleep when still. On touch devices and the low tier (`quality.liteProps`) only the napkins and spoon are loose.
+
+**Swinging things**: the pendant lamp is a rigid pendulum on a ball joint under the ceiling (0.35 kg shade, solid enough that a rotor strike on it is a crash) and the toy-plane mobile is a light one (a bump only). Both feel the air around them, including the inflow drawn down through a rotor hovering beneath them; the rotor's swirl sets the mobile turning.
+
+**Easter eggs**
+- **Radio** on the counter: land on it to switch on a little procedural waltz through an old-radio filter; land again to switch it off. Debounced, so you have to settle on it and lift off properly.
+- **The cat** on the garden bench watches whatever dangles and swipes at tea bags in reach with a kinematic paw that only touches bags, guarding the bench mug.
+- **Chimney mug**: a ninth cup on the chimney stack, 3.4 m up. **The gnome** by the left border holds the eighth, his own teacup.
+- **Apples** drop when you hover in the apple tree's canopy (a few at a time; they rot away after 30 s).
+- **A robin** on the bird bath flies off to the hedge when you come close, and comes back.
+- **The fridge notes** flutter in rotor wash; **the clock** keeps real time; the curtains stir.
+
 ## Ambient occlusion ([src/render/post.js](../src/render/post.js))
 
 GTAO (Three.js `GTAOPass`) with a 12 cm world radius, tuned for the miniature scale. It runs on the high tier and on desktop medium, and is off on touch devices and the low tier (`?ao=0` / `?ao=1` override). Transparent and effect-only meshes (tea, glass, rotor blur, strings, decals, particles) are excluded from the occlusion pass.

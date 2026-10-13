@@ -28,8 +28,9 @@ export class Batcher {
     for (const { mat, cast, receive, list } of this.groups.values()) {
       const merged = mergeGeometries(list, false);
       for (const g of list) g.dispose();
-      mat.vertexColors = true;
-      const m = new THREE.Mesh(merged, mat);
+      // A copy with vertex colours on, so a material shared with unmerged meshes is left alone.
+      const vc = mat.vertexColors ? mat : Object.assign(mat.clone(), { vertexColors: true, onBeforeCompile: mat.onBeforeCompile });
+      const m = new THREE.Mesh(merged, vc);
       m.castShadow = cast; m.receiveShadow = receive;
       m.matrixAutoUpdate = false;
       parent.add(m);

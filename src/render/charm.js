@@ -3,7 +3,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { ROOM, FRIDGE, RADIO, COUNTER, CLOCK, FRAMES, CURTAINS, CHIMNEY, CAT, BENCH, GNOME, CUPS, BIRDBATH, MOBILE, LAMP, HEDGE, SPOON } from '../sim/layout.js';
 import { brickTexture } from './gardenTextures.js';
 import { glazeMaterial } from './models.js';
-import { boxUV } from './batch.js';
+import { boxUV, Batcher } from './batch.js';
 
 // The lived-in bits: fridge with notes that flutter in the wash, a wall clock on real time, pictures,
 // curtains that stir, a rag rug, a radio you land on to play, the chimney, the gnome, the cat who bats at
@@ -26,6 +26,13 @@ export function buildCharm(scene, quality, kitchen, sim) {
   const charm = { audio: null };
   const fy = ROOM.floorY;
   const hi = quality.name === 'high';
+  // Static pieces are merged by material (a handful of draw calls instead of dozens).
+  const batches = { cr: new Batcher(), r: new Batcher() };
+  const bake = (g, cast = true, receive = true) => {
+    g.updateMatrixWorld(true);
+    const b = cast ? batches.cr : batches.r;
+    g.traverse((o) => { if (o.isMesh) b.add(o.geometry, o.material, o.matrixWorld, 0xffffff, { cast, receive }); });
+  };
 
   // ---------------------------------------------------------------- fridge and its notes
   const notes = [];
@@ -49,7 +56,7 @@ export function buildCharm(scene, quality, kitchen, sim) {
     badge.rotation.y = Math.PI / 2; badge.position.set(w / 2 + 0.002, h * 0.42, -d * 0.2);
     g.add(badge);
     g.position.set((F.x0 + F.x1) / 2, (F.top + fy) / 2, (F.z0 + F.z1) / 2);
-    scene.add(shadowed(g));
+    bake(g);
     // Notes held by magnets: a shopping list, a child's drawing of the helicopter, a reminder, a postcard.
     const fx = F.x1 + 0.003;
     const defs = [
@@ -120,7 +127,7 @@ export function buildCharm(scene, quality, kitchen, sim) {
       }
       if (F.wall === 'left') { g.rotation.y = Math.PI / 2; g.position.set(ROOM.minX + 0.001, F.y, F.z); }
       else { g.rotation.y = Math.PI; g.position.set(F.x, F.y, ROOM.maxZ - 0.001); }
-      scene.add(shadowed(g, false, true));
+      bake(g, false, true);
     });
   }
 
@@ -164,8 +171,10 @@ export function buildCharm(scene, quality, kitchen, sim) {
     const x0 = CURTAINS.panels[0][0] - 0.05, x1 = CURTAINS.panels[1][1] + 0.05;
     const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, x1 - x0, 12), brass);
     rail.rotation.z = Math.PI / 2; rail.position.set((x0 + x1) / 2, CURTAINS.rail, ROOM.minZ + 0.06);
-    scene.add(rail);
-    for (const x of [x0, x1]) { const f = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 10), brass); f.position.set(x, CURTAINS.rail, ROOM.minZ + 0.06); scene.add(f); }
+    const rg = new THREE.Group();
+    rg.add(rail);
+    for (const x of [x0, x1]) { const f = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 10), brass); f.position.set(x, CURTAINS.rail, ROOM.minZ + 0.06); rg.add(f); }
+    bake(rg);
   }
 
   // ---------------------------------------------------------------- rag rug under the table
@@ -200,7 +209,7 @@ export function buildCharm(scene, quality, kitchen, sim) {
     const knobMat = new THREE.MeshStandardMaterial({ color: 0xe8dcc0, roughness: 0.4 });
     for (const z of [-R.halfZ * 0.75, -R.halfZ * 0.3]) { const k = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.016, 0.012, 20), knobMat); k.rotation.z = Math.PI / 2; k.position.set(-R.halfX - 0.006, -0.04, z); g.add(k); }
     g.position.set(R.x, COUNTER.top + R.h / 2, R.z);
-    scene.add(shadowed(g));
+    bake(g);
     radio.group = g;
   }
 
@@ -223,14 +232,15 @@ export function buildCharm(scene, quality, kitchen, sim) {
       m.position.set(x, C.top, z);
       g.add(m);
     }
-    scene.add(shadowed(g));
+    bake(g);
   }
 
   // ---------------------------------------------------------------- the gnome and his teacup tray
   {
     const G = GNOME, cup = CUPS.find((c) => c.id === 'gnome');
     const g = new THREE.Group();
-    const glaze = (c) => glazeMaterial(c, { roughness: 0.35 });
+    const mats = new Map();
+    const glaze = (c) => { if (!mats.has(c)) mats.set(c, glazeMaterial(c, { roughness: 0.35 })); return mats.get(c); };
     const coat = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.088, 0.17, 20), glaze(0x2f5fa0)); coat.position.y = 0.1; g.add(coat);
     const belt = new THREE.Mesh(new THREE.TorusGeometry(0.068, 0.008, 6, 24), glaze(0x3b2a1a)); belt.rotation.x = Math.PI / 2; belt.position.y = 0.11; g.add(belt);
     for (const s of [-1, 1]) { const boot = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 8), glaze(0x2b2b2b)); boot.scale.set(1, 0.6, 1.5); boot.position.set(s * 0.035, 0.015, 0.03); g.add(boot); }
@@ -249,8 +259,11 @@ export function buildCharm(scene, quality, kitchen, sim) {
     }
     g.position.set(G.x, fy, G.z);
     g.rotation.y = G.yaw;
-    scene.add(shadowed(g));
+    bake(g);
   }
+
+  batches.cr.build(scene);
+  batches.r.build(scene);
 
   // ---------------------------------------------------------------- the cat
   const cat = buildCat(scene, hi);
@@ -442,6 +455,13 @@ function meow(A, at, camera) {
   A.tone({ freq: f0 * 2, to: f0 * 2.6, type: 'sine', gain: 0.02, attack: 0.05, decay: 0.28, pan });
 }
 
+// Merge a group's direct mesh children (except `keep`) into one mesh per material, in the group's frame.
+function mergeChildren(parent, keep = []) {
+  const b = new Batcher();
+  for (const o of [...parent.children]) if (o.isMesh && !keep.includes(o)) { o.updateMatrix(); b.add(o.geometry, o.material, o.matrix); parent.remove(o); }
+  b.build(parent);
+}
+
 // ------------------------------------------------------------------ cat model and animation
 function buildCat(scene, hi) {
   const fur = (() => {
@@ -490,13 +510,23 @@ function buildCat(scene, hi) {
     const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(s * 0.02, -0.02 - k * 0.004, 0.06), new THREE.Vector3(s * 0.085, -0.012 - k * 0.012, 0.05)]);
     head.add(new THREE.Line(geo, whiskerMat));
   }
-  // Tail: a chain of spheres along a curve that sways.
-  const tail = [];
-  for (let i = 0; i < 12; i++) { const m = new THREE.Mesh(new THREE.SphereGeometry(0.02 - i * 0.0008, 10, 8), i > 9 ? cream : furMat); g.add(m); tail.push(m); }
+  // Merge the still parts of the body and head (a few draw calls instead of thirty).
+  const mergeInto = (parent, keep) => {
+    const b = new Batcher();
+    for (const o of [...parent.children]) if (o.isMesh && !keep.includes(o)) { o.updateMatrix(); b.add(o.geometry, o.material, o.matrix); parent.remove(o); }
+    b.build(parent);
+  };
+  mergeInto(g, [rightLeg, rightPaw]);
+  mergeInto(head, []);
+  // Tail: a chain of spheres along a curve that sways (one instanced draw).
+  const tailMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.02, 10, 8), furMat, 12);
+  tailMesh.frustumCulled = false;
+  g.add(tailMesh);
+  const tail = Array.from({ length: 12 }, (_, i) => ({ i, position: new THREE.Vector3(), s: 1 - i * 0.04 }));
   g.position.set(CAT.x, BENCH.seat, CAT.z);
   g.rotation.y = CAT.yaw;
   scene.add(shadowed(g));
-  return { g, head, ears, eyes, rightLeg, rightPaw, tail, blink: 0, look: new THREE.Vector3(), lookInit: false, inv: new THREE.Matrix4() };
+  return { g, head, ears, eyes, rightLeg, rightPaw, tail, tailMesh, blink: 0, look: new THREE.Vector3(), lookInit: false, inv: new THREE.Matrix4() };
 }
 
 function animateCat(cat, C, dt, time) {
@@ -509,7 +539,7 @@ function animateCat(cat, C, dt, time) {
   const yaw = THREE.MathUtils.clamp(Math.atan2(local.x, local.z), -1.2, 1.2);
   const pitch = THREE.MathUtils.clamp(-Math.atan2(local.y, Math.hypot(local.x, local.z)), -0.6, 0.5);
   cat.head.rotation.set(pitch, yaw, Math.sin(time * 0.7) * 0.05 * (1 - C.alert));
-  for (const [i, ear] of cat.ears.entries()) ear.rotation.x = -0.25 * C.alert + Math.sin(time * 3 + i) * 0.03;
+  void cat.ears; // (merged into the head)
   // Pupils widen when alert; blink now and then.
   cat.blink -= dt;
   const closing = cat.blink < 0.12 && cat.blink > 0;
@@ -531,7 +561,10 @@ function animateCat(cat, C, dt, time) {
     const a = -Math.PI * 0.55 - t * 1.6 + swish * t;
     const r = 0.12 + t * 0.02;
     m.position.set(Math.sin(a) * r, 0.02 + t * 0.03 + Math.max(0, t - 0.7) * 0.15 * C.alert, -0.04 + Math.cos(a) * r);
+    _m.compose(m.position, _q.identity(), _v.setScalar(m.s));
+    cat.tailMesh.setMatrixAt(m.i, _m);
   });
+  cat.tailMesh.instanceMatrix.needsUpdate = true;
 }
 
 // ------------------------------------------------------------------ robin
@@ -546,6 +579,7 @@ function buildRobin(scene) {
   const tailM = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.004, 0.04), brown); tailM.position.set(0, 0.01, -0.05); tailM.rotation.x = -0.4; g.add(tailM);
   const wings = [];
   for (const s of [-1, 1]) { const w = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.024, 0.045), brown); w.position.set(s * 0.032, 0.005, -0.005); g.add(w); wings.push(w); }
+  mergeChildren(g, wings.concat([head]));
   const a = 2.2, B = BIRDBATH;
   const perch = new THREE.Vector3(B.x + Math.cos(a) * (B.r - 0.01), B.top + 0.03, B.z + Math.sin(a) * (B.r - 0.01));
   g.position.copy(perch);
@@ -590,6 +624,7 @@ function buildMobile(scene) {
     for (const x of [-0.03, 0.03]) { const strut = new THREE.Mesh(new THREE.BoxGeometry(0.002, 0.018, 0.002), m1); strut.position.set(x, 0.003, 0.01); p.add(strut); }
     const tailp = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.002, 0.01), m2); tailp.position.set(0, 0, -0.032); p.add(tailp);
     const fin = new THREE.Mesh(new THREE.BoxGeometry(0.002, 0.014, 0.01), m1); fin.position.set(0, 0.007, -0.032); p.add(fin);
+    mergeChildren(p);
     const prop = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.003, 0.002), new THREE.MeshStandardMaterial({ color: 0x3b2a1a })); prop.position.set(0, 0, 0.036); p.add(prop);
     props.push(prop);
   });
