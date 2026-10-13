@@ -118,4 +118,55 @@ export const CFG = {
     keyRise: 7.5,           // keyboard axis slew (1/s) so taps are proportional
     keyFall: 11,
   },
+
+  // Tandem-rotor heavy lifter (CH-47 style), about 1:90 scale: 17 cm fuselage, two 20 cm rotors.
+  // No tail rotor: pitch comes from differential collective, roll from lateral cyclic on both discs,
+  // yaw from differential lateral cyclic (front disc one way, aft disc the other).
+  chinook: {
+    inertia: [5.5e-4, 5.0e-4, 3.0e-4], // pitch, yaw, roll (kg m^2): long, heavy airframe
+    rotorRadius: 0.1,
+    hubs: [[0, 0.043, -0.067], [0, 0.053, 0.067]], // forward (turns CCW from above), aft (CW)
+    hooks: [[0, -0.029, -0.03], [0, -0.029, 0], [0, -0.029, 0.03]], // forward, centre, aft cargo hooks
+    gearDrop: 0.031,                   // centre of mass to wheel bottoms
+    thrustToWeight: 2.0,               // both rotors at full collective, empty
+    thrustLag: 0.09,                   // bigger blades, more inflow to change (s)
+    cyclicLag: 0.05,
+    spoolTime: 0.6,
+    governorDroop: 0.08,
+    groundEffectMax: 1.2,
+    translationalLift: 0.08,
+    aftWakeLoss: 0.03,                 // rotor flying in the other rotor's wake loses this much lift
+    diffCollective: 0.045,             // max differential collective, fraction of one rotor's max thrust
+    latCyclic: 0.1,                    // rad of lateral disc tilt at full roll input (~6 deg)
+    yawCyclic: 0.05,                   // rad of opposite disc tilt at full yaw input
+    dragAxial: 0.12,                   // per rotor, N per m/s through the disc (inflow change)
+    dragPlane: 0.015,                  // per rotor H-force, N per m/s in the disc plane (acts at the hub)
+    dragLinear: 0.03,                  // fuselage and rotor-wash drag at the CG, N per m/s
+    dragQuad: 0.05,                    // body drag, N per (m/s)^2
+    sideDrag: 0.02,                    // fuselage side area aft of the CG (weathervane), N per m/s
+    angDamp: [2.0e-3, 2.5e-3, 1.8e-3], // flapping/hub damping, N m per rad/s
+    reactionK: 1.9e-3,                 // rotor torque ~ k T^1.5; cancels between the rotors at equal thrust
+    collectiveRate: 0.42,
+    idleCollective: 0.12,
+    impactDv: 0.85,                    // heavier airframe, a little less forgiving
+    explosionImpulse: 1.05,
+    assist: {
+      maxTilt: 0.27,        // ~15 deg: a heavy lifter is flown gently
+      tiltKp: 90,
+      tiltKd: 13,
+      trimKi: 5,            // pitch/roll trim integrator: learns hook loads off the CG
+      trimMax: 0.75,
+      driftDamping: 0.14,
+      driftTiltMax: 0.11,
+      yawRate: 0.9,
+      yawKp: 10,
+      yawKi: 12,
+      climbRate: 0.4,
+      sinkRate: 0.32,
+      vKp: 5,
+      vKi: 1.0,
+      integMin: -0.5,
+      integMax: 1.4,
+    },
+  },
 };

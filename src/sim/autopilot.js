@@ -13,7 +13,7 @@ export class Autopilot {
   }
   // aim: optional point (e.g. the dangling bag) that should arrive over target instead of the heli.
   update(heli, swingVel = null, aim = null, dt = 1 / 240) {
-    const A = CFG.assist;
+    const A = heli.type === 'chinook' ? CFG.chinook.assist : CFG.assist;
     const g = CFG.physics.gravity;
     const p = heli.pos, v = heli.vel;
     const ap = aim || p;
@@ -22,7 +22,8 @@ export class Autopilot {
     const dist = Math.hypot(ex, ez);
     const sp = Math.min(this.maxSpeed, dist * 1.4);
     let vdx = dist > 1e-4 ? ex / dist * sp : 0, vdz = dist > 1e-4 ? ez / dist * sp : 0;
-    let ax = (vdx - v.x) * 2.6 + this.ix * 3, az = (vdz - v.z) * 2.6 + this.iz * 3;
+    const kv = heli.type === 'chinook' ? 1.5 : 2.6; // the heavy lifter's attitude responds more slowly
+    let ax = (vdx - v.x) * kv + this.ix * 3, az = (vdz - v.z) * kv + this.iz * 3;
     if (swingVel) { ax -= swingVel.x * 0.9; az -= swingVel.z * 0.9; }
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(heli.quat); fwd.y = 0; fwd.normalize();
     const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0));
