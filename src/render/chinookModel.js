@@ -138,6 +138,27 @@ function loft(prof, za, zb, { steps = 24, segs = 40, classify = null, groups = 1
 // Fold the left side onto the right so glazing is classified symmetrically (r in [-pi/2, pi/2]).
 const sym = (a) => (a > Math.PI / 2 ? Math.PI - a : a);
 
+const GLASS = 1, BLACK = 2;
+const noseClass = (a, z) => {
+  const r = sym(a);
+  if (z < -0.0835) return r > -0.2 ? GLASS : 0;                              // chin and centre panes
+  if (z < -0.0745) {
+    if (Math.abs(r - 0.62) < 0.06 || Math.abs(r - 1.12) < 0.05) return 0;    // window posts
+    if (r > 0.25) return GLASS;                                             // windscreen and eyebrows
+    if (r < -0.35 && r > -1.15 && z < -0.079) return GLASS;                 // chin bubbles
+    return 0;
+  }
+  if (z < -0.0655 && r > 0.05 && r < 0.95 && Math.abs(z + 0.0702) > 0.0007) return GLASS; // side windows
+  return 0;
+};
+
+// The nose section with its glazing (group 1) and black frames (group 2). Shared with the first-person
+// cockpit so the windows line up with the outside.
+export function noseShellGeometry() {
+  return loft(FUSELAGE, -0.087, -0.045, { steps: 40, segs: 56, classify: noseClass, groups: 3, capA: true });
+}
+
+
 // ---------------------------------------------------------------- textures
 function livery() {
   const W = 1024, H = 1024;
@@ -296,21 +317,8 @@ export function buildChinook(M = chinookMaterials()) {
   const cyl = (r0, r1, h, seg = 16) => new THREE.CylinderGeometry(r0, r1, h, seg);
 
   // --- Fuselage in three sections that break apart at the frames.
-  const GLASS = 1, BLACK = 2;
-  const noseClass = (a, z) => {
-    const r = sym(a);
-    if (z < -0.0835) return r > -0.2 ? GLASS : 0;                              // chin and centre panes
-    if (z < -0.0745) {
-      if (Math.abs(r - 0.62) < 0.06 || Math.abs(r - 1.12) < 0.05) return 0;    // window posts
-      if (r > 0.25) return GLASS;                                             // windscreen and eyebrows
-      if (r < -0.35 && r > -1.15 && z < -0.079) return GLASS;                 // chin bubbles
-      return 0;
-    }
-    if (z < -0.0655 && r > 0.05 && r < 0.95 && Math.abs(z + 0.0702) > 0.0007) return GLASS; // side windows
-    return 0;
-  };
   const mats = [M.paint, M.glass, M.black];
-  const noseGeo = loft(FUSELAGE, -0.087, -0.045, { steps: 40, segs: 56, classify: noseClass, groups: 3, capA: true });
+  const noseGeo = noseShellGeometry();
   const cabinGeo = loft(FUSELAGE, -0.045, 0.045, { steps: 24, segs: 56 });
   const aftGeo = loft(FUSELAGE, 0.045, 0.089, { steps: 22, segs: 56, capB: true });
   const nose = new THREE.Mesh(noseGeo, mats);

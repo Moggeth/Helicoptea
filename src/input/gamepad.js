@@ -22,7 +22,7 @@ export const STANDARD_BINDING = {
     roll: { type: 'axis', index: 2, sign: 1 },
   },
   triggers: { up: 7, down: 6 },
-  buttons: { attach: [0], pour: [5], doors: [7], pump: [6], reelOut: [5], reelIn: [4], recenter: [1, 11], help: [2], assist: [3], pause: [8], restart: [9], camLeft: [14], camRight: [15], zoomIn: [12], zoomOut: [13], up: [12], down: [13], left: [14], right: [15], confirm: [0], back: [1] },
+  buttons: { attach: [0], view: [10], pour: [5], doors: [7], pump: [6], reelOut: [5], reelIn: [4], recenter: [1, 11], help: [2], assist: [3], pause: [8], restart: [9], camLeft: [14], camRight: [15], zoomIn: [12], zoomOut: [13], up: [12], down: [13], left: [14], right: [15], confirm: [0], back: [1] },
 };
 
 // Wizard steps: axes first (move), then buttons (press).
@@ -86,7 +86,7 @@ export class Gamepads {
     });
   }
 
-  zero() { this.out.pitch = this.out.roll = this.out.yaw = this.out.collective = 0; this.pour = false; this.doors = 0; this.pump = 0; this.reel = 0; }
+  zero() { this.out.pitch = this.out.roll = this.out.yaw = this.out.collective = 0; this.pour = false; this.doors = 0; this.pump = 0; this.reel = 0; this.look = null; this.viewHeldT = 0; this.viewLooked = false; }
   list() { return [...(navigator.getGamepads ? navigator.getGamepads() : [])].filter(Boolean); }
   active() { const l = navigator.getGamepads ? navigator.getGamepads() : []; return this.activeIndex !== null ? l[this.activeIndex] : null; }
   hasBinding(gp) { return !!load(`bind.${gp.id}`, null); }
@@ -131,6 +131,18 @@ export class Gamepads {
       if (Math.abs(t) > Math.abs(coll)) coll = t;
     }
     const clamp = (v) => Math.max(-1, Math.min(1, v));
+    // L3 (left stick click): tap to switch chase / cockpit; hold it and the right stick looks around
+    // instead of flying (the cyclic centres meanwhile). LB and RB stay free for the hose reel.
+    const viewBtns = B.buttons.view || STANDARD_BINDING.buttons.view;
+    const viewHeld = !menuMode && viewBtns.some((i) => !!gp.buttons[i]?.pressed);
+    if (viewHeld) this.viewHeldT = (this.viewHeldT || 0) + dt;
+    else if (this.viewHeldT !== undefined) {
+      if (this.viewHeldT > 0 && this.viewHeldT < 0.3 && !this.viewLooked) this.events.push('view');
+      this.viewHeldT = 0; this.viewLooked = false;
+    }
+    const lookNow = viewHeld && (this.viewHeldT > 0.3 || Math.hypot(roll, pitch) > 0.25);
+    this.look = lookNow ? { x: roll, y: pitch } : null;
+    if (this.look) { roll = pitch = 0; this.viewLooked = true; }
     this.out.collective = clamp(coll * S.collective * (S.invertCollective ? -1 : 1));
     this.out.yaw = clamp(yaw * S.yaw);
     this.out.pitch = clamp(pitch * S.cyclic * (S.invertPitch ? -1 : 1));

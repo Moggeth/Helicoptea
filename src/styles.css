@@ -281,3 +281,13 @@ body.pad-nav .panel :focus, body.pad-nav .crash :focus, body.pad-nav #start-btn:
 .weight-row { display: inline-flex; align-items: center; gap: 6px; }
 .weight-row small { font-size: 11px; color: var(--ink-soft); }
 .weight-row input { width: 140px; accent-color: var(--terracotta); }
+
+/* first person: hook-camera inset frame (the picture itself is drawn by WebGL underneath) */
+.loadcam { position: absolute; border-radius: 10px; box-shadow: inset 0 0 0 2px rgba(250,244,233,0.42), 0 4px 18px rgba(0,0,0,0.35); pointer-events: none !important; font: 600 10.5px/1 ui-monospace, Consolas, monospace; color: #e9f6e2; text-shadow: 0 1px 2px rgba(0,0,0,0.8); letter-spacing: 0.06em; }
+.loadcam .lc-name { position: absolute; top: 8px; left: 10px; opacity: 0.85; }
+.loadcam .lc-name::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #e0463a; margin-right: 6px; vertical-align: 1px; }
+.loadcam .lc-read { position: absolute; left: 8px; right: 8px; bottom: 8px; text-align: center; font-size: 11.5px; letter-spacing: 0.02em; }
+.fp-flash { position: absolute; inset: 0; pointer-events: none !important; opacity: 0; background: radial-gradient(ellipse at 50% 55%, rgba(255,246,220,0.95), rgba(255,160,70,0.85) 45%, rgba(60,20,8,0.9)); }
+/* touch: the hook-camera inset sits top centre, so tips and prompts move below it */
+body.pip-top .hint, body.pip-top .prompt { top: calc(var(--pip-bottom, 120px) + 8px + var(--safe-t)); bottom: auto; }
+body.pip-top .hint:not(.show), body.pip-top .prompt:not(.show) { pointer-events: none !important; }

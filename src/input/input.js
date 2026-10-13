@@ -16,7 +16,7 @@ const POUR_KEYS = ['KeyG'];
 const TANK_KEYS = { pump: ['KeyT'], reelIn: ['KeyZ'], reelOut: ['KeyX'] };
 const DOUBLE_TAP = 320; // ms
 const ACTION_KEYS = {
-  Space: 'attach', Enter: 'attach', KeyV: 'aircraft', KeyF: 'assist', KeyR: 'restart', KeyC: 'recenter',
+  Space: 'attach', Enter: 'attach', KeyV: 'aircraft', Digit1: 'view', KeyF: 'assist', KeyR: 'restart', KeyC: 'recenter',
   Escape: 'pause', KeyP: 'pause', KeyH: 'help', Slash: 'help', KeyM: 'mute', Backquote: 'debug', F3: 'debug', KeyB: 'reset',
 };
 
@@ -39,6 +39,9 @@ export class Input {
     this.gp = { pitch: 0, roll: 0, yaw: 0, collective: 0, connected: false, id: '' };
     this.touch = { pitch: 0, roll: 0, yaw: 0, collective: 0, active: false, pour: false, doors: false, pump: false, reel: 0 };
     this.camOrbit = { yaw: 0, pitch: 0, zoom: 0 };
+    // First-person free-look deltas (radians) and zoom, taken by the game each frame.
+    this.look = { yaw: 0, pitch: 0, zoom: 0 };
+    this.viewMode = 'chase';
     this.enabled = true;
     this.notices = [];
     this.lastTap = {};
@@ -82,22 +85,37 @@ export class Input {
     for (const s of this.sticks || []) s.release();
   }
 
+  // Mouse drag (or a finger on open screen, away from the sticks) orbits the chase camera or, in the
+  // cockpit, turns the pilot's head. The wheel zooms either.
   bindCanvas(canvas) {
     canvas.addEventListener('pointerdown', (e) => {
-      if (e.pointerType !== 'mouse') return;
-      this.dragging = { x: e.clientX, y: e.clientY };
+      if (this.dragging) return;
+      this.dragging = { x: e.clientX, y: e.clientY, id: e.pointerId, touch: e.pointerType !== 'mouse' };
       canvas.setPointerCapture(e.pointerId);
+      if (this.dragging.touch) this.source = 'touch';
     });
     canvas.addEventListener('pointermove', (e) => {
-      if (!this.dragging || e.pointerType !== 'mouse') return;
-      this.camOrbit.yaw -= (e.clientX - this.dragging.x) * 0.006;
-      this.camOrbit.pitch += (e.clientY - this.dragging.y) * 0.004;
-      this.dragging = { x: e.clientX, y: e.clientY };
+      if (!this.dragging || e.pointerId !== this.dragging.id) return;
+      const dx = e.clientX - this.dragging.x, dy = e.clientY - this.dragging.y;
+      if (this.viewMode === 'cockpit') {
+        const k = this.dragging.touch ? 0.006 : 0.004;
+        this.look.yaw -= dx * k;
+        this.look.pitch -= dy * k;
+      } else {
+        this.camOrbit.yaw -= dx * 0.006;
+        this.camOrbit.pitch += dy * 0.004;
+      }
+      this.dragging.x = e.clientX; this.dragging.y = e.clientY;
     });
-    const end = () => { this.dragging = null; };
+    const end = (e) => { if (this.dragging && e.pointerId === this.dragging.id) this.dragging = null; };
     canvas.addEventListener('pointerup', end);
     canvas.addEventListener('pointercancel', end);
-    canvas.addEventListener('wheel', (e) => { e.preventDefault(); this.camOrbit.zoom += Math.sign(e.deltaY) * 0.08; }, { passive: false });
+    canvas.addEventListener('lostpointercapture', end);
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (this.viewMode === 'cockpit') this.look.zoom += Math.sign(e.deltaY) * 4;
+      else this.camOrbit.zoom += Math.sign(e.deltaY) * 0.08;
+    }, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
@@ -260,11 +278,21 @@ export class Input {
     if (used) this.source = 'gamepad';
     for (const e of this.pads.takeEvents()) this.actions.push(e);
     for (const n of this.pads.takeNotices()) { this.notices.push(n.text); if (n.type === 'disconnected') this.actions.push('padLost'); }
-    if (this.pads.cam) {
+    if (this.pads.cam && this.viewMode === 'cockpit') {
+      // D-pad glances around the cockpit; holding L3 lets the right stick look freely.
+      this.look.yaw += this.pads.cam.yaw * 1.5 * dt;
+      this.look.pitch -= this.pads.cam.zoom * 1.1 * dt;
+    } else if (this.pads.cam) {
       this.camOrbit.yaw += this.pads.cam.yaw * 0.03;
       this.camOrbit.zoom += this.pads.cam.zoom * 0.02;
     }
+    if (this.pads.look) {
+      this.look.yaw -= this.pads.look.x * 2.2 * dt;
+      this.look.pitch += this.pads.look.y * 1.6 * dt;
+    }
   }
+
+  takeLook() { const l = { ...this.look }; this.look.yaw = this.look.pitch = this.look.zoom = 0; return l; }
 
   takeActions() { const a = this.actions; this.actions = []; return a; }
   takeNotices() { const n = this.notices; this.notices = []; return n; }

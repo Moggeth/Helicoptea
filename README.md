@@ -30,6 +30,12 @@ A Bambi-style milk bucket hangs on its own little hanger beside a stoneware milk
 
 Seven cups to brew in: the mug and teacup on the kitchen table, a teacup on the windowsill, a mug by the kettle on the counter, and in the garden a teacup on the garden table, a mug on the tree stump and one on the bench. The garden table has its own tea stand. Fly out through the back door or, more carefully, through a pane of the open window; under the rose arch; low over the meadow grass and watch the rotor wash flatten it. No missions: it's an obstacle course for practising. See [docs/DESIGN.md](docs/DESIGN.md#house-and-tea-garden-srcsimhousejs-srcrendergardenjs).
 
+## From the cockpit
+
+Press **1** (gamepad **L3**, a click of the left stick, or the cockpit icon top right) to fly from the pilot's seat; it also switches from **Pause → View**, and `?view=cockpit` in the URL works too. The view is bolted to the airframe, so it rolls and pitches with it; your head sways a little under g, lags sudden rotation, and the airframe buzzes with the rotor (both adjustable in the pause menu, as is the field of view). Each aircraft has its own modelled cockpit: a Bell-style cabin with analogue instruments for the micro heli, and a two-pilot CH-47F-style glass cockpit with a copilot for the Chinook. Your hands and feet are on the controls and move with them. Instruments read live, in full-size equivalents (a 30 cm hover reads about 30 ft on the micro heli's altimeter, a soaked bag about 400 kg on the hook).
+
+Look around by dragging the mouse (wheel to zoom), holding **L3** and using the right stick (the cyclic centres while you look) or the D-pad, or dragging any open part of a touch screen. **C** (gamepad **B**, touch **View**) looks ahead again. Look down to see through the chin windows. For dipping, a downward **hook camera** shows the bag or bucket with its height over the tea; it appears as an inset (bottom right, or top centre on touch screens) and on the panel display. **Pause → Hook camera** can show it in the chase view too, or hide it. A crash from the cockpit shakes and flashes in the seat, then pulls out to the wreck; restarting puts you back in the seat. See [docs/DESIGN.md](docs/DESIGN.md#cockpit-view-srcrendercockpitjs-srcrendercockpitcamjs).
+
 ## Rotor wash, AO
 
 The rotor's downwash is a small fluid simulation (wake column plus a 2D outwash solver over the table). It pushes the dangling bag and strings, buffets the helicopter near surfaces, ripples the linen runner, blows steam and dust, nods the flowers, and dimples and sprays the tea. Ambient occlusion (GTAO) grounds everything on desktop. See [docs/DESIGN.md](docs/DESIGN.md).
@@ -82,7 +88,8 @@ node tests/e2e-skycrane.mjs          # skycrane: snorkel, pump, doors, salvo, au
 | Flight Assist | F | Y | Assist button |
 | Restart flight | R | Start | ↻ (top right) |
 | Reset sandbox | Shift+R | Pause menu | Pause menu |
-| Camera | C recenter, mouse drag orbit, wheel zoom | B or R3 recenter, D-pad orbit/zoom | View button |
+| Camera | C recenter, mouse drag orbit, wheel zoom | B or R3 recenter, D-pad orbit/zoom | View button, drag open screen to orbit |
+| Cockpit view | 1 toggles; mouse drag look, wheel zoom, C look ahead | L3 click toggles; hold L3 + right stick look, D-pad glance, B look ahead | Cockpit icon (top right); drag open screen to look |
 | Pause / help / mute / debug | Esc, H, M, ` (or F3) | Back/View, X | ‖ and ? buttons |
 | Menus | Arrow keys/Tab, Enter | D-pad or left stick, A select, B back | Tap |
 
@@ -92,6 +99,7 @@ node tests/e2e-skycrane.mjs          # skycrane: snorkel, pump, doors, salvo, au
 
 ## Debugging and tuning
 
+- `?view=cockpit` starts in the pilot's seat (the choice is remembered). `node tests/e2e-cockpit.mjs http://localhost:4190/` checks the cockpit view in the browser and `node tests/shot-cockpit.mjs` writes look-around screenshots.
 - `?debug=1` or the backquote key shows frame time, physics time, body counts, draw calls, live inputs, assist state, collective, thrust/weight, rotor speed, cargo mass, wetness, immersion, string tension and brew levels. F4 (with the overlay open) draws the physics colliders.
 - `?quality=low|medium|high` overrides automatic quality (also in the pause menu). `?fps=30` caps rendering to test variable frame rates (physics stays at 240 Hz).
 - `window.__helicoptea` exposes the sim, view, input and an `Autopilot` class for console experiments.

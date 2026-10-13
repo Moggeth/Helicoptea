@@ -147,7 +147,7 @@ export class Audio {
     const f = ctx.createBiquadFilter(); f.type = type; f.frequency.setValueAtTime(freq, t0); f.Q.value = q;
     if (sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, t0 + attack + decay);
     const g = ctx.createGain();
-    const p = ctx.createStereoPanner(); p.pan.value = pan;
+    const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan));
     src.connect(f).connect(g).connect(p).connect(this.master);
     this.env(g, t0, attack, gain, decay);
     src.start(t0, Math.random() * 1.5);
@@ -161,7 +161,7 @@ export class Audio {
     o.frequency.setValueAtTime(freq, t0);
     if (to) o.frequency.exponentialRampToValueAtTime(to, t0 + attack + decay);
     const g = ctx.createGain();
-    const p = ctx.createStereoPanner(); p.pan.value = pan;
+    const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan));
     o.connect(g).connect(p).connect(this.master);
     this.env(g, t0, attack, gain, decay);
     o.start(t0); o.stop(t0 + attack + decay + 0.05);

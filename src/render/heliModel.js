@@ -80,7 +80,7 @@ function boomTexture() {
 
 // ---------------------------------------------------------------- geometry helpers
 // Superellipse section; separate exponents above and below the waterline give a flat floor.
-function sectionPoint(sec, a) {
+export function sectionPoint(sec, a) {
   const c = Math.cos(a), s = Math.sin(a);
   const nT = sec.nTop ?? 2.4, nB = sec.nBot ?? 3.6;
   const n = s >= 0 ? nT : nB;
@@ -167,6 +167,40 @@ function airfoilPlate(span, chord, thick, taper = 1, sweep = 0) {
   return g;
 }
 
+// ---------------------------------------------------------------- cabin shell
+export const CABIN_SECS = [
+  { z: -0.0635, hw: 0.0015, yb: -0.010, yt: -0.004 },
+  { z: -0.060, hw: 0.0085, yb: -0.019, yt: 0.004 },
+  { z: -0.054, hw: 0.0135, yb: -0.024, yt: 0.012 },
+  { z: -0.046, hw: 0.0163, yb: -0.027, yt: 0.019 },
+  { z: -0.034, hw: 0.0180, yb: -0.0285, yt: 0.0245 },
+  { z: -0.018, hw: 0.0187, yb: -0.029, yt: 0.0275 },
+  { z: 0.002, hw: 0.0186, yb: -0.029, yt: 0.0285 },
+  { z: 0.018, hw: 0.0178, yb: -0.0275, yt: 0.028 },
+  { z: 0.030, hw: 0.0155, yb: -0.023, yt: 0.0265 },
+  { z: 0.042, hw: 0.0110, yb: -0.014, yt: 0.022, nBot: 2.6 },
+  { z: 0.052, hw: 0.0072, yb: -0.004, yt: 0.017, nBot: 2.2, nTop: 2.2 },
+];
+const glassAt = (a, z) => {
+  const s = Math.sin(a), c = Math.cos(a);
+  if (z < -0.059) return 0;
+  // windscreen and roof transparency
+  if (z < -0.022 && s > 0.02) return 1;
+  // chin windows
+  if (z < -0.044 && z > -0.0585 && s < -0.22 && s > -0.72 && Math.abs(c) > 0.3) return 1;
+  // side door windows (front and rear doors), leaving a frame
+  if (s > 0.12 && s < 0.84 && Math.abs(c) > 0.45) {
+    if ((z > -0.017 && z < -0.001) || (z > 0.002 && z < 0.020)) return 1;
+  }
+  return 0;
+};
+
+// The cabin shell (group 0 painted, group 1 glazing). Shared with the first-person cockpit, so its
+// window openings line up exactly with the outside of the aircraft.
+export function cabinShellGeometry(hi = true, classify = glassAt) {
+  return loft(CABIN_SECS, hi ? 72 : 44, hi ? 64 : 36, (a, z) => classify(a, z, glassAt), 2);
+}
+
 // ---------------------------------------------------------------- materials
 export function heliMaterials() {
   const { map, bump } = liveryTextures();
@@ -219,35 +253,9 @@ export function buildRealisticHelicopter(quality = { name: 'high' }) {
   };
 
   // ---- Cabin: lofted fuselage with glazing (group 1).
-  const cabinSecs = [
-    { z: -0.0635, hw: 0.0015, yb: -0.010, yt: -0.004 },
-    { z: -0.060, hw: 0.0085, yb: -0.019, yt: 0.004 },
-    { z: -0.054, hw: 0.0135, yb: -0.024, yt: 0.012 },
-    { z: -0.046, hw: 0.0163, yb: -0.027, yt: 0.019 },
-    { z: -0.034, hw: 0.0180, yb: -0.0285, yt: 0.0245 },
-    { z: -0.018, hw: 0.0187, yb: -0.029, yt: 0.0275 },
-    { z: 0.002, hw: 0.0186, yb: -0.029, yt: 0.0285 },
-    { z: 0.018, hw: 0.0178, yb: -0.0275, yt: 0.028 },
-    { z: 0.030, hw: 0.0155, yb: -0.023, yt: 0.0265 },
-    { z: 0.042, hw: 0.0110, yb: -0.014, yt: 0.022, nBot: 2.6 },
-    { z: 0.052, hw: 0.0072, yb: -0.004, yt: 0.017, nBot: 2.2, nTop: 2.2 },
-  ];
-  const glassAt = (a, z) => {
-    const s = Math.sin(a), c = Math.cos(a);
-    if (z < -0.059) return 0;
-    // windscreen and roof transparency
-    if (z < -0.022 && s > 0.02) return 1;
-    // chin windows
-    if (z < -0.044 && z > -0.0585 && s < -0.22 && s > -0.72 && Math.abs(c) > 0.3) return 1;
-    // side door windows (front and rear doors), leaving a frame
-    if (s > 0.12 && s < 0.84 && Math.abs(c) > 0.45) {
-      if ((z > -0.017 && z < -0.001) || (z > 0.002 && z < 0.020)) return 1;
-    }
-    return 0;
-  };
   // Paint and glazing share one lofted geometry but are separate meshes, so the glass can be excluded
   // from ambient occlusion and drawn after the interior.
-  const cabinGeo = loft(cabinSecs, hi ? 72 : 44, hi ? 64 : 36, glassAt, 2);
+  const cabinGeo = cabinShellGeometry(hi);
   const skip = new THREE.MeshBasicMaterial({ visible: false });
   add('fuselage', new THREE.Mesh(cabinGeo, [M.paint, skip]));
   // Cabin lining: the inside of the painted shell, so the windows show an interior, not the outdoors.

@@ -16,6 +16,9 @@ import { cloneSkycranePart } from './skycraneModel.js';
 const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _c = new THREE.Color();
 const _pinA = new THREE.Vector3(), _pinL = new THREE.Vector3(), _pinQ = new THREE.Quaternion();
 const rand = (a, b) => a + Math.random() * (b - a);
+// First person hides the airframe around the pilot's eye but keeps its shadow on the table.
+const SHADOW_ONLY = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+const FP_HIDE = { heliModel: ['fuselage', 'tailBoom', 'tail'], chinookModel: ['noseCab', 'cabin', 'aftCabin', 'fwdPylon'] };
 
 // Presentation layer: mirrors simulation state into the Three.js scene and turns sim events into effects.
 export class View {
@@ -111,6 +114,34 @@ export class View {
     this.cupScreen = [];
     this.milkView = new MilkView(this, kitchen.sun.position.clone().sub(kitchen.sun.target.position));
     this.skycrane = new SkycraneView(this);
+  }
+
+  // In first person the cabin (and whatever around it the eye sits inside) only casts its shadow;
+  // rotors, skids, gear and pylons still draw. Debris must be cloned from the real materials.
+  setFirstPerson(on) {
+    if (this.firstPerson === on) return;
+    this.firstPerson = on;
+    for (const [key, names] of Object.entries(FP_HIDE)) {
+      const U = this[key].userData;
+      const spinning = new Set([...(U.rotors || []), U.rotor].filter(Boolean)); // rotors keep drawing
+      const visit = (o) => {
+        if (spinning.has(o)) return;
+        if (o.isMesh) {
+          if (on) {
+            o.userData.fpMat = o.material;
+            o.userData.fpNoAO = o.userData.noAO;
+            o.material = Array.isArray(o.material) ? o.material.map((m) => (m.visible ? SHADOW_ONLY : m)) : SHADOW_ONLY;
+            o.userData.noAO = true;
+          } else if (o.userData.fpMat) {
+            o.material = o.userData.fpMat;
+            o.userData.noAO = o.userData.fpNoAO;
+            delete o.userData.fpMat;
+          }
+        }
+        for (const c of o.children) visit(c);
+      };
+      for (const n of names) visit(U.parts[n]);
+    }
   }
 
   // ------------------------------------------------------------- events
@@ -209,6 +240,7 @@ export class View {
       sc.mesh.rotation.z = Math.random() * 6;
     }
     // Hand the heli's parts to debris meshes.
+    this.setFirstPerson(false);
     const heavy = e.aircraft === 'chinook', sky = e.aircraft === 'skycrane';
     this.heliModel.visible = false;
     this.chinookModel.visible = false;

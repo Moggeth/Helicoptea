@@ -8,6 +8,8 @@ const ICONS = {
   mute: '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></svg>',
   help: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6"/><path d="M12 17h.01"/></svg>',
   menu: '<svg viewBox="0 0 24 24"><path d="M10 5v14M14 5v14"/></svg>',
+  cockpit: '<svg viewBox="0 0 24 24"><path d="M3 15c2-6 6-9 9-9s7 3 9 9"/><path d="M12 6v9"/><path d="M3 15h18"/><path d="M7 19h10"/></svg>',
+  chase: '<svg viewBox="0 0 24 24"><path d="M4 13h9l3-3h4"/><path d="M8 13v3h6"/><path d="M2 8h12"/><path d="M8 8v5"/></svg>',
 };
 
 const BREW_NAMES = [[0.08, 'Just water'], [0.22, 'Pale'], [0.42, 'Golden'], [0.62, 'Proper'], [0.82, 'Strong'], [2, "Builder's"]];
@@ -24,6 +26,7 @@ export class Hud {
       </div>
       <div class="hud-tr">
         <button class="icon-btn" data-act="restart" title="Restart flight (R)" aria-label="Restart flight">${ICONS.restart}<span class="key kb">R</span></button>
+        <button class="icon-btn" data-act="view" title="Cockpit view (1)" aria-label="Switch to cockpit view">${ICONS.cockpit}<span class="key kb">1</span></button>
         <button class="icon-btn" data-act="recenter" title="Recenter camera (C)" aria-label="Recenter camera">${ICONS.view}</button>
         <div style="position:relative">
           <button class="icon-btn" data-act="sound" title="Sound (M to mute)" aria-label="Sound settings">${ICONS.sound}</button>
@@ -43,6 +46,8 @@ export class Hud {
         <p class="why"></p>
         <button class="primary" data-act="restart">Restart Flight <span class="kb-inline"></span></button>
       </div>
+      <div class="loadcam hidden" aria-hidden="true"><span class="lc-name">HOOK CAM</span><span class="lc-read"></span></div>
+      <div class="fp-flash"></div>
       <div class="debug hidden"></div>
     `;
     this.q = (s) => root.querySelector(s);
@@ -58,6 +63,10 @@ export class Hud {
     this.volPop = this.q('.vol-pop');
     this.vol = this.volPop.querySelector('input');
     this.chips = [];
+    this.loadcam = this.q('.loadcam');
+    this.loadRead = this.q('.lc-read');
+    this.fpFlash = this.q('.fp-flash');
+    this.viewBtn = this.q('[data-act=view]');
     root.addEventListener('click', (e) => {
       const b = e.target.closest('[data-act]');
       if (!b) return;
@@ -108,6 +117,33 @@ export class Hud {
     this.coll.classList.toggle('hidden', on);
     this.collLabel.classList.toggle('hidden', on);
   }
+  setViewMode(mode) {
+    const fp = mode === 'cockpit';
+    this.viewBtn.innerHTML = `${fp ? ICONS.chase : ICONS.cockpit}<span class="key kb"${this.device === 'keyboard' ? '' : ' style="display:none"'}>1</span>`;
+    this.viewBtn.title = fp ? 'Chase view (1)' : 'Cockpit view (1)';
+    this.viewBtn.setAttribute('aria-label', fp ? 'Switch to chase view' : 'Switch to cockpit view');
+    document.body.classList.toggle('fp', fp);
+  }
+
+  // The hook-camera inset: a frame and a readout laid over the picture the renderer draws.
+  setLoadCam(rect, text) {
+    document.body.classList.toggle('pip-top', !!(rect && rect.top));
+    if (!rect) { this.loadcam.classList.add('hidden'); return; }
+    this.loadcam.classList.remove('hidden');
+    if (rect.top) document.body.style.setProperty('--pip-bottom', `${rect.y + rect.s}px`);
+    const st = this.loadcam.style;
+    const v = `${rect.x}px|${rect.y}px|${rect.s}px`;
+    if (this.loadcam.dataset.r !== v) {
+      this.loadcam.dataset.r = v;
+      st.left = `${rect.x}px`; st.top = `${rect.y}px`; st.width = `${rect.s}px`; st.height = `${rect.s}px`;
+    }
+    if (this.loadRead.textContent !== text) this.loadRead.textContent = text;
+  }
+
+  flash(strength) {
+    this.fpFlash.style.opacity = String(Math.max(0, Math.min(1, strength)));
+  }
+
   setInvite(show) { this.invite.classList.toggle('hidden', !show); }
 
   // Skycrane tank gauge: milk level, door opening, pump/salvo/auto state.
@@ -217,6 +253,15 @@ export class Hud {
           <label class="opt">Debug overlay <input type="checkbox" data-setting="debug" ${opts.debug ? 'checked' : ''}/></label>
           <label class="opt">Controller <button class="secondary" style="padding:6px 12px" data-act="controller">Settings</button></label>
           <label class="opt">Show tips again <button class="secondary" style="padding:6px 12px" data-act="resethints">Replay</button></label>
+          <div class="opt aircraft-row" role="radiogroup" aria-label="View">View
+            <span>${[['chase', 'Chase'], ['cockpit', 'Cockpit']].map(([id, nm]) => `<button class="secondary${opts.view === id ? ' on' : ''}" style="padding:6px 12px" role="radio" aria-checked="${opts.view === id}" data-act="view" data-id="${id}">${nm}</button>`).join(' ')}</span></div>
+          <label class="opt">Cockpit field of view <span class="weight-row"><small>${opts.fpFov}°</small><input type="range" min="60" max="110" step="1" value="${opts.fpFov}" data-setting="fpFov" aria-label="Cockpit field of view" /></span></label>
+          <label class="opt">Head motion <span class="weight-row"><small>off</small><input type="range" min="0" max="1" step="0.05" value="${opts.fpMotion}" data-setting="fpMotion" aria-label="Head motion in the cockpit" /><small>lots</small></span></label>
+          <label class="opt">Rotor vibration <span class="weight-row"><small>off</small><input type="range" min="0" max="1" step="0.05" value="${opts.fpVibration}" data-setting="fpVibration" aria-label="Rotor vibration in the cockpit" /><small>lots</small></span></label>
+          <label class="opt">Hook camera
+            <select data-setting="loadCam">
+              ${[['auto', 'In the cockpit'], ['always', 'Always'], ['off', 'Off']].map(([v, nm]) => `<option value="${v}" ${opts.loadCam === v ? 'selected' : ''}>${nm}</option>`).join('')}
+            </select></label>
           <div class="opt aircraft-row" role="radiogroup" aria-label="Aircraft">Aircraft
             <span>${[['micro', 'Micro heli'], ['chinook', 'Chinook'], ['skycrane', 'Skycrane']].map(([id, nm]) => `<button class="secondary${opts.aircraft === id ? ' on' : ''}" style="padding:6px 12px" role="radio" aria-checked="${opts.aircraft === id}" data-act="aircraft" data-id="${id}">${nm}</button>`).join(' ')}</span></div>
         </div>
@@ -225,6 +270,14 @@ export class Hud {
     this.modal.querySelector('[data-setting=quality]').addEventListener('change', (e) => this.h.setting('quality', e.target.value));
     this.modal.querySelector('[data-setting=debug]').addEventListener('change', (e) => this.h.setting('debug', e.target.checked));
     this.modal.querySelector('[data-setting=weight]').addEventListener('input', (e) => this.h.setting('weight', parseFloat(e.target.value)));
+    for (const k of ['fpMotion', 'fpVibration', 'fpFov']) {
+      const el = this.modal.querySelector(`[data-setting=${k}]`);
+      el.addEventListener('input', () => {
+        this.h.setting(k, parseFloat(el.value));
+        if (k === 'fpFov') el.previousElementSibling.textContent = `${el.value}°`;
+      });
+    }
+    this.modal.querySelector('[data-setting=loadCam]').addEventListener('change', (e) => this.h.setting('loadCam', e.target.value));
     this.modal.classList.add('show');
     this.focusFirst();
   }
@@ -252,12 +305,13 @@ export class Hud {
     const R = {
       keyboard: [['<kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd>', 'Cyclic: tilt forward, back and sideways (or I J K L)'], ['<kbd>W</kbd><kbd>S</kbd>', 'Collective: more / less lift'], ['<kbd>A</kbd><kbd>D</kbd>', 'Yaw: turn left / right'],
         ['<kbd>Space</kbd>', 'Hook a bag or the milk bucket / release it (the Chinook has three hooks: Space drops them all)'], ['<kbd>G</kbd> (hold)', 'Pour milk: the bucket\'s valve, or the skycrane\'s belly doors (they open wider the longer you hold)'], ['Double-tap <kbd>G</kbd> or <kbd>Shift</kbd>+<kbd>G</kbd>', 'Salvo: dump the lot (latches the doors or the bucket valve open; again to close)'], ['<kbd>T</kbd> (hold)', 'Skycrane: pump milk up the snorkel (only with the intake under the surface)'], ['Double-tap <kbd>T</kbd> or <kbd>Shift</kbd>+<kbd>T</kbd>', 'Skycrane auto-fill: reel down, pump until full, reel up (any hose or pump key takes over)'], ['<kbd>Z</kbd> / <kbd>X</kbd> (hold)', 'Skycrane: reel the snorkel in / out'], ['<kbd>V</kbd>', 'Switch aircraft: micro heli / Chinook / skycrane'], ['<kbd>F</kbd>', 'Flight Assist on / off'], ['<kbd>R</kbd>', 'Restart flight'], ['<kbd>Shift</kbd>+<kbd>R</kbd>', 'Reset sandbox'],
-        ['<kbd>C</kbd>', 'Recenter camera (drag to orbit, wheel to zoom)'], ['<kbd>M</kbd>', 'Mute'], ['<kbd>Esc</kbd>', 'Pause'], ['<kbd>`</kbd>', 'Debug overlay']],
+        ['<kbd>1</kbd>', 'Cockpit / chase view. In the cockpit, drag the mouse to look around, wheel to zoom'], ['<kbd>C</kbd>', 'Recenter camera or look ahead (drag to orbit, wheel to zoom)'], ['<kbd>M</kbd>', 'Mute'], ['<kbd>Esc</kbd>', 'Pause'], ['<kbd>`</kbd>', 'Debug overlay']],
       gamepad: [['Right stick', 'Cyclic: tilt'], ['Left stick ↕', 'Collective (or triggers RT / LT)'], ['Left stick ↔', 'Yaw'], ['<kbd>A</kbd>', 'Hook / release'], ['<kbd>RB</kbd> (hold)', 'Pour milk from the bucket; double-tap latches the valve open'], ['Skycrane <kbd>RT</kbd>', 'Belly doors, analog: squeeze to trickle, pull fully to gush; two quick full pulls = salvo'], ['Skycrane <kbd>LT</kbd>', 'Pump (how hard you pull is how fast it pumps)'], ['Skycrane <kbd>LB</kbd> / <kbd>RB</kbd>', 'Reel the snorkel in / out; both together = auto-fill'], ['Skycrane', 'The triggers run the tank, so collective is on the left stick'], ['<kbd>Y</kbd>', 'Flight Assist on / off'],
-        ['<kbd>Start</kbd>', 'Restart flight'], ['<kbd>B</kbd> / R3', 'Recenter camera'], ['D-pad', 'Orbit and zoom camera'], ['<kbd>Back</kbd> / <kbd>View</kbd>', 'Pause menu'], ['<kbd>X</kbd>', 'Controls'],
+        ['<kbd>Start</kbd>', 'Restart flight'], ['L3 (click left stick)', 'Cockpit / chase view'], ['Hold L3 + right stick', 'Look around in the cockpit (the cyclic centres while you hold L3)'],
+        ['<kbd>B</kbd> / R3', 'Recenter camera or look ahead'], ['D-pad', 'Orbit and zoom camera; in the cockpit, glance around'], ['<kbd>Back</kbd> / <kbd>View</kbd>', 'Pause menu'], ['<kbd>X</kbd>', 'Controls'],
         ['After a crash', '<kbd>A</kbd> also restarts'], ['In menus', 'D-pad or left stick to move, <kbd>A</kbd> select, <kbd>B</kbd> back, ◀ ▶ adjust sliders']],
       touch: [['Left thumb', 'Up / down: collective. Left / right: yaw'], ['Right thumb', 'Cyclic: tilt in any direction'], ['<kbd>Hook</kbd>', 'Hook / release (glows when a loop is in reach)'], ['<kbd>Pour</kbd> (hold)', 'Pour milk (appears while you carry the bucket); double-tap latches it open'], ['<kbd>Doors</kbd> (hold)', 'Skycrane belly doors, opening wider as you hold; double-tap = salvo'], ['<kbd>Pump</kbd> (hold)', 'Skycrane pump; double-tap = auto-fill'], ['<kbd>Hose ▲</kbd> <kbd>Hose ▼</kbd>', 'Reel the snorkel in / out'],
-        ['<kbd>Assist</kbd>', 'Flight Assist on / off'], ['<kbd>View</kbd>', 'Recenter camera'], ['↻ (top right)', 'Restart flight']],
+        ['<kbd>Assist</kbd>', 'Flight Assist on / off'], ['Cockpit icon (top right)', 'Cockpit / chase view'], ['Drag open screen', 'Look around in the cockpit, or orbit the chase camera'], ['<kbd>View</kbd>', 'Recenter camera or look ahead'], ['↻ (top right)', 'Restart flight']],
     };
     return R[tab].map(([k, d]) => `<dt>${k}</dt><dd>${d}</dd>`).join('');
   }
