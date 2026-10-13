@@ -24,8 +24,9 @@ const BAG_ANCHOR = CFG.cargo.bagHalf[1];
 function lerpAngle(a, b, f) { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return a + d * f; }
 
 export class ReplayStage {
-  constructor(view, kitchen) {
+  constructor(view, kitchen, extraHide = () => []) {
     this.view = view;
+    this.extraHide = extraHide;   // live-only overlays (the depth cues) that the replay doesn't own
     this.scene = view.scene;
     this.charm = kitchen.garden && kitchen.garden.charm;
     this.bags = new Map();
@@ -59,7 +60,7 @@ export class ReplayStage {
   // ---------------------------------------------------------------- enter / leave
   enter() {
     const v = this.view, mv = v.milkView;
-    const objs = [v.cue, v.guide, v.bagBlob, v.dripPoints, mv.segs, mv.beads, mv.blob];
+    const objs = [v.cue, v.guide, v.bagBlob, v.dripPoints, mv.segs, mv.beads, mv.blob, ...this.extraHide()];
     for (const b of v.bags.values()) objs.push(b.group, b.tag, b.string.mesh);
     for (const d of v.debris.values()) objs.push(d.mesh);
     if (mv.bucketV) objs.push(mv.bucketV.group, mv.bucketV.string.mesh);

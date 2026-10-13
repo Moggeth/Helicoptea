@@ -168,7 +168,7 @@ async function boot() {
   });
   if (params.get('record') === '0') recorder.enabled = false;
   const replay = new ReplayViewer({
-    recorder, store: flightStore, stage: new ReplayStage(view, kitchen), camera, cockpit, sim,
+    recorder, store: flightStore, stage: new ReplayStage(view, kitchen, () => [...depth.shadows, depth.line, depth.dot, depth.ring]), camera, cockpit, sim,
     fpSettings: () => fp, setLens: (on, zoom) => applyLens(on, zoom),
     onClose: (from) => closeReplay(from),
   });
