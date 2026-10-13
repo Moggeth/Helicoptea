@@ -47,9 +47,9 @@ const f = (x, d = 3) => Number(x).toFixed(d);
   const sim = new Sim();
   sim.assist = false;
   let c = 0;
-  run(sim, 0.75, () => ({ ...zero(), collective: 1 }));
-  run(sim, 0.6);
-  sim.heli.collective = 0.47; // roughly hover, as a player would trim
+  sim.heli.collective = 0.62; // climb away from the pad...
+  run(sim, 0.7);
+  sim.heli.collective = 0.46; // ...then trim to roughly hover, as a player would
   run(sim, 0.5);
   run(sim, 0.15, () => ({ ...zero(), pitch: 1 }));
   const tilt0 = Math.acos(sim.heli.up.y);
@@ -160,8 +160,8 @@ const f = (x, d = 3) => Number(x).toFixed(d);
     const sim = pickUp(withBag);
     sim.assist = false;                                   // the bag's pull on the airframe, unmasked by assist
     const p0 = sim.heli.pos.clone();
-    run(sim, 0.35, () => ({ ...zero(), roll: 1 }));      // hard sideways acceleration
-    run(sim, 0.35, () => ({ ...zero(), roll: -1 }));
+    run(sim, 0.2, () => ({ ...zero(), roll: 1 }));       // hard sideways acceleration
+    run(sim, 0.2, () => ({ ...zero(), roll: -1 }));
     let maxAngle = 0, maxHeliRoll = 0;
     const xs = [];
     run(sim, 2.0, (t) => {
@@ -170,6 +170,7 @@ const f = (x, d = 3) => Number(x).toFixed(d);
         const d = b.anchorWorld.clone().sub(sim.heli.hookWorld);
         maxAngle = Math.max(maxAngle, Math.atan2(Math.hypot(d.x, d.z), -d.y));
       }
+      if (!sim.heli) return zero();
       xs.push(sim.heli.pos.x);
       maxHeliRoll = Math.max(maxHeliRoll, Math.abs(Math.asin(Math.max(-1, Math.min(1, sim.heli.up.x)))));
       return zero();

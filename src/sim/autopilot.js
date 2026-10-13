@@ -18,14 +18,17 @@ export class Autopilot {
     const p = heli.pos, v = heli.vel;
     const ap = aim || p;
     const ex = this.target.x - ap.x, ez = this.target.z - ap.z;
-    if (Math.hypot(ex, ez) < 0.06) { this.ix += ex * dt; this.iz += ez * dt; } else { this.ix *= 0.99; this.iz *= 0.99; }
+    // Integral action removes steady offsets (ground effect differences, wash off nearby objects).
+    const win = heli.type === 'chinook' ? 0.15 : 0.06;
+    if (Math.hypot(ex, ez) < win) { this.ix += ex * dt; this.iz += ez * dt; } else { this.ix *= 0.99; this.iz *= 0.99; }
     const heavyMicro = heli.type !== 'chinook';
-    if (heavyMicro) { this.ix = THREE.MathUtils.clamp(this.ix, -0.02, 0.02); this.iz = THREE.MathUtils.clamp(this.iz, -0.02, 0.02); }
+    const iMax = heavyMicro ? 0.02 : 0.06;
+    this.ix = THREE.MathUtils.clamp(this.ix, -iMax, iMax); this.iz = THREE.MathUtils.clamp(this.iz, -iMax, iMax);
     const dist = Math.hypot(ex, ez);
     const sp = Math.min(this.maxSpeed, dist * (heavyMicro ? 0.9 : 1.4));
     let vdx = dist > 1e-4 ? ex / dist * sp : 0, vdz = dist > 1e-4 ? ez / dist * sp : 0;
     const kv = heli.type === 'chinook' ? 1.5 : 1.7; // heavy machines: gentler velocity loop
-    const ki = heavyMicro ? 2 : 3;
+    const ki = heavyMicro ? 2 : 0.8;
     let ax = (vdx - v.x) * kv + this.ix * ki, az = (vdz - v.z) * kv + this.iz * ki;
     if (swingVel) { ax -= swingVel.x * 0.9; az -= swingVel.z * 0.9; }
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(heli.quat); fwd.y = 0; fwd.normalize();

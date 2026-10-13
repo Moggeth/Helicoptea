@@ -259,6 +259,8 @@ export function teabagAssets() {
   const tagMat = new THREE.MeshStandardMaterial({ map: tagTex, roughness: 0.85, side: THREE.DoubleSide });
   const loopGeo = new THREE.TorusGeometry(0.0028, 0.0005, 6, 14);
   const stapleGeo = new THREE.BoxGeometry(0.006, 0.0012, 0.0004);
+  const knotGeo = new THREE.SphereGeometry(0.0016, 10, 8);
+  const knotMat = new THREE.MeshStandardMaterial({ color: 0xeee6d4, roughness: 0.85 });
   const staple = new THREE.MeshStandardMaterial({ color: 0xbfc3c8, metalness: 1, roughness: 0.3 });
   return {
     makeBag() {
@@ -268,6 +270,12 @@ export function teabagAssets() {
       const st = new THREE.Mesh(stapleGeo, staple);
       st.position.set(0, h[1] - 0.004, h[2] * 0.4);
       m.add(st);
+      // Knot where the string is stitched to the bag, so the join reads as tied on.
+      const knot = new THREE.Mesh(knotGeo, knotMat);
+      knot.position.set(0, h[1] + 0.0004, 0);
+      knot.scale.set(1, 0.8, 0.7);
+      knot.castShadow = true;
+      m.add(knot);
       const g = new THREE.Group();
       g.add(m);
       g.userData.mat = mat;

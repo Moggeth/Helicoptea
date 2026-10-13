@@ -109,8 +109,9 @@ async function boot() {
   let started = false;
   const state = { assist: store.get('assist', '1') === '1' };
   // World weight: how slowly the whole world runs (a slower world reads as bigger and heavier).
-  let weight = parseFloat(store.get('weight', '0.75'));
-  if (!(weight >= 0 && weight <= 1)) weight = 0.75;
+  const defaultWeight = (1 - CFG.physics.worldSpeed) / 0.6;
+  let weight = parseFloat(store.get('weight', String(defaultWeight)));
+  if (!(weight >= 0 && weight <= 1)) weight = defaultWeight;
   const speedOf = (w) => 1 - 0.6 * w;
   let worldSpeed = params.get('worldSpeed') ? parseFloat(params.get('worldSpeed')) : speedOf(weight);
   sim.assist = state.assist;

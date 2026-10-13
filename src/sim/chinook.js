@@ -36,7 +36,7 @@ const _q = new THREE.Quaternion(), _qi = new THREE.Quaternion();
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _r = new THREE.Vector3(), _vh = new THREE.Vector3();
 const _ax = new THREE.Vector3(), _F = new THREE.Vector3(), _Ft = new THREE.Vector3(), _hub = new THREE.Vector3();
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _fwd = new THREE.Vector3(), _right = new THREE.Vector3();
-const _tb = new THREE.Vector3(), _wb = new THREE.Vector3();
+const _tb = new THREE.Vector3(), _wb = new THREE.Vector3(), _pt = new THREE.Vector3();
 const clamp = THREE.MathUtils.clamp;
 
 export class Chinook {
@@ -320,9 +320,14 @@ export class Chinook {
       _vh.crossVectors(wWorld, _r).add(vel);             // hub velocity: pitching moves the hubs up and down
       const vAx = _vh.dot(_ax);
       _F.copy(_ax).multiplyScalar(T - C.dragAxial * vAx); // inflow change damps vertical motion and pitch
-      _a.copy(_vh).addScaledVector(_ax, -vAx);
-      _F.addScaledVector(_a, -C.dragPlane);                // H-force in the disc plane, acting at the hub
       body.addForceAtPoint({ x: _F.x, y: _F.y, z: _F.z }, { x: hp.x, y: hp.y, z: hp.z }, true);
+      _Ft.add(_F);
+      // H-force in the disc plane. Applied level with the CG (not up at the hub): with low drag, a lever arm
+      // up there turned forward speed into nose-up pitch and set up a slow pitch/speed oscillation (phugoid).
+      _a.copy(_vh).addScaledVector(_ax, -vAx);
+      _F.copy(_a).multiplyScalar(-C.dragPlane);
+      _pt.copy(hp).addScaledVector(_ax, -_r.dot(_ax));
+      body.addForceAtPoint({ x: _F.x, y: _F.y, z: _F.z }, { x: _pt.x, y: _pt.y, z: _pt.z }, true);
       _Ft.add(_F);
       reaction += ROTOR_DIR[i] * -C.reactionK * Math.pow(Math.max(T, 0), 1.5);
     }

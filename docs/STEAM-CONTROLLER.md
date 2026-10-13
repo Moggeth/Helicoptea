@@ -4,13 +4,13 @@ Browsers can't read a Steam Controller as a gamepad by themselves. On the deskto
 
 ## One-time setup (about 2 minutes)
 
-1. Start the game server: `npm run dev` (the game is then at http://localhost:5178/).
+1. Serve the game: `npm run build`, then `npx vite preview --port 4178` (the game is then at http://localhost:4178/; use whatever port you serve it on).
 2. In Steam, choose **Games → Add a Non-Steam Game to My Library… → Browse…**, pick `C:\Program Files\Google\Chrome\Application\chrome.exe`, then click **Add Selected Programs**.
 3. Right-click the new **Google Chrome** entry and choose **Properties…**:
    - Rename it to `Helicoptea`.
    - Under **Launch Options**, paste:
      ```
-     --user-data-dir="C:\Users\mog\AppData\Local\Helicoptea-Chrome" --app=http://localhost:5178/
+     --user-data-dir="C:\Users\<you>\AppData\Local\Helicoptea-Chrome" --app=http://localhost:4178/
      ```
      The separate profile folder makes Steam start a fresh Chrome process that it can attach Steam Input to. Without it, Chrome hands the window to your already-open browser, and the controller stays in mouse mode.
 4. In the same Properties window, open **Controller** and set the override to **Enable Steam Input**.

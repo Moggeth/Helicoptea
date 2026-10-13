@@ -12,3 +12,4 @@ All times local (AEDT), 2026-10-13. One continuous session by Claude.
 | 20:50–20:55 | Throttled performance runs, README and docs |
 | 21:05–21:25 | Full controller support: new gamepad layer (any mapping, bind wizard, settings, rumble), pad-driven menus, Steam Controller guide, 13 new browser checks |
 | 21:35–22:45 | Stable/dev split (4178 stable, 5178 dev, 4179 tests); GTAO; rotor-downwash air field and its consumers (cloth, tea, bags, strings, steam, dust, flowers, buffeting); realistic helicopter model; wreck-on-pad fix; performance pass |
+| 22:45–23:55 | Heavy retune v1 (lag/slew, 0.55x world); Chinook merge and its heavy retune merge; v2 retune per feedback: instant thrust, low drag rocket drift, 0.7x world; Chinook phugoid fix; string pinning; tests retuned |

@@ -11,6 +11,7 @@ import { radialTexture } from './textures.js';
 import { buildChinook, cloneChinookPart } from './chinookModel.js';
 
 const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _c = new THREE.Color();
+const _pinA = new THREE.Vector3(), _pinL = new THREE.Vector3(), _pinQ = new THREE.Quaternion();
 const rand = (a, b) => a + Math.random() * (b - a);
 
 // Presentation layer: mirrors simulation state into the Three.js scene and turns sim events into effects.
@@ -345,6 +346,7 @@ export class View {
       mat.sheen = 0.6 * (1 - w);
       // string
       b.sampleString(alpha, v.string.pts);
+      this.pinString(b, v.string.pts, _p, _q);
       v.string.update(v.string.pts);
       // tag hangs from the loop end of the string
       const N = b.N;
@@ -482,6 +484,31 @@ export class View {
     const floorFn = (x, z) => (Math.abs(x) < TABLE.halfX && Math.abs(z) < TABLE.halfZ ? 0.001 : -0.76);
     this.fx.update(dt, floorFn, this.windFn);
     this.smoke.update(dt, floorFn, this.windFn);
+  }
+
+  // The string simulates at half the physics rate, so its interpolated ends can trail the bag and hook
+  // by a few millimetres. Pin both ends to exactly what is drawn this frame and spread the correction
+  // along the string, so it always reads as tied on.
+  pinString(b, pts, bagPos, bagQuat) {
+    const N = b.N, hy = CFG.cargo.bagHalf[1];
+    const a = _pinA.set(0, hy, 0).applyQuaternion(bagQuat).add(bagPos);
+    const d0x = a.x - pts[0], d0y = a.y - pts[1], d0z = a.z - pts[2];
+    let dNx = 0, dNy = 0, dNz = 0;
+    if (b.attach) {
+      const e = b.attach.endWorld();
+      const h = this.sim.heli;
+      if (b.attach.kind === 'heli' && h) {
+        _pinL.copy(e).sub(h.pos).applyQuaternion(_pinQ.copy(h.quat).invert());
+        _pinL.applyQuaternion(this.heliQuat).add(this.heliPos);
+      } else _pinL.copy(e);
+      dNx = _pinL.x - pts[N * 3]; dNy = _pinL.y - pts[N * 3 + 1]; dNz = _pinL.z - pts[N * 3 + 2];
+    }
+    for (let i = 0; i <= N; i++) {
+      const t = i / N, k = i * 3;
+      pts[k] += d0x * (1 - t) + dNx * t;
+      pts[k + 1] += d0y * (1 - t) + dNy * t;
+      pts[k + 2] += d0z * (1 - t) + dNz * t;
+    }
   }
 
   // Rotor wash presentation: cloth texture, flowers, dust and tea spray.

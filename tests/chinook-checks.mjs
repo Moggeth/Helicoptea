@@ -153,7 +153,9 @@ const hookWhenInReach = (sim, ap, peg, hook, secs) => {
   const hookDrop = -C.hooks[1][1];
   fly(sim, ap, sim.heli.pos.x, 0.42, sim.heli.pos.z, 3);
   fly(sim, ap, peg.tip.x, 0.42, peg.tip.z + 0.004, 5, 0.25);
-  fly(sim, ap, peg.tip.x, peg.tip.y + hookDrop + 0.02, peg.tip.z + 0.004, 7, 0.1);
+  fly(sim, ap, peg.tip.x, peg.tip.y + hookDrop + 0.012, peg.tip.z + 0.004, 10, 0.08); // lighter drag: give it time to settle
+  fly(sim, ap, peg.tip.x, peg.tip.y + hookDrop + 0.012, peg.tip.z + 0.004, 5, 0.03);
+  if (process.env.DEBUG_HOOKS) console.log('heli', sim.heli.pos.toArray().map((v) => f(v)), 'hdg', f(sim.heli.heading()), 'hooks', sim.heli.hookWorlds.map((h) => h.toArray().map((v) => f(v)).join(',')), 'pegs', sim.pegs.map((p) => [f(p.tip.x), f(p.tip.y), f(p.tip.z)]));
   let hooked = 0;
   for (let i = 0; i < 3; i++) if (sim.attachCandidate() && sim.toggleAttach()) hooked++;
   const bags = sim.carriedBags();

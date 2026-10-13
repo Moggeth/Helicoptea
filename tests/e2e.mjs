@@ -252,7 +252,7 @@ try {
     await page.keyboard.down('KeyW'); await sleep(2600); await page.keyboard.up('KeyW');
     await sleep(2500);
     const s = await st(page);
-    check('default heavy world (speed 0.55): W lifts off and assist settles', Math.abs(ws - 0.55) < 1e-6 && s.y > 0.15 && Math.abs(s.vy) < 0.06, `worldSpeed ${ws} y=${s.y?.toFixed(3)} vy=${s.vy?.toFixed(3)}`);
+    check('default heavy world (speed 0.7): W lifts off and assist settles', Math.abs(ws - 0.7) < 1e-6 && s.y > 0.15 && Math.abs(s.vy) < 0.06, `worldSpeed ${ws} y=${s.y?.toFixed(3)} vy=${s.vy?.toFixed(3)}`);
     await page.keyboard.press('Escape'); await sleep(200);
     await page.evaluate(() => { const r = document.querySelector('[data-setting=weight]'); r.value = '0'; r.dispatchEvent(new Event('input')); });
     const ws2 = await page.evaluate(() => window.__helicoptea.worldSpeed);
