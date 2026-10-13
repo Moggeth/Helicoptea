@@ -550,7 +550,7 @@ async function boot() {
       camTarget.copy(view.focusPoint());
       camRig.update(Math.max(rd, 1e-4), camTarget, heading, sim.carriedCargo().length ? view.bagPosCarried : null, sim);
     }
-    kitchen.garden.update(rd * worldSpeed, camTarget, camera, sim); // grass wind, shadow follow
+    kitchen.garden.update(rd * worldSpeed, view.focusPoint(), camera, sim); // grass wind, shadow follow (also in first person)
     fp.wasLive = fpLive;
     fp.flash = Math.max(0, fp.flash - frameDt * 1.6);
     hud.flash(fp.flash * fp.flash);
