@@ -87,7 +87,9 @@ export class Chinook {
 
     this.track = new Track(this.body);
     this.collective = C.idleCollective;
-    this.rotorThrust = [0, 0];         // lagged blade thrust per rotor, before ground effect etc.
+    this.rotorThrust = [0, 0];
+    this.tCommon = 0; this.tDiff = 0;
+    this.cmdPitch = 0; this.cmdRoll = 0;  // assist: slew-limited commanded attitude         // lagged blade thrust per rotor, before ground effect etc.
     this.rotorT = [0, 0];              // actual thrust per rotor this step (N)
     this.tilt = [0, 0];                // lagged lateral disc tilt per rotor (rad, + = towards +X)
     this.rotorGround = [1.2, 1.2];     // hub to surface below, per rotor
@@ -196,6 +198,11 @@ export class Chinook {
         const cur = this.thrust * Math.max(up.y, 0.5);
         this.integ = this.grounded || this.thrust < 1e-6 ? 0 : clamp(cur / weight - 1, A.integMin, A.integMax);
         this.trim[0] = this.trim[1] = 0;
+        // Start the commanded attitude from where the aircraft is, so engaging assist doesn't snap it level.
+        _fwd.set(0, 0, -1).applyQuaternion(q); _fwd.y = 0; _fwd.normalize();
+        _right.crossVectors(_fwd, Y);
+        this.cmdPitch = clamp(Math.atan2(up.dot(_fwd), up.y), -A.maxTilt, A.maxTilt);
+        this.cmdRoll = clamp(Math.atan2(up.dot(_right), up.y), -A.maxTilt, A.maxTilt);
       }
       this.lastAssist = assist;
     }
@@ -237,9 +244,13 @@ export class Chinook {
       if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, -1);
       _fwd.normalize();
       _right.crossVectors(_fwd, Y);
+      // The commanded attitude glides towards the stick (heavy, smooth), then is held firmly.
+      const step = A.tiltSlew * dt;
+      this.cmdPitch += clamp(ctl.pitch * A.maxTilt - this.cmdPitch, -step, step);
+      this.cmdRoll += clamp(ctl.roll * A.maxTilt - this.cmdRoll, -step, step);
       const desired = _a.set(0, 1, 0)
-        .addScaledVector(_fwd, Math.tan(ctl.pitch * A.maxTilt))
-        .addScaledVector(_right, Math.tan(ctl.roll * A.maxTilt));
+        .addScaledVector(_fwd, Math.tan(this.cmdPitch))
+        .addScaledVector(_right, Math.tan(this.cmdRoll));
       const neutral = 1 - Math.min(1, Math.hypot(ctl.pitch, ctl.roll) * 1.6);
       if (neutral > 0) {
         desired.x += clamp(-vel.x * A.driftDamping, -A.driftTiltMax, A.driftTiltMax) * neutral;
@@ -260,6 +271,7 @@ export class Chinook {
       // the integrator holds the heading against weathervaning when the pedals are centred.
       const rateCmd = -ctl.yaw * A.yawRate;
       if (this.grounded) this.yawInteg = 0;
+      else if (Math.abs(ctl.yaw) > 0.05) this.yawInteg *= Math.exp(-dt / 0.1); // turning: rate only
       else this.yawInteg = clamp(this.yawInteg + (rateCmd - wb.y) * dt, -0.4, 0.4);
       const ty = C.inertia[1] * (A.yawKp * (rateCmd - wb.y) + A.yawKi * this.yawInteg) + C.angDamp[1] * rateCmd - this.reaction;
       yCmd = clamp(-ty / yawPower, -1, 1);
@@ -273,7 +285,13 @@ export class Chinook {
     const base = this.collective * TrotNow;
     const tCmd = [clamp(base - pCmd * D, 0, TrotNow), clamp(base + pCmd * D, 0, TrotNow)];
     const sCmd = [rCmd * C.latCyclic + yCmd * C.yawCyclic, rCmd * C.latCyclic - yCmd * C.yawCyclic];
-    const kT = 1 - Math.exp(-dt / C.thrustLag), kS = 1 - Math.exp(-dt / C.cyclicLag);
+    const kT = 1 - Math.exp(-dt / C.thrustLag), kD = 1 - Math.exp(-dt / C.diffLag), kS = 1 - Math.exp(-dt / C.cyclicLag);
+    // Common thrust follows the collective slowly (big rotors, lots of air to accelerate); the
+    // differential part follows the pitch control a little quicker, as blade pitch changes do.
+    this.tCommon += ((tCmd[0] + tCmd[1]) / 2 - this.tCommon) * kT;
+    this.tDiff += ((tCmd[1] - tCmd[0]) / 2 - this.tDiff) * kD;
+    this.rotorThrust[0] = Math.max(0, this.tCommon - this.tDiff);
+    this.rotorThrust[1] = Math.max(0, this.tCommon + this.tDiff);
 
     // Airspeed along the fuselage: the rotor behind flies in the other's wake.
     _fwd.set(0, 0, -1).applyQuaternion(q);
@@ -288,7 +306,6 @@ export class Chinook {
     body.resetTorques(true);
     let Tsum = 0, reaction = 0;
     for (let i = 0; i < 2; i++) {
-      this.rotorThrust[i] += (tCmd[i] - this.rotorThrust[i]) * kT;
       this.tilt[i] += (sCmd[i] - this.tilt[i]) * kS;
       const ge = this.rotorGE[i];
       const inWake = (i === 1 && vFwd > 0) || (i === 0 && vFwd < 0);
@@ -314,7 +331,10 @@ export class Chinook {
     this.thrustFrac = (this.rotorThrust[0] + this.rotorThrust[1]) / (2 * TmaxRot);
 
     // Body drag, plus side drag on the long aft fuselage and pylon (weathervane stability).
-    _F.copy(vel).multiplyScalar(-C.dragLinear - C.dragQuad * vel.length());
+    // Quadratic drag mostly horizontal: caps cruise speed but lets slow drift glide and a drop fall hard.
+    const vhz = Math.hypot(vel.x, vel.z);
+    _F.copy(vel).multiplyScalar(-C.dragLinear - 0.1 * C.dragQuad * vel.length());
+    _F.x -= C.dragQuad * vhz * vel.x; _F.z -= C.dragQuad * vhz * vel.z;
     _Ft.add(_F);
     body.addForce({ x: _F.x, y: _F.y, z: _F.z }, true);
     _right.set(1, 0, 0).applyQuaternion(q);

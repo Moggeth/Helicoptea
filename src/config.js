@@ -125,47 +125,49 @@ export const CFG = {
   // No tail rotor: pitch comes from differential collective, roll from lateral cyclic on both discs,
   // yaw from differential lateral cyclic (front disc one way, aft disc the other).
   chinook: {
-    inertia: [5.5e-4, 5.0e-4, 3.0e-4], // pitch, yaw, roll (kg m^2): long, heavy airframe
+    inertia: [1.4e-3, 1.3e-3, 8.0e-4], // pitch, yaw, roll (kg m^2): long, heavy airframe (~9x the micro's pitch)
     rotorRadius: 0.1,
     hubs: [[0, 0.043, -0.067], [0, 0.053, 0.067]], // forward (turns CCW from above), aft (CW)
     hooks: [[0, -0.029, -0.03], [0, -0.029, 0], [0, -0.029, 0.03]], // forward, centre, aft cargo hooks
     gearDrop: 0.031,                   // centre of mass to wheel bottoms
     thrustToWeight: 2.0,               // both rotors at full collective, empty
-    thrustLag: 0.09,                   // bigger blades, more inflow to change (s)
+    thrustLag: 0.3,                    // collective: big rotors, lots of air to accelerate (s)
+    diffLag: 0.14,                     // differential collective (pitch control) (s)
     cyclicLag: 0.05,
-    spoolTime: 0.6,
+    spoolTime: 0.9,
     governorDroop: 0.08,
     groundEffectMax: 1.2,
     translationalLift: 0.08,
     aftWakeLoss: 0.03,                 // rotor flying in the other rotor's wake loses this much lift
     diffCollective: 0.045,             // max differential collective, fraction of one rotor's max thrust
-    latCyclic: 0.1,                    // rad of lateral disc tilt at full roll input (~6 deg)
+    latCyclic: 0.08,                   // rad of lateral disc tilt at full roll input (~4.5 deg)
     yawCyclic: 0.05,                   // rad of opposite disc tilt at full yaw input
-    dragAxial: 0.12,                   // per rotor, N per m/s through the disc (inflow change)
-    dragPlane: 0.015,                  // per rotor H-force, N per m/s in the disc plane (acts at the hub)
-    dragLinear: 0.03,                  // fuselage and rotor-wash drag at the CG, N per m/s
-    dragQuad: 0.05,                    // body drag, N per (m/s)^2
+    dragAxial: 0.07,                   // per rotor, N per m/s through the disc (inflow change)
+    dragPlane: 0.006,                  // per rotor H-force, N per m/s in the disc plane (acts at the hub)
+    dragLinear: 0.01,                  // fuselage and rotor-wash drag at the CG, N per m/s
+    dragQuad: 0.8,                     // horizontal body drag, N per (m/s)^2: caps cruise speed, lets drift glide
     sideDrag: 0.02,                    // fuselage side area aft of the CG (weathervane), N per m/s
-    angDamp: [2.0e-3, 2.5e-3, 1.8e-3], // flapping/hub damping, N m per rad/s
+    angDamp: [2.9e-3, 3.0e-3, 2.2e-3], // flapping/hub damping, N m per rad/s
     reactionK: 1.9e-3,                 // rotor torque ~ k T^1.5; cancels between the rotors at equal thrust
-    collectiveRate: 0.42,
+    collectiveRate: 0.32,
     idleCollective: 0.12,
     impactDv: 0.85,                    // heavier airframe, a little less forgiving
     explosionImpulse: 1.05,
     assist: {
-      maxTilt: 0.27,        // ~15 deg: a heavy lifter is flown gently
-      tiltKp: 90,
-      tiltKd: 13,
-      trimKi: 5,            // pitch/roll trim integrator: learns hook loads off the CG
+      maxTilt: 0.22,        // ~13 deg: a heavy lifter is flown gently
+      tiltSlew: 0.28,       // rad/s: the commanded attitude glides there (slower than the micro's 0.45)
+      tiltKp: 45,
+      tiltKd: 9,
+      trimKi: 3,            // pitch/roll trim integrator: learns hook loads off the CG
       trimMax: 0.75,
-      driftDamping: 0.14,
-      driftTiltMax: 0.11,
-      yawRate: 0.9,
-      yawKp: 10,
-      yawKi: 12,
-      climbRate: 0.4,
-      sinkRate: 0.32,
-      vKp: 5,
+      driftDamping: 0.04,
+      driftTiltMax: 0.05,
+      yawRate: 0.7,
+      yawKp: 7,
+      yawKi: 8,
+      climbRate: 0.32,
+      sinkRate: 0.26,
+      vKp: 3.5,
       vKi: 1.0,
       integMin: -0.5,
       integMax: 1.4,

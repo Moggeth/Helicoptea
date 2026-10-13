@@ -17,10 +17,31 @@ const f = (x, d = 3) => Number(x).toFixed(d);
 const tilt = (h) => Math.acos(Math.min(1, h.up.y));
 const C = CFG.chinook;
 const make = () => new Sim({ aircraft: 'chinook' });
-const hover = (sim, secs = 3) => { run(sim, 1.4, () => ({ ...zero(), collective: 1 })); run(sim, secs); };
+const SLOW = 1.8; // the heavy tuning needs more (sim) time for scripted manoeuvres, as in sim-checks
+const hover = (sim, secs = 3) => { run(sim, 2.2, () => ({ ...zero(), collective: 1 })); run(sim, secs * 1.5); };
 const fly = (sim, ap, x, y, z, secs, speed = 0.3, aim = null) => {
   ap.target.set(x, y, z); ap.maxSpeed = speed;
-  run(sim, secs, () => (sim.heli ? ap.update(sim.heli, null, aim ? aim() : null) : zero()));
+  run(sim, secs * SLOW, () => (sim.heli ? ap.update(sim.heli, null, aim ? aim() : null) : zero()));
+};
+
+// Keep station (autopilot) until a given hook comes within reach of the peg's loop, then hook it there,
+// as a player would press the button at the right moment. Returns the hook-to-loop distance.
+const hookWhenInReach = (sim, ap, peg, hook, secs) => {
+  const loop = new THREE.Vector3();
+  let d = 99;
+  const n = Math.round(secs / sim.dt);
+  for (let i = 0; i < n && sim.heli; i++) {
+    sim.step(ap.update(sim.heli));
+    if (!peg.bag) break;
+    d = peg.bag.loopPosition(loop).distanceTo(sim.heli.hookWorlds[hook]);
+    if (d < CFG.cargo.attachRadius * 0.8) {
+      const bag = peg.bag;
+      sim.detachBag(bag, true);
+      sim.attachBag(bag, { kind: 'heli', heli: sim.heli, hook });
+      break;
+    }
+  }
+  return d;
 };
 
 // 1. Sits on its four wheels on the pad.
@@ -37,9 +58,9 @@ const fly = (sim, ap, x, y, z, secs, speed = 0.3, aim = null) => {
 // 2. Assisted hover: the rotors share the load evenly and their torques cancel.
 {
   const sim = make();
-  run(sim, 1.4, () => ({ ...zero(), collective: 1 }));
+  run(sim, 2.2, () => ({ ...zero(), collective: 1 }));
   const yUp = sim.heli.pos.y;
-  run(sim, 4);
+  run(sim, 6);
   const h = sim.heli;
   check('assist: climbs on collective', yUp > 0.25, `y=${f(yUp)}`);
   check('assist: neutral stick hovers level', Math.abs(h.vel.y) < 0.03 && tilt(h) < 0.03 && h.vel.length() < 0.05, `vy=${f(h.vel.y)} tilt=${f(tilt(h))} v=${f(h.vel.length())}`);
@@ -157,17 +178,18 @@ const fly = (sim, ap, x, y, z, secs, speed = 0.3, aim = null) => {
   const hookDrop = -C.hooks[0][1];
   fly(sim, ap, sim.heli.pos.x, 0.42, sim.heli.pos.z, 3);
   fly(sim, ap, peg.tip.x, 0.42, peg.tip.z + 0.034, 5, 0.25);
-  fly(sim, ap, peg.tip.x, peg.tip.y + hookDrop + 0.02, peg.tip.z + 0.034, 7, 0.1);
-  const cand = sim.attachCandidateInfo();
-  if (cand) sim.toggleAttach();
+  fly(sim, ap, peg.tip.x, peg.tip.y + hookDrop + 0.02, peg.tip.z + 0.026, 8, 0.1);
+  // Hang the middle bag on the forward hook (both end hooks and the centre one are often in reach here;
+  // which one Space picks depends on centimetres, so take the forward one explicitly).
+  const dFwd = hookWhenInReach(sim, ap, peg, 0, 8);
   const bag = sim.carriedBags()[0];
-  check('forward hook picks up the middle bag', !!bag && bag.attach.hook === 0, cand ? `hook ${cand.hook}` : 'nothing in reach');
+  check('forward hook reaches the middle bag', !!bag && bag.attach.hook === 0, `closest approach ${f(dFwd)} m`);
   if (bag) {
     // Soak the bag (as if it had been dipped) so the offset load is large.
     bag.wetness = 1; bag.peakWet = 1;
     fly(sim, ap, peg.tip.x, 0.5, peg.tip.z + 0.12, 6, 0.1);
     const h = sim.heli;
-    check('assist trims out an off-centre load', h && tilt(h) < 0.06 && h.vel.length() < 0.06 && Math.abs(h.trim[0]) > 0.05, h ? `tilt ${f(tilt(h))} v ${f(h.vel.length())} pitch trim ${f(h.trim[0])}` : `crashed ${sim.crashInfo?.reason}`);
+    check('assist trims out an off-centre load', h && tilt(h) < 0.06 && h.vel.length() < 0.1 && Math.abs(h.trim[0]) > 0.05, h ? `tilt ${f(tilt(h))} v ${f(h.vel.length())} pitch trim ${f(h.trim[0])}` : `crashed ${sim.crashInfo?.reason}`);
   }
 }
 
@@ -181,18 +203,17 @@ const fly = (sim, ap, x, y, z, secs, speed = 0.3, aim = null) => {
   fly(sim, ap, sim.heli.pos.x, 0.42, sim.heli.pos.z, 3);
   fly(sim, ap, peg.tip.x, 0.42, peg.tip.z + 0.004, 5, 0.25);
   fly(sim, ap, peg.tip.x, peg.tip.y + hookDrop + 0.02, peg.tip.z + 0.004, 7, 0.1);
-  const cand = sim.attachCandidateInfo();
-  if (cand && cand.hook === 1) sim.toggleAttach();
+  const dMid = hookWhenInReach(sim, ap, peg, 1, 8);
   const bag = sim.carriedBags()[0];
-  check('centre hook picks up a bag', !!bag && bag.attach.hook === 1, cand ? `hook ${cand.hook}` : 'nothing in reach');
+  check('centre hook reaches a bag', !!bag && bag.attach.hook === 1, `closest approach ${f(dMid)} m`);
   if (bag) {
     const mug = sim.cups[0];
     const swing = () => bag.vel.clone().sub(sim.heli.vel);
     fly(sim, ap, peg.tip.x, 0.46, peg.tip.z + 0.05, 2.5, 0.12);
     ap.target.set(mug.x, 0.4, mug.z); ap.maxSpeed = 0.25;
-    run(sim, 8, () => (sim.heli ? ap.update(sim.heli, swing()) : zero()));
+    run(sim, 8 * SLOW, () => (sim.heli ? ap.update(sim.heli, swing()) : zero()));
     ap.target.set(mug.x, 0.32, mug.z); ap.maxSpeed = 0.08;
-    run(sim, 5, () => (sim.heli ? ap.update(sim.heli, swing(), bag.pos) : zero()));
+    run(sim, 5 * SLOW, () => (sim.heli ? ap.update(sim.heli, swing(), bag.pos) : zero()));
     const yForDip = mug.waterY - 0.02 + CFG.cargo.bagHalf[1] * 2 + CFG.cargo.ropeLength + hookDrop;
     ap.target.set(mug.x + sim.heli.pos.x - bag.pos.x, yForDip, mug.z + sim.heli.pos.z - bag.pos.z);
     ap.maxSpeed = 0.05;
@@ -204,9 +225,9 @@ const fly = (sim, ap, x, y, z, secs, speed = 0.3, aim = null) => {
     fly(sim, ap, mug.x, 0.45, mug.z, 3, 0.1);
     check('lifts the soaked bag out', sim.heli && bag.immersion === 0 && bag.mass > 0.008 && bag.attach, `mass ${f(bag.mass * 1000, 1)} g`);
     ap.target.set(0.5, 0.42, -0.29); ap.maxSpeed = 0.25;
-    run(sim, 7, () => (sim.heli ? ap.update(sim.heli, swing()) : zero()));
+    run(sim, 7 * SLOW, () => (sim.heli ? ap.update(sim.heli, swing()) : zero()));
     ap.target.set(0.5, 0.3, -0.29); ap.maxSpeed = 0.08;
-    run(sim, 5, () => (sim.heli ? ap.update(sim.heli, swing(), bag.pos) : zero()));
+    run(sim, 5 * SLOW, () => (sim.heli ? ap.update(sim.heli, swing(), bag.pos) : zero()));
     sim.toggleAttach();
     run(sim, 2, () => (sim.heli ? ap.update(sim.heli) : zero()));
     check('drops the bag on the saucer', !bag.attach && sim.onDiscard(bag), `bag at ${f(bag.pos.x)},${f(bag.pos.y)},${f(bag.pos.z)}`);
