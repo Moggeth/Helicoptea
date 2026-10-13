@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { ROOM, WALL_T, GARDEN, PATIO, GTABLE, GTEAPOT, GJAR, GCHAIRS, ARCH, BIRDBATH, STUMP, BENCH, TREE, POTS, HEDGE, GARDEN_STATION } from '../sim/layout.js';
 import { glazeMaterial, handleGeometry } from './models.js';
 import { Batcher, T, boxUV, planeUV, blobGeometry } from './batch.js';
-import { flagTexture, boardTexture, barkTexture, leafTexture, groundTexture, grassMask, makeNoise } from './gardenTextures.js';
+import { flagTexture, boardTexture, barkTexture, leafTexture, foliageTexture, groundTexture, grassMask, makeNoise } from './gardenTextures.js';
 import { Grass, WIND_GLSL } from './grass.js';
 import { buildHouseShell } from './houseShell.js';
 
@@ -62,8 +62,8 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
   const grass = new Grass(scene, quality, mask, shadows && tier === 'high');
 
   // ---------------------------------------------------------------- materials
-  const teak = new THREE.MeshStandardMaterial({ map: boardTexture(512, [168, 128, 90]), roughness: 0.75 });
-  teak.map.repeat.set(2, 2);
+  const teak = new THREE.MeshStandardMaterial({ map: boardTexture(512, [168, 128, 90], true), roughness: 0.75 });
+  teak.map.repeat.set(1.2, 1.2);
   const fenceMat = new THREE.MeshStandardMaterial({ map: boardTexture(512, [120, 98, 76]), roughness: 0.9 });
   fenceMat.map.repeat.set(1, 1);
   const whitePaint = new THREE.MeshStandardMaterial({ color: 0xf1ede4, roughness: 0.6 });
@@ -73,6 +73,8 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
   const bark = new THREE.MeshStandardMaterial({ map: barkTexture(), roughness: 0.95 });
   bark.map.repeat.set(2, 1);
   const foliage = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 });
+  const leafy = new THREE.MeshStandardMaterial({ map: foliageTexture(tier === 'high' ? 512 : 256), roughness: 0.9 });
+  leafy.map.repeat.set(2, 2);
   const soil = new THREE.MeshStandardMaterial({ color: 0x4a3828, roughness: 1 });
 
   // ---------------------------------------------------------------- fence and hedge
@@ -105,10 +107,10 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
     for (let i = 0; i < nSeg; i++) {
       const x = G.minX + (i + 0.5) / nSeg * (G.maxX - G.minX);
       const g = blobGeometry(0.5, 2, i * 1.7, 0.12);
-      b.add(g, foliage, T(x, fy + hh * 0.5, hz, rnd() * 6, 0, 0, (G.maxX - G.minX) / nSeg * 1.25, hh * 1.0, hd * 1.05), 0x2f4a22);
+      b.add(g, leafy, T(x, fy + hh * 0.5, hz, rnd() * 6, 0, 0, (G.maxX - G.minX) / nSeg * 1.25, hh * 1.0, hd * 1.05), 0xb8c8a8);
     }
     const pts = [];
-    const n = Math.round(1400 * q);
+    const n = Math.round(2600 * q);
     for (let i = 0; i < n; i++) {
       const face = rnd();
       const x = G.minX + 0.05 + rnd() * (G.maxX - G.minX - 0.1);
@@ -236,7 +238,7 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
     }
     leafGroups.push(leafCards(scene, grass.uniforms, pts, { size: 0.085, hue: 108, light: 0.9, cast: shadows && tier === 'high', shadows }));
     const rose = [0xd94f6e, 0xf0a5b5, 0xc23a55];
-    for (const [x, y, z] of blooms) b.add(blobGeometry(0.022, 1, x * 9, 0.3), foliage, T(x, y, z, rnd() * 6, 0, 0, 1, 0.7, 1), rose[Math.floor(rnd() * 3)]);
+    for (const [x, y, z] of blooms) b.add(blobGeometry(0.015, 1, x * 9, 0.3), foliage, T(x, y, z, rnd() * 6, 0, 0, 1, 0.7, 1), rose[Math.floor(rnd() * 3)]);
   }
 
   // ---------------------------------------------------------------- bird bath, stump, bench, pots
@@ -273,14 +275,18 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
       b.add(new THREE.BoxGeometry(0.03, 0.03, N.halfZ * 2), iron, T(x, N.seat - 0.05, N.z));
     }
     // Patio pots: terracotta with herbs.
+    const herbs = [];
     for (const [x, z, r, h] of POTS) {
       const pp = [V2(0.0001, 0), V2(r * 0.75, 0), V2(r * 0.95, h * 0.85), V2(r * 1.05, h * 0.86), V2(r * 1.05, h), V2(r * 0.92, h), V2(r * 0.9, h * 0.92), V2(0.0001, h * 0.92)];
       b.add(new THREE.LatheGeometry(pp, 28), terracotta, T(x, fy, z), shade(rnd, 0.9, 1.05));
       b.add(new THREE.CircleGeometry(r * 0.9, 20), soil, T(x, fy + h * 0.92, z, 0, -Math.PI / 2));
-      for (let k = 0; k < 4; k++) {
-        b.add(blobGeometry(r * (0.55 + rnd() * 0.25), 1, x + k, 0.3), foliage, T(x + (rnd() - 0.5) * r, fy + h + r * 0.35 + rnd() * r * 0.4, z + (rnd() - 0.5) * r), [0x5e7f4a, 0x7c8f6a, 0x4f7040][k % 3]);
+      b.add(blobGeometry(r * 0.75, 1, x, 0.25), leafy, T(x, fy + h + r * 0.25, z, 0, 0, 0, 1, 0.8, 1), 0xb0c0a0);
+      for (let k = 0; k < Math.round(70 * q + 20); k++) {
+        _v.set(rnd() * 2 - 1, rnd() * 0.9 + 0.1, rnd() * 2 - 1).normalize();
+        herbs.push([x + _v.x * r * 0.85, fy + h + r * 0.2 + _v.y * r * 0.7, z + _v.z * r * 0.85, _v.x, _v.y, _v.z]);
       }
     }
+    leafGroups.push(leafCards(scene, grass.uniforms, herbs, { size: 0.07, hue: 110, light: 0.95, cast: false, shadows }));
   }
 
   // ---------------------------------------------------------------- apple tree
@@ -324,7 +330,7 @@ export function buildGarden(scene, quality, kitchen, teaStand) {
       const k = 2 + Math.floor(rnd() * 3);
       for (let j = 0; j < k; j++) {
         const r = 0.7 + rnd() * 0.9;
-        b.add(blobGeometry(r, 2, i * 3 + j, 0.2), foliage, T(x + (rnd() - 0.5) * 0.8, fy + hgt + (rnd() - 0.3) * 0.9, z + (rnd() - 0.5) * 0.8), [0x3e5a2e, 0x4b6a35, 0x35502a, 0x56703c][(i + j) % 4], { cast: false, receive: false });
+        b.add(blobGeometry(r, 2, i * 3 + j, 0.2), leafy, T(x + (rnd() - 0.5) * 0.8, fy + hgt + (rnd() - 0.3) * 0.9, z + (rnd() - 0.5) * 0.8), [0x8a9a80, 0xa0b090, 0x7e8c74, 0xb0b89a][(i + j) % 4], { cast: false, receive: false });
       }
     }
   }

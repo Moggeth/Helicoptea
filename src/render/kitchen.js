@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { TABLE, ROOM, PAD, STATION, CUPS, DISCARD, TEAPOT, SUGAR, VASE, JUG, PLATE, BOOKS, SPOON } from '../sim/layout.js';
+import { CHAIRS, TABLE, ROOM, PAD, STATION, CUPS, DISCARD, TEAPOT, SUGAR, VASE, JUG, PLATE, BOOKS, SPOON } from '../sim/layout.js';
 import * as TX from './textures.js';
 import { buildGarden } from './garden.js';
 import { cupModel, glazeMaterial, vesselGeometry, saucerGeometry, handleGeometry } from './models.js';
@@ -186,21 +186,42 @@ export function buildKitchen(scene, renderer, quality, progress) {
     const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, ROOM.ceilingY - 1.1, 6), new THREE.MeshStandardMaterial({ color: 0x222222 }));
     cord.position.set(0.05, (ROOM.ceilingY + 1.1) / 2, 0.05);
     scene.add(cord);
-    // chairs (simple silhouettes)
-    const chairMat = new THREE.MeshStandardMaterial({ color: 0x6f4e37, roughness: 0.7 });
-    for (const [x, z, yaw] of [[0.2, 0.85, 0], [1.25, -0.2, -Math.PI / 2]]) {
+    // Windsor chairs: oak seat, turned splayed legs, spindle back with a bent top rail.
+    const chairMat = new THREE.MeshStandardMaterial({ color: 0x8a5f40, map: wood.map, roughness: 0.6 });
+    const turned = (() => {
+      const p = [];
+      for (let i = 0; i <= 12; i++) { const t = i / 12; p.push(V2(0.011 + 0.005 * Math.sin(t * Math.PI) + (t > 0.82 && t < 0.9 ? 0.003 : 0), t * 0.47)); }
+      return new THREE.LatheGeometry(p, 10);
+    })();
+    for (const [x, z, yaw] of CHAIRS) {
       const c = new THREE.Group();
-      const seat = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.035, 0.4), chairMat);
+      const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.2, 0.035, 32), chairMat);
+      seat.scale.set(1, 1, 0.95);
       seat.position.y = -0.3;
       c.add(seat);
-      const back2 = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.45, 0.03), chairMat);
-      back2.position.set(0, -0.06, 0.19);
-      c.add(back2);
       for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-        const l = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.012, 0.45, 8), chairMat);
-        l.position.set(sx * 0.18, -0.53, sz * 0.17);
+        const l = new THREE.Mesh(turned, chairMat);
+        l.position.set(sx * 0.15, -0.76, sz * 0.14);
+        l.rotation.set(-sz * 0.08, 0, sx * 0.08);
         c.add(l);
       }
+      for (const sz of [-1, 1]) {
+        const st = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.32, 8), chairMat);
+        st.rotation.z = Math.PI / 2; st.position.set(0, -0.6, sz * 0.15);
+        c.add(st);
+      }
+      for (let k = -3; k <= 3; k++) {
+        const a = k * 0.17;
+        const sp = new THREE.Mesh(new THREE.CylinderGeometry(k % 3 === 0 ? 0.011 : 0.0065, k % 3 === 0 ? 0.012 : 0.0065, 0.44, 8), chairMat);
+        sp.position.set(Math.sin(a) * 0.17, -0.06, 0.06 + Math.cos(a) * 0.12);
+        sp.rotation.x = 0.12;
+        c.add(sp);
+      }
+      const rail = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.016, 8, 24, 2.0), chairMat);
+      rail.rotation.set(Math.PI / 2 - 0.12, 0, Math.PI / 2 - 1.0 + Math.PI);
+      rail.position.set(0, 0.16, 0.06 - 0.03);
+      rail.scale.set(1, 0.75, 1);
+      c.add(rail);
       c.position.set(x, 0, z);
       c.rotation.y = yaw;
       scene.add(shadowed(c));

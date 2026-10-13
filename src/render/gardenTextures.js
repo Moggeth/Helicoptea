@@ -48,7 +48,7 @@ export function brickTexture(size = 1024) {
   for (let row = 0; row < rows; row++) {
     for (let col = -1; col <= cols; col++) {
       const x = col * bw + (row % 2 ? bw / 2 : 0), y = row * bh;
-      const h = 8 + r() * 14, s = 38 + r() * 18, l = 34 + r() * 14 - (r() < 0.08 ? 10 : 0);
+      const h = 10 + r() * 14, s = 24 + r() * 16, l = 36 + r() * 14 - (r() < 0.08 ? 10 : 0);
       ctx.fillStyle = `hsl(${h},${s}%,${l}%)`;
       ctx.fillRect(x + m, y + m, bw - 2 * m, bh - 2 * m);
     }
@@ -117,14 +117,15 @@ export function flagTexture(size = 1024) {
 }
 
 // Fence boards / bench slats: silvered softwood. One tile = 1 m.
-export function boardTexture(size = 512, tint = [150, 128, 100]) {
+export function boardTexture(size = 512, tint = [150, 128, 100], alongU = false) {
   const [c, ctx] = canvas(size, size);
   const n = makeNoise(55);
   const img = ctx.createImageData(size, size);
   for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
     const i = (y * size + x) * 4;
-    const grain = fbm(n, x / 5, y / 90, 4);
-    const g = 0.72 + 0.4 * grain + 0.06 * Math.sin(y / 3 + grain * 12);
+    const a = alongU ? y : x, b = alongU ? x : y;
+    const grain = fbm(n, a / 6, b / 110, 4);
+    const g = 0.78 + 0.3 * grain + 0.05 * Math.sin(a / 2.5 + grain * 9);
     img.data[i] = tint[0] * g; img.data[i + 1] = tint[1] * g; img.data[i + 2] = tint[2] * g; img.data[i + 3] = 255;
   }
   ctx.putImageData(img, 0, 0);
@@ -170,6 +171,30 @@ export function leafTexture(size = 256, hue = 100) {
     ctx.restore();
   }
   return toTexture(c, { wrap: false, aniso: 4 });
+}
+
+// Dense opaque foliage (hedges, distant trees, herbs): leaves over shadowy depth. One tile ~ 0.5 m.
+export function foliageTexture(size = 512, hue = 100) {
+  const [c, ctx] = canvas(size, size);
+  const r = rng(hue * 13 + 1);
+  ctx.fillStyle = `hsl(${hue},38%,10%)`;
+  ctx.fillRect(0, 0, size, size);
+  for (let layer = 0; layer < 3; layer++) {
+    const n = 900;
+    for (let k = 0; k < n; k++) {
+      const x = r() * size, y = r() * size, a = r() * Math.PI * 2;
+      const L = size * (0.022 + r() * 0.018), W = L * 0.45;
+      const l = 14 + layer * 9 + r() * 12;
+      for (const [dx, dy] of [[0, 0], [size, 0], [-size, 0], [0, size], [0, -size]]) {
+        ctx.save();
+        ctx.translate(x + dx, y + dy); ctx.rotate(a);
+        ctx.fillStyle = `hsl(${hue - 10 + r() * 24},${35 + r() * 20}%,${l}%)`;
+        ctx.beginPath(); ctx.moveTo(-L, 0); ctx.quadraticCurveTo(0, -W, L, 0); ctx.quadraticCurveTo(0, W, -L, 0); ctx.fill();
+        ctx.restore();
+      }
+    }
+  }
+  return toTexture(c);
 }
 
 // ------------------------------------------------------------------ garden ground and grass mask

@@ -76,12 +76,15 @@ export function blobGeometry(r, detail = 2, seed = 1, amp = 0.22) {
   g = mergeVertices(g);
   const p = g.attributes.position;
   const v = new THREE.Vector3();
+  const uvs = [];
   for (let i = 0; i < p.count; i++) {
     v.fromBufferAttribute(p, i);
     const n = Math.sin(v.x * 9.1 / r + seed) * Math.sin(v.y * 7.3 / r + seed * 2.1) * Math.sin(v.z * 8.7 / r + seed * 0.7);
     v.multiplyScalar(1 + amp * n);
     p.setXYZ(i, v.x, v.y, v.z);
+    uvs.push(Math.atan2(v.z, v.x) / Math.PI * 2 * r * 2, Math.acos(THREE.MathUtils.clamp(v.y / (r * (1 + amp)), -1, 1)) * r * 2);
   }
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   g.computeVertexNormals();
   return g;
 }

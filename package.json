@@ -6,7 +6,7 @@
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview --host",
-    "check": "node tests/sim-checks.mjs && node tests/chinook-checks.mjs && node tests/milk-checks.mjs"
+    "check": "node tests/sim-checks.mjs && node tests/chinook-checks.mjs && node tests/milk-checks.mjs && node tests/world-checks.mjs"
   },
   "author": "",
   "license": "UNLICENSED",

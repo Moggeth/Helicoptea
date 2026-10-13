@@ -99,10 +99,10 @@ const VERT_HEAD = `
     float w = W * (1.0 - pow(t, 1.4)) * (flower > 0.5 && t > 0.82 ? 2.6 : 1.0);
     gPos = vec3(root.x + D.x * along, uGroundY + up, root.y + D.y * along) + side * position.x * w;
     vec3 T = vec3(D.x * sin(phi), cos(phi), D.y * sin(phi));
-    gNrm = normalize(mix(normalize(cross(side, T)), vec3(0.0, 1.0, 0.0), 0.45));
+    gNrm = normalize(mix(normalize(cross(side, T)), vec3(0.0, 1.0, 0.0), 0.6));
     // Colour: dark at the root, sunlit at the tip; meadow grass drier; flower heads.
-    vec3 base = vec3(0.045, 0.10, 0.025);
-    vec3 tip = mix(vec3(0.20, 0.36, 0.08), vec3(0.42, 0.44, 0.15), mk.g * (0.4 + 0.6 * h2.y));
+    vec3 base = vec3(0.07, 0.14, 0.035);
+    vec3 tip = mix(vec3(0.27, 0.46, 0.11), vec3(0.5, 0.52, 0.2), mk.g * (0.4 + 0.6 * h2.y));
     tip *= 0.8 + 0.4 * h1;
     vec3 col = mix(base, tip, smoothstep(0.0, 1.0, t));
     if (flower > 0.5 && t > 0.8) {

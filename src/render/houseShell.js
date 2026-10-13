@@ -58,6 +58,12 @@ export function buildHouseShell(scene, quality) {
   b.add(new THREE.BoxGeometry(W.w, W.transomH, WALL_T + 0.01), paint, T(W.x, W.transomY, zm));
   b.add(new THREE.BoxGeometry(SILL.w, SILL.h, SILL.depth), paint, T(SILL.x, SILL.top - SILL.h / 2, zi + SILL.depth / 2));
   b.add(new THREE.BoxGeometry(W.w + 0.16, 0.045, 0.11), stone, T(W.x, wy0 - 0.02, zo - 0.04));
+  // Plastered reveals on the room half of the window and door openings.
+  const rev = (w, h, x, y, z, ry, rx = 0) => b.add(planeUV(w, h, 1), plaster, T(x, y, z, ry, rx), 0xf2ece2, { cast: false });
+  const hd = WALL_T / 2, rz = zi - hd / 2;
+  rev(hd, W.h, wx0 + 0.0005, W.y, rz, Math.PI / 2);
+  rev(hd, W.h, wx1 - 0.0005, W.y, rz, -Math.PI / 2);
+  rev(W.w, hd, W.x, wy1 - 0.0005, rz, 0, Math.PI / 2);
   // Opened sashes (casements swung out flat to the wall's normal, fanlights tilted out at the top).
   for (const s of sashes()) {
     const fw = 0.04, fd = 0.035;
@@ -78,6 +84,9 @@ export function buildHouseShell(scene, quality) {
     b.add(new THREE.BoxGeometry(0.07, dh, 0.024), paint, T(D.x0 - 0.035, fy + dh / 2, z));
     b.add(new THREE.BoxGeometry(0.07, dh, 0.024), paint, T(D.x1 + 0.035, fy + dh / 2, z));
   }
+  rev(hd, dh, D.x0 + 0.0005, fy + dh / 2, rz, Math.PI / 2);
+  rev(hd, dh, D.x1 - 0.0005, fy + dh / 2, rz, -Math.PI / 2);
+  rev(dw, hd, (D.x0 + D.x1) / 2, D.top - 0.0005, rz, 0, Math.PI / 2);
   b.add(new THREE.BoxGeometry(dw, 0.025, WALL_T + 0.08), stone, T((D.x0 + D.x1) / 2, fy + 0.0125, zm - 0.03));
   {
     const leaf = doorLeaf();
