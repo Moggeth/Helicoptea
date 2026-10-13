@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RAPIER, GROUPS } from './physics.js';
 import { CFG } from '../config.js';
-import { CUPS, TEAPOT, SUGAR, VASE, JUG, BOOKS, STATION, TABLE } from './layout.js';
+import { CUPS, TEAPOT, SUGAR, VASE, JUG, BOOKS, STATION, TABLE, MILK_BOWL } from './layout.js';
 
 // Rotor downwash as a small fluid simulation.
 //
@@ -58,6 +58,7 @@ export class AirField {
     circ(SUGAR.x, SUGAR.z, SUGAR.r);
     circ(VASE.x, VASE.z, VASE.r);
     circ(JUG.x, JUG.z, JUG.r);
+    circ(MILK_BOWL.x, MILK_BOWL.z, MILK_BOWL.rOut);
     box(BOOKS.x, BOOKS.z, 0.1, 0.07);
     box(STATION.x, STATION.z, STATION.baseHalf[0], STATION.baseHalf[2]);
   }

@@ -50,7 +50,9 @@ export class Debug {
       lines.push(`collective ${h.collective.toFixed(2)}  thrust/W ${(h.thrust / ((h.def ? h.def.mass : CFG.heli.mass) * 9.81)).toFixed(2)}  rotor ${(h.rotorSpeed * 100).toFixed(0)}%  ground ${h.skidClearance.toFixed(3)} m${h.grounded ? ' (landed)' : ''}`);
     }
     if (b) lines.push(`cargo mass ${(b.mass * 1000).toFixed(1)} g  wet ${(b.wetness * 100).toFixed(0)}%  immersion ${(b.immersion * 100).toFixed(0)}%  tension ${(b.tension * 1000).toFixed(0)} mN  potency ${(b.potency * 100).toFixed(0)}%`);
-    lines.push(`cups ${s.cups.map((c) => `${c.name} ${(c.brew * 100).toFixed(0)}%`).join('  ')}`);
+    const k = s.milk.bucket;
+    if (k) lines.push(`bucket ${(k.vol * 1e6).toFixed(1)} ml (${(k.fill * 100).toFixed(0)}%)  ${(k.mass * 1000).toFixed(1)} g  in ${(k.flowIn * 1e6).toFixed(1)} out ${(k.flowOut * 1e6).toFixed(1)} spill ${(k.spillRate * 1e6).toFixed(1)} ml/s  valve ${k.valveOpen ? 'OPEN' : 'shut'}  stream ${s.milk.parcels.length}  puddles ${s.milk.puddles.length}  crock ${(s.milk.bowl.vol * 1e6).toFixed(0)} ml`);
+    lines.push(`cups ${s.cups.map((c) => `${c.name} ${(c.brew * 100).toFixed(0)}% milk ${((c.milk || 0) * 100).toFixed(1)}%`).join('  ')}`);
     lines.push('F4 colliders');
     this.cached = lines.join('\n');
     return this.cached;

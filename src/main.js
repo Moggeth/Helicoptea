@@ -316,7 +316,10 @@ async function boot() {
     if (input.attachBtn) {
       const cand = sim.attachCandidate();
       input.attachBtn.classList.toggle('ready', !!cand);
-      input.attachBtn.querySelector('.lbl').textContent = !cand && sim.carriedBag() ? 'Drop' : 'Hook';
+      input.attachBtn.querySelector('.lbl').textContent = !cand && sim.carriedCargo().length ? 'Drop' : 'Hook';
+      const bk = sim.milk.bucket, carryingBucket = !!(bk && sim.carriedCargo().includes(bk));
+      input.pourBtn.classList.toggle('hidden', !carryingBucket);
+      input.pourBtn.classList.toggle('empty', carryingBucket && bk.vol < 1e-7);
       input.assistBtn.classList.toggle('on', sim.assist);
     }
 
@@ -357,7 +360,7 @@ async function boot() {
         else if (e.type === 'bump') input.pads.rumble(Math.min(0.6, e.dv * 0.5), 0.3, 90);
         else if (e.type === 'attach') input.pads.rumble(0, 0.35, 50);
         else if (e.type === 'release') input.pads.rumble(0, 0.25, 40);
-        else if (e.type === 'splash') input.pads.rumble(0.1, Math.min(0.5, 0.15 + e.speed * 0.4), 90);
+        else if (e.type === 'splash' || e.type === 'bucketSplash') input.pads.rumble(0.1, Math.min(0.5, 0.15 + e.speed * 0.4), 90);
         else if (e.type === 'rotorTick') input.pads.rumble(0.25, 0.4, 30);
       }
     }
@@ -371,7 +374,7 @@ async function boot() {
     camTarget.copy(view.focusPoint());
     const heading = sim.heli ? sim.heli.heading() : camRig.yaw;
     camRig.sizeScale += ((sim.aircraft === 'chinook' ? 1.45 : 1) - camRig.sizeScale) * Math.min(1, rd * 3);
-    camRig.update(Math.max(rd, 1e-4), camTarget, heading, sim.carriedBag() ? view.bagPosCarried : null, sim);
+    camRig.update(Math.max(rd, 1e-4), camTarget, heading, sim.carriedCargo().length ? view.bagPosCarried : null, sim);
 
     // Audio bed follows the rotor.
     const h = sim.heli;
@@ -385,10 +388,18 @@ async function boot() {
       dist: h ? camera.position.distanceTo(h.pos) : 1,
     });
 
+    // The milk stream: a pour that you can hear land.
+    const bk = sim.milk.bucket;
+    audio.updatePour({
+      rate: started && !paused && bk ? bk.flowOut + bk.spillRate : 0,
+      intoLiquid: events.some((e) => e.type === 'milkLand'),
+      pan: bk ? tmp.copy(bk.pos).project(camera).x : 0,
+    });
+
     // HUD.
     if (started && !paused) flow.update(frameDt * worldSpeed);
     if (!sim.assist && h) {
-      const extra = sim.carriedBags().reduce((m, b) => m + b.mass, 0);
+      const extra = sim.carriedCargo().reduce((m, b) => m + b.mass, 0);
       hud.setCollective(h.collective, Math.min(1, (h.def.mass + extra) / (h.def.mass * h.def.thrustToWeight)));
     }
     hud.updateBrew(view.projectCups(camera, innerWidth, innerHeight), flow.steepTimers);

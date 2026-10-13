@@ -8,6 +8,10 @@ Three.js (r169) for rendering, Rapier 3D (0.14, WASM) for rigid bodies and conta
 
 Pick on the start screen, in **Pause → Aircraft**, or press **V** in flight (`?aircraft=chinook` in the URL also works; the choice is remembered). The **micro heli** is the nimble single-rotor original. The **Chinook** is a 94 g tandem-rotor heavy lifter: two counter-rotating rotors, no tail rotor, three cargo hooks, much more inertia, and its own breakup. See [docs/DESIGN.md](docs/DESIGN.md#chinook-srcsimchinookjs).
 
+## Milk
+
+A Bambi-style milk bucket hangs on its own little hanger beside a stoneware milk crock. Hook it like a bag, lower it into the crock and it fills through a one-way valve in its base until the levels match; lift it out and it keeps the milk. Fly it over a cup and hold **G** (gamepad **RB**, touch **Pour**) to open the release valve: the milk falls as a stream that the rotor wash pushes about. Milk that lands in a cup mixes in and lightens the tea; milk that misses splashes and leaves a puddle that slowly soaks in. A full bucket weighs about 16 g, sloshes, and slops over the rim if you jerk it. See [docs/DESIGN.md](docs/DESIGN.md#milk-srcsimmilkjs).
+
 ## Rotor wash, AO
 
 The rotor's downwash is a small fluid simulation (wake column plus a 2D outwash solver over the table). It pushes the dangling bag and strings, buffets the helicopter near surfaces, ripples the linen runner, blows steam and dust, nods the flowers, and dimples and sprays the tea. Ambient occlusion (GTAO) grounds everything on desktop. See [docs/DESIGN.md](docs/DESIGN.md).
@@ -38,6 +42,7 @@ npm run check                        # headless physics checks, both aircraft (N
 node tests/e2e.mjs                   # browser checks against npm run preview (port 4178)
 node tests/e2e.mjs http://localhost:5178/ --headed --only=desktop
 node tests/e2e-chinook.mjs           # Chinook through keyboard, gamepad and touch, picker, breakup
+node tests/e2e-milk.mjs              # milk bucket: hook, dip, carry, pour with G / RB / touch, puddles
 ```
 
 `tests/sim-checks.mjs` drives the real simulation with the same stick inputs a player produces (via a scripted autopilot) and asserts physical outcomes: hover, assist on/off behaviour, peg pickup, swing and load transfer, immersion, wetness and mass, per-cup brewing, extraction and draining, release onto the saucer, landing, crash thresholds, and bounded crash/restart cycles.
@@ -51,7 +56,8 @@ node tests/e2e-chinook.mjs           # Chinook through keyboard, gamepad and tou
 | Cyclic (tilt) | Arrow keys (or I J K L) | Right stick | Right thumb stick |
 | Collective | W / S | Left stick up/down, or RT / LT | Left thumb up/down |
 | Yaw | A / D (or Q / E) | Left stick left/right | Left thumb left/right |
-| Hook / release | Space (Chinook: each press hooks the nearest bag to a free hook; with none in reach it drops them all) | A | Hook button |
+| Hook / release | Space (Chinook: each press hooks the nearest bag or the milk bucket to a free hook; with none in reach it drops them all) | A | Hook button |
+| Pour milk (hold) | G | RB | Pour button (shown while carrying the bucket) |
 | Switch aircraft | V | Pause menu | Pause menu |
 | Flight Assist | F | Y | Assist button |
 | Restart flight | R | Start | ↻ (top right) |

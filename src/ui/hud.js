@@ -1,4 +1,4 @@
-import { teaColor } from '../render/water.js';
+import { milkyTea } from '../render/water.js';
 import { prettyName } from '../input/gamepad.js';
 
 const ICONS = {
@@ -89,9 +89,9 @@ export class Hud {
   key(action) {
     const d = this.device;
     const K = {
-      keyboard: { lift: '<kbd>W</kbd>', attach: '<kbd>Space</kbd>', assist: '<kbd>F</kbd>', restart: '<kbd>R</kbd>' },
-      gamepad: { lift: '<kbd>L-stick ↑</kbd>', attach: '<kbd>A</kbd>', assist: '<kbd>Y</kbd>', restart: '<kbd>Start</kbd>' },
-      touch: { lift: 'left stick ↑', attach: '<kbd>Hook</kbd>', assist: '<kbd>Assist</kbd>', restart: '↻' },
+      keyboard: { lift: '<kbd>W</kbd>', attach: '<kbd>Space</kbd>', assist: '<kbd>F</kbd>', restart: '<kbd>R</kbd>', pour: '<kbd>G</kbd>' },
+      gamepad: { lift: '<kbd>L-stick ↑</kbd>', attach: '<kbd>A</kbd>', assist: '<kbd>Y</kbd>', restart: '<kbd>Start</kbd>', pour: '<kbd>RB</kbd>' },
+      touch: { lift: 'left stick ↑', attach: '<kbd>Hook</kbd>', assist: '<kbd>Assist</kbd>', restart: '↻', pour: '<kbd>Pour</kbd>' },
     };
     return K[d][action];
   }
@@ -165,9 +165,10 @@ export class Hud {
       el.classList.toggle('show', show);
       if (!show) return;
       el.style.left = `${c.x}px`; el.style.top = `${c.y}px`;
-      const col = teaColor(c.cup.brew);
+      const col = milkyTea(c.cup.brew, c.cup.milk || 0);
       el.querySelector('.dot').style.background = `rgb(${col.r * 255 | 0},${col.g * 255 | 0},${col.b * 255 | 0})`;
-      el.querySelector('.nm').textContent = BREW_NAMES.find(([t]) => c.cup.brew < t)[1];
+      const m = c.cup.milk || 0;
+      el.querySelector('.nm').textContent = BREW_NAMES.find(([t]) => c.cup.brew < t)[1] + (m > 0.2 ? ', very milky' : m > 0.07 ? ', milky' : m > 0.015 ? ', splash of milk' : '');
     });
   }
 
@@ -232,12 +233,12 @@ export class Hud {
   helpRows(tab) {
     const R = {
       keyboard: [['<kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd>', 'Cyclic: tilt forward, back and sideways (or I J K L)'], ['<kbd>W</kbd><kbd>S</kbd>', 'Collective: more / less lift'], ['<kbd>A</kbd><kbd>D</kbd>', 'Yaw: turn left / right'],
-        ['<kbd>Space</kbd>', 'Hook a bag / release it (the Chinook has three hooks: Space drops them all)'], ['<kbd>V</kbd>', 'Switch aircraft: micro heli / Chinook'], ['<kbd>F</kbd>', 'Flight Assist on / off'], ['<kbd>R</kbd>', 'Restart flight'], ['<kbd>Shift</kbd>+<kbd>R</kbd>', 'Reset sandbox'],
+        ['<kbd>Space</kbd>', 'Hook a bag or the milk bucket / release it (the Chinook has three hooks: Space drops them all)'], ['<kbd>G</kbd> (hold)', 'Pour milk from the bucket (dip it in the milk crock to fill it)'], ['<kbd>V</kbd>', 'Switch aircraft: micro heli / Chinook'], ['<kbd>F</kbd>', 'Flight Assist on / off'], ['<kbd>R</kbd>', 'Restart flight'], ['<kbd>Shift</kbd>+<kbd>R</kbd>', 'Reset sandbox'],
         ['<kbd>C</kbd>', 'Recenter camera (drag to orbit, wheel to zoom)'], ['<kbd>M</kbd>', 'Mute'], ['<kbd>Esc</kbd>', 'Pause'], ['<kbd>`</kbd>', 'Debug overlay']],
-      gamepad: [['Right stick', 'Cyclic: tilt'], ['Left stick ↕', 'Collective (or triggers RT / LT)'], ['Left stick ↔', 'Yaw'], ['<kbd>A</kbd>', 'Hook / release'], ['<kbd>Y</kbd>', 'Flight Assist on / off'],
+      gamepad: [['Right stick', 'Cyclic: tilt'], ['Left stick ↕', 'Collective (or triggers RT / LT)'], ['Left stick ↔', 'Yaw'], ['<kbd>A</kbd>', 'Hook / release'], ['<kbd>RB</kbd> (hold)', 'Pour milk from the bucket'], ['<kbd>Y</kbd>', 'Flight Assist on / off'],
         ['<kbd>Start</kbd>', 'Restart flight'], ['<kbd>B</kbd> / R3', 'Recenter camera'], ['D-pad', 'Orbit and zoom camera'], ['<kbd>Back</kbd> / <kbd>View</kbd>', 'Pause menu'], ['<kbd>X</kbd>', 'Controls'],
         ['After a crash', '<kbd>A</kbd> also restarts'], ['In menus', 'D-pad or left stick to move, <kbd>A</kbd> select, <kbd>B</kbd> back, ◀ ▶ adjust sliders']],
-      touch: [['Left thumb', 'Up / down: collective. Left / right: yaw'], ['Right thumb', 'Cyclic: tilt in any direction'], ['<kbd>Hook</kbd>', 'Hook / release (glows when a loop is in reach)'],
+      touch: [['Left thumb', 'Up / down: collective. Left / right: yaw'], ['Right thumb', 'Cyclic: tilt in any direction'], ['<kbd>Hook</kbd>', 'Hook / release (glows when a loop is in reach)'], ['<kbd>Pour</kbd> (hold)', 'Pour milk (appears while you carry the bucket)'],
         ['<kbd>Assist</kbd>', 'Flight Assist on / off'], ['<kbd>View</kbd>', 'Recenter camera'], ['↻ (top right)', 'Restart flight']],
     };
     return R[tab].map(([k, d]) => `<dt>${k}</dt><dd>${d}</dd>`).join('');

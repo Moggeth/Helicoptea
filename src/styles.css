@@ -205,6 +205,10 @@ kbd {
 .touch-btn.assist { width: 60px; height: 60px; left: calc(20px + var(--safe-l)); bottom: calc(58vh - 4px); border-radius: 18px; }
 .touch-btn.assist.on { background: var(--sage); color: #fff; }
 .touch-btn.recenter { width: 48px; height: 48px; right: calc(108px + var(--safe-r)); bottom: calc(58vh + 4px); }
+.touch-btn.pour { width: 58px; height: 58px; right: calc(166px + var(--safe-r)); bottom: calc(58vh + 2px); background: #f4f0e6; }
+.touch-btn.pour .ico { font-size: 20px; line-height: 1; margin-bottom: -12px; }
+.touch-btn.pour.hidden { display: none; }
+.touch-btn.pour.empty { opacity: 0.55; }
 
 /* Portrait phones: sticks along the bottom, buttons above; a gentle nudge to rotate. */
 @media (orientation: portrait) {
@@ -212,6 +216,7 @@ kbd {
   .touch-btn.attach { bottom: calc(40vh + 8px); }
   .touch-btn.assist { bottom: calc(40vh + 14px); }
   .touch-btn.recenter { bottom: calc(40vh + 20px); }
+  .touch-btn.pour { bottom: calc(40vh + 18px); }
   .hint { max-width: calc(100vw - 32px); top: calc(96px + var(--safe-t)); font-size: 13.5px; }
   .rotate-nudge { display: block !important; }
   .assist-invite { display: none; }

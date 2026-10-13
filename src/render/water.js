@@ -169,5 +169,13 @@ export class TeaSurface {
     else u.uWash.value.z = this.washS;
     const steep = cup.steep;
     u.uBag.value.set(cup.bagPos.x - cup.x, cup.bagPos.z - cup.z, Math.max(u.uBag.value.z * Math.exp(-dt * 0.8), steep), 0);
+    // Milk poured in billows as a pale cloud where it lands, then mixes in (the view sets cloud/cloudAt).
+    if (this.cloud > 0.01) {
+      this.cloud *= Math.exp(-dt * 0.6);
+      if (this.cloud > steep) {
+        u.uBag.value.set(this.cloudAt[0], this.cloudAt[1], Math.max(u.uBag.value.z, Math.min(0.85, this.cloud)), 0);
+        u.uPlume.value.lerp(MILK, Math.min(1, this.cloud * 1.5));
+      }
+    }
   }
 }

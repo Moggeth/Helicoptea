@@ -22,7 +22,7 @@ export const STANDARD_BINDING = {
     roll: { type: 'axis', index: 2, sign: 1 },
   },
   triggers: { up: 7, down: 6 },
-  buttons: { attach: [0], recenter: [1, 11], help: [2], assist: [3], pause: [8], restart: [9], camLeft: [14], camRight: [15], zoomIn: [12], zoomOut: [13], up: [12], down: [13], left: [14], right: [15], confirm: [0], back: [1] },
+  buttons: { attach: [0], pour: [5], recenter: [1, 11], help: [2], assist: [3], pause: [8], restart: [9], camLeft: [14], camRight: [15], zoomIn: [12], zoomOut: [13], up: [12], down: [13], left: [14], right: [15], confirm: [0], back: [1] },
 };
 
 // Wizard steps: axes first (move), then buttons (press).
@@ -32,6 +32,7 @@ export const BIND_STEPS = [
   { key: 'pitch', kind: 'axis', prompt: 'Push the stick you want for <b>TILT</b> all the way <b>forward</b>' },
   { key: 'roll', kind: 'axis', prompt: 'Push the <b>TILT</b> stick all the way <b>right</b>' },
   { key: 'attach', kind: 'button', prompt: 'Press the button for <b>Hook / release</b>' },
+  { key: 'pour', kind: 'button', prompt: 'Press the button to <b>Pour milk</b> (held)' },
   { key: 'assist', kind: 'button', prompt: 'Press the button for <b>Flight Assist</b>' },
   { key: 'restart', kind: 'button', prompt: 'Press the button for <b>Restart flight</b>' },
   { key: 'pause', kind: 'button', prompt: 'Press the button for <b>Pause / menu</b>' },
@@ -81,7 +82,7 @@ export class Gamepads {
     });
   }
 
-  zero() { this.out.pitch = this.out.roll = this.out.yaw = this.out.collective = 0; }
+  zero() { this.out.pitch = this.out.roll = this.out.yaw = this.out.collective = 0; this.pour = false; }
   list() { return [...(navigator.getGamepads ? navigator.getGamepads() : [])].filter(Boolean); }
   active() { const l = navigator.getGamepads ? navigator.getGamepads() : []; return this.activeIndex !== null ? l[this.activeIndex] : null; }
   hasBinding(gp) { return !!load(`bind.${gp.id}`, null); }
@@ -129,6 +130,7 @@ export class Gamepads {
     this.out.pitch = clamp(pitch * S.cyclic * (S.invertPitch ? -1 : 1));
     this.out.roll = clamp(roll * S.cyclic);
     if (menuMode) this.zero();
+    else this.pour = (B.buttons.pour || []).some((i) => !!gp.buttons[i]?.pressed);
 
     // Edge-triggered logical buttons.
     const prev = this.prev.get(gp.index)?.buttons || [];

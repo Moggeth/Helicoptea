@@ -109,6 +109,27 @@ export class Audio {
     this.rotorPan.pan.setTargetAtTime(Math.max(-0.8, Math.min(0.8, pan)), t, 0.05);
   }
 
+  // Continuous milk stream: a soft hiss while falling, a deeper trickle once it lands in liquid.
+  updatePour({ rate, intoLiquid, pan }) {
+    if (!this.ready) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    if (!this.pour) {
+      const src = ctx.createBufferSource(); src.buffer = this.noise; src.loop = true;
+      const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.6; f.frequency.value = 1400;
+      const g = ctx.createGain(); g.gain.value = 0;
+      const p = ctx.createStereoPanner();
+      src.connect(f).connect(g).connect(p).connect(this.master);
+      src.start();
+      this.pour = { f, g, p, liquid: 0 };
+    }
+    const P = this.pour;
+    P.liquid += ((intoLiquid ? 1 : 0) - P.liquid) * 0.15;
+    const level = Math.min(1, Math.sqrt(Math.max(0, rate) / 1.0e-5));
+    P.f.frequency.setTargetAtTime(2600 - 1700 * P.liquid + 300 * Math.sin(t * 23), t, 0.03);
+    P.g.gain.setTargetAtTime(level * (0.05 + 0.07 * P.liquid), t, rate > 0 ? 0.04 : 0.08);
+    P.p.pan.setTargetAtTime(Math.max(-0.8, Math.min(0.8, pan || 0)), t, 0.05);
+  }
+
   // ---------------------------------------------------------------- one-shots
   env(node, t0, a, peak, d) {
     node.gain.setValueAtTime(0.0001, t0);
@@ -169,6 +190,18 @@ export class Audio {
           for (let i = 0; i < 4; i++) this.tone({ freq: 900 + Math.random() * 900, to: 1400 + Math.random() * 700, gain: 0.03, decay: 0.05, pan, delay: 0.05 + i * 0.06 * Math.random() });
           break;
         }
+        case 'bucketSplash': {
+          const s = Math.min(1.2, e.speed);
+          this.tone({ freq: 380 + Math.random() * 80, to: 120, gain: 0.12 + 0.18 * s, attack: 0.004, decay: 0.2, pan });
+          this.noiseBurst({ freq: 1300, q: 0.9, gain: 0.08 + 0.25 * s, attack: 0.003, decay: 0.15 + 0.2 * s, sweepTo: 500, pan });
+          break;
+        }
+        case 'milkSplash':
+          if (performance.now() - (this.lastMilk || 0) > 45) {
+            this.lastMilk = performance.now();
+            this.noiseBurst({ freq: 2400 + Math.random() * 1200, q: 2, gain: Math.min(0.06, 0.012 + e.vol * 1e6 * 0.02), decay: 0.035, pan });
+          }
+          break;
         case 'extract': this.noiseBurst({ freq: 1400, q: 1.1, gain: 0.12, attack: 0.01, decay: 0.25, sweepTo: 2600, pan }); break;
         case 'drip':
           if (e.cup) this.tone({ freq: 1500 + Math.random() * 700, to: 700, gain: 0.05, decay: 0.07, pan });

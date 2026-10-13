@@ -358,7 +358,7 @@ try {
       const prompt1 = await page.evaluate(() => document.querySelector('.wz-prompt')?.textContent);
       await page.screenshot({ path: path.join(outDir, '16-bind-wizard.png') });
       await move(1, -1); await move(0, 1); await move(4, -1); await move(3, 1);
-      for (const b of [2, 5, 9, 8, 3]) await press(b);
+      for (const b of [2, 7, 5, 9, 8, 3]) await press(b); // hook, pour milk, assist, restart, pause, back
       const saved = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.includes('bind.')).map((k) => localStorage.getItem(k))[0]);
       check('bind wizard walks through the steps and saves a binding', /LIFT/.test(prompt1 || '') && !!saved && saved.includes('"index":4'), (prompt1 || '') + ' -> ' + (saved || 'none').slice(0, 120));
       await page.evaluate(() => window.__helicoptea.doAction('closecontroller'));

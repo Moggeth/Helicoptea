@@ -10,6 +10,8 @@ const KEYMAP = {
   rollLeft: ['ArrowLeft', 'KeyJ'], rollRight: ['ArrowRight', 'KeyL'],
   collUp: ['KeyW'], collDown: ['KeyS'], yawLeft: ['KeyA', 'KeyQ'], yawRight: ['KeyD', 'KeyE'],
 };
+// Held, not edge-triggered: the milk bucket's valve stays open while the key is down.
+const POUR_KEYS = ['KeyG'];
 const ACTION_KEYS = {
   Space: 'attach', Enter: 'attach', KeyV: 'aircraft', KeyF: 'assist', KeyR: 'restart', KeyC: 'recenter',
   Escape: 'pause', KeyP: 'pause', KeyH: 'help', Slash: 'help', KeyM: 'mute', Backquote: 'debug', F3: 'debug', KeyB: 'reset',
@@ -28,18 +30,18 @@ export class Input {
   constructor(touchRoot) {
     this.keys = new Set();
     this.kb = { pitch: 0, roll: 0, yaw: 0, collective: 0 };
-    this.ctl = { pitch: 0, roll: 0, yaw: 0, collective: 0 };
+    this.ctl = { pitch: 0, roll: 0, yaw: 0, collective: 0, pour: false };
     this.actions = [];
     this.source = 'keyboard';
     this.gp = { pitch: 0, roll: 0, yaw: 0, collective: 0, connected: false, id: '' };
-    this.touch = { pitch: 0, roll: 0, yaw: 0, collective: 0, active: false };
+    this.touch = { pitch: 0, roll: 0, yaw: 0, collective: 0, active: false, pour: false };
     this.camOrbit = { yaw: 0, pitch: 0, zoom: 0 };
     this.enabled = true;
     this.notices = [];
 
     window.addEventListener('keydown', (e) => {
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
-      const isGameKey = Object.values(KEYMAP).some((l) => l.includes(e.code)) || ACTION_KEYS[e.code];
+      const isGameKey = Object.values(KEYMAP).some((l) => l.includes(e.code)) || ACTION_KEYS[e.code] || POUR_KEYS.includes(e.code);
       if (isGameKey) e.preventDefault();
       if (e.repeat) return;
       this.keys.add(e.code);
@@ -62,7 +64,8 @@ export class Input {
   clearAll() {
     this.keys.clear();
     Object.assign(this.kb, { pitch: 0, roll: 0, yaw: 0, collective: 0 });
-    Object.assign(this.touch, { pitch: 0, roll: 0, yaw: 0, collective: 0 });
+    Object.assign(this.touch, { pitch: 0, roll: 0, yaw: 0, collective: 0, pour: false });
+    this.pourBtn?.classList.remove('pressed');
     for (const s of this.sticks || []) s.release();
   }
 
@@ -156,6 +159,15 @@ export class Input {
     this.attachBtn = btn('attach', '<span class="ico">⚓</span><span class="lbl">Hook</span>', 'attach');
     this.assistBtn = btn('assist', '<span class="lbl">Assist</span>', 'assist');
     btn('recenter', '<span class="lbl">View</span>', 'recenter');
+    // Pour: held. Shown only while the milk bucket is on a hook.
+    const pour = this.pourBtn = document.createElement('button');
+    pour.className = 'touch-btn pour hidden';
+    pour.innerHTML = '<span class="ico">🥛</span><span class="lbl">Pour</span>';
+    const down = (e) => { e.preventDefault(); e.stopPropagation(); this.source = 'touch'; this.touch.pour = true; pour.classList.add('pressed'); pour.setPointerCapture?.(e.pointerId); };
+    const up = () => { this.touch.pour = false; pour.classList.remove('pressed'); };
+    pour.addEventListener('pointerdown', down);
+    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) pour.addEventListener(ev, up);
+    root.appendChild(pour);
   }
 
   // ---------------------------------------------------------------- per frame
@@ -186,7 +198,8 @@ export class Input {
     this.ctl.roll = pick('roll');
     this.ctl.yaw = pick('yaw');
     this.ctl.collective = pick('collective');
-    if (!this.enabled) { this.ctl.pitch = this.ctl.roll = this.ctl.yaw = this.ctl.collective = 0; }
+    this.ctl.pour = POUR_KEYS.some((c) => k.has(c)) || !!this.pads.pour || this.touch.pour;
+    if (!this.enabled) { this.ctl.pitch = this.ctl.roll = this.ctl.yaw = this.ctl.collective = 0; this.ctl.pour = false; }
     return this.ctl;
   }
 

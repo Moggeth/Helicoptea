@@ -9,6 +9,7 @@ import { ParticlePool } from './particles.js';
 import { StringMesh } from './strings.js';
 import { radialTexture } from './textures.js';
 import { buildChinook, cloneChinookPart } from './chinookModel.js';
+import { MilkView } from './milkView.js';
 
 const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _c = new THREE.Color();
 const _pinA = new THREE.Vector3(), _pinL = new THREE.Vector3(), _pinQ = new THREE.Quaternion();
@@ -106,11 +107,13 @@ export class View {
     this.bagPosCarried = null;
     this.wreckFocus = null;
     this.cupScreen = [];
+    this.milkView = new MilkView(this, kitchen.sun.position.clone().sub(kitchen.sun.target.position));
   }
 
   // ------------------------------------------------------------- events
   handleEvents(events, camera, camRig) {
     for (const e of events) {
+      this.milkView.handleEvent(e);
       switch (e.type) {
         case 'splash': this.splash(e); break;
         case 'extract': this.extractDrops(e); break;
@@ -399,9 +402,9 @@ export class View {
       this.cue.scale.setScalar(s);
     } else this.cue.visible = false;
     let near = null, nd = 0.16, nearHook = 0;
-    const used = new Set(sim.carriedBags().map((b) => b.attach.hook));
+    const used = new Set(sim.carriedCargo().map((b) => b.attach.hook));
     if (sim.heli && used.size < sim.heli.hookWorlds.length) {
-      for (const b of sim.bags) {
+      for (const b of sim.cargoItems()) {
         if (b.attach && b.attach.kind === 'heli') continue;
         b.loopPosition(_v);
         sim.heli.hookWorlds.forEach((hw, i) => {
@@ -470,6 +473,8 @@ export class View {
       }
     }
 
+    this.milkView.update(alpha, dt);
+
     // Surfaces, flash, scorch fade, particles.
     for (const s of this.surfaces) s.update(this.time, dt);
     this.flashT += dt;
@@ -490,7 +495,7 @@ export class View {
   // by a few millimetres. Pin both ends to exactly what is drawn this frame and spread the correction
   // along the string, so it always reads as tied on.
   pinString(b, pts, bagPos, bagQuat) {
-    const N = b.N, hy = CFG.cargo.bagHalf[1];
+    const N = b.N, hy = b.anchorY;
     const a = _pinA.set(0, hy, 0).applyQuaternion(bagQuat).add(bagPos);
     const d0x = a.x - pts[0], d0y = a.y - pts[1], d0z = a.z - pts[2];
     let dNx = 0, dNy = 0, dNz = 0;

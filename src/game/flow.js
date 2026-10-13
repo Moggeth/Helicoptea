@@ -31,7 +31,8 @@ export class Flow {
       const s = STEPS[this.step];
       if (e.type === 'attach' && s === 'hook') this.advance();
       if (e.type === 'splash' && s === 'carry' && e.bag.attach) this.advance();
-      if (e.type === 'release' && (s === 'discard' || s === 'dip')) { this.step = STEPS.indexOf('land'); this.save(); }
+      if (e.type === 'release' && !e.bag?.isBucket && (s === 'discard' || s === 'dip')) { this.step = STEPS.indexOf('land'); this.save(); }
+      if (e.type === 'milkLand' && !e.vessel.isBowl) { const i = this.sim.cups.indexOf(e.vessel); if (i >= 0) this.steepTimers[i] = 2.5; }
     }
   }
 
@@ -66,9 +67,11 @@ export class Flow {
     // Contextual prompt for attach/release.
     let prompt = null;
     if (sim.state === 'flying') {
-      if (sim.attachCandidate()) prompt = `${k('attach')} Hook the bag`;
+      const cand = sim.attachCandidate();
+      if (cand) prompt = cand.isBucket ? `${k('attach')} Hook the milk bucket` : `${k('attach')} Hook the bag`;
       else if (carried && (s === 'discard' || s === 'land' || s === 'done' || s === 'assist' || this.overDiscard(carried))) prompt = this.overDiscard(carried) ? `${k('attach')} Release over the saucer` : null;
     }
+    if (!prompt && sim.state === 'flying') prompt = this.milkPrompt(k);
     hud.showPrompt(prompt);
     hud.setInvite(!this.assistToggled && sim.assist && s !== 'assist');
 
@@ -76,6 +79,17 @@ export class Flow {
       if (sim.cups[i].steep > 0.05) this.steepTimers[i] = 2.5;
       else this.steepTimers[i] = Math.max(0, this.steepTimers[i] - dt);
     }
+  }
+
+  // Contextual milk prompts while the bucket is on a hook.
+  milkPrompt(k) {
+    const sim = this.sim, bk = sim.milk.bucket;
+    if (!bk || !sim.carriedCargo().includes(bk)) return null;
+    if (bk.vessel && bk.vessel.isBowl) return bk.fill > 0.97 ? 'Full. Lift it out gently' : 'Hold it in the milk: it fills through its base';
+    if (bk.vol < 1e-7) return 'Dip the bucket in the milk crock to fill it';
+    if (bk.valveOpen) return null;
+    const cup = sim.cups.find((c) => Math.hypot(bk.pos.x - c.x, bk.pos.z - c.z) < c.rIn);
+    return cup ? `Hold ${k('pour')} to pour into the ${cup.name.toLowerCase()}` : `Hold ${k('pour')} to pour milk`;
   }
 
   overDiscard(bag) {
