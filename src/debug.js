@@ -46,7 +46,8 @@ export class Debug {
     if (h) {
       const tilt = Math.acos(Math.min(1, h.up.y)) * 57.3;
       lines.push(`heli pos ${n(h.pos.x)} ${n(h.pos.y)} ${n(h.pos.z)}  v ${h.vel.length().toFixed(2)} m/s  tilt ${tilt.toFixed(1)}°`);
-      lines.push(`collective ${h.collective.toFixed(2)}  thrust/W ${(h.thrust / (CFG.heli.mass * 9.81)).toFixed(2)}  rotor ${(h.rotorSpeed * 100).toFixed(0)}%  ground ${h.skidClearance.toFixed(3)} m${h.grounded ? ' (landed)' : ''}`);
+      if (h.type === 'chinook') lines.push(`rotors F ${(h.rotorT[0] * 1000).toFixed(0)} mN  A ${(h.rotorT[1] * 1000).toFixed(0)} mN  disc tilt ${(h.tilt[0] * 57.3).toFixed(1)}° / ${(h.tilt[1] * 57.3).toFixed(1)}°  mix p ${h.mix.pitch.toFixed(2)} r ${h.mix.roll.toFixed(2)} y ${h.mix.yaw.toFixed(2)}  trim ${h.trim[0].toFixed(2)} ${h.trim[1].toFixed(2)}  bags ${s.carriedBags().length}/3`);
+      lines.push(`collective ${h.collective.toFixed(2)}  thrust/W ${(h.thrust / ((h.def ? h.def.mass : CFG.heli.mass) * 9.81)).toFixed(2)}  rotor ${(h.rotorSpeed * 100).toFixed(0)}%  ground ${h.skidClearance.toFixed(3)} m${h.grounded ? ' (landed)' : ''}`);
     }
     if (b) lines.push(`cargo mass ${(b.mass * 1000).toFixed(1)} g  wet ${(b.wetness * 100).toFixed(0)}%  immersion ${(b.immersion * 100).toFixed(0)}%  tension ${(b.tension * 1000).toFixed(0)} mN  potency ${(b.potency * 100).toFixed(0)}%`);
     lines.push(`cups ${s.cups.map((c) => `${c.name} ${(c.brew * 100).toFixed(0)}%`).join('  ')}`);

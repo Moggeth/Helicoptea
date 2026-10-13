@@ -12,6 +12,7 @@ export class FollowCamera {
     this.orbitYaw = 0;       // user offset
     this.orbitPitch = 0;
     this.zoom = 1;
+    this.sizeScale = 1;      // bigger aircraft: stand further back
     this.focus = new THREE.Vector3(-0.56, 0.08, 0.24);
     this.pos = new THREE.Vector3(-0.56, 0.3, 0.7);
     this.look = this.focus.clone();
@@ -45,7 +46,7 @@ export class FollowCamera {
     const f = this._t.copy(target);
     if (bagPos) f.lerp(bagPos, C.cargoLookBias);
     this.focus.lerp(f, 1 - Math.exp(-dt * C.lookFollow));
-    const wantDist = (bagPos ? C.cargoDistance : C.distance) * this.zoom;
+    const wantDist = (bagPos ? C.cargoDistance : C.distance) * this.zoom * this.sizeScale;
     this.dist += (wantDist - this.dist) * (1 - Math.exp(-dt * 2.5));
 
     const yaw = this.yaw + this.orbitYaw;

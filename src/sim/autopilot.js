@@ -13,17 +13,20 @@ export class Autopilot {
   }
   // aim: optional point (e.g. the dangling bag) that should arrive over target instead of the heli.
   update(heli, swingVel = null, aim = null, dt = 1 / 240) {
-    const A = CFG.assist;
+    const A = heli.type === 'chinook' ? CFG.chinook.assist : CFG.assist;
     const g = CFG.physics.gravity;
     const p = heli.pos, v = heli.vel;
     const ap = aim || p;
     const ex = this.target.x - ap.x, ez = this.target.z - ap.z;
     if (Math.hypot(ex, ez) < 0.06) { this.ix += ex * dt; this.iz += ez * dt; } else { this.ix *= 0.99; this.iz *= 0.99; }
-    this.ix = THREE.MathUtils.clamp(this.ix, -0.02, 0.02); this.iz = THREE.MathUtils.clamp(this.iz, -0.02, 0.02);
+    const heavyMicro = heli.type !== 'chinook';
+    if (heavyMicro) { this.ix = THREE.MathUtils.clamp(this.ix, -0.02, 0.02); this.iz = THREE.MathUtils.clamp(this.iz, -0.02, 0.02); }
     const dist = Math.hypot(ex, ez);
-    const sp = Math.min(this.maxSpeed, dist * 0.9);
+    const sp = Math.min(this.maxSpeed, dist * (heavyMicro ? 0.9 : 1.4));
     let vdx = dist > 1e-4 ? ex / dist * sp : 0, vdz = dist > 1e-4 ? ez / dist * sp : 0;
-    let ax = (vdx - v.x) * 1.7 + this.ix * 2, az = (vdz - v.z) * 1.7 + this.iz * 2;
+    const kv = heli.type === 'chinook' ? 1.5 : 1.7; // heavy machines: gentler velocity loop
+    const ki = heavyMicro ? 2 : 3;
+    let ax = (vdx - v.x) * kv + this.ix * ki, az = (vdz - v.z) * kv + this.iz * ki;
     if (swingVel) { ax -= swingVel.x * 0.9; az -= swingVel.z * 0.9; }
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(heli.quat); fwd.y = 0; fwd.normalize();
     const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0));

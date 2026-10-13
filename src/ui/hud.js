@@ -198,8 +198,10 @@ export class Hud {
           <label class="opt">Debug overlay <input type="checkbox" data-setting="debug" ${opts.debug ? 'checked' : ''}/></label>
           <label class="opt">Controller <button class="secondary" style="padding:6px 12px" data-act="controller">Settings</button></label>
           <label class="opt">Show tips again <button class="secondary" style="padding:6px 12px" data-act="resethints">Replay</button></label>
+          <div class="opt aircraft-row" role="radiogroup" aria-label="Aircraft">Aircraft
+            <span>${[['micro', 'Micro heli'], ['chinook', 'Chinook']].map(([id, nm]) => `<button class="secondary${opts.aircraft === id ? ' on' : ''}" style="padding:6px 12px" role="radio" aria-checked="${opts.aircraft === id}" data-act="aircraft" data-id="${id}">${nm}</button>`).join(' ')}</span></div>
         </div>
-        <p class="help-note">Reset sandbox clears every cup and bag. Restart flight keeps your brewing. Quality changes reload the page.</p>
+        <p class="help-note">Reset sandbox clears every cup and bag. Restart flight keeps your brewing. Switching aircraft starts a fresh flight on the pad. Quality changes reload the page.</p>
       </div>`;
     this.modal.querySelector('[data-setting=quality]').addEventListener('change', (e) => this.h.setting('quality', e.target.value));
     this.modal.querySelector('[data-setting=debug]').addEventListener('change', (e) => this.h.setting('debug', e.target.checked));
@@ -230,7 +232,7 @@ export class Hud {
   helpRows(tab) {
     const R = {
       keyboard: [['<kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd>', 'Cyclic: tilt forward, back and sideways (or I J K L)'], ['<kbd>W</kbd><kbd>S</kbd>', 'Collective: more / less lift'], ['<kbd>A</kbd><kbd>D</kbd>', 'Yaw: turn left / right'],
-        ['<kbd>Space</kbd>', 'Hook a bag / release it'], ['<kbd>F</kbd>', 'Flight Assist on / off'], ['<kbd>R</kbd>', 'Restart flight'], ['<kbd>Shift</kbd>+<kbd>R</kbd>', 'Reset sandbox'],
+        ['<kbd>Space</kbd>', 'Hook a bag / release it (the Chinook has three hooks: Space drops them all)'], ['<kbd>V</kbd>', 'Switch aircraft: micro heli / Chinook'], ['<kbd>F</kbd>', 'Flight Assist on / off'], ['<kbd>R</kbd>', 'Restart flight'], ['<kbd>Shift</kbd>+<kbd>R</kbd>', 'Reset sandbox'],
         ['<kbd>C</kbd>', 'Recenter camera (drag to orbit, wheel to zoom)'], ['<kbd>M</kbd>', 'Mute'], ['<kbd>Esc</kbd>', 'Pause'], ['<kbd>`</kbd>', 'Debug overlay']],
       gamepad: [['Right stick', 'Cyclic: tilt'], ['Left stick ↕', 'Collective (or triggers RT / LT)'], ['Left stick ↔', 'Yaw'], ['<kbd>A</kbd>', 'Hook / release'], ['<kbd>Y</kbd>', 'Flight Assist on / off'],
         ['<kbd>Start</kbd>', 'Restart flight'], ['<kbd>B</kbd> / R3', 'Recenter camera'], ['D-pad', 'Orbit and zoom camera'], ['<kbd>Back</kbd> / <kbd>View</kbd>', 'Pause menu'], ['<kbd>X</kbd>', 'Controls'],

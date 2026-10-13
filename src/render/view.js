@@ -8,6 +8,7 @@ import { TeaSurface, teaColor } from './water.js';
 import { ParticlePool } from './particles.js';
 import { StringMesh } from './strings.js';
 import { radialTexture } from './textures.js';
+import { buildChinook, cloneChinookPart } from './chinookModel.js';
 
 const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _c = new THREE.Color();
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -22,6 +23,9 @@ export class View {
     this.M = makeMaterials(quality);
     this.heliModel = buildRealisticHelicopter(quality);
     scene.add(this.heliModel);
+    this.chinookModel = buildChinook();
+    scene.add(this.chinookModel);
+    this.pendingFx = [];   // delayed secondary explosions (fuel cells on the heavy lifter)
     this.bagAssets = teabagAssets();
     this.bags = new Map();
     this.debris = new Map();
@@ -114,7 +118,7 @@ export class View {
         case 'bump': camRig.addShake(Math.min(0.004, e.dv * 0.004)); this.dust(e.pos, e.dv); break;
         case 'bagRemoved': this.retireBag(e.id); break;
         case 'debrisRemoved': this.retireDebris(e.id); break;
-        case 'reset': this.fx.clear(); this.smoke.clear(); for (const s of this.scorches) { s.mesh.visible = false; s.age = 99; } for (const s of this.surfaces) s.displayBrew = 0; break;
+        case 'reset': this.pendingFx.length = 0; this.fx.clear(); this.smoke.clear(); for (const s of this.scorches) { s.mesh.visible = false; s.age = 99; } for (const s of this.surfaces) s.displayBrew = 0; break;
         default: break;
       }
     }
@@ -162,14 +166,15 @@ export class View {
 
   explode(e) {
     const P = e.pos;
-    const s = this.quality.particles / 500;
+    const k = e.scale || 1;     // the Chinook makes a bigger, longer fire
+    const s = this.quality.particles / 500 * k;
     // flash
     this.flash.position.copy(P);
     this.flashT = 0;
-    this.fx.emit({ p: [P.x, P.y, P.z], v: [0, 0, 0], life: 0.14, size0: 0.16, size1: 0.26, col0: [1, 0.75, 0.45], alpha: 0.75 });
+    this.fx.emit({ p: [P.x, P.y, P.z], v: [0, 0, 0], life: 0.14 * k, size0: 0.16 * k, size1: 0.26 * k, col0: [1, 0.75, 0.45], alpha: 0.75 });
     for (let i = 0; i < 26 * s + 8; i++) {
-      const d = new THREE.Vector3(rand(-1, 1), rand(-0.3, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0.25, 0.85));
-      this.fx.emit({ p: [P.x, P.y, P.z], v: [d.x + e.vel.x * 0.4, d.y + e.vel.y * 0.2, d.z + e.vel.z * 0.4], life: rand(0.35, 0.75), size0: rand(0.02, 0.035), size1: rand(0.05, 0.085),
+      const d = new THREE.Vector3(rand(-1, 1), rand(-0.3, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0.25, 0.85) * k);
+      this.fx.emit({ p: [P.x, P.y, P.z], v: [d.x + e.vel.x * 0.4, d.y + e.vel.y * 0.2, d.z + e.vel.z * 0.4], life: rand(0.35, 0.75) * k, size0: rand(0.02, 0.035) * k, size1: rand(0.05, 0.085) * k,
         col0: [1, rand(0.55, 0.7), 0.25], col1: [0.7, 0.14, 0.02], alpha: 0.45, grav: -0.6, drag: 5 });
     }
     for (let i = 0; i < 70 * s + 20; i++) {
@@ -189,18 +194,50 @@ export class View {
       sc.age = 0;
       sc.mesh.visible = true;
       sc.mesh.position.set(P.x, P.y + 0.02 - hit.timeOfImpact + 0.0006, P.z);
-      const size = rand(0.1, 0.15);
+      const size = rand(0.1, 0.15) * k;
       sc.mesh.scale.set(size, size, 1);
       sc.mesh.rotation.z = Math.random() * 6;
     }
     // Hand the heli's parts to debris meshes.
+    const heavy = e.aircraft === 'chinook';
     this.heliModel.visible = false;
+    this.chinookModel.visible = false;
+    if (heavy) {
+      // Fuel cells in the sponsons go up a moment later, then the engines.
+      for (const d of e.parts) {
+        if (/^sponson|^engine/.test(d.part.name)) this.pendingFx.push({ t: rand(0.18, 0.5) + (d.part.name.startsWith('engine') ? 0.25 : 0), d });
+      }
+    }
     for (const d of e.parts) {
-      const mesh = cloneHeliPart(this.heliModel, d.part.name);
+      const mesh = heavy ? cloneChinookPart(this.chinookModel, d.part.name) : cloneHeliPart(this.heliModel, d.part.name);
       this.scene.add(mesh);
       this.debris.set(d.id, { mesh, d, smoke: d.smoke });
     }
     this.wreckFocus = P.clone();
+  }
+
+  // A smaller fireball where a debris piece is (Chinook fuel cells and engines cooking off).
+  secondaryBlast(d) {
+    const t = d.body ? d.body.translation() : null;
+    if (!t) return;
+    const s = this.quality.particles / 500;
+    this.flash.position.set(t.x, t.y, t.z);
+    this.flashT = 0.05;
+    for (let i = 0; i < 14 * s + 5; i++) {
+      const v = new THREE.Vector3(rand(-1, 1), rand(0, 1.2), rand(-1, 1)).normalize().multiplyScalar(rand(0.15, 0.5));
+      this.fx.emit({ p: [t.x, t.y, t.z], v: [v.x, v.y, v.z], life: rand(0.3, 0.6), size0: rand(0.015, 0.03), size1: rand(0.05, 0.08),
+        col0: [1, rand(0.55, 0.7), 0.25], col1: [0.7, 0.14, 0.02], alpha: 0.5, grav: -0.6, drag: 5 });
+    }
+    for (let i = 0; i < 18 * s + 6; i++) {
+      const v = new THREE.Vector3(rand(-1, 1), rand(0, 1.4), rand(-1, 1)).normalize().multiplyScalar(rand(0.6, 2));
+      this.fx.emit({ p: [t.x, t.y, t.z], v: [v.x, v.y, v.z], life: rand(0.4, 1), size0: rand(0.003, 0.005), size1: 0.0015,
+        col0: [1, 0.95, 0.7], col1: [1, 0.35, 0.08], alpha: 1, grav: 9.81, drag: 0.8, kind: 1 });
+    }
+    for (let i = 0; i < 10 * s + 4; i++) {
+      this.smoke.emit({ p: [t.x, t.y, t.z], v: [rand(-0.1, 0.1), rand(0.1, 0.3), rand(-0.1, 0.1)], life: rand(1.4, 2.8), size0: rand(0.03, 0.05), size1: rand(0.12, 0.2),
+        col0: [0.16, 0.15, 0.14], col1: [0.5, 0.48, 0.45], alpha: 0.5, grav: -0.05, drag: 1.6 });
+    }
+    if (this.onSecondary) this.onSecondary(new THREE.Vector3(t.x, t.y, t.z));
   }
 
   retireBag(id) {
@@ -222,10 +259,21 @@ export class View {
     this.time += dt;
     const sim = this.sim;
 
+    // Delayed secondary explosions.
+    for (let i = this.pendingFx.length - 1; i >= 0; i--) {
+      const p = this.pendingFx[i];
+      p.t -= dt;
+      if (p.t <= 0) { this.pendingFx.splice(i, 1); if (sim.debris.includes(p.d)) this.secondaryBlast(p.d); }
+    }
+
     // Helicopter.
-    if (sim.heli) {
+    if (sim.heli && sim.heli.type === 'chinook') {
+      this.heliModel.visible = false;
+      this.updateChinook(sim.heli, alpha, dt);
+    } else if (sim.heli) {
       const h = sim.heli;
       h.track.sample(alpha, this.heliPos, this.heliQuat);
+      this.chinookModel.visible = false;
       this.heliModel.visible = true;
       this.heliModel.position.copy(this.heliPos);
       this.heliModel.quaternion.copy(this.heliQuat);
@@ -263,6 +311,7 @@ export class View {
       }
     } else {
       this.heliModel.visible = false;
+      this.chinookModel.visible = false;
       this.heliBlob.visible = false;
     }
 
@@ -285,7 +334,9 @@ export class View {
       b.track.sample(alpha, _p, _q);
       v.group.position.copy(_p);
       v.group.quaternion.copy(_q);
-      if (b.attach && b.attach.kind === 'heli') this.bagPosCarried = _p.clone();
+      if (b.attach && b.attach.kind === 'heli') {
+        if (this.bagPosCarried) this.bagPosCarried.lerp(_p, 0.5); else this.bagPosCarried = _p.clone();
+      }
       // wet look: darker, warmer, glossier; stained as it gives up its tea
       const mat = v.group.userData.mat;
       const w = b.wetness, stain = 1 - b.potency;
@@ -345,16 +396,21 @@ export class View {
       const s = 1 + 0.25 * Math.sin(this.time * 9);
       this.cue.scale.setScalar(s);
     } else this.cue.visible = false;
-    let near = null, nd = 0.16;
-    if (sim.heli && !cb) {
+    let near = null, nd = 0.16, nearHook = 0;
+    const used = new Set(sim.carriedBags().map((b) => b.attach.hook));
+    if (sim.heli && used.size < sim.heli.hookWorlds.length) {
       for (const b of sim.bags) {
+        if (b.attach && b.attach.kind === 'heli') continue;
         b.loopPosition(_v);
-        const d = _v.distanceTo(sim.heli.hookWorld);
-        if (d < nd) { nd = d; near = _v.clone(); }
+        sim.heli.hookWorlds.forEach((hw, i) => {
+          if (used.has(i)) return;
+          const d = _v.distanceTo(hw);
+          if (d < nd) { nd = d; near = _v.clone(); nearHook = i; }
+        });
       }
     }
     if (near && !cand) {
-      const hook = _p.set(...CFG.heli.hookOffset).applyQuaternion(this.heliQuat).add(this.heliPos);
+      const hook = _p.set(...sim.heli.def.hooks[nearHook]).applyQuaternion(this.heliQuat).add(this.heliPos);
       const pos = this.guide.geometry.attributes.position;
       pos.setXYZ(0, hook.x, hook.y, hook.z);
       pos.setXYZ(1, near.x, near.y, near.z);
@@ -371,7 +427,7 @@ export class View {
       v.mesh.quaternion.copy(_q);
       v.age = (v.age || 0) + dt;
       const glow = Math.max(0, 1.4 * Math.exp(-v.age * 2.2) - 0.03);
-      for (const m of v.mesh.userData.embers) m.emissiveIntensity = glow;
+      for (const m of v.mesh.userData.embers) m.emissiveIntensity = glow * (v.mesh.userData.emberScale ?? 1);
       if (v.smoke > 0) {
         v.smoke -= dt;
         if (Math.random() < 0.5) this.smoke.emit({ p: [_p.x, _p.y + 0.005, _p.z], v: [rand(-0.02, 0.02), rand(0.08, 0.18), rand(-0.02, 0.02)], life: rand(1.0, 1.8), size0: 0.015, size1: rand(0.06, 0.1), col0: [0.2, 0.19, 0.18], col1: [0.6, 0.58, 0.55], alpha: 0.4 * Math.min(1, v.smoke), drag: 1 });
@@ -379,7 +435,7 @@ export class View {
       }
     }
     if (!sim.heli && sim.debris.length) {
-      const fus = sim.debris.find((d) => d.part.name === 'fuselage' && d.wreckId === sim.wreckCount);
+      const fus = sim.debris.find((d) => (d.part.name === 'fuselage' || d.part.name === 'cabin') && d.wreckId === sim.wreckCount);
       if (fus) { fus.track.sample(alpha, _p); this.wreckFocus = (this.wreckFocus || new THREE.Vector3()).lerp(_p, 0.1); }
     }
 
@@ -448,8 +504,13 @@ export class View {
       a.obj.rotation.z = a.base.z + Math.sin(this.time * 1.3 + a.phase) * 0.03 + this.flowerWind.x * 0.12 + jitter;
       a.obj.rotation.x = a.base.x - this.flowerWind.z * 0.12 + jitter * 0.7;
     }
-    const wk = air.wake;
-    if (!wk.active || !wk.vg) return;
+    this.sprayAcc += dt;
+    for (const wk of air.wakes) if (wk.active && wk.vg) this.washEffects(wk, dt);
+    if (this.sprayAcc > 0.05) this.sprayAcc = 0;
+  }
+
+  // Dust, spray and tea ripples where one rotor's wake meets the table.
+  washEffects(wk, dt) {
     // Dust and crumbs lifted where the outwash is fastest (they then ride the flow, showing it).
     if (wk.hit.y < 0.02 && wk.vg > 1.2) {
       this.dustAcc += dt * (wk.vg - 1.2) * 30 * this.quality.steam;
@@ -463,7 +524,6 @@ export class View {
       }
     }
     // Tea under the rotor: spray mist and a ring of wind ripples.
-    this.sprayAcc += dt;
     for (let i = 0; i < this.sim.cups.length; i++) {
       const c = this.sim.cups[i];
       const dx = wk.hit.x - c.x, dz = wk.hit.z - c.z;
@@ -480,7 +540,55 @@ export class View {
         surf.addRipple(c.x + Math.cos(Math.random() * 6.28) * c.rIn * 0.7, c.z + Math.sin(Math.random() * 6.28) * c.rIn * 0.7, 0.3 * surf.wash, this.time);
       }
     }
-    if (this.sprayAcc > 0.05) this.sprayAcc = 0;
+  }
+
+  // Tandem rotors, contact shadow and downwash for the Chinook.
+  updateChinook(h, alpha, dt) {
+    const sim = this.sim;
+    const M = this.chinookModel;
+    h.track.sample(alpha, this.heliPos, this.heliQuat);
+    M.visible = true;
+    M.position.copy(this.heliPos);
+    M.quaternion.copy(this.heliQuat);
+    const U = M.userData;
+    U.rotors.forEach((r, i) => {
+      r.rotation.order = 'ZYX';
+      r.rotation.y = h.phaseOf(i);
+      // Discs tilt with the cyclic, so a hard pedal turn shows the rotors leaning opposite ways.
+      r.rotation.z = -h.tilt[i];
+      r.userData.disc.material.uniforms.uOpacity.value = Math.min(1, h.rotorSpeed) * 0.9;
+      for (const gh of r.userData.ghosts) {
+        gh.rotation.y = gh.userData.offset;
+        gh.children.forEach((m) => { m.material.opacity = 0.12 * h.rotorSpeed; });
+      }
+    });
+    if (U.beacon) U.beacon.material.emissiveIntensity = (this.time % 1.1) < 0.09 ? 3 : 0;
+    this.wreckFocus = null;
+    // Contact shadow: long, under the whole airframe.
+    const hd = Math.min(h.rotorGround[0], h.rotorGround[1]);
+    const hub = _p.set(0, 0.048, 0).applyQuaternion(this.heliQuat).add(this.heliPos);
+    this.heliBlob.visible = hd < 1.1;
+    this.heliBlob.position.set(hub.x, hub.y - hd + 0.0012, hub.z);
+    const sz = 0.12 + hd * 0.15;
+    this.heliBlob.scale.set(sz * 0.9, sz * 2.0, 1);
+    this.heliBlob.rotation.z = h.heading();
+    this.heliBlob.material.opacity = 0.48 * Math.max(0, 1 - hd / 0.9);
+    // Downwash ripples from each rotor on any cup below it.
+    this.downwashAcc += dt;
+    if (this.downwashAcc > 0.07) {
+      this.downwashAcc = 0;
+      h.hubWorlds.forEach((hw, ri) => {
+        for (let i = 0; i < sim.cups.length; i++) {
+          const c = sim.cups[i];
+          const hgt = hw.y - c.waterY;
+          if (Math.hypot(hw.x - c.x, hw.z - c.z) < CFG.chinook.rotorRadius + c.rIn * 0.6 && hgt < 0.4 && hgt > 0) {
+            const a = (h.rotorT[ri] / (h.def.mass * 9.81 / 2)) * (1 - hgt / 0.4);
+            const ang = Math.random() * Math.PI * 2, rr = Math.random() * c.rIn * 0.8;
+            this.surfaces[i].addRipple(c.x + Math.cos(ang) * rr, c.z + Math.sin(ang) * rr, a * 0.55, this.time);
+          }
+        }
+      });
+    }
   }
 
   // Screen positions of cups (for the subtle brew indicator in the HUD).

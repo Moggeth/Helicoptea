@@ -27,6 +27,22 @@ The helicopter is a Rapier dynamic rigid body; it is only ever moved by forces a
 
 **Assist on**: stabilising torques only. Neutral cyclic commands level; deflection commands up to ~22° of tilt in the heading frame; a small counter-tilt against drift applies only near neutral stick. Yaw becomes a rate command that also cancels reaction torque. Collective becomes a climb-rate command whose integrator learns the extra load slowly, so picking up a wet bag still makes the helicopter sag first. Torque is capped at 1.6× the manual cyclic authority. Nothing teleports or bypasses the cargo forces.
 
+## Chinook ([src/sim/chinook.js](../src/sim/chinook.js))
+
+A CH-47-style tandem-rotor heavy lifter at about 1:90: 17 cm fuselage, two 20 cm rotors 13.4 cm apart (they overlap, the aft one sits 1 cm higher), 94 g, inertia 5.5e-4 / 5.0e-4 / 3.0e-4 kg m² (pitch/yaw/roll), thrust/weight 2.0 empty. It shares the sim's aircraft surface (`src/sim/aircraft.js`), so cargo, crashes, camera, HUD, audio and the downwash field work with either aircraft; the micro heli's code is unchanged.
+
+- **Each rotor is its own thrust vector applied at its hub** (`addForceAtPoint`), so every moment comes from geometry rather than from applied control torques.
+- **Pitch is differential collective**: forward stick unloads the forward rotor and loads the aft one (up to 4.5% of a rotor's max thrust each way, about 5 mN m).
+- **Roll is lateral cyclic**: both discs tilt the same way (up to ~6°); the side force acts above the CG.
+- **Yaw is differential lateral cyclic**: the forward disc tilts one way and the aft disc the other (up to ~3°), a couple about the CG. There is no tail rotor.
+- **Torque**: each rotor's reaction torque goes as T^1.5 and they turn opposite ways (forward counter-clockwise from above), so it cancels at equal thrust; differential collective leaves a small yaw coupling.
+- Per-rotor **ground effect** from seven rays across each disc (a thin peg bar under one side counts for little, a table under the whole disc counts fully), so hovering one rotor over the teapot pitches the aircraft. Axial inflow damping at each hub gives pitch damping; the disc H-force acts at the hub (speed stability). In forward flight the rotor behind loses 3% of its lift in the other's wake. Ground-effect recirculation buffets it like the micro heli.
+- **Three hooks** (forward, centre, aft, 3 cm apart under the belly). Space hooks the nearest bag to a free hook; with none in reach it releases them all. Lining up along the tea stand takes all three bags at once. A load off the centre hook needs real differential collective to hold level: a soaked bag on the forward hook uses about two thirds of the pitch authority.
+- **Assist** is an AFCS that works only through the same rotor controls, within their physical range: attitude hold, pitch and roll trim integrators (learn off-centre hook loads), yaw-rate hold with heading hold, and the same climb-rate collective as the micro heli. **Assist off** maps the sticks straight to differential collective, lateral cyclic and differential cyclic.
+- **Breakup**: 19 pieces (nose with cockpit, cabin, aft cabin with ramp, both pylons with rotor heads, both engines, both sponsons, four gear legs, six blades). Blades keep spinning in their own rotor's direction; sponsons and engines cook off in delayed secondary fireballs; wreckage smoulders rather than glowing.
+
+The model ([src/render/chinookModel.js](../src/render/chinookModel.js)) is lofted from superellipse sections with the ramp upsweep, multi-pane glazing with two crew, a forward pylon fairing, drive-shaft spine, tall aft pylon with twin turboshaft pods, fuel sponsons with nav lights, twin forward and single aft wheels, brass belly hooks and three-blade heads with blur discs that tilt with the cyclic. Matte olive drab with panel lines, rivets, portholes, a ramp outline and stencils. Static meshes merge by material per part.
+
 ## Tea bag, string and liquid ([src/sim/teabag.js](../src/sim/teabag.js))
 
 - The bag is a rigid cuboid. The string is a Rapier rope joint (maximum distance, so it goes slack), from a peg on the stand or the helicopter's hook to the top of the bag. Tension transfers to the helicopter through the joint.
@@ -79,4 +95,7 @@ Quality tiers (auto: high on desktop, medium on touch devices) scale pixel ratio
 - **Scripted pickup/dip flights** need the pilot to place the *bag* over the cup and then descend holding the helicopter still; steering the bag while it's inside the cup drags it against the rim and can pull the helicopter into the teapot. That is realistic, and a good lesson for players too.
 - **Loose wreckage counted as a rotor strike.** A fresh helicopter could explode on the pad when debris from the previous crash landed inside the rotor disc. Debris no longer collides with the rotor sensor or counts toward impact severity, and wreckage on the pad is cleared at restart.
 - **The air field was too expensive under CPU throttling** at 80 × 53 cells with 24 iterations, sampling strings every step. A coarser grid (60 × 40, 10 warm-started iterations), cheap distance culling, half-rate strings and sleeping strings for settled bags cut sim cost about 40% at 6× throttle.
+- **Chinook pitch and roll authority from realistic small disc tilts was too weak** against the H-force acting at the high hubs: at 0.6 m/s sideways, blowback out-muscled 1.6° of lateral cyclic and the roll oscillation diverged. Real lateral cyclic range (~6°) plus stronger hub damping fixed it.
+- **A single hub ray for the Chinook's ground effect** treated the stand's 1 cm top bar as a ground plane under the forward rotor, adding ~9% lift there and pushing the aircraft back off the pegs. Seven staggered rays per disc fixed it.
+- **The first Chinook hook height** (6 mm under the belly) put the fuselage on the stand's top bar while hooking. The hooks now hang 11 mm below.
 - **The in-app browser pane throttles hidden pages** to ~30 fps and stops rAF entirely, so performance and flight tests use local Chrome via `playwright-core` instead.

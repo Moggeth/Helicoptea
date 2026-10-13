@@ -11,7 +11,7 @@ const KEYMAP = {
   collUp: ['KeyW'], collDown: ['KeyS'], yawLeft: ['KeyA', 'KeyQ'], yawRight: ['KeyD', 'KeyE'],
 };
 const ACTION_KEYS = {
-  Space: 'attach', Enter: 'attach', KeyF: 'assist', KeyR: 'restart', KeyC: 'recenter',
+  Space: 'attach', Enter: 'attach', KeyV: 'aircraft', KeyF: 'assist', KeyR: 'restart', KeyC: 'recenter',
   Escape: 'pause', KeyP: 'pause', KeyH: 'help', Slash: 'help', KeyM: 'mute', Backquote: 'debug', F3: 'debug', KeyB: 'reset',
 };
 
