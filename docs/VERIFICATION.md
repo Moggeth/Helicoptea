@@ -58,3 +58,10 @@ The low-hover scenario (wash active, bags nearby) is harder than the earlier ove
 - **Firefox and Safari**: untested.
 - **Audio by ear**: the Web Audio graph runs without errors, but nobody listened to it.
 - **Hand-flying feel by a human**: the loop was completed by real keyboard input for take-off, tilt, assist toggle, attach, release, crash and restart, and by an autopilot that produces the same stick values for the precise pickup and dip. Whether assist-off dipping is "difficult but learnable" needs a person at the controls.
+
+### 2026-10-14: flight recording, replay and notes
+
+- `npm run check` all passing, including `tests/replay-checks.mjs` 38/38: every aircraft recorded at 60 Hz, samples equal the live state exactly, as-flown time, raw and processed inputs, wreckage keyed with part names and replayed within 0.011 mm, exact JSON + binary round trip, bounded ring, recording cost 9 to 10 µs per physics step against 250 to 290 µs of simulation.
+- `node tests/e2e-replay.mjs` 47/47 (keyboard micro heli, gamepad Chinook, touch skycrane): marks from N / R3 / the touch Mark button, viewer from the pause menu and the crash screen, frozen world, replayed airframe at the snapshot to 0 m, frame step, 0.25× plays 0.254 s per second, timeline and graph scrubbing, chase / orbit / cockpit cameras, typed and tagged notes, saving to `logs/flights` and loading back, viewer fits a phone screen. Browser recording overhead 16 µs per step.
+- On the same build: e2e 52/52, e2e-chinook 17/17, e2e-milk 19/19, e2e-skycrane 31/31, e2e-cockpit 40/40, e2e-depth 21/21.
+- Not verified: a person scrubbing and writing notes, a real gamepad or phone, very long flights (the 15-minute split and 96 MB cap were not exercised in the browser). Cup tea colours, milk streams, puddles and the air field are not recorded.
