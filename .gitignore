@@ -6,3 +6,6 @@ logs/
 .vite/
 test-results/
 releases/
+
+# Source renders for branding are large and reproducible (tools/branding); keep them out of git
+assets/branding/renders/
