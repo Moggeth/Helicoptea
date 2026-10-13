@@ -89,20 +89,23 @@ export class Audio {
   updateRotor(state) {
     if (!this.ready) return;
     const t = this.ctx.currentTime;
-    const { alive, rotorSpeed, thrustFrac, load, pan, dist } = state;
+    const { alive, rotorSpeed, thrustFrac, load, pan, dist, heavy } = state;
     const rs = alive ? rotorSpeed : 0;
-    const bpf = 2 * 46 * rs;                 // blade-pass frequency (Hz), toy-sized rotor
+    // Blade-pass frequency (Hz): two blades on the toy rotor; three slower, broader blades per rotor
+    // on the Chinook, whose second rotor (in place of a tail rotor) beats slightly against the first.
+    const bpf = heavy ? 3 * 25 * rs : 2 * 46 * rs;
     const strain = Math.min(1, thrustFrac);  // more collective, more bite
     const near = 1 / (1 + Math.max(0, dist - 0.3) * 2.2);
     this.buzz.frequency.setTargetAtTime(Math.max(20, bpf), t, 0.05);
     this.buzzF.frequency.setTargetAtTime(300 + 1500 * strain, t, 0.05);
-    this.whine.frequency.setTargetAtTime(Math.max(40, 820 * rs * (1 - 0.06 * load)), t, 0.06);
+    this.whine.frequency.setTargetAtTime(Math.max(40, (heavy ? 610 : 820) * rs * (1 - 0.06 * load)), t, 0.06);
     this.chop.frequency.setTargetAtTime(Math.max(1, bpf), t, 0.05);
     this.airF.frequency.setTargetAtTime(700 + 2200 * strain, t, 0.08);
     this.airG.gain.setTargetAtTime(0.05 + 0.18 * strain, t, 0.06);
-    this.tail.frequency.setTargetAtTime(Math.max(20, bpf * 3.1), t, 0.05);
-    this.tailF.frequency.setTargetAtTime(Math.max(50, bpf * 6.2), t, 0.05);
-    this.rotorOut.gain.setTargetAtTime(alive ? (0.32 + 0.4 * strain) * near : 0, t, alive ? 0.08 : 0.03);
+    this.tail.frequency.setTargetAtTime(Math.max(20, heavy ? bpf * 1.018 : bpf * 3.1), t, 0.05);
+    this.tailF.frequency.setTargetAtTime(Math.max(50, heavy ? bpf * 2.4 : bpf * 6.2), t, 0.05);
+    this.tailG.gain.setTargetAtTime(heavy ? 0.03 : 0.012, t, 0.1);
+    this.rotorOut.gain.setTargetAtTime(alive ? (0.32 + 0.4 * strain) * near * (heavy ? 1.25 : 1) : 0, t, alive ? 0.08 : 0.03);
     this.rotorPan.pan.setTargetAtTime(Math.max(-0.8, Math.min(0.8, pan)), t, 0.05);
   }
 

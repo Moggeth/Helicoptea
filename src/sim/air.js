@@ -12,6 +12,8 @@ import { CUPS, TEAPOT, SUGAR, VASE, JUG, BOOKS, STATION, TABLE } from './layout.
 //    radially and steers it around cups and the teapot, and semi-Lagrangian advection carries gusts along.
 //
 // sample(x, y, z, out) returns the air velocity at any point: column + outwash (fading with height).
+// Each rotor has its own wake column (one on the micro heli, two on the tandem-rotor Chinook);
+// `wake` is the first of `wakes`, kept for single-rotor callers.
 
 const H = 0.034;                 // cell size (m)
 const X0 = -1.02, Z0 = -0.68;    // grid origin
@@ -30,7 +32,9 @@ export class AirField {
     this.src = new Float32Array(NX * NZ);
     this.solid = new Uint8Array(NX * NZ);
     this.nx = NX; this.nz = NZ; this.h = H; this.x0 = X0; this.z0 = Z0;
-    this.wake = { active: false, hub: new THREE.Vector3(), dir: new THREE.Vector3(0, -1, 0), vi: 0, len: 0, radius: CFG.heli.rotorRadius, hit: new THREE.Vector3(), vg: 0 };
+    const mkWake = () => ({ active: false, hub: new THREE.Vector3(), dir: new THREE.Vector3(0, -1, 0), vi: 0, len: 0, radius: CFG.heli.rotorRadius, hit: new THREE.Vector3(), vg: 0, footR: 0 });
+    this.wakes = [mkWake(), mkWake()];
+    this.wake = this.wakes[0];
     this.energy = 0;
     this.calm = true;
     this.markSolids();
@@ -58,31 +62,45 @@ export class AirField {
     box(STATION.x, STATION.z, STATION.baseHalf[0], STATION.baseHalf[2]);
   }
 
-  clear() { this.u.fill(0); this.w.fill(0); this.p.fill(0); this.wake.active = false; this.energy = 0; this.calm = true; }
+  clear() { this.u.fill(0); this.w.fill(0); this.p.fill(0); for (const wk of this.wakes) wk.active = false; this.energy = 0; this.calm = true; }
+
+  get anyWake() { return this.wakes[0].active || this.wakes[1].active; }
 
   // Is a point close enough to moving air to be worth sampling? (cheap culling for per-step queries)
   near(p, margin = 0.45) {
     if (this.calm) return false;
-    const wk = this.wake;
-    if (!wk.active) return this.energy > 0.02 && Math.abs(p.x) < 1.05 && p.y < 0.2;
-    const dh = Math.hypot(p.x - wk.hub.x, p.y - wk.hub.y, p.z - wk.hub.z);
-    const dg = wk.vg ? Math.hypot(p.x - wk.hit.x, p.z - wk.hit.z) : 99;
-    return dh < margin || (dg < margin * 1.6 && p.y < 0.2);
+    if (!this.anyWake) return this.energy > 0.02 && Math.abs(p.x) < 1.05 && p.y < 0.2;
+    for (const wk of this.wakes) {
+      if (!wk.active) continue;
+      const dh = Math.hypot(p.x - wk.hub.x, p.y - wk.hub.y, p.z - wk.hub.z);
+      const dg = wk.vg ? Math.hypot(p.x - wk.hit.x, p.z - wk.hit.z) : 99;
+      if (dh < margin || (dg < margin * 1.6 && p.y < 0.2)) return true;
+    }
+    return false;
+  }
+
+  // The rotors driving the air right now: hub (body frame), thrust and radius.
+  rotorsOf(heli) {
+    if (heli.type === 'chinook') return CFG.chinook.hubs.map((h, i) => ({ hub: h, T: heli.rotorT[i], R: CFG.chinook.rotorRadius }));
+    return [{ hub: CFG.heli.rotorHubOffset, T: heli.thrust, R: CFG.heli.rotorRadius }];
   }
 
   // Called at ~60 Hz from the sim.
   update(dt) {
     const A = CFG.air;
     const heli = this.sim.heli;
-    const wk = this.wake;
     this.src.fill(0);
-    wk.active = false;
-    if (heli && heli.thrust > 0.01) {
-      const R = CFG.heli.rotorRadius;
+    for (const wk of this.wakes) wk.active = false;
+    const rotors = heli && heli.thrust > 0.01 ? this.rotorsOf(heli) : [];
+    rotors.forEach((rot, ri) => {
+      const wk = this.wakes[ri];
+      const R = rot.R;
+      if (rot.T <= 0.005) return;
       const area = Math.PI * R * R;
-      wk.vi = Math.sqrt(heli.thrust / (2 * 1.2 * area)) * A.strength;
+      wk.radius = R;
+      wk.vi = Math.sqrt(rot.T / (2 * 1.2 * area)) * A.strength;
       wk.dir.copy(heli.up).negate();
-      wk.hub.set(...CFG.heli.rotorHubOffset).applyQuaternion(heli.quat).add(heli.pos);
+      wk.hub.set(...rot.hub).applyQuaternion(heli.quat).add(heli.pos);
       const ray = new RAPIER.Ray({ x: wk.hub.x, y: wk.hub.y, z: wk.hub.z }, { x: wk.dir.x, y: wk.dir.y, z: wk.dir.z });
       const hit = this.sim.world.castRay(ray, A.maxReach, true, undefined, GROUPS.queryWorld, undefined, heli.body);
       wk.len = hit ? hit.timeOfImpact : A.maxReach;
@@ -95,9 +113,9 @@ export class AirField {
         wk.footR = R * (0.75 + 0.35 * Math.min(2, wk.len / R));
         if (wk.hit.y < 0.2) this.inject(wk);
       } else wk.vg = 0;
-    }
+    });
     // Skip the solve entirely when the air is still (no rotor and the last gusts have died away).
-    if (!wk.active && this.energy < 0.002) { this.calm = true; return; }
+    if (!this.anyWake && this.energy < 0.002) { this.calm = true; return; }
     this.calm = false;
     this.advect(dt);
     this.project();
@@ -126,7 +144,7 @@ export class AirField {
         const r = Math.hypot(x - wk.hit.x, z - wk.hit.z);
         if (r > a) continue;
         const k = j * NX + i;
-        this.src[k] = s * (1 - (r / a) ** 4);
+        this.src[k] += s * (1 - (r / a) ** 4);
         if (dh > 0.02) { this.u[k] += wk.dir.x * wk.vg * 0.25; this.w[k] += wk.dir.z * wk.vg * 0.25; }
       }
     }
@@ -190,15 +208,15 @@ export class AirField {
   // Full 3D air velocity at a point.
   sample(x, y, z, out) {
     out.set(0, 0, 0);
-    const wk = this.wake;
-    if (wk.active) {
+    for (const wk of this.wakes) {
+      if (!wk.active) continue;
       // Wake column.
       const rx = x - wk.hub.x, ry = y - wk.hub.y, rz = z - wk.hub.z;
       const s = rx * wk.dir.x + ry * wk.dir.y + rz * wk.dir.z; // distance downstream
       if (s > -0.01 && s < wk.len) {
         const px = rx - wk.dir.x * s, py = ry - wk.dir.y * s, pz = rz - wk.dir.z * s;
         const r = Math.sqrt(px * px + py * py + pz * pz);
-        const R = CFG.heli.rotorRadius;
+        const R = wk.radius;
         const contraction = 1 - 0.22 * Math.min(1, s / R);
         const edge = R * contraction;
         if (r < edge * 1.25) {

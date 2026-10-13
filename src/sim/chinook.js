@@ -100,6 +100,7 @@ export class Chinook {
     this.integ = 0;
     this.trim = [0, 0];                // assist pitch/roll trim (learned hook-load offsets)
     this.yawInteg = 0;
+    this.turb = [0, 0, 0];
     this.reaction = 0;
     this.groundDist = 1;
     this.skidClearance = 1;
@@ -331,6 +332,13 @@ export class Chinook {
     // Hub and flapping damping plus the net rotor reaction torque (zero only when the rotors are matched).
     const damp = 0.35 + 0.65 * this.rotorSpeed;
     _tb.set(-C.angDamp[0] * wb.x * damp, -C.angDamp[1] * wb.y * damp + reaction, -C.angDamp[2] * wb.z * damp);
+    // Ground-effect recirculation: re-ingested air buffets the discs when hovering low (as on the micro heli).
+    for (let a = 0; a < 3; a++) this.turb[a] += (-this.turb[a] * 5 + (Math.random() * 2 - 1) * 30) * dt;
+    const cushion = Math.max(0, 1 - this.groundDist / (1.6 * C.rotorRadius)) * Math.min(1.5, this.thrustFrac * 2.2) * CFG.air.buffet;
+    if (cushion > 0.01 && !this.grounded) {
+      const amp = 3.0e-4 * cushion;
+      _tb.x += this.turb[0] * amp; _tb.z += this.turb[1] * amp; _tb.y += this.turb[2] * amp * 0.5;
+    }
     _tb.applyQuaternion(q);
     body.addTorque({ x: _tb.x, y: _tb.y, z: _tb.z }, true);
 

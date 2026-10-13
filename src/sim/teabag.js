@@ -218,7 +218,7 @@ export class TeaBag {
     const end = this.attach ? this.attach.endWorld() : null;
     let motion = 0;
     const air = this.sim.air, fl = CFG.air.stringFlutter;
-    const windy = air.wake.active && air.near(this.pos, 0.4);
+    const windy = air.anyWake && air.near(this.pos, 0.4);
     for (let i = 0; i <= N; i++) {
       const k = i * 3;
       const x = s[k], y = s[k + 1], z = s[k + 2];

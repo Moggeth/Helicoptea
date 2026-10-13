@@ -13,6 +13,7 @@ import { Flow } from './game/flow.js';
 import { Debug } from './debug.js';
 import { Autopilot } from './sim/autopilot.js';
 import { Post } from './render/post.js';
+import { AIRCRAFT_IDS, AIRCRAFT_NAMES } from './sim/aircraft.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -76,7 +77,8 @@ async function boot() {
   setProgress(0.15, 'Starting the physics…');
   await initPhysics();
   setProgress(0.3, 'Filling the cups…');
-  const sim = new Sim();
+  const wantAircraft = params.get('aircraft') || store.get('aircraft', 'micro');
+  const sim = new Sim({ aircraft: AIRCRAFT_IDS.includes(wantAircraft) ? wantAircraft : 'micro' });
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(CFG.camera.fov, innerWidth / innerHeight, 0.01, 12);
@@ -126,12 +128,35 @@ async function boot() {
     paused = p;
     audio.suspend(p);
     input.enabled = !p;
-    if (p) hud.openPause({ quality: quality.setting, debug: debug.enabled });
+    if (p) hud.openPause(pauseOpts());
     else hud.closeModal();
+  }
+
+  function pauseOpts() { return { quality: quality.setting, debug: debug.enabled, aircraft: sim.aircraft }; }
+
+  const AIRCRAFT_TOASTS = {
+    micro: 'Micro heli: 24 g, nimble, one hook',
+    chinook: 'Chinook: tandem rotors, three hooks, a lot more mass to stop',
+  };
+  function setAircraft(id) {
+    if (!AIRCRAFT_IDS.includes(id)) return;
+    store.set('aircraft', id);
+    updatePicker();
+    if (sim.aircraft === id) return;
+    sim.setAircraft(id);
+    hud.hideCrash();
+    camRig.recenter(sim.heli ? sim.heli.heading() : camRig.yaw);
+    if (started) hud.toast(AIRCRAFT_TOASTS[id]);
   }
 
   function doAction(a, el) {
     switch (a) {
+      case 'aircraft': {
+        const id = el && el.dataset && el.dataset.id ? el.dataset.id : AIRCRAFT_IDS[(AIRCRAFT_IDS.indexOf(sim.aircraft) + 1) % AIRCRAFT_IDS.length];
+        setAircraft(id);
+        if (paused) hud.openPause(pauseOpts());
+        break;
+      }
       case 'attach': if (!paused) sim.toggleAttach(); break;
       case 'assist':
         sim.assist = !sim.assist; store.set('assist', sim.assist ? '1' : '0');
@@ -144,7 +169,7 @@ async function boot() {
       case 'pause': setPaused(!paused); break;
       case 'resume': setPaused(false); break;
       case 'help': if (hud.modalKind === 'help') hud.closeModal(); else { hud.openHelp(); } break;
-      case 'closehelp': hud.closeModal(); if (paused) hud.openPause({ quality: quality.setting, debug: debug.enabled }); break;
+      case 'closehelp': hud.closeModal(); if (paused) hud.openPause(pauseOpts()); break;
       case 'helptab': hud.setHelpTab(el.dataset.tab); break;
       case 'mute': audio.setMuted(!audio.muted); hud.setVolume(audio.volume, audio.muted); break;
       case 'debug': debug.enabled = !debug.enabled; store.set('debug', debug.enabled ? '1' : '0'); break;
@@ -154,7 +179,7 @@ async function boot() {
       case 'closecontroller':
         input.pads.cancelWizard();
         hud.closeModal();
-        if (paused) hud.openPause({ quality: quality.setting, debug: debug.enabled });
+        if (paused) hud.openPause(pauseOpts());
         break;
       case 'padbind':
         if (!input.pads.startWizard((v) => hud.showWizard(v))) hud.toast('Press any button on your controller first so the browser can see it');
@@ -198,6 +223,25 @@ async function boot() {
 
   // ---------------------------------------------------------------- start gate (audio unlock)
   const startBtn = $('start-btn');
+  const picker = $('aircraft-pick');
+  function updatePicker() {
+    for (const b of picker.querySelectorAll('button')) {
+      const on = b.dataset.aircraft === sim.aircraft;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-checked', String(on));
+    }
+  }
+  picker.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-aircraft]');
+    if (b) setAircraft(b.dataset.aircraft);
+  });
+  // Keys on a focused picker button choose, they don't start the flight.
+  picker.addEventListener('keydown', (e) => {
+    if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); e.stopPropagation(); const b = e.target.closest('[data-aircraft]'); if (b) setAircraft(b.dataset.aircraft); }
+    else if (e.code.startsWith('Arrow')) { e.stopPropagation(); }
+  });
+  updatePicker();
+  picker.classList.remove('hidden');
   startBtn.classList.remove('hidden');
   $('start-hint').classList.remove('hidden');
   $('load-status').textContent = `Loaded in ${((performance.now() - t0) / 1000).toFixed(1)} s`;
@@ -219,7 +263,7 @@ async function boot() {
     $('hud').classList.remove('hidden');
     removeEventListener('keydown', keyStart);
   };
-  const keyStart = (e) => { if (e.code !== 'Tab') begin(); };
+  const keyStart = (e) => { if (e.code === 'Tab' || picker.contains(document.activeElement)) return; begin(); };
   startBtn.addEventListener('click', begin);
   addEventListener('keydown', keyStart);
   startBtn.focus();
@@ -263,8 +307,9 @@ async function boot() {
     document.body.classList.toggle('pad-nav', input.source === 'gamepad');
     hud.updateController();
     if (input.attachBtn) {
-      input.attachBtn.classList.toggle('ready', !!sim.attachCandidate());
-      input.attachBtn.querySelector('.lbl').textContent = sim.carriedBag() ? 'Drop' : 'Hook';
+      const cand = sim.attachCandidate();
+      input.attachBtn.classList.toggle('ready', !!cand);
+      input.attachBtn.querySelector('.lbl').textContent = !cand && sim.carriedBag() ? 'Drop' : 'Hook';
       input.assistBtn.classList.toggle('on', sim.assist);
     }
 
@@ -318,6 +363,7 @@ async function boot() {
     camRig.zoom = THREE.MathUtils.clamp(1 + input.camOrbit.zoom, CFG.camera.minDistance / CFG.camera.distance, CFG.camera.maxDistance / CFG.camera.distance);
     camTarget.copy(view.focusPoint());
     const heading = sim.heli ? sim.heli.heading() : camRig.yaw;
+    camRig.sizeScale += ((sim.aircraft === 'chinook' ? 1.45 : 1) - camRig.sizeScale) * Math.min(1, rd * 3);
     camRig.update(Math.max(rd, 1e-4), camTarget, heading, sim.carriedBag() ? view.bagPosCarried : null, sim);
 
     // Audio bed follows the rotor.
@@ -327,6 +373,7 @@ async function boot() {
       rotorSpeed: h ? h.rotorSpeed : 0,
       thrustFrac: h ? h.thrustFrac / 0.9 : 0,
       load: h ? h.load : 0,
+      heavy: sim.aircraft === 'chinook',
       pan: h ? tmp.copy(h.pos).project(camera).x : 0,
       dist: h ? camera.position.distanceTo(h.pos) : 1,
     });
@@ -334,8 +381,8 @@ async function boot() {
     // HUD.
     if (started && !paused) flow.update(frameDt);
     if (!sim.assist && h) {
-      const extra = sim.carriedBag() ? sim.carriedBag().mass : 0;
-      hud.setCollective(h.collective, Math.min(1, (CFG.heli.mass + extra) / (CFG.heli.mass * CFG.heli.thrustToWeight)));
+      const extra = sim.carriedBags().reduce((m, b) => m + b.mass, 0);
+      hud.setCollective(h.collective, Math.min(1, (h.def.mass + extra) / (h.def.mass * h.def.thrustToWeight)));
     }
     hud.updateBrew(view.projectCups(camera, innerWidth, innerHeight), flow.steepTimers);
     hud.update(frameDt);
@@ -360,7 +407,7 @@ async function boot() {
   requestAnimationFrame(frame);
 
   // Expose a tiny handle for console debugging and automated checks.
-  window.__helicoptea = { post, Autopilot, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
+  window.__helicoptea = { post, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
 }
 
 boot().catch((err) => showError('Helicoptea failed to start. Please reload.', err));

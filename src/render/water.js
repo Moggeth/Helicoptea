@@ -139,8 +139,12 @@ export class TeaSurface {
     // Wash dimple: set by the view while the rotor wake lands in this cup, eased in and out.
     this.washS = (this.washS || 0) + ((this.wash || 0) - (this.washS || 0)) * Math.min(1, dt * 6);
     this.wash = 0;
-    const wk = this.air && this.air.wake;
-    if (wk && wk.active) u.uWash.value.set(wk.hit.x - cup.x, wk.hit.z - cup.z, this.washS, Math.max(0.012, (wk.footR || 0.08) * 0.35));
+    // The wake landing closest to this cup (the Chinook has one per rotor).
+    let wk = null;
+    for (const w of (this.air ? this.air.wakes : [])) {
+      if (w.active && (!wk || Math.hypot(w.hit.x - cup.x, w.hit.z - cup.z) < Math.hypot(wk.hit.x - cup.x, wk.hit.z - cup.z))) wk = w;
+    }
+    if (wk) u.uWash.value.set(wk.hit.x - cup.x, wk.hit.z - cup.z, this.washS, Math.max(0.012, (wk.footR || 0.08) * 0.35));
     else u.uWash.value.z = this.washS;
     const steep = cup.steep;
     u.uBag.value.set(cup.bagPos.x - cup.x, cup.bagPos.z - cup.z, Math.max(u.uBag.value.z * Math.exp(-dt * 0.8), steep), 0);
