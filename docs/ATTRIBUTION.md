@@ -1,6 +1,6 @@
 # Asset sources and licences
 
-Helicoptea ships **no external art, sound, font or model files**.
+Helicoptea ships **no external art, sound, font or model files**. All branding art is original to this project.
 
 | Asset | Source |
 |---|---|
@@ -9,7 +9,7 @@ Helicoptea ships **no external art, sound, font or model files**.
 | Tea surface, rotor blur, particles | Custom shaders in this repository |
 | Sound | Synthesised with the Web Audio API in [src/audio/audio.js](../src/audio/audio.js) |
 | Fonts | System font stacks only (no web fonts are downloaded) |
-| Favicon | Inline SVG in index.html |
+| Favicon, app icons, Steam library art (hero, logo, capsules, icon) | Original: rendered from the game scene and drawn as vector in this repository; see [assets/branding/README.md](../assets/branding/README.md) |
 
 ## Libraries
 
