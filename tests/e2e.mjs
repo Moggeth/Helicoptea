@@ -310,7 +310,7 @@ try {
     await press(8);
     let u = await ui();
     check('pad: Back/View opens the pause menu', u.paused && u.modal === 'Paused', JSON.stringify(u));
-    for (let i = 0; i < 6; i++) await press(13);
+    for (let i = 0; i < 7; i++) await press(13); // past Resume, Restart, Reset, Flight replay, quality, weight, debug
     u = await ui();
     check('pad: d-pad moves menu focus', /Settings/.test(u.focus), `focus "${u.focus}"`);
     await press(0);

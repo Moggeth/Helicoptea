@@ -103,6 +103,8 @@ body.replay-on #hud, body.replay-on #touch, body.replay-on .overlay:not(#error) 
 .replay.compact .rp-btn { min-height: 34px; }
 .replay.compact .rp-speeds .rp-btn:not(.on), .replay.compact .rp-cams .rp-btn:not(.on) { display: none; }
 .replay.compact .rp-time small { display: none; }
+.replay.compact [data-rp=back1], .replay.compact [data-rp=fwd1] { display: none; }
+.replay.compact .rp-controls { gap: 4px; }
 @media (orientation: portrait) {
   .replay.compact { --rp-bottom-h: 196px; --rp-notes-w: calc(100vw - 24px); }
   .replay.compact .rp-controls { flex-wrap: wrap; }
