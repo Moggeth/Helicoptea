@@ -6,6 +6,7 @@ import { buildStaticWorld } from './staticWorld.js';
 import { createAircraft, gearDrop, AIRCRAFT_IDS } from './aircraft.js';
 import { TeaBag } from './teabag.js';
 import { AirField } from './air.js';
+import { MilkSystem } from './milk.js';
 
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _q = new THREE.Quaternion();
 
@@ -88,6 +89,7 @@ export class Sim {
     this.air = new AirField(this);
     this.spawnHeli();
     for (const p of this.pegs) this.refillPeg(p);
+    this.milk = new MilkSystem(this);
   }
 
   register(collider, info) { this.colliderInfo.set(collider.handle, info); }
@@ -168,8 +170,8 @@ export class Sim {
     bag.updateCached();
     const endNow = endWorld();
     const dist = endNow.distanceTo(bag.anchorWorld);
-    const length = Math.max(C.ropeLength, dist + 0.001);
-    const jd = RAPIER.JointData.rope(length, { x: anchor1.x, y: anchor1.y, z: anchor1.z }, { x: 0, y: C.bagHalf[1], z: 0 });
+    const length = Math.max(bag.ropeLength, dist + 0.001);
+    const jd = RAPIER.JointData.rope(length, { x: anchor1.x, y: anchor1.y, z: anchor1.z }, { x: 0, y: bag.anchorY, z: 0 });
     const joint = this.world.createImpulseJoint(jd, body1, bag.body, true);
     bag.attach = { kind: target.kind, joint, length, peg: target.peg || null, heli: target.heli || null, hook: target.hook || 0, anchor: anchor1, endWorld };
   }
@@ -193,14 +195,24 @@ export class Sim {
     return this.heli ? this.bags.filter((b) => b.attach && b.attach.kind === 'heli') : [];
   }
 
+  // Everything on the hooks: bags plus the milk bucket.
+  carriedCargo() {
+    const out = this.carriedBags();
+    const k = this.milk && this.milk.bucket;
+    if (this.heli && k && k.attach && k.attach.kind === 'heli') out.push(k);
+    return out;
+  }
+
+  cargoItems() { return this.milk && this.milk.bucket ? [...this.bags, this.milk.bucket] : this.bags; }
+
   // Nearest bag loop within reach of a free hook (proximity attach). The Chinook has three hooks.
   attachCandidateInfo() {
     if (!this.heli || this.state !== 'flying') return null;
     const hooks = this.heli.hookWorlds;
-    const used = new Set(this.carriedBags().map((b) => b.attach.hook));
+    const used = new Set(this.carriedCargo().map((b) => b.attach.hook));
     if (used.size >= hooks.length) return null;
     let best = null, bestD = CFG.cargo.attachRadius;
-    for (const b of this.bags) {
+    for (const b of this.cargoItems()) {
       if (b.retiring || (b.attach && b.attach.kind === 'heli')) continue;
       b.loopPosition(_a);
       for (let i = 0; i < hooks.length; i++) {
@@ -222,7 +234,7 @@ export class Sim {
     if (this.state !== 'flying') return false;
     const cand = this.attachCandidateInfo();
     if (!cand) {
-      const carried = this.carriedBags();
+      const carried = this.carriedCargo();
       for (const b of carried) this.detachBag(b);
       return carried.length > 0;
     }
@@ -279,7 +291,7 @@ export class Sim {
     if (this.state !== 'flying' || !this.heli) return;
     const heli = this.heli;
     const def = heli.def;
-    for (const b of this.carriedBags()) this.detachBag(b, true);
+    for (const b of this.carriedCargo()) this.detachBag(b, true);
     const pos = heli.pos.clone(), quat = heli.quat.clone(), vel = heli.vel.clone();
     const av = heli.body.angvel();
     const w = new THREE.Vector3(av.x, av.y, av.z);
@@ -329,8 +341,8 @@ export class Sim {
       this.debris.push(d);
       parts.push(d);
     }
-    // Shove nearby bags.
-    for (const b of this.bags) {
+    // Shove nearby bags (and the bucket).
+    for (const b of this.cargoItems()) {
       const dvec = b.pos.clone().sub(pos);
       const dist = dvec.length();
       const reach = 0.3 * def.scale;
@@ -363,7 +375,7 @@ export class Sim {
   // ---------- flow ----------
   restartFlight() {
     if (this.heli) {
-      for (const b of this.carriedBags()) this.detachBag(b, true);
+      for (const b of this.carriedCargo()) this.detachBag(b, true);
       for (const c of this.heli.colliders) this.unregister(c);
       for (const r of this.heli.rotors) this.unregister(r);
       this.heli.destroy();
@@ -391,6 +403,7 @@ export class Sim {
     for (const d of [...this.debris]) this.removeDebris(d);
     this.drips.length = 0;
     for (const c of this.cups) { c.brew = 0; c.steep = 0; }
+    this.milk.reset();
     this.air.clear();
     for (const p of this.pegs) { p.bag = null; }
     this.restartFlight();
@@ -405,6 +418,7 @@ export class Sim {
     if (this.stepCount % CFG.air.updateEvery === 0) this.air.update(dt * CFG.air.updateEvery);
     if (this.heli) this.heli.applyForces(dt, ctl, this.assist);
     for (const b of this.bags) b.applyForces(dt);
+    this.milk.applyForces(dt, ctl);
 
     this.world.step(this.eventQueue);
     this.time += dt;
@@ -482,24 +496,12 @@ export class Sim {
       if (imm && !b.wasImmersed) this.emit('splash', { cup: b.cup, pos: b.pos.clone(), speed: Math.abs(b.vel.y) + 0.3 * Math.hypot(b.vel.x, b.vel.z), bag: b });
       if (!imm && b.wasImmersed && b.vel.y > 0.05) this.emit('extract', { pos: b.pos.clone(), speed: b.vel.y, bag: b });
       b.wasImmersed = imm;
-      // Rope tension on the hook (for audio and debug).
-      if (b.attach) {
-        const d = b.anchorWorld.distanceTo(b.attach.endWorld());
-        // A loop caught slightly beyond full string length is taken in while the string is slack.
-        if (b.attach.kind === 'heli' && b.attach.length > CFG.cargo.ropeLength + 0.0005 && d < b.attach.length - 0.002 && this.stepCount % 6 === 0) {
-          const heli = b.attach.heli;
-          this.world.removeImpulseJoint(b.attach.joint, true);
-          b.attach.length = Math.max(CFG.cargo.ropeLength, d + 0.001);
-          const h = b.attach.anchor;
-          const jd = RAPIER.JointData.rope(b.attach.length, { x: h.x, y: h.y, z: h.z }, { x: 0, y: CFG.cargo.bagHalf[1], z: 0 });
-          b.attach.joint = this.world.createImpulseJoint(jd, heli.body, b.body, true);
-        }
-        b.tension = d > b.attach.length * 0.985 ? b.mass * CFG.physics.gravity : 0;
-      } else b.tension = 0;
+      this.updateRope(b);
     }
+    this.milk.afterStep(dt);
     if (this.heli) {
       let load = 0;
-      for (const b of this.carriedBags()) load += b.tension;
+      for (const b of this.carriedCargo()) load += b.tension;
       this.heli.load = load;
     }
     for (const d of this.debris) d.track.capture(d.body);
@@ -510,7 +512,25 @@ export class Sim {
     this.lastStepMs = performance.now() - t0;
   }
 
+  // Rope tension on the hook (for audio and debug).
+  updateRope(b) {
+    if (b.attach) {
+      const d = b.anchorWorld.distanceTo(b.attach.endWorld());
+      // A loop caught slightly beyond full string length is taken in while the string is slack.
+      if (b.attach.kind === 'heli' && b.attach.length > b.ropeLength + 0.0005 && d < b.attach.length - 0.002 && this.stepCount % 6 === 0) {
+        const heli = b.attach.heli;
+        this.world.removeImpulseJoint(b.attach.joint, true);
+        b.attach.length = Math.max(b.ropeLength, d + 0.001);
+        const h = b.attach.anchor;
+        const jd = RAPIER.JointData.rope(b.attach.length, { x: h.x, y: h.y, z: h.z }, { x: 0, y: b.anchorY, z: 0 });
+        b.attach.joint = this.world.createImpulseJoint(jd, heli.body, b.body, true);
+      }
+      b.tension = d > b.attach.length * 0.985 ? b.mass * CFG.physics.gravity : 0;
+    } else b.tension = 0;
+  }
+
   housekeeping(dt) {
+    this.milk.housekeeping(dt);
     for (const p of this.pegs) {
       if (!p.bag) {
         p.emptyFor += dt;

@@ -20,6 +20,25 @@ export function teaColor(brew, out = new THREE.Color()) {
   return out.copy(RAMP[RAMP.length - 1][1]);
 }
 
+// Milky tea: milk scatters light, so even a splash turns tea opaque and pale. The tea still tints it
+// (its absorption, softened as milk takes over), and pure milk is milk.
+const MILK = new THREE.Color(0.97, 0.955, 0.92);
+const _t = new THREE.Color();
+export function milkyTea(brew, milk, out = new THREE.Color()) {
+  teaColor(brew, out);
+  const m = THREE.MathUtils.clamp(milk || 0, 0, 1);
+  if (m <= 0) return out;
+  const k = 1 - Math.exp(-m * 11);           // how much the milk's scattering has taken over
+  const e = 0.55 * (1 - m);                  // tea's tint fades as the brew is diluted
+  _t.setRGB(MILK.r * Math.pow(out.r, e), MILK.g * Math.pow(out.g, e), MILK.b * Math.pow(out.b, e));
+  return out.lerp(_t, k);
+}
+// Opacity of a cup's surface: brew darkens it, milk clouds it.
+export function teaOpacity(brew, milk) {
+  const base = THREE.MathUtils.lerp(0.42, 0.97, Math.pow(THREE.MathUtils.clamp(brew, 0, 1), 0.55));
+  return THREE.MathUtils.lerp(base, 0.985, 1 - Math.exp(-(milk || 0) * 14));
+}
+
 const MAX_RIPPLES = 8;
 
 export class TeaSurface {
@@ -31,6 +50,7 @@ export class TeaSurface {
     this.color = new THREE.Color();
     this.plumeColor = new THREE.Color();
     this.displayBrew = cup.brew;
+    this.displayMilk = cup.milk || 0;
     const geo = new THREE.CircleGeometry(cup.rIn - 0.0004, 64);
     geo.rotateX(-Math.PI / 2);
     this.material = new THREE.ShaderMaterial({
@@ -129,13 +149,14 @@ export class TeaSurface {
     const cup = this.cup;
     // Smooth display so colour changes read as diffusion rather than flicker.
     this.displayBrew += (cup.brew - this.displayBrew) * Math.min(1, dt * 1.5);
-    teaColor(this.displayBrew, this.color);
-    teaColor(Math.min(1, this.displayBrew + 0.35), this.plumeColor);
+    this.displayMilk += ((cup.milk || 0) - this.displayMilk) * Math.min(1, dt * 2.5);
+    milkyTea(this.displayBrew, this.displayMilk, this.color);
+    milkyTea(Math.min(1, this.displayBrew + 0.35), this.displayMilk * 0.8, this.plumeColor);
     const u = this.material.uniforms;
     u.uTime.value = time;
     u.uColor.value.copy(this.color);
     u.uPlume.value.copy(this.plumeColor);
-    u.uOpacity.value = THREE.MathUtils.lerp(0.42, 0.97, Math.pow(this.displayBrew, 0.55));
+    u.uOpacity.value = teaOpacity(this.displayBrew, this.displayMilk);
     // Wash dimple: set by the view while the rotor wake lands in this cup, eased in and out.
     this.washS = (this.washS || 0) + ((this.wash || 0) - (this.washS || 0)) * Math.min(1, dt * 6);
     this.wash = 0;

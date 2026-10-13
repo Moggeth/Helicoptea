@@ -79,6 +79,32 @@ export const CFG = {
     potencyLife: 110,       // s of full immersion before a bag is spent
   },
 
+  // Bambi-style milk bucket on the same line and hooks as the bags. It fills through a one-way valve in
+  // its base when dipped (inside and outside levels equalise), empties through a release valve the pilot
+  // opens, and part of its contents sloshes as the first slosh mode of a cylindrical tank.
+  milk: {
+    rimR: 0.0135, baseR: 0.0105, height: 0.026, // interior frustum (m): about 12 ml brim full
+    wall: 0.0009,
+    dryMass: 0.0034,        // fabric, frame and the ballast ring that sinks it
+    bridle: 0.02,           // rim to swivel, where the line ties on
+    lineLength: 0.13,
+    density: 1030,          // milk; tea is water
+    inletR: 0.0028,         // one-way fill valve in the base (Torricelli inflow while outside is higher)
+    valveR: 0.0026,         // release valve
+    dischargeCd: 0.62,
+    sloshFrac: 0.45,        // share of the contents that moves in the slosh mode
+    sloshDamping: 0.07,
+    dragK: 0.9,             // N per (m/s)^2 through liquid, whole bucket
+    dragLinear: 0.02,
+    maxParcels: 140,        // falling stream parcels (bounded; overflow merges, never drops milk)
+    parcelEvery: 2,         // physics steps between stream parcels
+    streamDrag: 0.35,       // s: a falling stream takes this long to follow the rotor wash
+    film: 0.0011,           // puddle thickness (m)
+    maxPuddles: 10,
+    puddleMaxR: 0.07,
+    puddleLife: 150,        // s for a puddle to soak in and dry to ~37%
+  },
+
   crash: {
     impactDv: 0.95,         // m/s velocity change from a single contact that destroys the heli
     bumpDv: 0.22,

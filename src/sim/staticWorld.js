@@ -101,7 +101,7 @@ export function buildStaticWorld(sim) {
   return body;
 }
 
-function ring(add, cx, cz, r, halfT, baseY, height, n, kind) {
+export function ring(add, cx, cz, r, halfT, baseY, height, n, kind) {
   const seg = (2 * Math.PI * r / n) * 0.56;
   const q = new THREE.Quaternion();
   for (let i = 0; i < n; i++) {

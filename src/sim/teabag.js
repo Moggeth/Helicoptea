@@ -20,24 +20,7 @@ export class TeaBag {
   constructor(sim, pos, quat) {
     this.sim = sim;
     this.id = nextId++;
-    const world = sim.world;
-    const desc = RAPIER.RigidBodyDesc.dynamic()
-      .setTranslation(pos.x, pos.y, pos.z)
-      .setRotation({ x: quat.x, y: quat.y, z: quat.z, w: quat.w })
-      .setCanSleep(false)
-      .setCcdEnabled(true)
-      .setLinearDamping(0.02)
-      .setAngularDamping(0.25);
-    this.body = world.createRigidBody(desc);
-    const cd = RAPIER.ColliderDesc.cuboid(C.bagHalf[0], C.bagHalf[1], C.bagHalf[2])
-      .setMass(C.dryMass)
-      .setFriction(0.75)
-      .setRestitution(0.04)
-      .setCollisionGroups(GROUPS.bag)
-      .setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS)
-      .setContactForceEventThreshold(0.02);
-    this.collider = world.createCollider(cd, this.body);
-    sim.register(this.collider, { kind: 'bag', bag: this });
+    this.build(sim.world, pos, quat);
 
     this.track = new Track(this.body);
     this.wetness = 0;
@@ -69,11 +52,36 @@ export class TeaBag {
     for (let i = 0; i <= N; i++) {
       const t = i / N;
       this.str[i * 3] = this.anchorWorld.x;
-      this.str[i * 3 + 1] = this.anchorWorld.y + t * C.ropeLength;
+      this.str[i * 3 + 1] = this.anchorWorld.y + t * this.ropeLength;
       this.str[i * 3 + 2] = this.anchorWorld.z;
     }
     this.strPrev.set(this.str); this.strRender0.set(this.str); this.strRender1.set(this.str);
   }
+
+  // Rigid body and collider. Other cargo on the same kind of line (the milk bucket) overrides this,
+  // anchorY (where the line ties on, above the body origin) and ropeLength.
+  build(world, pos, quat) {
+    const desc = RAPIER.RigidBodyDesc.dynamic()
+      .setTranslation(pos.x, pos.y, pos.z)
+      .setRotation({ x: quat.x, y: quat.y, z: quat.z, w: quat.w })
+      .setCanSleep(false)
+      .setCcdEnabled(true)
+      .setLinearDamping(0.02)
+      .setAngularDamping(0.25);
+    this.body = world.createRigidBody(desc);
+    const cd = RAPIER.ColliderDesc.cuboid(C.bagHalf[0], C.bagHalf[1], C.bagHalf[2])
+      .setMass(C.dryMass)
+      .setFriction(0.75)
+      .setRestitution(0.04)
+      .setCollisionGroups(GROUPS.bag)
+      .setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS)
+      .setContactForceEventThreshold(0.02);
+    this.collider = world.createCollider(cd, this.body);
+    this.sim.register(this.collider, { kind: 'bag', bag: this });
+  }
+
+  get anchorY() { return C.bagHalf[1]; }
+  get ropeLength() { return C.ropeLength; }
 
   get mass() { return C.dryMass + C.waterCapacity * this.wetness; }
 
@@ -82,7 +90,7 @@ export class TeaBag {
     this.pos.set(t.x, t.y, t.z);
     this.quat.set(r.x, r.y, r.z, r.w);
     this.vel.set(v.x, v.y, v.z);
-    this.anchorWorld.set(0, C.bagHalf[1], 0).applyQuaternion(this.quat).add(this.pos);
+    this.anchorWorld.set(0, this.anchorY, 0).applyQuaternion(this.quat).add(this.pos);
   }
 
   loopPosition(out) {
@@ -213,7 +221,7 @@ export class TeaBag {
   // String verlet: pinned at the bag; the loop end is pinned to the peg or hook while attached.
   stepString(dt) {
     const N = this.N, s = this.str, p = this.strPrev;
-    const seg = (this.attach ? this.attach.length : C.ropeLength) / N;
+    const seg = (this.attach ? this.attach.length : this.ropeLength) / N;
     const g = CFG.physics.gravity * dt * dt;
     const end = this.attach ? this.attach.endWorld() : null;
     let motion = 0;

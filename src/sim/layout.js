@@ -48,3 +48,7 @@ export function stringColliders() {
   out.push([DISCARD.x, DISCARD.z, DISCARD.radius, DISCARD.thickness, 0]);
   return out;
 }
+
+// Milk station: a wide bowl to dip the bucket in, and a hanger the bucket waits on (arm points to +z).
+export const MILK_BOWL = { x: -0.22, z: -0.34, rOut: 0.068, rIn: 0.062, height: 0.046, bottom: 0.006, level: 0.036 };
+export const BUCKET_HANGER = { x: -0.06, z: -0.43, postHalf: 0.0065, height: 0.272, armY: 0.262, reach: 0.068, baseHalf: [0.03, 0.006, 0.03] };
