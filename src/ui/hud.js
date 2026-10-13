@@ -9,6 +9,8 @@ const ICONS = {
   help: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6"/><path d="M12 17h.01"/></svg>',
   menu: '<svg viewBox="0 0 24 24"><path d="M10 5v14M14 5v14"/></svg>',
   cockpit: '<svg viewBox="0 0 24 24"><path d="M3 15c2-6 6-9 9-9s7 3 9 9"/><path d="M12 6v9"/><path d="M3 15h18"/><path d="M7 19h10"/></svg>',
+  flag: '<svg viewBox="0 0 24 24"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg>',
+  replay: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v5h5"/><path d="m10 9 5 3-5 3z"/></svg>',
   chase: '<svg viewBox="0 0 24 24"><path d="M4 13h9l3-3h4"/><path d="M8 13v3h6"/><path d="M2 8h12"/><path d="M8 8v5"/></svg>',
 };
 
@@ -28,6 +30,7 @@ export class Hud {
         <button class="icon-btn" data-act="restart" title="Restart flight (R)" aria-label="Restart flight">${ICONS.restart}<span class="key kb">R</span></button>
         <button class="icon-btn" data-act="view" title="Cockpit view (1)" aria-label="Switch to cockpit view">${ICONS.cockpit}<span class="key kb">1</span></button>
         <button class="icon-btn" data-act="recenter" title="Recenter camera (C)" aria-label="Recenter camera">${ICONS.view}</button>
+        <button class="icon-btn mark-btn" data-act="mark" title="Mark this moment for a flight note (N, gamepad R3)" aria-label="Mark this moment for a flight note">${ICONS.flag}<span class="key kb">N</span></button>
         <div style="position:relative">
           <button class="icon-btn" data-act="sound" title="Sound (M to mute)" aria-label="Sound settings">${ICONS.sound}</button>
           <div class="vol-pop hidden"><button class="secondary" data-act="mute" style="padding:6px 10px">Mute</button><input type="range" min="0" max="1" step="0.01" aria-label="Volume" /></div>
@@ -44,7 +47,7 @@ export class Hud {
       <div class="crash">
         <h2>Ka-boom.</h2>
         <p class="why"></p>
-        <button class="primary" data-act="restart">Restart Flight <span class="kb-inline"></span></button>
+        <div class="crash-row"><button class="primary" data-act="restart">Restart Flight <span class="kb-inline"></span></button><button class="secondary crash-replay" data-act="replay">${ICONS.replay}Watch replay</button></div>
       </div>
       <div class="loadcam hidden" aria-hidden="true"><span class="lc-name">HOOK CAM</span><span class="lc-read"></span></div>
       <div class="fp-flash"></div>
@@ -259,6 +262,7 @@ export class Hud {
           <button class="primary" style="margin-top:0" data-act="resume">Resume</button>
           <button class="secondary" data-act="restart">Restart flight</button>
           <button class="secondary" data-act="reset">Reset sandbox</button>
+          <button class="secondary" data-act="replay">Flight replay</button>
         </div>
         <div class="row stack">
           <label class="opt">Graphics quality
@@ -282,7 +286,7 @@ export class Hud {
           <div class="opt aircraft-row" role="radiogroup" aria-label="Aircraft">Aircraft
             <span>${[['micro', 'Micro heli'], ['chinook', 'Chinook'], ['skycrane', 'Skycrane']].map(([id, nm]) => `<button class="secondary${opts.aircraft === id ? ' on' : ''}" style="padding:6px 12px" role="radio" aria-checked="${opts.aircraft === id}" data-act="aircraft" data-id="${id}">${nm}</button>`).join(' ')}</span></div>
         </div>
-        <p class="help-note">Reset sandbox clears every cup and bag. Restart flight keeps your brewing. Switching aircraft starts a fresh flight on the pad. Quality changes reload the page.</p>
+        <p class="help-note">Reset sandbox clears every cup and bag. Restart flight keeps your brewing. Switching aircraft starts a fresh flight on the pad. Quality changes reload the page. Every flight is recorded: <b>Flight replay</b> plays it back with its telemetry, and notes you add there (or marks you drop in flight with <kbd>N</kbd>) are saved to <code>logs/flights</code>.</p>
       </div>`;
     this.modal.querySelector('[data-setting=quality]').addEventListener('change', (e) => this.h.setting('quality', e.target.value));
     this.modal.querySelector('[data-setting=debug]').addEventListener('change', (e) => this.h.setting('debug', e.target.checked));
@@ -323,13 +327,13 @@ export class Hud {
     const R = {
       keyboard: [['<kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd>', 'Cyclic: tilt forward, back and sideways (or I J K L)'], ['<kbd>W</kbd><kbd>S</kbd>', 'Collective: more / less lift'], ['<kbd>A</kbd><kbd>D</kbd>', 'Yaw: turn left / right'],
         ['<kbd>Space</kbd>', 'Hook a bag or the milk bucket / release it (the Chinook has three hooks: Space drops them all)'], ['<kbd>G</kbd> (hold)', 'Pour milk: the bucket\'s valve, or the skycrane\'s belly doors (they open wider the longer you hold)'], ['Double-tap <kbd>G</kbd> or <kbd>Shift</kbd>+<kbd>G</kbd>', 'Salvo: dump the lot (latches the doors or the bucket valve open; again to close)'], ['<kbd>T</kbd> (hold)', 'Skycrane: pump milk up the snorkel (only with the intake under the surface)'], ['Double-tap <kbd>T</kbd> or <kbd>Shift</kbd>+<kbd>T</kbd>', 'Skycrane auto-fill: reel down, pump until full, reel up (any hose or pump key takes over)'], ['<kbd>Z</kbd> / <kbd>X</kbd> (hold)', 'Skycrane: reel the snorkel in / out'], ['<kbd>V</kbd>', 'Switch aircraft: micro heli / Chinook / skycrane'], ['<kbd>F</kbd>', 'Flight Assist on / off'], ['<kbd>R</kbd>', 'Restart flight'], ['<kbd>Shift</kbd>+<kbd>R</kbd>', 'Reset sandbox'],
-        ['<kbd>1</kbd>', 'Cockpit / chase view. In the cockpit, drag the mouse to look around, wheel to zoom'], ['<kbd>C</kbd>', 'Recenter camera or look ahead (drag to orbit, wheel to zoom)'], ['<kbd>M</kbd>', 'Mute'], ['<kbd>Esc</kbd>', 'Pause'], ['<kbd>`</kbd>', 'Debug overlay']],
+        ['<kbd>1</kbd>', 'Cockpit / chase view. In the cockpit, drag the mouse to look around, wheel to zoom'], ['<kbd>C</kbd>', 'Recenter camera or look ahead (drag to orbit, wheel to zoom)'], ['<kbd>N</kbd>', 'Mark this moment for a flight note (describe it later in Pause → Flight replay)'], ['<kbd>M</kbd>', 'Mute'], ['<kbd>Esc</kbd>', 'Pause'], ['<kbd>`</kbd>', 'Debug overlay']],
       gamepad: [['Right stick', 'Cyclic: tilt'], ['Left stick ↕', 'Collective (or triggers RT / LT)'], ['Left stick ↔', 'Yaw'], ['<kbd>A</kbd>', 'Hook / release'], ['<kbd>RB</kbd> (hold)', 'Pour milk from the bucket; double-tap latches the valve open'], ['Skycrane <kbd>RT</kbd>', 'Belly doors, analog: squeeze to trickle, pull fully to gush; two quick full pulls = salvo'], ['Skycrane <kbd>LT</kbd>', 'Pump (how hard you pull is how fast it pumps)'], ['Skycrane <kbd>LB</kbd> / <kbd>RB</kbd>', 'Reel the snorkel in / out; both together = auto-fill'], ['Skycrane', 'The triggers run the tank, so collective is on the left stick'], ['<kbd>Y</kbd>', 'Flight Assist on / off'],
         ['<kbd>Start</kbd>', 'Restart flight'], ['L3 (click left stick)', 'Cockpit / chase view'], ['Hold L3 + right stick', 'Look around in the cockpit (the cyclic centres while you hold L3)'],
-        ['<kbd>B</kbd> / R3', 'Recenter camera or look ahead'], ['D-pad', 'Orbit and zoom camera; in the cockpit, glance around'], ['<kbd>Back</kbd> / <kbd>View</kbd>', 'Pause menu'], ['<kbd>X</kbd>', 'Controls'],
+        ['<kbd>B</kbd>', 'Recenter camera or look ahead'], ['R3 (click right stick)', 'Mark this moment for a flight note'], ['D-pad', 'Orbit and zoom camera; in the cockpit, glance around'], ['<kbd>Back</kbd> / <kbd>View</kbd>', 'Pause menu'], ['<kbd>X</kbd>', 'Controls'],
         ['After a crash', '<kbd>A</kbd> also restarts'], ['In menus', 'D-pad or left stick to move, <kbd>A</kbd> select, <kbd>B</kbd> back, ◀ ▶ adjust sliders']],
       touch: [['Left thumb', 'Up / down: collective. Left / right: yaw'], ['Right thumb', 'Cyclic: tilt in any direction'], ['<kbd>Hook</kbd>', 'Hook / release (glows when a loop is in reach)'], ['<kbd>Pour</kbd> (hold)', 'Pour milk (appears while you carry the bucket); double-tap latches it open'], ['<kbd>Doors</kbd> (hold)', 'Skycrane belly doors, opening wider as you hold; double-tap = salvo'], ['<kbd>Pump</kbd> (hold)', 'Skycrane pump; double-tap = auto-fill'], ['<kbd>Hose ▲</kbd> <kbd>Hose ▼</kbd>', 'Reel the snorkel in / out'],
-        ['<kbd>Assist</kbd>', 'Flight Assist on / off'], ['Cockpit icon (top right)', 'Cockpit / chase view'], ['Drag open screen', 'Look around in the cockpit, or orbit the chase camera'], ['<kbd>View</kbd>', 'Recenter camera or look ahead'], ['↻ (top right)', 'Restart flight']],
+        ['<kbd>Assist</kbd>', 'Flight Assist on / off'], ['Cockpit icon (top right)', 'Cockpit / chase view'], ['Drag open screen', 'Look around in the cockpit, or orbit the chase camera'], ['<kbd>View</kbd>', 'Recenter camera or look ahead'], ['<kbd>Mark</kbd>', 'Mark this moment for a flight note'], ['↻ (top right)', 'Restart flight']],
     };
     return R[tab].map(([k, d]) => `<dt>${k}</dt><dd>${d}</dd>`).join('');
   }

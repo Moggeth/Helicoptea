@@ -42,6 +42,15 @@ Look around by dragging the mouse (wheel to zoom), holding **L3** and using the 
 
 Every hanging load (bags, the bucket, the skycrane's intake) casts a soft shadow straight down onto whatever is below it, including the tea, and the shadow tightens and darkens as the load closes on the surface. When a load is right over a cup's opening its rim glints, and with a load low over a cup the chase camera closes in and looks a little more steeply into it. An optional plumb line drops from the lowest load (or the hook) to a small laser dot with the height beside it. Each is a switch in the pause menu (the plumb line starts off). See [docs/DESIGN.md](docs/DESIGN.md#depth-cues-srcrenderdepthcuesjs).
 
+## Flight replay and feel notes
+
+Every flight is recorded (inputs, telemetry and everything that moves, at 60 Hz). Press **N** in flight
+(gamepad **R3**, touch **⚑ Mark**) to mark a moment. **Pause → Flight replay**, or **Watch replay** after a
+crash, plays it back from the snapshots with a timeline, slow motion, frame step, chase / orbit / cockpit
+cameras and graphs of the sticks, height, speed and rope tension; add notes there tagged good or bad. Flights
+and notes are saved to `logs/flights/` by the dev and preview servers, and `node tools/flight-notes.mjs`
+summarises the notes with the telemetry around each one. See [docs/FLIGHT-LOGS.md](docs/FLIGHT-LOGS.md).
+
 ## Rotor wash, AO
 
 The rotor's downwash is a small fluid simulation (wake column plus a 2D outwash solver over the table). It pushes the dangling bag and strings, buffets the helicopter near surfaces, ripples the linen runner, blows steam and dust, nods the flowers, and dimples and sprays the tea. Ambient occlusion (GTAO) grounds everything on desktop. See [docs/DESIGN.md](docs/DESIGN.md).
@@ -75,6 +84,7 @@ node tests/e2e-chinook.mjs           # Chinook through keyboard, gamepad and tou
 node tests/e2e-milk.mjs              # milk bucket: hook, dip, carry, pour with G / RB / touch, puddles
 node tests/e2e-skycrane.mjs          # skycrane: snorkel, pump, doors, salvo, auto-fill on keyboard, gamepad and touch
 node tests/e2e-depth.mjs http://localhost:4192/   # depth cues: shadows on table and tea, plumb line, rim glint, camera, toggles
+node tests/e2e-replay.mjs            # flight recording, replay viewer, notes and saving on keyboard, gamepad and touch
 ```
 
 `tests/sim-checks.mjs` drives the real simulation with the same stick inputs a player produces (via a scripted autopilot) and asserts physical outcomes: hover, assist on/off behaviour, peg pickup, swing and load transfer, immersion, wetness and mass, per-cup brewing, extraction and draining, release onto the saucer, landing, crash thresholds, and bounded crash/restart cycles.
@@ -95,7 +105,9 @@ node tests/e2e-depth.mjs http://localhost:4192/   # depth cues: shadows on table
 | Flight Assist | F | Y | Assist button |
 | Restart flight | R | Start | ↻ (top right) |
 | Reset sandbox | Shift+R | Pause menu | Pause menu |
-| Camera | C recenter, mouse drag orbit, wheel zoom | B or R3 recenter, D-pad orbit/zoom | View button, drag open screen to orbit |
+| Camera | C recenter, mouse drag orbit, wheel zoom | B recenter, D-pad orbit/zoom | View button, drag open screen to orbit |
+| Mark a moment for a flight note | N | R3 (click the right stick) | ⚑ Mark |
+| Flight replay | Pause menu, or Watch replay after a crash | same | same |
 | Cockpit view | 1 toggles; mouse drag look, wheel zoom, C look ahead | L3 click toggles; hold L3 + right stick look, D-pad glance, B look ahead | Cockpit icon (top right); drag open screen to look |
 | Pause / help / mute / debug | Esc, H, M, ` (or F3) | Back/View, X | ‖ and ? buttons |
 | Menus | Arrow keys/Tab, Enter | D-pad or left stick, A select, B back | Tap |
@@ -124,6 +136,8 @@ src/render/            Three.js: kitchen, procedural models/textures, tea surfac
 src/input/input.js     keyboard, gamepad, touch merged into one control state
 src/audio/audio.js     procedural Web Audio
 src/ui/hud.js, src/game/flow.js   HUD, menus, contextual onboarding
+src/replay/            flight recorder, log format, replay stage and viewer, disk store
+tools/flight-log-plugin.js, tools/flight-notes.mjs   logs/flights endpoint; notes + telemetry summary
 tests/                 headless physics checks and browser e2e
 docs/                  design notes, verification record, attribution, timing
 ```

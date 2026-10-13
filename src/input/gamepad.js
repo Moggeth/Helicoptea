@@ -22,7 +22,7 @@ export const STANDARD_BINDING = {
     roll: { type: 'axis', index: 2, sign: 1 },
   },
   triggers: { up: 7, down: 6 },
-  buttons: { attach: [0], view: [10], pour: [5], doors: [7], pump: [6], reelOut: [5], reelIn: [4], recenter: [1, 11], help: [2], assist: [3], pause: [8], restart: [9], camLeft: [14], camRight: [15], zoomIn: [12], zoomOut: [13], up: [12], down: [13], left: [14], right: [15], confirm: [0], back: [1] },
+  buttons: { attach: [0], view: [10], pour: [5], doors: [7], pump: [6], reelOut: [5], reelIn: [4], recenter: [1], mark: [11], help: [2], assist: [3], pause: [8], restart: [9], camLeft: [14], camRight: [15], zoomIn: [12], zoomOut: [13], up: [12], down: [13], left: [14], right: [15], confirm: [0], back: [1] },
 };
 
 // Wizard steps: axes first (move), then buttons (press).
@@ -178,7 +178,7 @@ export class Gamepads {
       else if (dir) { this.navRepeat.t -= dt; if (this.navRepeat.t <= 0) { this.navRepeat.t = 0.12; this.events.push(`nav-${dir}`); } }
     } else {
       this.navRepeat.dir = null;
-      for (const name of ['attach', 'assist', 'restart', 'pause', 'help', 'recenter']) if (any(btn[name])) this.events.push(name);
+      for (const name of ['attach', 'assist', 'restart', 'pause', 'help', 'recenter', 'mark']) if (any(btn[name])) this.events.push(name);
       // Combos. Skycrane: two quick full pulls of the door trigger = salvo; both bumpers together = auto-fill.
       // Bucket: a double-tap of the pour button latches its valve open.
       const now = performance.now();

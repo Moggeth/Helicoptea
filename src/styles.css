@@ -157,6 +157,15 @@ kbd {
 .crash h2 { font-family: var(--serif); font-size: clamp(34px, 6vw, 52px); color: #fff4e2; margin: 0; text-shadow: 0 3px 18px rgba(0,0,0,0.5); font-style: italic; }
 .crash p { color: #fff4e2; opacity: 0.9; margin: 4px 0 0; text-shadow: 0 1px 6px rgba(0,0,0,0.6); font-size: 14px; }
 .crash .primary { margin-top: 16px; }
+.crash-row { display: flex; gap: 10px; align-items: flex-end; justify-content: center; flex-wrap: wrap; }
+.crash-replay { display: inline-flex; align-items: center; gap: 7px; background: rgba(255, 244, 226, 0.88); }
+.crash-replay svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* flight-note mark: an icon top right on desktop, a small button above Assist on touch */
+body.touch-ui .mark-btn { display: none; }
+.touch-btn.mark { width: 48px; height: 48px; left: calc(156px + var(--safe-l)); bottom: calc(58vh + 4px); border-radius: 14px; }
+.touch-btn.mark .ico { font-size: 17px; line-height: 1; margin-bottom: -10px; }
+.touch-btn.mark .lbl { font-size: 9.5px; }
 
 /* pause / menu / help */
 .menu .row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
@@ -232,6 +241,7 @@ body.touch-ui .tank-gauge { top: 34%; }
   .stick-zone { height: 40vh; width: 50vw; }
   .touch-btn.attach { bottom: calc(40vh + 8px); }
   .touch-btn.assist { bottom: calc(40vh + 14px); }
+  .touch-btn.mark { left: calc(226px + var(--safe-l)); bottom: calc(40vh + 16px); }
   .touch-btn.recenter { bottom: calc(40vh + 20px); }
   .touch-btn.pour { bottom: calc(40vh + 18px); }
   .touch-btn.doors { bottom: calc(40vh + 16px); }

@@ -17,6 +17,10 @@ import { AIRCRAFT_IDS, AIRCRAFT_NAMES, gearDrop } from './sim/aircraft.js';
 import { CockpitRig, LoadCamera, SEATS } from './render/cockpitCam.js';
 import { Cockpit } from './render/cockpit.js';
 import { DepthCues, DEPTH_DEFAULTS } from './render/depthCues.js';
+import { FlightRecorder } from './replay/recorder.js';
+import { FlightStore } from './replay/store.js';
+import { ReplayStage } from './replay/stage.js';
+import { ReplayViewer } from './replay/viewer.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -153,6 +157,22 @@ async function boot() {
     },
   });
   const flow = new Flow(sim, hud);
+
+  // Every flight is recorded (inputs, telemetry, everything that moves) and saved to logs/flights via the
+  // dev / preview server; the replay viewer plays them back from the snapshots, with notes.
+  const flightStore = new FlightStore();
+  const recorder = new FlightRecorder(sim, {
+    getInput: () => ({ source: input.source, kb: input.kb, gp: input.gp, touch: input.touch, raw: input.pads.raw }),
+    settings: () => ({ view: fp.mode, quality: quality.name, weight, touchUi: IS_TOUCH }),
+    onFlightEnd: (f) => flightStore.save(f),
+  });
+  if (params.get('record') === '0') recorder.enabled = false;
+  const replay = new ReplayViewer({
+    recorder, store: flightStore, stage: new ReplayStage(view, kitchen), camera, cockpit, sim,
+    fpSettings: () => fp, setLens: (on, zoom) => applyLens(on, zoom),
+    onClose: (from) => closeReplay(from),
+  });
+  const fmtWall = (w) => `${Math.floor(w / 60)}:${String(Math.floor(w % 60)).padStart(2, '0')}`;
   hud.setAssist(sim.assist);
   hud.setVolume(audio.volume, audio.muted);
   hud.setDevice(IS_TOUCH ? 'touch' : 'keyboard');
@@ -161,12 +181,31 @@ async function boot() {
   if (IS_TOUCH) { document.body.classList.add('touch-ui'); $('touch').classList.remove('hidden'); }
 
   function setPaused(p) {
-    if (p === paused || !started) return;
+    if (p === paused || !started || replay.active) return;
     paused = p;
+    if (p && recorder.current && recorder.current.dirty) flightStore.save(recorder.current);
     audio.suspend(p);
     input.enabled = !p;
     if (p) hud.openPause(pauseOpts());
     else hud.closeModal();
+  }
+
+  // The replay freezes the world (as the pause menu does) and takes over the screen and the controls.
+  function openReplay() {
+    if (!started || replay.active) return;
+    const from = paused ? 'pause' : 'crash';
+    if (!paused) { paused = true; audio.suspend(true); input.enabled = false; }
+    hud.closeModal();
+    hud.setLoadCam(null);
+    cockpit.setPipRect(null, innerWidth, innerHeight);
+    replay.open({ from });
+  }
+  function closeReplay(from) {
+    lensKey = '';
+    if (from === 'crash' && crashShown) {
+      paused = false; audio.suspend(false); input.enabled = true;
+      if (input.source === 'gamepad') hud.focusFirst();
+    } else hud.openPause(pauseOpts());
   }
 
   function pauseOpts() { return { quality: quality.setting, debug: debug.enabled, aircraft: sim.aircraft, weight, view: fp.mode, fpFov: fp.fov, fpMotion: fp.motion, fpVibration: fp.vibration, loadCam: fp.loadCam, cues: { ...depth.settings } }; }
@@ -214,6 +253,12 @@ async function boot() {
         break;
       }
       case 'attach': if (!paused) sim.toggleAttach(); break;
+      case 'replay': openReplay(); break;
+      case 'mark': {
+        const n = paused ? null : recorder.addNote({ tag: 'mark', source: 'flight' });
+        if (n) hud.toast(`Marked ${fmtWall(n.wall)}. Describe it later in Pause → Flight replay`, 2.2);
+        break;
+      }
       case 'salvo': {
         const r = paused ? null : sim.milk.salvo();
         const T = { salvo: 'Salvo! Doors latched open', latched: 'Valve latched open', closed: 'Closed', empty: 'Nothing to drop: fill up first' };
@@ -292,12 +337,12 @@ async function boot() {
   // Camera lens: the chase view, or the pilot's eye (wider, with a near plane of a couple of
   // millimetres so the rotor mast and skids just outside the cabin still draw).
   let lensKey = '', lensFp = false;
-  function applyLens(cockpitView) {
+  function applyLens(cockpitView, zoom = fpRig.fovZoom) {
     const w = innerWidth, h = innerHeight, aspect = w / h;
     let fov, near;
     if (cockpitView) {
       const hf = THREE.MathUtils.degToRad(fp.fov);
-      fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(hf / 2) / Math.max(aspect, 1.25))) + fpRig.fovZoom;
+      fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(hf / 2) / Math.max(aspect, 1.25))) + zoom;
       fov = THREE.MathUtils.clamp(fov, 22, 100);
       near = (SEATS[sim.aircraft] || SEATS.micro).near;
     } else {
@@ -443,11 +488,12 @@ async function boot() {
     last = now;
 
     // The gamepad drives menus whenever one is showing (start screen, pause, help, settings, crash).
-    input.menuMode = !started || hud.modalKind !== null || crashShown;
+    input.menuMode = !started || hud.modalKind !== null || crashShown || replay.active;
     input.aircraft = sim.aircraft;
     input.pads.triggerMode = sim.aircraft === 'skycrane' ? 'tank' : 'collective';
     const ctl = input.update(frameDt);
     for (const a of input.takeActions()) {
+      if (replay.active) continue;   // the viewer reads keys and the pad itself
       if (a.startsWith('nav-')) { hud.nav(a.slice(4)); continue; }
       if (a === 'confirm') { if (!hud.confirm() && !started) begin(); continue; }
       if (a === 'back') { if (started) back(); continue; }
@@ -471,13 +517,17 @@ async function boot() {
       input.assistBtn.classList.toggle('on', sim.assist);
     }
 
+    if (replay.active) { replayFrame(frameDt); return; }
+
     // Fixed-step simulation with capped catch-up.
     let steps = 0;
+    recorder.worldSpeed = worldSpeed;
     const tPhys = performance.now();
     if (started && !paused) {
       acc += frameDt * worldSpeed;
       while (acc >= dt && steps < CFG.physics.maxStepsPerFrame) {
         sim.step(ctl);
+        recorder.afterStep(ctl);
         acc -= dt;
         steps++;
       }
@@ -487,6 +537,7 @@ async function boot() {
     const alpha = acc / dt;
 
     const events = sim.drainEvents();
+    recorder.frameEnd();
     view.handleEvents(events, camera, camRig);
     if (fp.wasLive) for (const e of events) fpRig.kick(e, fp.motion);
     flow.handleEvents(events);
@@ -636,10 +687,23 @@ async function boot() {
     else hud.setDebug(null);
     debug.updateColliders();
   }
+  // Replay frames: the world stays frozen; the viewer poses the scene from the recording.
+  function replayFrame(frameDt) {
+    sim.drainEvents();
+    recorder.frameEnd();
+    hud.setLoadCam(null);
+    kitchen.garden.update(frameDt, replay.stage.focus, camera, sim);
+    const out = replay.update(frameDt);
+    renderer.info.reset();
+    post.render();
+    if (out.cockpit) cockpit.render();
+    renderedFrames++;
+  }
+
   requestAnimationFrame(frame);
 
   // Expose a tiny handle for console debugging and automated checks.
-  window.__helicoptea = { depth, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
+  window.__helicoptea = { depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
 }
 
 boot().catch((err) => showError('Helicoptea failed to start. Please reload.', err));

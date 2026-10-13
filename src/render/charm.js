@@ -308,6 +308,32 @@ export function buildCharm(scene, quality, kitchen, sim) {
     scene.add(shadowed(m));
     propMeshes.set(it, m);
   }
+  function placeLamp(p, q) {
+    if (!pendant) return;
+    pendant.shade.position.copy(p); pendant.shade.quaternion.copy(q);
+    _v.set(0, -0.06, 0).applyQuaternion(q).add(p);
+    pendant.bulb.position.copy(_v);
+    kitchen.lamp.position.copy(_v);
+    const top = _a.set(0, LAMP.shadeH / 2, 0).applyQuaternion(q).add(p);
+    const anchor = _v.set(LAMP.x, ROOM.ceilingY, LAMP.z);
+    pendant.cord.position.copy(top).add(anchor).multiplyScalar(0.5);
+    pendant.cord.scale.set(1, top.distanceTo(anchor), 1);
+    pendant.cord.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), anchor.clone().sub(top).normalize());
+  }
+  function placeMobile(p, q, spin) {
+    mobile.group.position.copy(p); mobile.group.quaternion.copy(q);
+    const anchor = _v.set(MOBILE.x, ROOM.ceilingY, MOBILE.z);
+    const top = _a.set(0, 0.004, 0).applyQuaternion(q).add(p);
+    mobile.thread.position.copy(top).add(anchor).multiplyScalar(0.5);
+    mobile.thread.scale.set(1, top.distanceTo(anchor), 1);
+    mobile.thread.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), anchor.clone().sub(top).normalize());
+    for (const pr of mobile.props) pr.rotation.x += spin;
+  }
+  // The flight replay poses the loose props, lamp and mobile from a recording (by prop id).
+  charm.replay = {
+    props: new Map([...propMeshes].map(([it, m]) => [it.def.id, m])),
+    placeLamp, placeMobile,
+  };
   const appleMeshes = new Map();
   const appleGeo = new THREE.SphereGeometry(0.034, 16, 12);
   const appleMats = [glazeMaterial(0xb3261e, { roughness: 0.45, extra: { clearcoat: 0.3 } }), glazeMaterial(0x9fb53a, { roughness: 0.45, extra: { clearcoat: 0.3 } })];
@@ -381,29 +407,10 @@ export function buildCharm(scene, quality, kitchen, sim) {
     }
     for (const [id, m] of appleMeshes) if (!seen.has(id)) { scene.remove(m); appleMeshes.delete(id); }
     // Pendant lamp: shade, bulb, cord and the light itself follow the swinging body.
-    if (pendant) {
-      P.lamp.track.sample(1, _p, _q);
-      pendant.shade.position.copy(_p); pendant.shade.quaternion.copy(_q);
-      _v.set(0, -0.06, 0).applyQuaternion(_q).add(_p);
-      pendant.bulb.position.copy(_v);
-      kitchen.lamp.position.copy(_v);
-      const top = _a.set(0, LAMP.shadeH / 2, 0).applyQuaternion(_q).add(_p);
-      const anchor = _v.set(LAMP.x, ROOM.ceilingY, LAMP.z);
-      pendant.cord.position.copy(top).add(anchor).multiplyScalar(0.5);
-      pendant.cord.scale.set(1, top.distanceTo(anchor), 1);
-      pendant.cord.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), anchor.clone().sub(top).normalize());
-    }
+    if (pendant) { P.lamp.track.sample(1, _p, _q); placeLamp(_p, _q); }
     // Mobile.
-    P.mobile.track.sample(1, mobile.group.position, mobile.group.quaternion);
-    {
-      const anchor = _v.set(MOBILE.x, ROOM.ceilingY, MOBILE.z);
-      const top = _a.set(0, 0.004, 0).applyQuaternion(mobile.group.quaternion).add(mobile.group.position);
-      mobile.thread.position.copy(top).add(anchor).multiplyScalar(0.5);
-      mobile.thread.scale.set(1, top.distanceTo(anchor), 1);
-      mobile.thread.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), anchor.clone().sub(top).normalize());
-      const w = P.mobile.body.angvel();
-      for (const pr of mobile.props) pr.rotation.x += dt * (6 + Math.abs(w.y) * 40);
-    }
+    P.mobile.track.sample(1, _p, _q);
+    placeMobile(_p, _q, dt * (6 + Math.abs(P.mobile.body.angvel().y) * 40));
     // Clock on real time.
     const now = new Date();
     const sec = now.getSeconds() + (now.getMilliseconds() > 100 ? 0 : 0), min = now.getMinutes() + sec / 60, hr = (now.getHours() % 12) + min / 60;

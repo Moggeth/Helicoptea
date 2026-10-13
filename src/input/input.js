@@ -17,7 +17,7 @@ const TANK_KEYS = { pump: ['KeyT'], reelIn: ['KeyZ'], reelOut: ['KeyX'] };
 const DOUBLE_TAP = 320; // ms
 const ACTION_KEYS = {
   Space: 'attach', Enter: 'attach', KeyV: 'aircraft', Digit1: 'view', KeyF: 'assist', KeyR: 'restart', KeyC: 'recenter',
-  Escape: 'pause', KeyP: 'pause', KeyH: 'help', Slash: 'help', KeyM: 'mute', Backquote: 'debug', F3: 'debug', KeyB: 'reset',
+  Escape: 'pause', KeyP: 'pause', KeyH: 'help', Slash: 'help', KeyM: 'mute', Backquote: 'debug', F3: 'debug', KeyB: 'reset', KeyN: 'mark',
 };
 
 function shape(x) {
@@ -190,6 +190,8 @@ export class Input {
     this.attachBtn = btn('attach', '<span class="ico">⚓</span><span class="lbl">Hook</span>', 'attach');
     this.assistBtn = btn('assist', '<span class="lbl">Assist</span>', 'assist');
     btn('recenter', '<span class="lbl">View</span>', 'recenter');
+    // Mark this moment for a flight note (described later in the replay).
+    btn('mark', '<span class="ico">⚑</span><span class="lbl">Mark</span>', 'mark');
     // Pour: held. Shown only while the milk bucket is on a hook.
     // Held buttons; a double-tap fires a combo.
     const hold = (cls, html, set, combo) => {
