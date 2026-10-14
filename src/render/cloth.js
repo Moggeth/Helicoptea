@@ -11,13 +11,16 @@ const WIDTH = 0.36;     // across the table (z)
 const HANG = 0.2;       // down each end of the table
 const EDGE_R = 0.012;   // the table's rounded end edge
 const LIFT = 0.0012;    // cloth thickness above the table top
-const RATE = 120;       // simulation steps per second (world time)
 
 export class TableCloth {
   constructor(scene, quality, map) {
     const tier = quality.name;
-    const NX = tier === 'high' ? 110 : tier === 'medium' ? 76 : 52;
-    const NZ = tier === 'high' ? 19 : tier === 'medium' ? 13 : 9;
+    // Resolution, steps per second and constraint rounds scale with the quality tier.
+    const NX = tier === 'high' ? 96 : tier === 'medium' ? 56 : 40;
+    const NZ = tier === 'high' ? 17 : tier === 'medium' ? 10 : 7;
+    this.rate = tier === 'high' ? 90 : 60;
+    this.iters = tier === 'high' ? 4 : 3;
+    this.ms = 0;
     this.NX = NX; this.NZ = NZ;
     const topLen = TABLE.halfX * 2 + EDGE_R * Math.PI; // across the top and round both edges
     const L = topLen + HANG * 2;
@@ -116,11 +119,14 @@ export class TableCloth {
 
   // dt: world time since the last frame. sim: for the air field, the helicopter and the bags.
   update(dt, sim) {
+    const t0 = performance.now();
     const air = sim.air;
-    const windy = air && !air.calm;
+    // Only air over the table matters: the outwash layer there, or a wake column passing close by.
+    let windy = !!air && !air.calm && air.energy > 0.01;
+    if (air && !windy) for (const wk of air.wakes) if (wk.active && Math.abs(wk.hub.x) < TABLE.halfX + 0.5 && Math.abs(wk.hub.z) < WIDTH + 0.4 && wk.hub.y < 0.9) windy = true;
     if (windy) this.awake = 3;
     else this.awake -= dt;
-    if (this.awake <= 0 && this.lastMax < 2e-6) return; // asleep: nothing to do, nothing to upload
+    if (this.awake <= 0 && this.lastMax < 2e-6) { this.ms = 0; return; } // asleep: nothing to do, nothing to upload
     this.time += dt;
     // Sample the air once per frame (positions don't move far within one).
     const A = this.air, P = this.p, _v = TableCloth._v;
@@ -129,12 +135,13 @@ export class TableCloth {
       air.sample(P[k * 3], P[k * 3 + 1], P[k * 3 + 2], _v);
       A[k * 3] = _v.x; A[k * 3 + 1] = _v.y; A[k * 3 + 2] = _v.z;
     }
-    this.acc = Math.min(this.acc + dt, 4 / RATE);
-    const h = 1 / RATE;
+    this.acc = Math.min(this.acc + dt, 3 / this.rate);
+    const h = 1 / this.rate;
     while (this.acc >= h) { this.step(h, sim); this.acc -= h; }
     this.posAttr.array.set(this.p);
     this.posAttr.needsUpdate = true;
     this.geo.computeVertexNormals();
+    this.ms = this.ms * 0.9 + (performance.now() - t0) * 0.1;
   }
 
   step(h, sim) {
@@ -184,7 +191,7 @@ export class TableCloth {
     }
     // Constraints and collisions, a few rounds.
     const C = this.cons;
-    for (let it = 0; it < 5; it++) {
+    for (let it = 0; it < this.iters; it++) {
       for (let c = 0; c < C.length; c += 4) {
         const a = C[c] * 3, b = C[c + 1] * 3, rest = C[c + 2], stiff = C[c + 3];
         const dx = P[b] - P[a], dy = P[b + 1] - P[a + 1], dz = P[b + 2] - P[a + 2];
@@ -199,7 +206,7 @@ export class TableCloth {
         P[a] += dx * diff * wa; P[a + 1] += dy * diff * wa; P[a + 2] += dz * diff * wa;
         P[b] -= dx * diff * wb; P[b + 1] -= dy * diff * wb; P[b + 2] -= dz * diff * wb;
       }
-      this.collide(sim);
+      if (it === this.iters - 1 || it === 0) this.collide(sim);
     }
     this.lastMax = maxMove;
   }
