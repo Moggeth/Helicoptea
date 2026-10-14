@@ -115,3 +115,42 @@ Same machine, Chrome headless, 1920×1080 high unless stated. Staged with `node 
 - Cockpit GPU time per frame (mean): micro 0.36 ms (was 0.83), Chinook 0.25 ms (was 1.03), skycrane 0.19 ms. Cockpit CPU update 0.1–0.27 ms mean. Hook camera now renders every other frame at 120 Hz: 0.3–0.4 ms GPU mean (was 0.6–0.8). Canvas-texture pages had cost about 1.5 ms of GPU per upload; the glass is now vector + SDF text in one buffer.
 - `npm run check` all green. Browser suites: every suite passes except the known `e2e-cockpit` "touch: cockpit frame rate at 4x CPU throttle" (18–24 fps here, 16–25 fps on master cf8d54e in the same session).
 - Not verified: a real phone or headset, or how legible the dials are to a person at their own screen size and distance.
+
+### 2026-10-14: performance pass (120 fps at 4K), branch `perf` on fa437a8
+
+Target: a steady 120 fps (8.3 ms frames, good 1% lows) at native resolution on this machine: RTX 3080 Ti, Core Ultra 7 270K Plus, one display at **3840×2160, 120 Hz, 100 % scaling** (from Windows: `Win32_VideoController` reports 120 Hz current and max).
+
+How it was measured: `node tests/perf-bench.mjs` (new). Every aircraft, in the house (over the mug) and the garden (over the garden table), from the chase and cockpit cameras, held in a hover by the autopilot. `--headed --offscreen --vsync` is a normal Chrome window parked off the desktop and paced by the real display, so 120 is the ceiling. Without `--vsync`, the frame limit is off, which shows the headroom. 1% low is the frame rate of the slowest 1 % of frames. The in-game stats behind it are in `src/perf.js`: frame intervals, main-thread CPU per frame, and GPU time from `EXT_disjoint_timer_query_webgl2`. The F2 readout uses the same stats.
+
+**Caveat on every number below:** other sessions were running their own browser suites, including WARP software rendering, on this machine the whole time. CPU load stayed at 35–75 %, and at times other Chrome GPU processes were using 15–25 % of the 3D engine. The numbers are noisier than an idle machine would give, and a rare single long frame (below) can come from that contention.
+
+4K, synced to the 120 Hz display (fps / 1% low). Master is fa437a8, built and measured in the same session:
+
+| | master | perf |
+|---|---|---|
+| micro house chase | 66 / 40 | 120 / 118 |
+| micro house cockpit | 92 / 34 | 120 / 118 |
+| micro garden chase | 85 / 48 | 120 / 118 |
+| micro garden cockpit | 56 / 17 | 114 / 40 (one 33 ms frame) |
+| chinook house chase | 56 / 40 | 120 / 118 |
+| chinook house cockpit | 57 / 17 | 120 / 118 |
+| chinook garden chase | 55 / 40 | 120 / 118 |
+| chinook garden cockpit | 60 / 17 | 111 / 51 (one 25 ms frame) |
+| skycrane house chase | 100 / 60 | 120 / 118 |
+| skycrane house cockpit | 118 / 60 | 120 / 118 |
+| skycrane garden chase | 115 / 60 | 112 / 18 (one 108 ms main-thread stall) |
+| skycrane garden cockpit | 116 / 60 | 110 / 18 (one 120 ms main-thread stall) |
+
+On the perf branch a typical frame costs 3–5.6 ms of main-thread CPU and 5–7 ms of GPU, against an 8.3 ms budget. An earlier run of the same build on a quieter moment held 120 / 117.6 in all 12 scenes. Uncapped at 4K: master 46–89 fps, perf 100–160 fps under load (160–280 fps in the micro heli earlier, on a quieter machine).
+
+Where the time went at 4K on master, and what changed:
+- GTAO was the biggest cost: a full-resolution normal pass, AO and denoise, then a copy, a blend and a tone-map pass, all into 4× MSAA half-float 4K targets. It is now worked out at no more than 1100 lines (half resolution at 4K) and applied in a single output pass, with an identical look in screenshots. The full-resolution version is the new **Ultra** tier.
+- Shadow maps were redrawn by every pass that rendered the scene: the AO normals, the hook camera, the main view. They are now drawn once per frame. The sun's shadow from still casters is cached, and only movers are drawn each frame (`src/render/shadowCache.js`); any caster that moves drops out of the cache.
+- The 3 cm bud vase's `transmission` caused three.js to redraw every opaque object again at full resolution whenever it was on screen. High and below now tint through the glass; Ultra keeps the refraction.
+- Per-frame CPU work: world matrices are updated once per frame instead of once per pass. The viewport size is no longer read inside the frame, which had forced a style/layout pass. Allocation in the table-cloth collision went from ~1.1 MB a frame to almost none (GC hitches). The no-AO tiers no longer swap every material's shader variant between the hook camera and the screen. The cockpit's own airframe now casts its shadow from one merged proxy and draws nothing else. Fewer draw calls: one material for all the garden apples (34 draws → 1) and the fruit bowl, and the windowsill leaves, washing-line pegs, bucket lines and vase petals are each one mesh. Render-target shader variants are warmed at load.
+- Dynamic resolution now aims at the display's refresh rate and only trades pixels when the GPU is the bottleneck.
+
+Phone check (`e2e-cockpit` "touch: cockpit frame rate at 4x CPU throttle", target above 30): **still failing**. It scored 27 fps in the final full-suite run and 20–24 in earlier runs. In bench runs interleaved with master at the same moment: master 17 / 20 fps, perf 25 / 22.5 fps. At 4x throttle about 45 % of the frame is simulation: 240 Hz steps catching up, up to 12 a frame, mostly Rapier. In-page, a Rapier step costs ~200 µs, of which ~50 µs is `queryPipeline.update` rebuilding its scene-query tree over ~500 colliders every step (the per-step ground-probe ray needs it). Seven bags and four props are always awake (bags have `setCanSleep(false)`); putting them to sleep cut a step from ~200 to ~150 µs. Both of those are simulation changes, so they are left for the sim owner.
+
+- `npm run check` all green. Browser suites on the final rebase: all pass (camera 82, chinook 17, crashes 58, depth 21, milk 20, replay 47, rotorwash 14, skycrane 33, static 11, tuning 33, e2e 52) except that cockpit 4x check (40/41).
+- Not measured: Mitch's real play at 120 Hz in his own browser (the benchmark window is real Chrome on his display, but automated), a real phone, a headset, or the GPU-less CI runner, where the frame-rate checks stay advisory.

@@ -22,3 +22,11 @@ All times local (AEDT), 2026-10-13. One continuous session by Claude.
 | 13:20–14:40 | Live side-by-side preview rig, scripted pilot, scenarios; first screenshots |
 | 14:40–15:50 | Making every clip fly at both ends of every range on every aircraft: assist-flown skycrane clips, rate-aware altitude hold, ceiling/wall/table guard, bare preview world; headless and browser tests; docs |
 | 15:50–16:05 | Merges in between (Vercel CI, tablecloth, controller layouts, rotor wash, crashes), rebases, full suites |
+
+### 2026-10-14: performance pass
+
+| Time (AEDT) | Work |
+|---|---|
+| 16:10–16:40 | Worktree, frame stats, benchmark, 4K baseline (37–62 fps uncapped, 55–115 synced) |
+| 16:40–17:30 | AO pipeline, shadow once per frame, shadow cache, vase glass, Ultra tier; vsync measurement; rebases onto 86eb316 and cf8d54e |
+| 17:30–19:00 | Phone-path profiling: allocations, matrices, layout reads, shader-variant swaps, draw-call merges; F2 readout; dynamic resolution; suites; rebases onto 25e6222 and fa437a8; final measurements |
