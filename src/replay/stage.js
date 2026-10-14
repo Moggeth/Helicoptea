@@ -9,6 +9,7 @@ import { milkyTea } from '../render/water.js';
 import { surfaceY } from '../sim/layout.js';
 import { CH, NCH, sampleEntity, ROPE_POINTS, HOSE_POINTS } from './format.js';
 import { applyDamageLook } from '../render/crashFx.js';
+import { disposeTree } from '../render/dispose.js';
 
 // Poses the scene from a recorded flight. Nothing is re-simulated: every transform comes from the
 // snapshots, interpolated between samples. Live objects that the recording doesn't own are hidden while
@@ -77,7 +78,7 @@ export class ReplayStage {
   leave() {
     for (const [o, vis] of this.hidden) o.visible = vis;
     this.hidden = [];
-    for (const m of this.allMeshes()) m.visible = false;
+    this.setFlight(null);
     this.view.fx.clear(); this.view.smoke.clear();
     this.view.flashT = 99;
     this.active = false;
@@ -92,11 +93,13 @@ export class ReplayStage {
   setFlight(f) {
     if (f === this.flight) return;
     this.flight = f;
-    // Wreckage clones belong to one flight (they copy that aircraft's parts); bags and buckets are reused.
-    for (const m of this.debris.values()) {
+    // Entity IDs differ across recordings. Keeping their meshes would grow the scene forever.
+    for (const m of this.allMeshes()) {
       this.scene.remove(m);
-      m.traverse((o) => { if (o.isMesh && o.material && o.userData.replayOwned) o.material.dispose(); });
+      disposeTree(m);
     }
+    this.bags.clear();
+    this.buckets.clear();
     this.debris.clear();
     this.view.fx.clear(); this.view.smoke.clear();
   }
@@ -351,7 +354,6 @@ export class ReplayStage {
     } catch { m = null; }
     v.setFirstPerson(!!fp);
     if (!m) return null;
-    m.traverse((o) => { if (o.isMesh) o.userData.replayOwned = true; });
     for (const em of m.userData.embers || []) em.emissiveIntensity = 0;
     this.scene.add(m);
     this.debris.set(e.id, m);

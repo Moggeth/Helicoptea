@@ -109,6 +109,9 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
   rec.recordSettings();
   settings.tuning.rotationRate = 3;
   check('recordings preserve initial settings and immutable tuning-change snapshots', f.settings.tuning.rotationRate === 1 && f.events[0].settings.tuning.rotationRate === 2);
+  rec.maxBytes = 1; // deliberately smaller than one allocation chunk: force a continuation at one second
+  for (let i = 0; i < 260; i++) { sim.step({ pitch: 0, roll: 0, yaw: 0, collective: 0 }); rec.afterStep(null); sim.drainEvents(); rec.frameEnd(); }
+  check('long recordings split on their memory budget and retain the continuation link', rec.cur !== f && rec.cur.settings.continuedFrom === f.id && rec.flights.length === 1);
   sim.dispose();
 }
 

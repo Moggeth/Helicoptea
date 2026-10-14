@@ -36,6 +36,7 @@ export class ReplayViewer {
   constructor(o) {
     Object.assign(this, o);   // recorder, store, stage, camera, cockpit, fpSettings(), setLens(), toast(), onClose()
     this.active = false;
+    this.selectionVersion = 0;
     this.flight = null;
     this.s = 0;
     this.playing = false;
@@ -226,6 +227,7 @@ export class ReplayViewer {
   close() {
     if (!this.active) return;
     this.active = false;
+    this.selectionVersion++;
     this.playing = false;
     this.input.blur();
     this.el.classList.add('hidden');
@@ -250,6 +252,9 @@ export class ReplayViewer {
   }
 
   async selectFlight(v) {
+    const version = this.selectionVersion = (this.selectionVersion || 0) + 1;
+    clearTimeout(this.saveTimer);
+    if (this.flight?.dirty) this.store.save(this.flight, { notesOnly: true });
     const [kind, id] = [v.slice(0, 1), v.slice(2)];
     let f = null;
     if (kind === 'm') f = this.recorder.flights.find((x) => x.id === id);
@@ -257,10 +262,25 @@ export class ReplayViewer {
       f = this.disk.get(id);
       if (!f) {
         this.saveEl.textContent = 'Loading…';
-        try { f = await this.store.load(id); this.disk.set(id, f); } catch (err) { this.saveEl.textContent = `Could not load ${id}: ${err.message}`; return; }
+        try {
+          f = await this.store.load(id);
+          if (version !== this.selectionVersion || !this.active) return;
+          this.disk.set(id, f);
+        } catch (err) {
+          if (version === this.selectionVersion && this.active) this.saveEl.textContent = `Could not load ${id}: ${err.message}`;
+          return;
+        }
       }
     }
-    if (f) { this.setFlight(f); this.playing = true; }
+    if (f && version === this.selectionVersion && this.active) {
+      this.setFlight(f); this.playing = true;
+      let bytes = [...this.disk.values()].reduce((n, item) => n + item.bytes, 0);
+      for (const [key, item] of this.disk) {
+        if (this.disk.size <= 4 && bytes <= this.recorder.maxBytes) break;
+        if (item === f || item.dirty) continue; // retain unsaved edits if storage failed
+        this.disk.delete(key); bytes -= item.bytes;
+      }
+    }
   }
 
   setFlight(f, at) {

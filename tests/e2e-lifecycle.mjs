@@ -50,6 +50,42 @@ try {
   }), JSON.stringify(results.memories));
   check('closing previews frees worlds and cancels animation', results.closed && results.pendingFrame == null);
   check('lifecycle soak produces no browser exceptions', errors.length === 0, errors.join('; '));
+  const replay = await page.evaluate(async () => {
+    const H = window.__helicoptea, r = H.replay, stage = r.stage;
+    const frame = () => new Promise(requestAnimationFrame);
+    H.recorder.enabled = true;
+    const counts = [];
+    for (let k = 0; k < 8; k++) {
+      H.sim.resetSandbox();
+      const f = H.recorder.startFlight();
+      for (let j = 0; j < 12; j++) {
+        const ctl = { pitch: 0, roll: 0, yaw: 0, collective: 0 };
+        H.sim.step(ctl); H.recorder.afterStep(ctl);
+        H.sim.drainEvents(); H.recorder.frameEnd();
+      }
+      stage.pose(f, 0, 0, false);
+      counts.push(stage.bags.size);
+      await frame();
+    }
+    stage.leave();
+    const cleared = stage.bags.size === 0 && stage.buckets.size === 0 && stage.debris.size === 0;
+    H.recorder.enabled = false;
+    // Resolve two loads backwards: only the latest selection may reach the stage.
+    const saved = { load: r.store.load, setFlight: r.setFlight, active: r.active };
+    const pending = {}, selected = [];
+    r.active = true; r.flight = null;
+    r.store.load = (id) => new Promise((resolve) => { pending[id] = resolve; });
+    r.setFlight = (f) => { selected.push(f.id); r.flight = f; };
+    try {
+      const first = r.selectFlight('d:older'), second = r.selectFlight('d:newer');
+      pending.newer({ id: 'newer', bytes: 1, dirty: false }); await second;
+      pending.older({ id: 'older', bytes: 1, dirty: false }); await first;
+    } finally { r.store.load = saved.load; r.setFlight = saved.setFlight; r.active = saved.active; r.flight = null; r.disk.clear(); }
+    return { counts, cleared, selected };
+  });
+  check('replay switching bounds cargo meshes to one flight', replay.counts.every((n) => n === replay.counts[0]) && replay.counts[0] > 0, JSON.stringify(replay.counts));
+  check('leaving replay releases its cargo and debris', replay.cleared);
+  check('late replay loads cannot replace a newer selection', JSON.stringify(replay.selected) === '["newer"]');
   fs.mkdirSync('test-results/lifecycle', { recursive: true });
   fs.writeFileSync('test-results/lifecycle/metrics.json', JSON.stringify({ readyMs, ...results }, null, 2));
 } finally { await browser.close(); }

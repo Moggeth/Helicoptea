@@ -201,6 +201,7 @@ export function decodeFlight(json, buf) {
   f.ended = json.ended ?? true;
   f.fromDisk = true;
   f.saved = true;
+  f.dirty = false;
   return f;
 }
 

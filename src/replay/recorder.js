@@ -92,8 +92,9 @@ export class FlightRecorder {
     for (; this.seen < sim.events.length; this.seen++) this.logEvent(sim.events[this.seen]);
     const recording = !(f.crashAt >= 0 && sim.time - f.crashAt > POST_CRASH);
     if (recording && this.stepN % RECORD_EVERY === 0) {
-      if (f.n >= MAX_SAMPLES) this.startFlight(f.id);
+      if (f.n >= MAX_SAMPLES || (f.n > 0 && f.n % 60 === 0 && f.bytes >= this.maxBytes)) this.startFlight(f.id);
       this.sample(ctl);
+      if (this.cur.n % 60 === 0) this.evict();
     }
     this.stepN++;
     this.wall += sim.dt / Math.max(0.05, this.worldSpeed);
