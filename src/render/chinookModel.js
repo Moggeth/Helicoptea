@@ -595,6 +595,7 @@ export function cloneChinookPart(model, name) {
     o.castShadow = true;
     const scorch = (m0) => {
       const m = m0.clone();
+      m.userData.disposeOwned = true;
       if (m.color) m.color.multiplyScalar(0.5);
       if ('emissive' in m) { m.emissive = new THREE.Color(0xff5a1a); m.emissiveIntensity = 0.0; }
       if (m.transparent && m !== o.material) m.opacity *= 0.6;

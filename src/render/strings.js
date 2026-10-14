@@ -20,6 +20,7 @@ export class StringMesh {
     geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
     geo.setAttribute('normal', new THREE.BufferAttribute(this.nrm, 3).setUsage(THREE.DynamicDrawUsage));
     this.mesh = new THREE.Mesh(geo, material);
+    this.mesh.userData.disposeGeo = true;
     this.mesh.frustumCulled = false;
     this.mesh.castShadow = true;
     this.t = new THREE.Vector3(); this.nA = new THREE.Vector3(); this.bA = new THREE.Vector3(); this.tmp = new THREE.Vector3();

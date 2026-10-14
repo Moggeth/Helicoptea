@@ -142,6 +142,7 @@ export class MilkView {
         for (const l of lines) add(l, lineMat, false);
         add(headG, yellow); add(headStripe, black, false); add(swivelG, brass, false);
         const milk = new THREE.Mesh(milkG, milkMat.clone());
+        milk.material.userData.disposeOwned = true;
         milk.visible = false;
         g.add(milk);
         g.userData.milk = milk;

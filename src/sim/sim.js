@@ -115,6 +115,14 @@ export class Sim {
   }
 
   register(collider, info) { this.colliderInfo.set(collider.handle, info); }
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.eventQueue.free();
+    this.world.free();
+    this.colliderInfo.clear();
+    this.events.length = 0;
+  }
   unregister(collider) { if (collider) this.colliderInfo.delete(collider.handle); }
   emit(type, data = {}) { this.events.push({ type, ...data }); }
   drainEvents() { const e = this.events; this.events = []; return e; }

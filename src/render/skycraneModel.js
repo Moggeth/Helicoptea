@@ -460,6 +460,7 @@ export function cloneSkycranePart(model, name) {
     o.castShadow = true;
     if (o.material.transparent || o.material.isShaderMaterial) { o.visible = false; return; }
     const m = o.material.clone();
+    m.userData.disposeOwned = true;
     if (m.color) m.color.multiplyScalar(0.45);
     if (m.map) m.map = m.map;
     if ('emissive' in m) { m.emissive = new THREE.Color(0xff5a1a); m.emissiveIntensity = 0; }

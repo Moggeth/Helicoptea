@@ -7,6 +7,7 @@ import { buildChinook } from '../render/chinookModel.js';
 import { buildSkycrane } from '../render/skycraneModel.js';
 import { KNOB, knobDefault } from './knobs.js';
 import { aircraftRange } from './tuning.js';
+import { disposeTree } from '../render/dispose.js';
 
 // Live side-by-side preview clips. Two lightweight simulations of the real flight model fly the same
 // scripted inputs from the same pose; the only difference is the knob value (low vs high, or default
@@ -192,6 +193,13 @@ class Side {
     this.camTarget.copy(start);
   }
 
+  dispose() {
+    this.sim.dispose();
+    this.rig.scene.remove(this.model, this.trailLine, ...this.dots);
+    disposeTree(this.model, { all: true, textures: true });
+    disposeTree(this.trailLine, { all: true });
+  }
+
   advance(frameDt, speed, sc) {
     const sim = this.sim;
     sim.world.gravity = { x: 0, y: -CFG.physics.gravity, z: 0 };
@@ -291,7 +299,7 @@ export class PreviewRig {
 
   ensureSides(aircraft) {
     if (this.aircraft === aircraft && this.sides) return;
-    if (this.sides) for (const s of this.sides) { this.scene.remove(s.model, s.trailLine, ...s.dots); }
+    if (this.sides) for (const s of this.sides) s.dispose();
     this.sides = [new Side(this, aircraft), new Side(this, aircraft)];
     this.aircraft = aircraft;
   }
@@ -305,7 +313,7 @@ export class PreviewRig {
     this.values = this.valuesFor(k, spec);
     this.cycleStart = performance.now();
     this.resetSides();
-    if (!this.running) { this.running = true; this.last = performance.now(); requestAnimationFrame((t) => this.frame(t)); }
+    if (!this.running) { this.running = true; this.last = performance.now(); this.raf = requestAnimationFrame((t) => this.frame(t)); }
     return this.values;
   }
 
@@ -339,11 +347,11 @@ export class PreviewRig {
     this.tuning.apply();
   }
 
-  stop() { this.running = false; }
+  stop() { this.running = false; if (this.raf != null) cancelAnimationFrame(this.raf); this.raf = null; }
 
   frame(now) {
     if (!this.running) return;
-    requestAnimationFrame((t) => this.frame(t));
+    this.raf = requestAnimationFrame((t) => this.frame(t));
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
     const sc = this.spec.scenario;
@@ -409,6 +417,12 @@ export class PreviewRig {
 
   dispose() {
     this.stop();
+    if (this.sides) for (const s of this.sides) s.dispose();
+    this.sides = null;
+    disposeTree(this.scene, { all: true, textures: true });
+    this.dotGeo.dispose();
+    this.dotMat.dispose();
+    this.scene.clear();
     this.renderer.dispose();
     this.renderer.forceContextLoss();
   }

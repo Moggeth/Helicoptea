@@ -15,6 +15,7 @@ import { SkycraneView } from './skycraneView.js';
 import { AircraftFxSet } from './aircraftFx.js';
 import { cloneSkycranePart } from './skycraneModel.js';
 import { CrashFx } from './crashFx.js';
+import { disposeTree } from './dispose.js';
 
 const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _c = new THREE.Color();
 const _pinA = new THREE.Vector3(), _pinL = new THREE.Vector3(), _pinQ = new THREE.Quaternion();
@@ -544,7 +545,7 @@ export class View {
       const k = Math.max(0.001, 1 - f.t / f.dur);
       for (const o of f.objs) o.scale.setScalar(k);
       if (f.t >= f.dur) {
-        for (const o of f.objs) { this.scene.remove(o); o.traverse?.((m) => { if (m.isMesh && m.geometry && m.userData.disposeGeo) m.geometry.dispose(); }); }
+        for (const o of f.objs) { this.scene.remove(o); disposeTree(o); }
         this.fading.splice(i, 1);
       }
     }

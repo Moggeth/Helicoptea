@@ -225,6 +225,7 @@ export function cloneHeliPart(heliModel, name) {
   const scorch = (src) => {
     if (!src || src.visible === false) return src;
     const m = src.clone();
+    m.userData.disposeOwned = true;
     if (m.color) m.color.multiplyScalar(0.55);
     if ('emissive' in m && !m.isShaderMaterial) { m.emissive = new THREE.Color(0x8a2400); m.emissiveIntensity = 0.0; embers.push(m); }
     return m;
@@ -265,6 +266,7 @@ export function teabagAssets() {
   return {
     makeBag() {
       const mat = new THREE.MeshPhysicalMaterial({ map: paperTex, roughness: 0.92, sheen: 0.6, sheenColor: new THREE.Color(0xffffff), sheenRoughness: 0.8 });
+      mat.userData.disposeOwned = true;
       const m = new THREE.Mesh(geo, mat);
       m.castShadow = true; m.receiveShadow = true;
       const st = new THREE.Mesh(stapleGeo, staple);
