@@ -215,13 +215,14 @@ const state = (page) => H(page, () => {
   await sleep(500);
   s = await state(page);
   check('pad: hold L3 + right stick looks around', s.yaw < -0.3 && s.pitch < -0.2, `yaw ${s.yaw.toFixed(2)} pitch ${s.pitch.toFixed(2)}`);
-  check('pad: cyclic is centred while looking', Math.abs(s.ctl.pitch) < 1e-6 && Math.abs(s.ctl.roll) < 1e-6, JSON.stringify(s.ctl));
+  // Default (Aim) layout: the right stick flies pitch and yaw.
+  check('pad: the right stick stops flying while looking', Math.abs(s.ctl.pitch) < 1e-6 && Math.abs(s.ctl.yaw) < 1e-6, JSON.stringify(s.ctl));
   await H(page, () => { window.__pad.buttons[10] = { pressed: false, value: 0 }; });
   await sleep(150);
   s = await state(page);
-  check('pad: releasing L3 gives the stick back to the cyclic and stays in the cockpit', Math.abs(s.ctl.roll) > 0.3 && s.mode === 'cockpit', JSON.stringify(s.ctl));
+  check('pad: releasing L3 gives the stick back to the flight controls and stays in the cockpit', Math.abs(s.ctl.yaw) > 0.3 && s.mode === 'cockpit', JSON.stringify(s.ctl));
   const lb = await (async () => { await H(page, () => { window.__pad.buttons[4] = { pressed: true, value: 1 }; }); await sleep(200); const r = await state(page); await H(page, () => { window.__pad.buttons[4] = { pressed: false, value: 0 }; }); return r; })();
-  check('pad: LB is left alone (skycrane hose reel)', Math.abs(lb.ctl.roll) > 0.3 && lb.mode === 'cockpit');
+  check('pad: LB (mark) leaves the view and sticks alone', Math.abs(lb.ctl.yaw) > 0.3 && lb.mode === 'cockpit');
   await H(page, () => { window.__pad.axes[2] = 0; window.__pad.axes[3] = 0; });
   // D-pad glance.
   const y0 = s.yaw;

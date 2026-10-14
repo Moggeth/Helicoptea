@@ -2,8 +2,8 @@
 // Usage: start a server, then: node tests/e2e-skycrane.mjs [baseUrl] [--headed]
 // Picks the skycrane, flies it with the in-page autopilot on the real input pipeline, and drives the tank
 // with real devices: keyboard (T pump, Z/X reel, G doors, double-tap G salvo, double-tap T auto-fill),
-// an emulated standard gamepad (RT analog doors, LT pump, LB/RB reel, both bumpers auto-fill, double RT
-// salvo) and touch (Doors, Pump, Hose buttons). Screenshots and a report go to test-results/sky-*.
+// an emulated standard gamepad (default layout: RT analog doors, LB pump, double LB auto-fill, d-pad reel,
+// double RT salvo; Classic: LT analog pump, both bumpers auto-fill) and touch (Doors, Pump, Hose buttons). Screenshots and a report go to test-results/sky-*.
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -141,13 +141,14 @@ try {
     await installPilot(page);
     await fly(page, -0.56, 0.4, 0.24, 0.3, 2500);
     const btn = (i, v) => page.evaluate(([i, v]) => { window.__pad.buttons[i] = { pressed: v > 0.5, value: v }; }, [i, v]);
-    await btn(5, 1); await sleep(700); await btn(5, 0);
+    // Default (Aim) layout: d-pad up / down reel, LB pumps (twice = auto-fill), RT doors, LT bolted camera.
+    await btn(13, 1); await sleep(700); await btn(13, 0);
     let s = await st(page);
-    check('gamepad: RB reels the hose out', s.hose > 0.09, `${s.hose.toFixed(3)} m`);
-    await btn(6, 0.5); await sleep(400);
+    check('gamepad: d-pad down reels the hose out', s.hose > 0.09, `${s.hose.toFixed(3)} m`);
+    await btn(4, 1); await sleep(400);
     s = await st(page);
-    check('gamepad: LT is an analog pump control', s.ctl.pump > 0.4 && s.ctl.pump < 0.8, `pump input ${s.ctl.pump.toFixed(2)}`);
-    await btn(6, 0);
+    check('gamepad: LB pumps', s.ctl.pump > 0.9, `pump input ${s.ctl.pump.toFixed(2)}`);
+    await btn(4, 0); await sleep(400);
     // a tank of milk for the door tests
     await page.evaluate(() => { const s = window.__helicoptea.sim, t = s.heli.tank; const got = s.milk.take(s.milk.bowl, t.capacity); t.vol = got.vol; t.milk = 1; });
     await btn(7, 0.3); await sleep(300);
@@ -164,15 +165,26 @@ try {
     s = await st(page);
     check('gamepad: two quick full RT pulls fire a salvo', s.salvo || s.vol === 0, `salvo ${s.salvo}`);
     await sleep(1500);
-    await btn(4, 1); await btn(5, 1); await sleep(150); await btn(4, 0); await btn(5, 0);
+    await btn(4, 1); await sleep(90); await btn(4, 0); await sleep(90); await btn(4, 1); await sleep(90); await btn(4, 0);
     await sleep(200);
     s = await st(page);
-    check('gamepad: both bumpers together start auto-fill', !!s.auto, `${s.auto}`);
-    await btn(4, 1); await sleep(300); await btn(4, 0);
+    check('gamepad: LB tapped twice starts auto-fill', !!s.auto, `${s.auto}`);
+    await btn(12, 1); await sleep(300); await btn(12, 0);
     s = await st(page);
     check('gamepad: reeling by hand takes over from auto-fill', !s.auto);
     const hint = await page.evaluate(() => document.querySelector('.prompt').textContent);
-    check('gamepad: prompts name the pad controls', /LT|RT/.test(hint), hint);
+    check('gamepad: prompts name the pad controls', /LB|RT/.test(hint), hint);
+    // The Classic preset brings back the original skycrane layout.
+    await page.evaluate(() => window.__helicoptea.input.pads.choosePreset('mode2'));
+    await btn(6, 0.5); await sleep(400);
+    s = await st(page);
+    check('gamepad (Classic): LT is an analog pump control', s.ctl.pump > 0.4 && s.ctl.pump < 0.8, `pump input ${s.ctl.pump.toFixed(2)}`);
+    await btn(6, 0); await sleep(300);
+    await btn(4, 1); await btn(5, 1); await sleep(150); await btn(4, 0); await btn(5, 0);
+    await sleep(200);
+    s = await st(page);
+    check('gamepad (Classic): both bumpers together start auto-fill', !!s.auto, `${s.auto}`);
+    await btn(4, 1); await sleep(300); await btn(4, 0);
     check('gamepad: no errors', errors(logs).length === 0, errors(logs).slice(0, 3).join(' | '));
     await ctx.close();
   }

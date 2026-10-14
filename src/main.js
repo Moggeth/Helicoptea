@@ -173,6 +173,7 @@ async function boot() {
     onClose: (from) => closeReplay(from),
   });
   const fmtWall = (w) => `${Math.floor(w / 60)}:${String(Math.floor(w % 60)).padStart(2, '0')}`;
+  hud.pads = input.pads;
   hud.setAssist(sim.assist);
   hud.setVolume(audio.volume, audio.muted);
   hud.setDevice(IS_TOUCH ? 'touch' : 'keyboard');
@@ -295,6 +296,7 @@ async function boot() {
       case 'controller': hud.openController(input.pads); break;
       case 'closecontroller':
         input.pads.cancelWizard();
+        if (input.pads.capture) input.pads.cancelCapture();
         hud.closeModal();
         if (paused) hud.openPause(pauseOpts());
         break;
@@ -303,7 +305,7 @@ async function boot() {
         break;
       case 'wizskip': input.pads.skipWizardStep(); break;
       case 'wizcancel': input.pads.cancelWizard(); hud.showWizard(null); break;
-      case 'padreset': { const g = input.pads.active(); if (g) { input.pads.resetBinding(g); hud.toast('Binding reset to the default layout'); } break; }
+      case 'padreset': { const g = input.pads.active(); if (g) { input.pads.resetBinding(g); hud.toast('Pad wiring reset to the standard layout'); } break; }
       case 'padrumble': if (input.pads.canRumble()) input.pads.rumble(0.9, 0.6, 350); else hud.toast('This controller does not report rumble support to the browser'); break;
       default: break;
     }
@@ -311,6 +313,7 @@ async function boot() {
 
   // Back button in menus: close the innermost panel.
   function back() {
+    if (input.pads.capture) { input.pads.cancelCapture(); return; }
     if (input.pads.wizard) { doAction('wizcancel'); return; }
     if (hud.modalKind === 'controller') doAction('closecontroller');
     else if (hud.modalKind === 'help') doAction('closehelp');

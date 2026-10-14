@@ -303,3 +303,19 @@ body.pip-top .hint, body.pip-top .prompt { top: calc(var(--pip-bottom, 120px) + 
 body.pip-top .hint:not(.show), body.pip-top .prompt:not(.show) { pointer-events: none !important; }
 /* Plumb-line height readout beside the laser dot */
 .plumb-read { position: absolute; left: 0; top: 0; pointer-events: none !important; font: 600 11px/1 ui-monospace, Consolas, monospace; color: #fff4e2; text-shadow: 0 1px 2px rgba(0,0,0,0.85), 0 0 4px rgba(0,0,0,0.5); letter-spacing: 0.03em; white-space: nowrap; will-change: transform; padding: 2px 5px; border-radius: 4px; background: rgba(28,20,14,0.42); }
+
+/* controller layout: presets, stick routing, button chips */
+.pad-h { font-family: var(--serif); font-size: 17px; margin: 18px 0 2px; }
+.pad-layout .lay-blurb { margin: 2px 0 6px; font-size: 13px; }
+.lay-axis { display: inline-flex; align-items: center; gap: 8px; }
+.lay-inv { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; color: var(--ink-soft); }
+.lay-btn > span:first-child { flex: 1; min-width: 0; }
+.lay-btn .chips { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.lay-btn .chip { display: inline-flex; }
+.lay-btn .chip button { padding: 4px 9px; font-size: 12.5px; border-radius: 8px 0 0 8px; margin: 0; }
+.lay-btn .chip button.x { border-radius: 0 8px 8px 0; padding: 4px 7px; opacity: 0.75; border-left: 0; }
+.lay-btn button.add { padding: 4px 9px; font-size: 12.5px; border-radius: 8px; margin: 0; }
+.pad-capture { margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: rgba(242,184,75,0.18); }
+.pad-capture .wz-prompt { margin: 0; font-size: 17px; color: var(--ink); }
+.pad-capture small { font-size: 12px; color: var(--ink-soft); }
+@media (max-width: 520px) { .lay-axis select { max-width: 150px; } }

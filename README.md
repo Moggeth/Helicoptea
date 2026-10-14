@@ -16,11 +16,11 @@ The third aircraft (`?aircraft=skycrane`, the start screen, Pause → Aircraft, 
 |---|---|---|---|
 | Belly doors (analog) | hold G (opens wider as you hold) | RT (squeeze to trickle, pull to gush) | hold Doors |
 | Salvo: dump the lot | double-tap G, or Shift+G | two quick full RT pulls | double-tap Doors |
-| Pump | hold T | LT (analog speed) | hold Pump |
-| Reel the hose in / out | Z / X | LB / RB | Hose ▲ / Hose ▼ |
-| Auto-fill: reel down, pump till full, reel up | double-tap T, or Shift+T | LB + RB together | double-tap Pump |
+| Pump | hold T | hold LB (Classic: LT, analog speed) | hold Pump |
+| Reel the hose in / out | Z / X | D-pad ↑ / ↓ (Classic: LB / RB) | Hose ▲ / Hose ▼ |
+| Auto-fill: reel down, pump till full, reel up | double-tap T, or Shift+T | double-tap LB (Classic: LB + RB together) | double-tap Pump |
 
-On the skycrane the gamepad triggers run the tank, so collective is on the left stick. Any hose or pump input takes over from auto-fill. The bucket gets a salvo too: double-tap G (or RB, or the Pour button) latches its valve open until it is empty.
+Gamepad columns show the default **Aim** layout; see [Controls](#controls) for the others. Any hose or pump input takes over from auto-fill. The bucket gets a salvo too: double-tap G (or two quick RT pulls, or the Pour button) latches its valve open until it is empty.
 
 ## Milk
 
@@ -36,7 +36,7 @@ Everything is solid, and plenty of it moves: napkins blow off the table in your 
 
 Press **1** (gamepad **L3**, a click of the left stick, or the cockpit icon top right) to fly from the pilot's seat; it also switches from **Pause → View**, and `?view=cockpit` in the URL works too. The view is bolted to the airframe, so it rolls and pitches with it; your head sways a little under g, lags sudden rotation, and the airframe buzzes with the rotor (both adjustable in the pause menu, as is the field of view). Each aircraft has its own modelled cockpit: a Bell-style cabin with analogue instruments for the micro heli, a two-pilot CH-47F-style glass cockpit with a copilot for the Chinook, and the skycrane's glazed bubble with its copilot beside you. Your hands and feet are on the controls and move with them. Instruments read live, in full-size equivalents (a 30 cm hover reads about 30 ft on the micro heli's altimeter, a soaked bag about 400 kg on the hook).
 
-Look around by dragging the mouse (wheel to zoom), holding **L3** and using the right stick (the cyclic centres while you look) or the D-pad, or dragging any open part of a touch screen. **C** (gamepad **B**, touch **View**) looks ahead again. Look down to see through the chin windows. For dipping, a downward **hook camera** shows the bag or bucket with its height over the tea (on the skycrane it is a belly camera on the snorkel and doors, with the tank level and the intake's height); it appears as an inset (bottom right, or top centre on touch screens) and on the panel display. **Pause → Hook camera** can show it in the chase view too, or hide it. A crash from the cockpit shakes and flashes in the seat, then pulls out to the wreck; restarting puts you back in the seat. See [docs/DESIGN.md](docs/DESIGN.md#cockpit-view-srcrendercockpitjs-srcrendercockpitcamjs).
+Look around by dragging the mouse (wheel to zoom), holding **L3** and using the right stick (it stops flying while you look; in the chase view it orbits the camera) or the D-pad, or dragging any open part of a touch screen. **C** (gamepad **B**, touch **View**) looks ahead again. Look down to see through the chin windows. For dipping, a downward **hook camera** shows the bag or bucket with its height over the tea (on the skycrane it is a belly camera on the snorkel and doors, with the tank level and the intake's height); it appears as an inset (bottom right, or top centre on touch screens) and on the panel display. **Pause → Hook camera** can show it in the chase view too, or hide it. A crash from the cockpit shakes and flashes in the seat, then pulls out to the wreck; restarting puts you back in the seat. See [docs/DESIGN.md](docs/DESIGN.md#cockpit-view-srcrendercockpitjs-srcrendercockpitcamjs).
 
 ## Judging height
 
@@ -111,26 +111,40 @@ other branch or pull request gets a preview URL.
 
 ## Controls
 
-| | Keyboard | Gamepad | Touch |
+| | Keyboard | Gamepad (default Aim layout) | Touch |
 |---|---|---|---|
-| Cyclic (tilt) | Arrow keys (or I J K L) | Right stick | Right thumb stick |
-| Collective | W / S | Left stick up/down, or RT / LT | Left thumb up/down |
-| Yaw | A / D (or Q / E) | Left stick left/right | Left thumb left/right |
-| Hook / release | Space (Chinook: each press hooks the nearest bag or the milk bucket to a free hook; with none in reach it drops them all) | A | Hook button |
-| Pour milk (hold) | G | RB | Pour button (shown while carrying the bucket) |
-| Salvo (latch the bucket valve open) | double-tap G, or Shift+G | double-tap RB | double-tap Pour |
+| Pitch (tilt forward / back) | Arrow keys ↑ ↓ (or I K) | Right stick ↕ | Right thumb stick |
+| Roll (tilt sideways) | Arrow keys ← → (or J L) | Left stick ↔ | Right thumb stick |
+| Collective | W / S | Left stick ↕ | Left thumb up/down |
+| Yaw | A / D (or Q / E) | Right stick ↔ | Left thumb left/right |
+| Hook / release | Space (Chinook: each press hooks the nearest bag or the milk bucket to a free hook; with none in reach it drops them all) | A or RB | Hook button |
+| Pour milk (hold) | G | RT (past half-way) | Pour button (shown while carrying the bucket) |
+| Salvo (latch the bucket valve open) | double-tap G, or Shift+G | two quick RT pulls | double-tap Pour |
+| Bolted-on camera (hold) | (camera pass) | LT | (camera pass) |
 | Switch aircraft | V (micro, Chinook, skycrane) | Pause menu | Pause menu |
 | Flight Assist | F | Y | Assist button |
 | Restart flight | R | Start | ↻ (top right) |
 | Reset sandbox | Shift+R | Pause menu | Pause menu |
 | Camera | C recenter, mouse drag orbit, wheel zoom | B recenter, D-pad orbit/zoom | View button, drag open screen to orbit |
-| Mark a moment for a flight note | N | R3 (click the right stick) | ⚑ Mark |
+| Mark a moment for a flight note | N | LB or R3 | ⚑ Mark |
 | Flight replay | Pause menu, or Watch replay after a crash | same | same |
 | Cockpit view | 1 toggles; mouse drag look, wheel zoom, C look ahead | L3 click toggles; hold L3 + right stick look, D-pad glance, B look ahead | Cockpit icon (top right); drag open screen to look |
 | Pause / help / mute / debug | Esc, H, M, ` (or F3) | Back/View, X | ‖ and ? buttons |
 | Menus | Arrow keys/Tab, Enter | D-pad or left stick, A select, B back | Tap |
 
-**Steam Controller and other gamepads**: any controller the browser exposes works. Standard layouts (Xbox, PlayStation, Switch Pro, and the Steam Controller through Steam Input) need no setup; anything else can be bound in **Pause → Controller → Bind buttons…**. The same screen has a live stick test, dead zone, response curve, per-axis sensitivity, inversion and rumble. Menus, pause, help and the crash screen are fully driven from the pad. For the Steam Controller specifically, see [docs/STEAM-CONTROLLER.md](docs/STEAM-CONTROLLER.md).
+**Gamepad layouts** (**Pause → Controller**, or **?** → Controller settings). Pick a preset, or change any stick or button and it becomes your own **Custom** layout; everything is saved in the browser.
+
+| Preset | Left stick | Right stick | Triggers and bumpers |
+|---|---|---|---|
+| **Aim** (default) | ↕ lift, ↔ roll | ↕ pitch, ↔ yaw (aims the nose like a rifle) | RB hook, RT pour, LT bolted camera, LB mark |
+| Aim, southpaw | ↕ pitch, ↔ yaw | ↕ lift, ↔ roll | as Aim |
+| Classic (RC Mode 2) | ↕ lift, ↔ yaw | ↕ pitch, ↔ roll | the original: RB pour, triggers add lift, skycrane LT pump and LB / RB reel |
+| RC Mode 1 | ↕ pitch, ↔ yaw | ↕ lift, ↔ roll | as Aim |
+| Arcade | ↕ pitch, ↔ roll | ↔ yaw | RT climb, LT sink, RB pour, LB bolted camera (the skycrane's triggers run the tank, so lift moves to the right stick ↕ there) |
+
+Yaw stays on a proportional stick in every preset, never on a bumper or trigger. Every axis has its own invert (and **Invert pitch** sits at the top for stick-up-raises-the-nose). Choosing a button that already does something else in the same aircraft moves it, and the other action takes your old button if it would be left with none; skycrane-only buttons override general ones while you fly the skycrane. Menus always use A, B and the d-pad, so no layout can lock you out.
+
+**Steam Controller and other gamepads**: any controller the browser exposes works. Standard layouts (Xbox, PlayStation, Switch Pro, and the Steam Controller through Steam Input) need no setup; anything else can be taught where its sticks and buttons are in **Pause → Controller → Teach it an odd pad…** (the layout then decides what they do). The same screen has a live stick test, dead zone, response curve, per-axis sensitivity and rumble. Menus, pause, help and the crash screen are fully driven from the pad. For the Steam Controller specifically, see [docs/STEAM-CONTROLLER.md](docs/STEAM-CONTROLLER.md).
 
 **Collective is a rate on every device**: push to add lift, pull to reduce it, let go to hold. With Flight Assist off this trims the collective setting directly (shown by the bar on the left, with a hover mark). With Flight Assist on it commands a climb or sink speed. Because the stick never maps to an absolute throttle position, switching between keyboard, gamepad and touch never makes the throttle jump.
 

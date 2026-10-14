@@ -1,47 +1,45 @@
 // Gamepad layer: any controller the browser exposes, standard or not.
-// - Standard-mapping pads (Xbox, PlayStation, Switch Pro, Steam Controller via Steam Input) work with no setup.
-// - Non-standard pads get a per-controller binding saved in localStorage (built with the in-game wizard).
-// - Settings: dead zone, response curve, per-axis sensitivity, inversion, rumble.
+// - Every pad is first read as a standard "virtual pad" (sticks lx ly rx ry, +right / +up, and the 16
+//   standard buttons). Standard-mapping pads (Xbox, PlayStation, Switch Pro, Steam Controller via Steam
+//   Input) need no setup; other pads get a per-controller binding saved in localStorage (the wizard).
+// - Shaping (dead zone, response curve, sensitivity) works on the physical sticks.
+// - The layout (layouts.js: presets, remapping, per-axis invert) then decides what each stick and button
+//   flies. Menus always use the standard buttons, so no layout can lock you out of the settings.
 // - The most recently used pad is active; several can be connected at once.
+import {
+  ACTIONS, BTN, TRIGGER_BUTTONS, STICK_SOURCES, mappingOf, normalizeLayout, activeAxes, activeButtons, routeAxes,
+  choosePreset, cyclePreset, setAxisSource, bindButton, unbindButton, setInvert, presetName,
+} from './layouts.js';
 
 const LS = 'helicoptea.pad.';
 const load = (k, d) => { try { const v = localStorage.getItem(LS + k); return v ? JSON.parse(v) : d; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(LS + k, JSON.stringify(v)); } catch { /* ignore */ } };
 
 export const PAD_DEFAULTS = {
-  deadZone: 0.12, expo: 0.45, cyclic: 1.0, collective: 1.0, yaw: 1.0,
-  invertPitch: false, invertCollective: false, triggers: true, rumble: true,
+  deadZone: 0.12, expo: 0.45, cyclic: 1.0, collective: 1.0, yaw: 1.0, triggers: true, rumble: true,
 };
 
-// Logical axis -> source. 'axis': index + sign. 'pair': two buttons (pos/neg), analog values.
+// Physical -> virtual for a standard-mapping pad. sticks: index + sign so that +right / +up.
 export const STANDARD_BINDING = {
-  axes: {
-    collective: { type: 'axis', index: 1, sign: -1 },
-    yaw: { type: 'axis', index: 0, sign: 1 },
-    pitch: { type: 'axis', index: 3, sign: -1 },
-    roll: { type: 'axis', index: 2, sign: 1 },
-  },
-  triggers: { up: 7, down: 6 },
-  buttons: { attach: [0], view: [10], pour: [5], doors: [7], pump: [6], reelOut: [5], reelIn: [4], recenter: [1], mark: [11], help: [2], assist: [3], pause: [8], restart: [9], camLeft: [14], camRight: [15], zoomIn: [12], zoomOut: [13], up: [12], down: [13], left: [14], right: [15], confirm: [0], back: [1] },
+  sticks: { lx: { index: 0, sign: 1 }, ly: { index: 1, sign: -1 }, rx: { index: 2, sign: 1 }, ry: { index: 3, sign: -1 } },
+  pad: Array.from({ length: 16 }, (_, i) => i),
 };
 
-// Wizard steps: axes first (move), then buttons (press).
+// Wizard steps for a non-standard pad: each stick direction, then each standard button.
 export const BIND_STEPS = [
-  { key: 'collective', kind: 'axis', prompt: 'Push the stick you want for <b>LIFT</b> all the way <b>up</b>' },
-  { key: 'yaw', kind: 'axis', prompt: 'Push the stick you want for <b>TURN</b> all the way <b>right</b>' },
-  { key: 'pitch', kind: 'axis', prompt: 'Push the stick you want for <b>TILT</b> all the way <b>forward</b>' },
-  { key: 'roll', kind: 'axis', prompt: 'Push the <b>TILT</b> stick all the way <b>right</b>' },
-  { key: 'attach', kind: 'button', prompt: 'Press the button for <b>Hook / release</b>' },
-  { key: 'pour', kind: 'button', prompt: 'Press the button to <b>Pour milk</b> (held)' },
-  { key: 'doors', kind: 'button', prompt: 'Skycrane: pull the trigger (or press the button) for the <b>Belly doors</b>' },
-  { key: 'pump', kind: 'button', prompt: 'Skycrane: pull the trigger (or press the button) for the <b>Pump</b>' },
-  { key: 'reelOut', kind: 'button', prompt: 'Skycrane: press the button to <b>Reel the hose out</b>' },
-  { key: 'reelIn', kind: 'button', prompt: 'Skycrane: press the button to <b>Reel the hose in</b>' },
-  { key: 'assist', kind: 'button', prompt: 'Press the button for <b>Flight Assist</b>' },
-  { key: 'restart', kind: 'button', prompt: 'Press the button for <b>Restart flight</b>' },
-  { key: 'pause', kind: 'button', prompt: 'Press the button for <b>Pause / menu</b>' },
-  { key: 'back', kind: 'button', prompt: 'Press the button for <b>Back</b> (also recenters the camera)' },
+  { key: 'lx', kind: 'axis', prompt: 'Push the <b>left stick</b> all the way <b>right</b>' },
+  { key: 'ly', kind: 'axis', prompt: 'Push the <b>left stick</b> all the way <b>up</b>' },
+  { key: 'rx', kind: 'axis', prompt: 'Push the <b>right stick</b> all the way <b>right</b>' },
+  { key: 'ry', kind: 'axis', prompt: 'Push the <b>right stick</b> all the way <b>up</b>' },
+  ...[['A', 'the bottom face button (<b>A</b> / ✕)'], ['B', 'the right face button (<b>B</b> / ◯)'], ['X', 'the left face button (<b>X</b> / ▢)'], ['Y', 'the top face button (<b>Y</b> / △)'],
+    ['LB', 'the <b>left bumper</b>'], ['RB', 'the <b>right bumper</b>'], ['LT', 'the <b>left trigger</b>'], ['RT', 'the <b>right trigger</b>'],
+    ['BACK', '<b>Back / View / Select</b>'], ['START', '<b>Start / Menu</b>'], ['L3', 'the <b>left stick</b> in (click)'], ['R3', 'the <b>right stick</b> in (click)'],
+    ['UP', '<b>D-pad up</b>'], ['DOWN', '<b>D-pad down</b>'], ['LEFT', '<b>D-pad left</b>'], ['RIGHT', '<b>D-pad right</b>']]
+    .map(([k, what]) => ({ key: k, button: BTN[k], kind: 'button', prompt: `Press ${what}` })),
 ];
+
+// Hold-type actions: read every frame, never sent as presses.
+const HELD = new Set(['view', 'look', 'pour', 'doors', 'pump', 'reelIn', 'reelOut', 'camLeft', 'camRight', 'zoomIn', 'zoomOut', 'boltCam']);
 
 function curve(v, s) {
   const dz = s.deadZone, e = s.expo;
@@ -58,18 +56,40 @@ function radial(x, y, s) {
   return [x * k, y * k];
 }
 
+// An old (pre-layout) custom binding was keyed by flight action; read it as a virtual pad.
+export function migrateBinding(b) {
+  if (!b || b.v === 2) return b;
+  const ax = b.axes || {};
+  const pick = (s, d) => (s && s.type === 'axis' ? { index: s.index, sign: s.sign } : d);
+  const S = STANDARD_BINDING.sticks;
+  const sticks = { lx: pick(ax.yaw, S.lx), ly: pick(ax.collective, S.ly), rx: pick(ax.roll, S.rx), ry: pick(ax.pitch, S.ry) };
+  const bt = b.buttons || {};
+  const first = (k, d) => (Array.isArray(bt[k]) && Number.isInteger(bt[k][0]) ? bt[k][0] : d);
+  const pad = [first('attach', 0), first('back', first('recenter', 1)), first('help', 2), first('assist', 3), first('reelIn', 4), first('reelOut', first('pour', 5)),
+    first('pump', 6), first('doors', 7), first('pause', 8), first('restart', 9), first('view', 10), first('mark', 11),
+    first('up', 12), first('down', 13), first('left', 14), first('right', 15)];
+  return { custom: true, v: 2, sticks, pad };
+}
+
 export class Gamepads {
   constructor() {
     this.settings = { ...PAD_DEFAULTS, ...load('settings', {}) };
+    this.layout = normalizeLayout(load('layout', null), this.settings);
+    this.layoutChanged();
     this.activeIndex = null;
-    this.prev = new Map();     // index -> { buttons: bool[] }
+    this.prev = new Map();     // index -> { on: bool[] } (virtual buttons)
     this.rest = new Map();     // index -> resting axes (non-standard pads may rest away from 0)
     this.out = { pitch: 0, roll: 0, yaw: 0, collective: 0 };
+    this.sticks = { lx: 0, ly: 0, rx: 0, ry: 0 };   // shaped virtual sticks (for the test view)
+    this.holds = {};
     this.events = [];          // logical button presses: 'attach', 'confirm', ...
     this.notices = [];
     this.wizard = null;
-    this.raw = null;           // last raw snapshot of the active pad (for the test view)
+    this.capture = null;       // remapping: waiting for a button press or a stick push
+    this.raw = null;           // last raw snapshot of the active pad (for the test view and the recorder)
     this.navRepeat = { dir: null, t: 0 };
+    this.triggerMode = 'collective';
+    if (typeof window === 'undefined') return;
     window.addEventListener('gamepadconnected', (e) => {
       const gp = e.gamepad;
       this.rest.set(gp.index, gp.axes.slice());
@@ -86,14 +106,78 @@ export class Gamepads {
     });
   }
 
-  zero() { this.out.pitch = this.out.roll = this.out.yaw = this.out.collective = 0; this.pour = false; this.doors = 0; this.pump = 0; this.reel = 0; this.look = null; this.viewHeldT = 0; this.viewLooked = false; }
+  zero() {
+    this.out.pitch = this.out.roll = this.out.yaw = this.out.collective = 0;
+    this.pour = false; this.doors = 0; this.pump = 0; this.reel = 0; this.look = null; this.viewHeldT = 0; this.viewLooked = false;
+    this.holds = {};
+  }
   list() { return [...(navigator.getGamepads ? navigator.getGamepads() : [])].filter(Boolean); }
   active() { const l = navigator.getGamepads ? navigator.getGamepads() : []; return this.activeIndex !== null ? l[this.activeIndex] : null; }
   hasBinding(gp) { return !!load(`bind.${gp.id}`, null); }
-  bindingFor(gp) { return load(`bind.${gp.id}`, null) || (gp.mapping === 'standard' ? STANDARD_BINDING : guessBinding(gp)); }
+  bindingFor(gp) {
+    const saved = load(`bind.${gp.id}`, null);
+    if (saved) return migrateBinding(saved);
+    return gp.mapping === 'standard' ? STANDARD_BINDING : guessBinding(gp);
+  }
   isCustom(gp) { return this.hasBinding(gp); }
   saveSettings() { save('settings', this.settings); }
   resetBinding(gp) { try { localStorage.removeItem(`${LS}bind.${gp.id}`); } catch { /* ignore */ } }
+  isHeld(id) { return !!this.holds[id]; }
+
+  // ---------------------------------------------------------------- layout (presets and remapping)
+  layoutChanged() {
+    this.mapping = mappingOf(this.layout);
+    this.ctxCache = {};
+  }
+  live(ctx) {
+    if (!this.ctxCache[ctx]) this.ctxCache[ctx] = { ...activeAxes(this.mapping, ctx), buttons: activeButtons(this.mapping, ctx) };
+    return this.ctxCache[ctx];
+  }
+  setLayout(layout) { this.layout = layout; save('layout', layout); this.layoutChanged(); }
+  edit(fn) { const r = fn(this.layout); this.setLayout(r.layout || r); return r.notes || []; }
+  choosePreset(id) { this.setLayout(choosePreset(this.layout, id)); }
+  cyclePreset(dir) { this.setLayout(cyclePreset(this.layout, dir)); return presetName(this.layout); }
+  setAxis(axis, source) { return this.edit((L) => setAxisSource(L, axis, source)); }
+  bind(action, button, slot) { return this.edit((L) => bindButton(L, action, button, slot)); }
+  unbind(action, button) { return this.edit((L) => unbindButton(L, action, button)); }
+  setInvert(axis, on) { this.setLayout(setInvert(this.layout, axis, on)); }
+
+  // Remapping: the next button press (kind 'button') or full stick push (kind 'axis') goes to done().
+  startCapture(kind, done) {
+    const gp = this.active() || this.list()[0];
+    if (!gp) return false;
+    this.capture = { kind, done, waitRelease: true, t: 8 };
+    return true;
+  }
+  cancelCapture() { const c = this.capture; this.capture = null; if (c) c.done(null); }
+  stepCapture(v, dt) {
+    const c = this.capture;
+    c.t -= dt;
+    if (c.t <= 0) { this.cancelCapture(); return; }
+    const anyOn = v.on.findIndex(Boolean);
+    const stick = STICK_SOURCES.map((s) => [s, v[s]]).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0];
+    if (c.waitRelease) { if (anyOn < 0 && Math.abs(stick[1]) < 0.3) c.waitRelease = false; return; }
+    if (c.kind === 'button' && anyOn >= 0) { this.capture = null; c.done({ button: anyOn }); }
+    else if (c.kind === 'axis') {
+      if (Math.abs(stick[1]) > 0.7) { this.capture = null; c.done({ source: stick[0], negative: stick[1] < 0 }); }
+      else if (v.on[BTN.LT] || v.on[BTN.RT]) { this.capture = null; c.done({ source: 'trig' }); }
+    }
+  }
+
+  // ---------------------------------------------------------------- reading a pad
+  // The virtual pad: sticks (unshaped, +right / +up), triggers 0..1, per-button value and on-state.
+  readVirtual(gp, P) {
+    const rest = this.rest.get(gp.index) || [];
+    const stick = (s) => (s ? ((gp.axes[s.index] ?? 0) - (P.custom ? (rest[s.index] || 0) : 0)) * s.sign : 0);
+    const value = new Array(16), on = new Array(16);
+    for (let i = 0; i < 16; i++) {
+      const b = gp.buttons[P.pad[i]];
+      value[i] = b ? (typeof b === 'number' ? b : b.value) : 0;
+      // Triggers count as pressed past half-way; other buttons trust the browser.
+      on[i] = TRIGGER_BUTTONS.includes(i) ? value[i] > 0.5 : !!(b && (typeof b === 'number' ? b > 0.5 : b.pressed));
+    }
+    return { lx: stick(P.sticks.lx), ly: stick(P.sticks.ly), rx: stick(P.sticks.rx), ry: stick(P.sticks.ry), lt: value[BTN.LT], rt: value[BTN.RT], value, on };
+  }
 
   // Returns true if the pad produced meaningful input this frame.
   poll(dt, menuMode) {
@@ -109,100 +193,100 @@ export class Gamepads {
     const gp = this.active() || pads[0] || null;
     if (!gp) { this.zero(); this.raw = null; return false; }
     this.activeIndex = gp.index;
-    this.raw = { id: gp.id, mapping: gp.mapping, axes: gp.axes.slice(), buttons: gp.buttons.map((b) => +b.value.toFixed(2)), index: gp.index };
-    if (this.wizard) { this.stepWizard(gp); this.zero(); this.storePrev(gp); return true; }
+    this.raw = { id: gp.id, mapping: gp.mapping, axes: gp.axes.slice(), buttons: gp.buttons.map((b) => +(typeof b === 'number' ? b : b.value).toFixed(2)), index: gp.index };
+    if (this.wizard) { this.stepWizard(gp); this.zero(); return true; }
 
-    const B = this.bindingFor(gp);
+    const P = this.bindingFor(gp);
+    const v = this.readVirtual(gp, P);
+    const prevOn = this.prev.get(gp.index)?.on || [];
+    const storePrev = () => this.prev.set(gp.index, { on: v.on.slice() });
+    if (this.capture) { this.stepCapture(v, dt); this.zero(); storePrev(); return true; }
+
     const S = this.settings;
-    const rest = this.rest.get(gp.index) || [];
-    const axis = (src) => {
-      if (!src) return 0;
-      if (src.type === 'axis') return ((gp.axes[src.index] ?? 0) - (B.custom ? (rest[src.index] || 0) : 0)) * src.sign;
-      if (src.type === 'pair') return val(gp, src.pos) - val(gp, src.neg);
-      return 0;
-    };
-    const a = B.axes;
-    let [yaw, coll] = radial(axis(a.yaw), axis(a.collective), S);
-    let [roll, pitch] = radial(axis(a.roll), axis(a.pitch), S);
-    // On the skycrane the triggers run the tank (doors and pump); collective stays on the left stick.
-    const tank = this.triggerMode === 'tank';
-    if (S.triggers && B.triggers && !tank) {
-      const t = curve(val(gp, B.triggers.up) - val(gp, B.triggers.down), { deadZone: 0.06, expo: S.expo });
-      if (Math.abs(t) > Math.abs(coll)) coll = t;
-    }
-    const clamp = (v) => Math.max(-1, Math.min(1, v));
-    // L3 (left stick click): tap to switch chase / cockpit; hold it and the right stick looks around
-    // instead of flying (the cyclic centres meanwhile). LB and RB stay free for the hose reel.
-    const viewBtns = B.buttons.view || STANDARD_BINDING.buttons.view;
-    const viewHeld = !menuMode && viewBtns.some((i) => !!gp.buttons[i]?.pressed);
+    const ctx = this.triggerMode === 'tank' ? 'tank' : 'heli';
+    const L = this.live(ctx);
+    const btn = L.buttons;
+    const [lx, ly] = radial(v.lx, v.ly, S);
+    const [rx, ry] = radial(v.rx, v.ry, S);
+    this.sticks = { lx, ly, rx, ry };
+    const trig = curve(v.rt - v.lt, { deadZone: 0.06, expo: S.expo });
+    const held = (list) => (list || []).some((i) => v.on[i]);
+    const level = (list) => Math.max(0, ...(list || []).map((i) => v.value[i]));
+    const pressed = (i) => v.on[i] && !prevOn[i];
+    const any = (list) => (list || []).some(pressed);
+
+    // Looking around: hold the view button (L3 by default; a tap still switches view) or a look button,
+    // and the right stick looks instead of flying while the axes it normally flies centre.
+    const viewHeld = !menuMode && held(btn.view);
     if (viewHeld) this.viewHeldT = (this.viewHeldT || 0) + dt;
     else if (this.viewHeldT !== undefined) {
       if (this.viewHeldT > 0 && this.viewHeldT < 0.3 && !this.viewLooked) this.events.push('view');
       this.viewHeldT = 0; this.viewLooked = false;
     }
-    const lookNow = viewHeld && (this.viewHeldT > 0.3 || Math.hypot(roll, pitch) > 0.25);
-    this.look = lookNow ? { x: roll, y: pitch } : null;
-    if (this.look) { roll = pitch = 0; this.viewLooked = true; }
-    this.out.collective = clamp(coll * S.collective * (S.invertCollective ? -1 : 1));
-    this.out.yaw = clamp(yaw * S.yaw);
-    this.out.pitch = clamp(pitch * S.cyclic * (S.invertPitch ? -1 : 1));
-    this.out.roll = clamp(roll * S.cyclic);
+    const lookNow = !menuMode && (held(btn.look) || (viewHeld && (this.viewHeldT > 0.3 || Math.hypot(rx, ry) > 0.25)));
+    this.look = lookNow ? { x: rx, y: ry } : null;
+    if (this.look && viewHeld) this.viewLooked = true;
+    const routed = routeAxes({ lx, ly, rx: this.look ? 0 : rx, ry: this.look ? 0 : ry, lt: 0, rt: trig }, L.axes, this.layout.invert);
+    // Classic: with the triggers free in this aircraft, they add lift as well (whichever is pushed further).
+    if (S.triggers && L.trigFree && Math.abs(trig) > Math.abs(routed.collective)) routed.collective = this.layout.invert.collective ? -trig : trig;
+    const clamp = (x) => Math.max(-1, Math.min(1, x));
+    this.out.collective = clamp(routed.collective * S.collective);
+    this.out.yaw = clamp(routed.yaw * S.yaw);
+    this.out.pitch = clamp(routed.pitch * S.cyclic);
+    this.out.roll = clamp(routed.roll * S.cyclic);
     if (menuMode) this.zero();
-    const held = (list) => (list || []).some((i) => !!gp.buttons[i]?.pressed);
-    const level = (list) => Math.max(0, ...(list || []).map((i) => val(gp, i)));
+
+    const tank = ctx === 'tank';
     if (!menuMode) {
-      this.pour = !tank && held(B.buttons.pour);
-      this.doors = tank ? curve(level(B.buttons.doors), { deadZone: 0.04, expo: 0.3 }) : 0;
-      this.pump = tank ? Math.min(1, level(B.buttons.pump) * 1.15) : 0;
-      const both = held(B.buttons.reelOut) && held(B.buttons.reelIn);
-      this.reel = tank && !both ? (held(B.buttons.reelOut) ? 1 : 0) - (held(B.buttons.reelIn) ? 1 : 0) : 0;
+      this.pour = !tank && level(btn.pour) > 0.5;
+      this.doors = tank ? curve(level(btn.doors), { deadZone: 0.04, expo: 0.3 }) : 0;
+      this.pump = tank ? Math.min(1, level(btn.pump) * 1.15) : 0;
+      const both = held(btn.reelOut) && held(btn.reelIn);
+      this.reel = tank && !both ? (held(btn.reelOut) ? 1 : 0) - (held(btn.reelIn) ? 1 : 0) : 0;
+      this.holds = {};
+      for (const a of ACTIONS) if (held(btn[a.id])) this.holds[a.id] = true;
     }
 
-    // Edge-triggered logical buttons.
-    const prev = this.prev.get(gp.index)?.buttons || [];
-    const pressed = (i) => !!gp.buttons[i]?.pressed && !prev[i];
-    const any = (list) => (list || []).some(pressed);
-    const btn = B.buttons;
     if (menuMode) {
-      if (any(btn.confirm)) this.events.push('confirm');
-      if (any(btn.back)) this.events.push('back');
-      if (any(btn.pause)) this.events.push('pause');
-      if (any(btn.restart)) this.events.push('restart');
+      // Menus use the standard buttons whatever the layout.
+      if (pressed(BTN.A)) this.events.push('confirm');
+      if (pressed(BTN.B)) this.events.push('back');
+      if (pressed(BTN.BACK) || any(this.mapping.buttons.pause)) this.events.push('pause');
+      if (pressed(BTN.START)) this.events.push('restart');
       // Menu navigation from the d-pad or the left stick, with auto-repeat.
       let dir = null;
-      if (gp.buttons[btn.up?.[0]]?.pressed || axis(a.collective) > 0.6) dir = 'up';
-      else if (gp.buttons[btn.down?.[0]]?.pressed || axis(a.collective) < -0.6) dir = 'down';
-      else if (gp.buttons[btn.left?.[0]]?.pressed || axis(a.yaw) < -0.6) dir = 'left';
-      else if (gp.buttons[btn.right?.[0]]?.pressed || axis(a.yaw) > 0.6) dir = 'right';
+      if (v.on[BTN.UP] || v.ly > 0.6) dir = 'up';
+      else if (v.on[BTN.DOWN] || v.ly < -0.6) dir = 'down';
+      else if (v.on[BTN.LEFT] || v.lx < -0.6) dir = 'left';
+      else if (v.on[BTN.RIGHT] || v.lx > 0.6) dir = 'right';
       if (dir !== this.navRepeat.dir) { this.navRepeat = { dir, t: 0.4 }; if (dir) this.events.push(`nav-${dir}`); }
       else if (dir) { this.navRepeat.t -= dt; if (this.navRepeat.t <= 0) { this.navRepeat.t = 0.12; this.events.push(`nav-${dir}`); } }
     } else {
       this.navRepeat.dir = null;
-      for (const name of ['attach', 'assist', 'restart', 'pause', 'help', 'recenter', 'mark']) if (any(btn[name])) this.events.push(name);
-      // Combos. Skycrane: two quick full pulls of the door trigger = salvo; both bumpers together = auto-fill.
-      // Bucket: a double-tap of the pour button latches its valve open.
+      for (const a of ACTIONS) if (!HELD.has(a.id) && any(btn[a.id])) this.events.push(a.id);
+      // Combos. Skycrane: two quick full pulls of the doors = salvo; reel in + out together = auto-fill;
+      // a digital pump button tapped twice = auto-fill. Bucket: pull the pour twice quickly to latch it.
       const now = performance.now();
       if (tank) {
         const full = this.doors > 0.85;
         if (full && !this.doorsWasFull) { if (now - (this.lastDoorPull || 0) < 400) { this.events.push('salvo'); this.lastDoorPull = 0; } else this.lastDoorPull = now; }
         this.doorsWasFull = full;
         if ((any(btn.reelOut) && held(btn.reelIn)) || (any(btn.reelIn) && held(btn.reelOut))) this.events.push('autofill');
+        const digitalPump = (btn.pump || []).filter((i) => !TRIGGER_BUTTONS.includes(i));
+        if (any(digitalPump)) { if (now - (this.lastPumpTap || 0) < 350) { this.events.push('autofill'); this.lastPumpTap = 0; } else this.lastPumpTap = now; }
       } else if (any(btn.pour)) {
         if (now - (this.lastPourTap || 0) < 350) { this.events.push('salvo'); this.lastPourTap = 0; } else this.lastPourTap = now;
       }
-      if (B.custom && any(btn.back)) this.events.push('recenter');
     }
     this.cam = {
-      yaw: (gp.buttons[btn.camLeft?.[0]]?.pressed ? 1 : 0) - (gp.buttons[btn.camRight?.[0]]?.pressed ? 1 : 0),
-      zoom: (gp.buttons[btn.zoomOut?.[0]]?.pressed ? 1 : 0) - (gp.buttons[btn.zoomIn?.[0]]?.pressed ? 1 : 0),
+      yaw: (held(btn.camLeft) ? 1 : 0) - (held(btn.camRight) ? 1 : 0),
+      zoom: (held(btn.zoomOut) ? 1 : 0) - (held(btn.zoomIn) ? 1 : 0),
     };
     if (menuMode) this.cam.yaw = this.cam.zoom = 0;
-    const used = Math.abs(this.out.pitch) + Math.abs(this.out.roll) + Math.abs(this.out.yaw) + Math.abs(this.out.collective) > 0.05 || gp.buttons.some((b, i) => b.pressed && !prev[i]);
-    this.storePrev(gp);
+    const used = Math.abs(this.out.pitch) + Math.abs(this.out.roll) + Math.abs(this.out.yaw) + Math.abs(this.out.collective) > 0.05 || v.on.some((b, i) => b && !prevOn[i]);
+    storePrev();
     return used;
   }
-
-  storePrev(gp) { this.prev.set(gp.index, { buttons: gp.buttons.map((b) => b.pressed) }); }
 
   activity(gp) {
     const rest = this.rest.get(gp.index) || [];
@@ -224,11 +308,11 @@ export class Gamepads {
   }
   canRumble() { const gp = this.active(); return !!(gp && gp.vibrationActuator); }
 
-  // ---------------------------------------------------------------- binding wizard
+  // ---------------------------------------------------------------- binding wizard (non-standard pads)
   startWizard(onUpdate) {
     const gp = this.active() || this.list()[0];
     if (!gp) return false;
-    this.wizard = { index: gp.index, id: gp.id, step: 0, waitRelease: true, binding: { custom: true, axes: {}, buttons: {}, triggers: null }, onUpdate };
+    this.wizard = { index: gp.index, id: gp.id, step: 0, waitRelease: true, binding: { custom: true, v: 2, sticks: {}, pad: [] }, onUpdate };
     this.rest.set(gp.index, gp.axes.slice());
     onUpdate(this.wizardView());
     return true;
@@ -253,13 +337,11 @@ export class Gamepads {
     if (step.kind === 'axis') {
       let best = -1, bv = 0;
       dev.forEach((v, i) => { if (Math.abs(v) > Math.abs(bv)) { bv = v; best = i; } });
-      if (Math.abs(bv) > 0.6) w.binding.axes[step.key] = { type: 'axis', index: best, sign: Math.sign(bv) };
-      else if (anyBtn >= 0) return; // ignore buttons on stick steps
-      else return;
+      if (Math.abs(bv) > 0.6) w.binding.sticks[step.key] = { index: best, sign: Math.sign(bv) };
+      else return; // ignore buttons on stick steps
     } else {
       if (anyBtn < 0) return;
-      w.binding.buttons[step.key] = [anyBtn];
-      if (step.key === 'attach') w.binding.buttons.confirm = [anyBtn];
+      w.binding.pad[step.button] = anyBtn;
     }
     w.step++;
     w.waitRelease = true;
@@ -269,10 +351,9 @@ export class Gamepads {
   finishIfDone() {
     const w = this.wizard;
     if (w.step < BIND_STEPS.length) return;
-    const base = STANDARD_BINDING;
     const b = w.binding;
-    for (const k of Object.keys(base.axes)) if (!b.axes[k]) b.axes[k] = base.axes[k];
-    for (const k of Object.keys(base.buttons)) if (!b.buttons[k]) b.buttons[k] = base.buttons[k];
+    for (const k of STICK_SOURCES) if (!b.sticks[k]) b.sticks[k] = STANDARD_BINDING.sticks[k];
+    for (let i = 0; i < 16; i++) if (!Number.isInteger(b.pad[i])) b.pad[i] = i;
     save(`bind.${w.id}`, b);
     const done = w.onUpdate;
     this.wizard = null;
@@ -280,15 +361,11 @@ export class Gamepads {
   }
 }
 
-function val(gp, i) { const b = gp.buttons[i]; return b ? b.value : 0; }
-
 // Best guess for a non-standard pad before the player binds it: the common HID layout.
 function guessBinding(gp) {
-  const b = JSON.parse(JSON.stringify(STANDARD_BINDING));
-  b.custom = true;
-  if (gp.axes.length >= 4) b.axes.pitch = { type: 'axis', index: gp.axes.length >= 6 ? 5 : 3, sign: -1 };
-  if (gp.axes.length >= 6) b.axes.roll = { type: 'axis', index: 2, sign: 1 };
-  b.triggers = null;
+  const b = { custom: true, v: 2, sticks: JSON.parse(JSON.stringify(STANDARD_BINDING.sticks)), pad: STANDARD_BINDING.pad.slice() };
+  if (gp.axes.length >= 4) b.sticks.ry = { index: gp.axes.length >= 6 ? 5 : 3, sign: -1 };
+  if (gp.axes.length >= 6) b.sticks.rx = { index: 2, sign: 1 };
   return b;
 }
 

@@ -1,5 +1,9 @@
 import { milkyTea } from '../render/water.js';
 import { prettyName } from '../input/gamepad.js';
+import {
+  ACTIONS, ACTION, AXIS_LABEL, AXIS_SOURCES, BTN, FLIGHT_AXES, MAX_PER_ACTION, PRESETS, PRESET_ORDER, SOURCE_LABEL,
+  activeAxes, activeButtons, buttonName, defaultLayout, describe, mappingOf, presetName,
+} from '../input/layouts.js';
 
 const ICONS = {
   restart: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/></svg>',
@@ -102,10 +106,27 @@ export class Hud {
     const d = this.device;
     const K = {
       keyboard: { lift: '<kbd>W</kbd>', attach: '<kbd>Space</kbd>', assist: '<kbd>F</kbd>', restart: '<kbd>R</kbd>', pour: '<kbd>G</kbd>', doors: '<kbd>G</kbd>', salvo: 'double-tap <kbd>G</kbd>', pump: '<kbd>T</kbd>', autofill: 'double-tap <kbd>T</kbd>', reel: '<kbd>Z</kbd> <kbd>X</kbd>' },
-      gamepad: { lift: '<kbd>L-stick ↑</kbd>', attach: '<kbd>A</kbd>', assist: '<kbd>Y</kbd>', restart: '<kbd>Start</kbd>', pour: '<kbd>RB</kbd>', doors: '<kbd>RT</kbd>', salvo: '<kbd>RT</kbd><kbd>RT</kbd>', pump: '<kbd>LT</kbd>', autofill: '<kbd>LB</kbd>+<kbd>RB</kbd>', reel: '<kbd>LB</kbd> <kbd>RB</kbd>' },
+      gamepad: this.padKeys(),
       touch: { lift: 'left stick ↑', attach: '<kbd>Hook</kbd>', assist: '<kbd>Assist</kbd>', restart: '↻', pour: '<kbd>Pour</kbd>', doors: '<kbd>Doors</kbd>', salvo: 'double-tap <kbd>Doors</kbd>', pump: '<kbd>Pump</kbd>', autofill: 'double-tap <kbd>Pump</kbd>', reel: '<kbd>Hose ▲▼</kbd>' },
     };
     return K[d][action];
+  }
+
+  // Gamepad prompts follow the player's layout (set via hud.pads by the game).
+  padKeys() {
+    const m = this.pads ? mappingOf(this.pads.layout) : mappingOf(defaultLayout());
+    const kbd = (b) => `<kbd>${buttonName(b)}</kbd>`;
+    const heli = activeButtons(m, 'heli'), tank = activeButtons(m, 'tank');
+    const first = (l) => (l && l.length ? kbd(l[0]) : '<kbd>unbound</kbd>');
+    const lift = activeAxes(m, 'heli').axes.collective;
+    const liftKey = lift === 'trig' ? '<kbd>RT</kbd>' : lift === 'none' ? '<kbd>unbound</kbd>' : `<kbd>${lift[0] === 'l' ? 'L' : 'R'}-stick ${lift[1] === 'y' ? '↑' : '→'}</kbd>`;
+    const digitalPump = (tank.pump || []).find((b) => b !== BTN.LT && b !== BTN.RT);
+    return {
+      lift: liftKey, attach: first(heli.attach), assist: first(heli.assist), restart: first(heli.restart), pour: first(heli.pour),
+      doors: first(tank.doors), salvo: tank.doors.length ? kbd(tank.doors[0]) + kbd(tank.doors[0]) : '<kbd>unbound</kbd>', pump: first(tank.pump),
+      autofill: digitalPump !== undefined ? kbd(digitalPump) + kbd(digitalPump) : (tank.reelIn.length && tank.reelOut.length ? `${kbd(tank.reelIn[0])}+${kbd(tank.reelOut[0])}` : '<kbd>unbound</kbd>'),
+      reel: `${first(tank.reelIn)} ${first(tank.reelOut)}`,
+    };
   }
 
   refreshKeys() {
@@ -328,14 +349,31 @@ export class Hud {
       keyboard: [['<kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd>', 'Cyclic: tilt forward, back and sideways (or I J K L)'], ['<kbd>W</kbd><kbd>S</kbd>', 'Collective: more / less lift'], ['<kbd>A</kbd><kbd>D</kbd>', 'Yaw: turn left / right'],
         ['<kbd>Space</kbd>', 'Hook a bag or the milk bucket / release it (the Chinook has three hooks: Space drops them all)'], ['<kbd>G</kbd> (hold)', 'Pour milk: the bucket\'s valve, or the skycrane\'s belly doors (they open wider the longer you hold)'], ['Double-tap <kbd>G</kbd> or <kbd>Shift</kbd>+<kbd>G</kbd>', 'Salvo: dump the lot (latches the doors or the bucket valve open; again to close)'], ['<kbd>T</kbd> (hold)', 'Skycrane: pump milk up the snorkel (only with the intake under the surface)'], ['Double-tap <kbd>T</kbd> or <kbd>Shift</kbd>+<kbd>T</kbd>', 'Skycrane auto-fill: reel down, pump until full, reel up (any hose or pump key takes over)'], ['<kbd>Z</kbd> / <kbd>X</kbd> (hold)', 'Skycrane: reel the snorkel in / out'], ['<kbd>V</kbd>', 'Switch aircraft: micro heli / Chinook / skycrane'], ['<kbd>F</kbd>', 'Flight Assist on / off'], ['<kbd>R</kbd>', 'Restart flight'], ['<kbd>Shift</kbd>+<kbd>R</kbd>', 'Reset sandbox'],
         ['<kbd>1</kbd>', 'Cockpit / chase view. In the cockpit, drag the mouse to look around, wheel to zoom'], ['<kbd>C</kbd>', 'Recenter camera or look ahead (drag to orbit, wheel to zoom)'], ['<kbd>N</kbd>', 'Mark this moment for a flight note (describe it later in Pause → Flight replay)'], ['<kbd>M</kbd>', 'Mute'], ['<kbd>Esc</kbd>', 'Pause'], ['<kbd>`</kbd>', 'Debug overlay']],
-      gamepad: [['Right stick', 'Cyclic: tilt'], ['Left stick ↕', 'Collective (or triggers RT / LT)'], ['Left stick ↔', 'Yaw'], ['<kbd>A</kbd>', 'Hook / release'], ['<kbd>RB</kbd> (hold)', 'Pour milk from the bucket; double-tap latches the valve open'], ['Skycrane <kbd>RT</kbd>', 'Belly doors, analog: squeeze to trickle, pull fully to gush; two quick full pulls = salvo'], ['Skycrane <kbd>LT</kbd>', 'Pump (how hard you pull is how fast it pumps)'], ['Skycrane <kbd>LB</kbd> / <kbd>RB</kbd>', 'Reel the snorkel in / out; both together = auto-fill'], ['Skycrane', 'The triggers run the tank, so collective is on the left stick'], ['<kbd>Y</kbd>', 'Flight Assist on / off'],
-        ['<kbd>Start</kbd>', 'Restart flight'], ['L3 (click left stick)', 'Cockpit / chase view'], ['Hold L3 + right stick', 'Look around in the cockpit (the cyclic centres while you hold L3)'],
-        ['<kbd>B</kbd>', 'Recenter camera or look ahead'], ['R3 (click right stick)', 'Mark this moment for a flight note'], ['D-pad', 'Orbit and zoom camera; in the cockpit, glance around'], ['<kbd>Back</kbd> / <kbd>View</kbd>', 'Pause menu'], ['<kbd>X</kbd>', 'Controls'],
-        ['After a crash', '<kbd>A</kbd> also restarts'], ['In menus', 'D-pad or left stick to move, <kbd>A</kbd> select, <kbd>B</kbd> back, ◀ ▶ adjust sliders']],
+      gamepad: this.padHelpRows(),
       touch: [['Left thumb', 'Up / down: collective. Left / right: yaw'], ['Right thumb', 'Cyclic: tilt in any direction'], ['<kbd>Hook</kbd>', 'Hook / release (glows when a loop is in reach)'], ['<kbd>Pour</kbd> (hold)', 'Pour milk (appears while you carry the bucket); double-tap latches it open'], ['<kbd>Doors</kbd> (hold)', 'Skycrane belly doors, opening wider as you hold; double-tap = salvo'], ['<kbd>Pump</kbd> (hold)', 'Skycrane pump; double-tap = auto-fill'], ['<kbd>Hose ▲</kbd> <kbd>Hose ▼</kbd>', 'Reel the snorkel in / out'],
         ['<kbd>Assist</kbd>', 'Flight Assist on / off'], ['Cockpit icon (top right)', 'Cockpit / chase view'], ['Drag open screen', 'Look around in the cockpit, or orbit the chase camera'], ['<kbd>View</kbd>', 'Recenter camera or look ahead'], ['<kbd>Mark</kbd>', 'Mark this moment for a flight note'], ['↻ (top right)', 'Restart flight']],
     };
     return R[tab].map(([k, d]) => `<dt>${k}</dt><dd>${d}</dd>`).join('');
+  }
+
+  // The gamepad sheet is written from the layout in force, so it is always true to the player's setup.
+  padHelpRows() {
+    const layout = this.pads ? this.pads.layout : defaultLayout();
+    const keys = (l) => l.map((b) => `<kbd>${b}</kbd>`).join(' ');
+    const heli = describe(layout, 'heli'), tank = describe(layout, 'tank');
+    const rows = [['Layout', `${presetName(layout)} (change it in Controller settings)`]];
+    for (const a of heli.axes) rows.push([a.sourceLabel, `${a.label}${a.inverted ? ', inverted' : ''}`]);
+    const skip = new Set(['camLeft', 'camRight', 'zoomIn', 'zoomOut']);
+    for (const b of heli.buttons) if (!skip.has(b.id)) rows.push([keys(b.buttons), b.label]);
+    const heliKeys = Object.fromEntries(heli.buttons.map((b) => [b.id, b.buttons.join()]));
+    const tankRows = tank.buttons.filter((b) => !skip.has(b.id) && heliKeys[b.id] !== b.buttons.join());
+    for (const b of tankRows) rows.push([`Skycrane ${keys(b.buttons)}`, b.label.replace(/^Skycrane: /, '')]);
+    for (const a of tank.axes) if (a.source !== heli.axes.find((x) => x.axis === a.axis).source) rows.push([`Skycrane ${a.sourceLabel}`, `${a.label} (the triggers run the tank)`]);
+    const cam = (heli.buttons.filter((b) => skip.has(b.id)).flatMap((b) => b.buttons));
+    if (cam.length) rows.push([keys([...new Set(cam)]), 'Orbit and zoom camera; in the cockpit, glance around']);
+    rows.push(['Hold the view button + right stick', 'Look around (the right stick stops flying while you look)']);
+    rows.push(['After a crash', '<kbd>A</kbd> also restarts'], ['In menus', 'D-pad or left stick to move, <kbd>A</kbd> select, <kbd>B</kbd> back, ◀ ▶ adjust sliders and switch layouts']);
+    return rows;
   }
 
   setHelpTab(tab) {
@@ -357,29 +395,30 @@ export class Hud {
         <h2>Controller</h2>
         <div class="pad-list"></div>
         <div class="pad-test" aria-hidden="true">
-          <div class="pad-stick"><div class="dot l"></div><span>Lift / turn</span></div>
-          <div class="pad-stick"><div class="dot r"></div><span>Tilt</span></div>
+          <div class="pad-stick"><div class="dot l"></div><span class="lbl-l"></span></div>
+          <div class="pad-stick"><div class="dot r"></div><span class="lbl-r"></span></div>
           <div class="pad-raw"></div>
         </div>
         <div class="pad-wizard hidden"><p class="wz-step"></p><p class="wz-prompt"></p><div class="row"><button class="secondary" data-act="wizskip">Skip this one</button><button class="secondary" data-act="wizcancel">Cancel</button></div></div>
+        <div class="pad-capture hidden" role="status"><p class="wz-prompt"></p><div class="row"><button class="secondary" data-lay="capcancel">Cancel</button></div></div>
+        <div class="pad-layout pad-settings"></div>
         <div class="row stack pad-settings">
+          <h3 class="pad-h">Feel</h3>
           ${slider('deadZone', 'Stick dead zone', 0, 0.4, 0.01)}
           ${slider('expo', 'Fine control near centre', 0, 0.9, 0.05)}
           ${slider('cyclic', 'Tilt sensitivity', 0.3, 1.5, 0.05)}
           ${slider('collective', 'Lift sensitivity', 0.3, 1.5, 0.05)}
           ${slider('yaw', 'Turn sensitivity', 0.3, 1.5, 0.05)}
-          ${check('invertPitch', 'Invert tilt forward / back')}
-          ${check('invertCollective', 'Invert lift')}
-          ${check('triggers', 'Triggers also control lift')}
+          ${check('triggers', 'Free triggers add lift')}
           ${check('rumble', 'Rumble')}
         </div>
         <div class="row pad-actions">
           <button class="primary" style="margin-top:0" data-act="closecontroller">Done</button>
-          <button class="secondary" data-act="padbind">Bind buttons…</button>
-          <button class="secondary" data-act="padreset">Reset binding</button>
+          <button class="secondary" data-act="padbind">Teach it an odd pad…</button>
+          <button class="secondary" data-act="padreset">Forget pad wiring</button>
           <button class="secondary" data-act="padrumble">Test rumble</button>
         </div>
-        <p class="help-note">Using a <b>Steam Controller</b>? Browsers only see it as a gamepad through Steam Input: add your browser to Steam as a Non-Steam Game with the <b>Gamepad</b> layout and open Helicoptea from there (steps in the README). If it appears above as a standard layout it just works; otherwise use <b>Bind buttons…</b>.</p>
+        <p class="help-note">Using a <b>Steam Controller</b>? Browsers only see it as a gamepad through Steam Input: add your browser to Steam as a Non-Steam Game with the <b>Gamepad</b> layout and open Helicoptea from there (steps in the README). If it appears above as a standard layout it just works; otherwise use <b>Teach it an odd pad…</b>, which only tells the game where each stick and button is; the layout above decides what they do.</p>
       </div>`;
     this.modal.querySelectorAll('[data-pad]').forEach((el) => {
       el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', () => {
@@ -387,9 +426,85 @@ export class Hud {
         pads.saveSettings();
       });
     });
+    this.modal.querySelector('.pad-capture [data-lay=capcancel]').addEventListener('click', () => pads.cancelCapture());
+    this.renderLayout();
     this.modal.classList.add('show');
     this.updateController();
     this.focusFirst();
+  }
+
+  // ---------------------------------------------------------------- layout: presets, sticks, buttons
+  renderLayout(focusKey) {
+    const pads = this.pads;
+    const box = this.modal.querySelector('.pad-layout');
+    if (!box || !pads) return;
+    const L = pads.layout, m = mappingOf(L);
+    const preset = L.preset;
+    const opts = [...PRESET_ORDER.map((id) => [id, PRESETS[id].name]), ...(L.custom ? [['custom', 'Custom (yours)']] : [])];
+    const blurb = preset === 'custom' ? 'Your own layout. Pick a preset to start again from it; your custom layout stays in this list.' : PRESETS[preset].blurb;
+    const axisRow = (a) => `<label class="opt">${AXIS_LABEL[a]}
+        <span class="lay-axis"><select data-lay="axis" data-axis="${a}" data-key="axis-${a}" aria-label="${AXIS_LABEL[a]}">${AXIS_SOURCES.map((s) => `<option value="${s}" ${m.axes[a] === s ? 'selected' : ''}>${SOURCE_LABEL[s]}</option>`).join('')}</select>
+        <span class="lay-inv"><input type="checkbox" data-lay="invert" data-axis="${a}" data-key="inv-${a}" ${L.invert[a] ? 'checked' : ''} aria-label="Invert ${AXIS_LABEL[a]}" />inv</span></span></label>`;
+    const tankAxes = activeAxes(m, 'tank').axes;
+    const tankNote = FLIGHT_AXES.filter((a) => tankAxes[a] !== m.axes[a]).map((a) => `${AXIS_LABEL[a]} moves to ${SOURCE_LABEL[tankAxes[a]]} on the skycrane, where the triggers run the tank.`).join(' ');
+    const chips = (A) => {
+      const list = m.buttons[A.id];
+      const c = list.map((b, i) => `<span class="chip"><button class="secondary" data-lay="rebind" data-action="${A.id}" data-slot="${i}" data-key="b-${A.id}-${i}" title="Change">${buttonName(b)}</button><button class="secondary x" data-lay="unbind" data-action="${A.id}" data-button="${b}" data-key="x-${A.id}-${i}" aria-label="Remove ${buttonName(b)} from ${A.label}">×</button></span>`);
+      if (list.length < MAX_PER_ACTION) c.push(`<button class="secondary add" data-lay="rebind" data-action="${A.id}" data-key="add-${A.id}" aria-label="Add a button for ${A.label}">+</button>`);
+      return c.join('');
+    };
+    const group = (title, filter) => `<h3 class="pad-h">${title}</h3>${ACTIONS.filter(filter).map((A) => `<div class="opt lay-btn"><span>${A.label.replace(/^Skycrane: (.)/, (_, c) => c.toUpperCase())}</span><span class="chips">${chips(A)}</span></div>`).join('')}`;
+    box.innerHTML = `
+      <h3 class="pad-h">Layout</h3>
+      <label class="opt">Preset <select data-lay="preset" data-key="preset" aria-label="Controller layout preset">${opts.map(([id, nm]) => `<option value="${id}" ${preset === id ? 'selected' : ''}>${nm}</option>`).join('')}</select></label>
+      <p class="help-note lay-blurb">${blurb}</p>
+      <label class="opt">Invert pitch (stick up raises the nose) <input type="checkbox" data-lay="invert" data-axis="pitch" data-key="inv-main" ${L.invert.pitch ? 'checked' : ''} /></label>
+      <h3 class="pad-h">Sticks and triggers</h3>
+      ${FLIGHT_AXES.map(axisRow).join('')}
+      ${tankNote ? `<p class="help-note">${tankNote}</p>` : ''}
+      ${group('Buttons', (A) => A.ctx !== 'tank')}
+      ${group('Skycrane', (A) => A.ctx === 'tank')}
+      <p class="help-note">Choosing a button that already does something else in the same aircraft moves it: the other action takes your old button if it would be left with none. Skycrane buttons override the general ones while you fly the skycrane. Menus always use <kbd>A</kbd>, <kbd>B</kbd> and the d-pad.</p>`;
+    const after = (notes, key) => { if (notes && notes.length) this.toast(notes.join('. '), 3.5); this.renderLayout(key); };
+    box.querySelector('[data-lay=preset]').addEventListener('change', (e) => { pads.choosePreset(e.target.value); after([], 'preset'); });
+    for (const el of box.querySelectorAll('[data-lay=axis]')) el.addEventListener('change', () => after(pads.setAxis(el.dataset.axis, el.value), el.dataset.key));
+    for (const el of box.querySelectorAll('[data-lay=invert]')) el.addEventListener('change', () => { pads.setInvert(el.dataset.axis, el.checked); after([], el.dataset.key); });
+    for (const el of box.querySelectorAll('[data-lay=unbind]')) el.addEventListener('click', () => after(pads.unbind(el.dataset.action, +el.dataset.button), `add-${el.dataset.action}`));
+    for (const el of box.querySelectorAll('[data-lay=rebind]')) {
+      el.addEventListener('click', () => {
+        const id = el.dataset.action, slot = el.dataset.slot !== undefined ? +el.dataset.slot : null;
+        const ok = pads.startCapture('button', (res) => {
+          this.showCapture(null);
+          if (res) after(pads.bind(id, res.button, slot), el.dataset.key);
+          else this.focusKey(el.dataset.key);
+        });
+        if (!ok) { this.toast('Press any button on your controller first so the browser can see it'); return; }
+        this.showCapture(`Press the controller button for <b>${ACTION[id].label}</b>`);
+      });
+    }
+    this.updateStickLabels();
+    if (focusKey) this.focusKey(focusKey);
+  }
+
+  focusKey(key) {
+    const el = this.modal.querySelector(`[data-key="${key}"]`);
+    if (el) { el.focus({ preventScroll: true }); el.scrollIntoView?.({ block: 'nearest' }); }
+  }
+
+  showCapture(html) {
+    const c = this.modal.querySelector('.pad-capture');
+    if (!c) return;
+    const others = this.modal.querySelectorAll('.pad-settings, .pad-actions');
+    c.classList.toggle('hidden', !html);
+    others.forEach((e) => e.classList.toggle('hidden', !!html));
+    if (html) c.querySelector('.wz-prompt').innerHTML = `${html}<br><small>or wait a few seconds to cancel</small>`;
+  }
+
+  updateStickLabels() {
+    const L = this.pads.layout, m = mappingOf(L);
+    const on = (side) => FLIGHT_AXES.filter((a) => m.axes[a][0] === side).map((a) => `${{ collective: 'Lift', yaw: 'Turn', pitch: 'Pitch', roll: 'Roll' }[a]} ${m.axes[a][1] === 'y' ? '↕' : '↔'}`).join(' · ') || 'unused';
+    this.modal.querySelector('.lbl-l').textContent = on('l');
+    this.modal.querySelector('.lbl-r').textContent = on('r');
   }
 
   showWizard(view) {
@@ -415,13 +530,13 @@ export class Hud {
     const list = pads.list();
     const el = this.modal.querySelector('.pad-list');
     const html = list.length
-      ? list.map((g) => `<div class="pad-item ${g.index === pads.activeIndex ? 'on' : ''}"><b>${prettyName(g.id)}</b><span>${g.mapping === 'standard' && !pads.isCustom(g) ? 'standard layout, ready' : (pads.isCustom(g) ? 'custom binding' : 'unknown layout: press Bind buttons…')}${g.vibrationActuator ? ' · rumble' : ''}</span><small>${g.id}</small></div>`).join('')
+      ? list.map((g) => `<div class="pad-item ${g.index === pads.activeIndex ? 'on' : ''}"><b>${prettyName(g.id)}</b><span>${g.mapping === 'standard' && !pads.isCustom(g) ? 'standard layout, ready' : (pads.isCustom(g) ? 'custom wiring' : 'unknown layout: press Teach it an odd pad…')}${g.vibrationActuator ? ' · rumble' : ''}</span><small>${g.id}</small></div>`).join('')
       : '<div class="pad-item"><b>No controller detected</b><span>Connect one and press any of its buttons: browsers hide controllers until then.</span></div>';
     if (el.innerHTML !== html) el.innerHTML = html;
-    const o = pads.out, r = pads.raw;
+    const s = pads.sticks, r = pads.raw;
     const place = (sel, x, y) => { const d = this.modal.querySelector(sel); if (d) d.style.transform = `translate(${x * 26}px, ${-y * 26}px)`; };
-    place('.dot.l', o.yaw, o.collective);
-    place('.dot.r', o.roll, o.pitch);
+    place('.dot.l', s.lx, s.ly);
+    place('.dot.r', s.rx, s.ry);
     const raw = this.modal.querySelector('.pad-raw');
     if (raw) raw.textContent = r ? `axes ${r.axes.map((a) => a.toFixed(2)).join(' ')}\nbuttons ${r.buttons.map((b, i) => (b > 0.05 ? i : null)).filter((x) => x !== null).join(' ') || 'none pressed'}` : '';
   }

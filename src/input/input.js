@@ -33,7 +33,7 @@ export class Input {
   constructor(touchRoot) {
     this.keys = new Set();
     this.kb = { pitch: 0, roll: 0, yaw: 0, collective: 0 };
-    this.ctl = { pitch: 0, roll: 0, yaw: 0, collective: 0, pour: false, doors: 0, pump: 0, reel: 0 };
+    this.ctl = { pitch: 0, roll: 0, yaw: 0, collective: 0, pour: false, doors: 0, pump: 0, reel: 0, boltCam: false };
     this.actions = [];
     this.source = 'keyboard';
     this.gp = { pitch: 0, roll: 0, yaw: 0, collective: 0, connected: false, id: '' };
@@ -267,6 +267,8 @@ export class Input {
     this.ctl.reel = sky ? Math.max(-1, Math.min(1, reel)) : 0;
     // The bucket's valve: G / RB / Pour; on the skycrane its hook's bucket opens with the doors.
     this.ctl.pour = sky ? this.ctl.doors > 0.05 : gHeld || !!this.pads.pour || this.touch.pour;
+    // Held camera buttons from the pad layout (the camera code reads these; keys and touch can add theirs).
+    this.ctl.boltCam = this.pads.isHeld('boltCam');
     if (!this.enabled) { this.ctl.pitch = this.ctl.roll = this.ctl.yaw = this.ctl.collective = 0; this.ctl.pour = false; this.ctl.doors = this.ctl.pump = this.ctl.reel = 0; }
     return this.ctl;
   }
@@ -288,9 +290,13 @@ export class Input {
       this.camOrbit.yaw += this.pads.cam.yaw * 0.03;
       this.camOrbit.zoom += this.pads.cam.zoom * 0.02;
     }
-    if (this.pads.look) {
+    // Holding the view (or look) button: the right stick turns the pilot's head, or orbits the chase camera.
+    if (this.pads.look && this.viewMode === 'cockpit') {
       this.look.yaw -= this.pads.look.x * 2.2 * dt;
       this.look.pitch += this.pads.look.y * 1.6 * dt;
+    } else if (this.pads.look) {
+      this.camOrbit.yaw -= this.pads.look.x * 2.2 * dt;
+      this.camOrbit.pitch -= this.pads.look.y * 1.2 * dt;
     }
   }
 

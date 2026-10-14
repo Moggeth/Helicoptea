@@ -25,24 +25,30 @@ Open **Pause → Controller → Settings** (or press **Back/View** on the pad). 
 That's the Steam Controller as presented by Steam Input. Move the sticks or trackpads and the two dots will follow them. Rumble plays on crashes, bumps, hooking a bag and splashes. Press **Test rumble** to check it.
 
 - **"No controller detected"**: press any button on the controller. Browsers hide controllers until they see input. If it still doesn't appear, the browser wasn't launched through Steam, or Steam Input is off for that entry.
-- **Skycrane**: the triggers run the tank (RT belly doors, LT pump) and the bumpers reel the snorkel (LB in, RB out, both together for auto-fill). Collective stays on the left stick. On a custom binding these are steps in **Bind buttons…**.
-- **"Steam Controller · unknown layout"**: Chrome is reading the raw device instead of the Steam Input pad. Press **Bind buttons…** and follow the prompts (move a stick or trackpad, or press a button, for each control). The binding is saved for that controller.
-- Adjust **dead zone**, **fine control near centre**, the three sensitivities, inversion and rumble on the same screen. These are stored in the browser profile, so the separate Steam profile keeps its own settings.
+- **Layout**: the same screen picks a preset (Aim, Aim southpaw, Classic RC Mode 2, RC Mode 1, Arcade) or lets you change any stick or button, with an invert per axis. See the README's Controls section.
+- **"Steam Controller · unknown layout"**: Chrome is reading the raw device instead of the Steam Input pad. Press **Teach it an odd pad…** and follow the prompts (move each stick or trackpad, then press each button). That only tells the game where things are; the layout decides what they do. It is saved for that controller.
+- Adjust **dead zone**, **fine control near centre**, the three sensitivities and rumble on the same screen. These are stored in the browser profile, so the separate Steam profile keeps its own settings.
 
-## Default layout (Gamepad template)
+## Default layout (Aim, Gamepad template)
 
 | Control | Input |
 |---|---|
-| Tilt (cyclic) | Right stick or right trackpad |
-| Lift (collective) | Left stick up/down, or right/left trigger |
-| Turn (yaw) | Left stick left/right |
-| Hook / release | A (also Restart after a crash) |
+| Pitch (tilt forward / back) | Right stick or right trackpad up/down |
+| Turn (yaw) | Right stick or right trackpad left/right |
+| Lift (collective) | Left stick up/down |
+| Roll (tilt sideways) | Left stick left/right |
+| Hook / release | A or RB (A also restarts after a crash) |
+| Pour milk | RT (two quick pulls latch it open) |
+| Bolted-on camera | hold LT |
+| Mark a moment for a flight note | LB or right stick click |
+| Skycrane | RT belly doors, LB pump (twice = auto-fill), D-pad up/down reel the hose |
 | Flight Assist | Y |
 | Restart flight | Start (Menu) |
 | Pause menu | Back (View) |
 | Controls help | X |
-| Recenter camera | B or right stick click |
+| Recenter camera | B |
+| Change view / look around | left stick click (tap) / hold it and use the right stick |
 | Camera orbit / zoom | D-pad |
-| Menus | D-pad or left stick to move, A select, B back, left/right adjusts sliders |
+| Menus | D-pad or left stick to move, A select, B back, left/right adjusts sliders and switches layouts |
 
-On the Steam Controller, the right trackpad works best for tilt if you set it to **Joystick Move** in the Gamepad template. Many players prefer it to a stick for fine attitude corrections.
+On the Steam Controller, the right trackpad set to **Joystick Move** in the Gamepad template suits the Aim layout well: pitch and turn on one pad, like aiming. Not yet tried on a real Steam Controller with these layouts.

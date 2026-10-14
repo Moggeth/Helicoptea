@@ -7,7 +7,7 @@
     "build": "vite build",
     "preview": "vite preview --host",
     "e2e": "node tests/run-e2e.mjs",
-    "check": "node tests/sim-checks.mjs && node tests/chinook-checks.mjs && node tests/milk-checks.mjs && node tests/skycrane-checks.mjs && node tests/maneuver-checks.mjs && node tests/world-checks.mjs && node tests/replay-checks.mjs"
+    "check": "node tests/controls-checks.mjs && node tests/sim-checks.mjs && node tests/chinook-checks.mjs && node tests/milk-checks.mjs && node tests/skycrane-checks.mjs && node tests/maneuver-checks.mjs && node tests/world-checks.mjs && node tests/replay-checks.mjs"
   },
   "author": "",
   "license": "UNLICENSED",

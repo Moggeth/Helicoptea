@@ -1,7 +1,7 @@
 // Browser checks for the milk bucket, using the locally installed Chrome (no browser download).
 // Usage: start a server, then: node tests/e2e-milk.mjs [baseUrl] [--headed]
 // Flies the real game (in-page autopilot on the real input pipeline): hook the bucket, dip it in the
-// crock, carry it to the teacup and pour with the real G key; then an emulated gamepad's RB, the touch
+// crock, carry it to the teacup and pour with the real G key; then an emulated gamepad's RT, the touch
 // Pour button, and a pour onto the table. Screenshots and a JSON report go to test-results/milk-*.
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
@@ -155,7 +155,7 @@ try {
     await ctx.close();
   }
 
-  // ------------------------------------------------------------ gamepad: RB pours
+  // ------------------------------------------------------------ gamepad: RT pours
   {
     const { ctx, page, logs } = await open({ width: 1280, height: 720 }, { gamepad: true });
     await start(page);
@@ -172,16 +172,21 @@ try {
       const got = s.milk.take(s.milk.bowl, 1e-5); k.mix(got.vol, got.milk, got.brew);
     });
     await fly(page, -0.3, 0.42, 0.1, 0.25, 3500);
-    await page.evaluate(() => { window.__pad.buttons[5] = { pressed: true, value: 1 }; });
-    await sleep(800);
+    // Default (Aim) layout: RT pours (past half-way); RB is hook / release.
+    await page.evaluate(() => { window.__pad.buttons[7] = { pressed: true, value: 0.3 }; });
+    await sleep(300);
     let s = await milk(page);
-    check('gamepad: holding RB pours', s.valve && s.parcels > 0, `valve ${s.valve} parcels ${s.parcels}`);
-    await page.evaluate(() => { window.__pad.buttons[5] = { pressed: false, value: 0 }; });
+    check('gamepad: a light RT squeeze does not pour', !s.valve);
+    await page.evaluate(() => { window.__pad.buttons[7] = { pressed: true, value: 1 }; });
+    await sleep(800);
+    s = await milk(page);
+    check('gamepad: holding RT pours', s.valve && s.parcels > 0, `valve ${s.valve} parcels ${s.parcels}`);
+    await page.evaluate(() => { window.__pad.buttons[7] = { pressed: false, value: 0 }; });
     await sleep(300);
     s = await milk(page);
-    check('gamepad: releasing RB shuts the valve', !s.valve);
+    check('gamepad: releasing RT shuts the valve', !s.valve);
     const hint = await page.evaluate(() => document.querySelector('.prompt').textContent);
-    check('gamepad: the pour prompt shows RB', /RB/.test(hint), hint);
+    check('gamepad: the pour prompt shows RT', /RT/.test(hint), hint);
     check('gamepad: no errors', errors(logs).length === 0, errors(logs).slice(0, 3).join(' | '));
     await ctx.close();
   }
