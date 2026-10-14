@@ -15,6 +15,11 @@ represented. Rotor-wash differences were package-script context only. The old br
 contains three raw generated render PNGs (about 7.5 MB); shipped branding and its generators are integrated,
 and the intentionally ignored raw duplicates were not added back to source control.
 
+Claude subsequently rebased `perf` onto `492ad4c` and added its final measurement report (`21d7d73`).
+Merge `511caf2` incorporates that final branch. Only documentation changed relative to the already merged
+runtime; both appended timing records were retained when resolving the one documentation conflict.
+`perf` is now an ancestor of master.
+
 No Claude task was interrupted or messaged. Other browser test processes were discovered on this machine;
 only this task's obsolete runner trees were stopped. An independent process pushed some early local fixes
 while this pass ran. This task has not pushed: `origin` is the public Moggeth/Helicoptea repository and
@@ -62,6 +67,22 @@ were 1,892 and 1,627 ms respectively; three samples do not establish a universal
 Heap readings were noisy and are not claimed as a measured saving. Preview GPU geometry on repeated visits:
 micro 121, Chinook 183, skycrane 183; textures 7/9/5, with a one-time micro warm-up allocation.
 
+Additional before/after rendering comparison: pre-performance-merge `77b1a85` versus final runtime,
+1920×1080 high, DPR 1, dynamic resolution off, micro hovering beside the house mug, 2.5 s settling and
+2 s measurement per view, uncapped Chrome on RTX 3080 Ti:
+
+| View | Draw calls before → after | Triangles before → after | Observed FPS before → after |
+|---|---|---|---|
+| Chase | 936 → 574 (39% fewer) | 635k → 469k | 289 → 335 |
+| Cockpit | 906 → 464 (49% fewer) | 606k → 442k | 294 → 336 |
+
+Other project browser suites remained active during these short sequential samples. The frame rates are
+observations under contention, not an isolated causal speedup. Chase 1% low actually fell from 134 to 56
+fps (one 44.5 ms CPU frame); cockpit rose from 93 to 150. Intermittent stalls remain to be evaluated on an
+idle machine. Resource/work-count reductions are firmer evidence than these timing samples. Raw results:
+`test-results/perf/optimization-pre-perf.json` and `optimization-merged.json`. Claude's own 4K measurements,
+with its own contention caveats, are retained in `docs/VERIFICATION.md`.
+
 ## Verification and recovery
 
 Run `npm run check`, `npm run build`, then `node tests/run-e2e.mjs --port 4210` on an unused port.
@@ -75,6 +96,16 @@ The local timing ledger is `logs/reviews/optimization-timings.jsonl`. Detailed t
 directory; startup samples in `test-results/startup/`; resource counters are printed by the lifecycle suite.
 The prior review's WorkCodex attempt took 14.51 seconds and failed with HTTP 401, "Principal does not have
 access to API/Operation". Do not repeat a commission until endpoint authorization has been corrected.
+
+Final results: **489/489 headless checks** (101.43 s), **538/538 browser checks across 13 suites**
+(840.94 s, `logs/reviews/merged-isolated-browser.log`), plus **15/15 final production touch-layout checks**
+(3.03 s). No performance checks were downgraded to advisory. The emulated-phone cockpit 4× CPU test passed
+at 47 fps on this run; Claude's contended run of its branch failed it, so this is not a hardware guarantee.
+The full browser sweep tested the merged runtime before the final CSS and debug-label edits; those final
+edits built successfully (2.80 s) into `scratch/optimization-final` and the CSS passed its targeted suite.
+That separate output avoided changing `dist/` while another task used it. A runner invocation still aimed
+at old shared `dist/` failed nine portrait layouts, then the explicit final-build URL passed all 15. The
+browser runner's summary file can be overwritten by another run: use the named full-suite log above.
 
 ## Lessons and limits
 

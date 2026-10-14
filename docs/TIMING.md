@@ -47,6 +47,15 @@ Measured elapsed seconds, not estimated work durations. Full local ledger:
 | Isolated pre-perf-merge archive/build | 3.86 | Baseline built without modifying active checkout |
 | Final merged full headless checks | 101.43 | 489 passed; other browser tasks active |
 | Explicit bounded wait during browser acceptance | 30.01 | Suite continued; no processes interrupted |
+
+| Final combined browser acceptance | 840.94 | 538 passed across 13 suites |
+| Final isolated production build | 2.80 | Passed; shared dist preserved for other tests |
+| Touch runner against old shared dist | 4.39 | Nine expected old-layout failures; final-build URL required |
+| Final production touch geometry checks | 3.03 | 15 passed |
+| Before-merge 1080p render comparison | 17.33 | Captured workload counts; timing contended |
+| Final merged 1080p render comparison | 15.51 | 39–49% fewer calls in two sampled views; timing contended |
+| Second bounded acceptance wait | 30.02 | Suite finished successfully |
+
 ### 2026-10-14: performance pass
 
 | Time (AEDT) | Work |
