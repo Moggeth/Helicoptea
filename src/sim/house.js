@@ -27,11 +27,14 @@ export function buildHouseColliders(add, box, cyl) {
   box(W.w / 2, W.transomH / 2, WALL_T / 2, W.x, W.transomY, wz, 'wall', 'wood');
   box(SILL.w / 2, SILL.h / 2, SILL.depth / 2, SILL.x, SILL.top - SILL.h / 2, ROOM.minZ + SILL.depth / 2, 'wall', 'wood');
   cyl(0.06, 0.05, W.x - 0.5, SILL.top + 0.05, ROOM.minZ + 0.07, 'pot', 'ceramic');
+  box(W.w / 2 + 0.08, 0.0225, 0.055, W.x, W.y - W.h / 2 - 0.02, ROOM.minZ - WALL_T - 0.04, 'wall', 'stone'); // stone sill outside
   // Opened sashes and the door leaf are solid (glass included).
   for (const sh of sashes()) add(RAPIER.ColliderDesc.cuboid(sh.w / 2, sh.h / 2, 0.018), sh.cx, sh.cy, sh.cz, 'wall', 'wood', sh.quat);
   {
     const d = doorLeaf();
     add(RAPIER.ColliderDesc.cuboid(d.w / 2, d.h / 2, 0.025), d.cx, d.cy, d.cz, 'wall', 'wood', d.quat);
+    const knob = new THREE.Vector3().setFromMatrixPosition(d.matrix(d.w * 0.4, -0.05, 0.05));
+    add(RAPIER.ColliderDesc.ball(0.024), knob.x, knob.y, knob.z, 'wall', 'metal');
   }
 
   // Kitchen counter with upper cabinets and the kettle; the two chairs.
@@ -39,7 +42,7 @@ export function buildHouseColliders(add, box, cyl) {
   box((C.x1 - C.x0) / 2, (C.top - fy) / 2, (C.z1 - C.z0) / 2, (C.x0 + C.x1) / 2, (C.top + fy) / 2, (C.z0 + C.z1) / 2, 'counter', 'wood');
   box(C.upperDepth / 2, (C.upperY1 - C.upperY0) / 2, (C.z1 - C.z0) / 2, C.x1 - C.upperDepth / 2, (C.upperY0 + C.upperY1) / 2, (C.z0 + C.z1) / 2, 'counter', 'wood');
   cyl(KETTLE.r * 0.85, KETTLE.h / 2, KETTLE.x, C.top + KETTLE.h / 2, KETTLE.z, 'kettle', 'metal');
-  for (const [x, z, yaw] of CHAIRS) chairColliders(box, x, z, yaw, -0.3, 0.42, 0.4, 0.45);
+  for (const [x, z, yaw] of CHAIRS) windsorColliders(add, x, z, yaw);
 
   // Garden boundary: fences with tall invisible walls just behind them (the sky has no lid).
   const G = GARDEN;
@@ -68,6 +71,8 @@ export function buildHouseColliders(add, box, cyl) {
     for (const x of [-Rf.halfX, Rf.halfX]) pts.push(x, Rf.eaveY - 0.09, ez, x, Rf.eaveY, ez, x, Rf.eaveY - 0.09, wz, x, yTop, wz);
     add(RAPIER.ColliderDesc.convexHull(new Float32Array(pts)), 0, 0, 0, 'roof', 'wood');
   }
+  // Gutter under the back eave.
+  add(RAPIER.ColliderDesc.capsule(Rf.halfX, 0.05), 0, Rf.eaveY - 0.03, Rf.eaveZ - 0.06, 'roof', 'metal', new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2));
   for (const x of [ROOM.minX - WALL_T, ROOM.maxX]) {
     const top = ROOM.floorY + 2.55, z0 = ROOM.minZ - WALL_T, z1 = ROOM.maxZ + WALL_T, pts = [];
     for (const dx of [0, WALL_T]) pts.push(x + dx, top, z0, x + dx, top, z1, x + dx, ridgeY - 0.05, Rf.ridgeZ);
@@ -75,10 +80,16 @@ export function buildHouseColliders(add, box, cyl) {
   }
   const Ch = CHIMNEY;
   box(Ch.halfX, (Ch.top - 2.2) / 2, Ch.halfZ, Ch.x, (Ch.top + 2.2) / 2, Ch.z, 'chimney', 'brick');
+  box(Ch.halfX + 0.03, 0.025, Ch.halfZ + 0.03, Ch.x, Ch.top - 0.025, Ch.z, 'chimney', 'stone');
   for (const [px, pz] of Ch.pots) cyl(Ch.potR, Ch.potH / 2, px, Ch.top + Ch.potH / 2, pz, 'chimney', 'ceramic');
 
   // Kitchen charm: fridge, radio, wall clock, picture frames, curtains and rail, the sill plant's leaves.
   box((FRIDGE.x1 - FRIDGE.x0) / 2, (FRIDGE.top - fy) / 2, (FRIDGE.z1 - FRIDGE.z0) / 2, (FRIDGE.x0 + FRIDGE.x1) / 2, (FRIDGE.top + fy) / 2, (FRIDGE.z0 + FRIDGE.z1) / 2, 'fridge', 'metal');
+  {
+    // The fridge's two chrome handles stand proud of the door.
+    const h = FRIDGE.top - fy, hx = FRIDGE.x1 + 0.03, hz = FRIDGE.z1 - 0.07, cy = (FRIDGE.top + fy) / 2;
+    for (const [y, len] of [[h * 0.32, 0.22], [-h * 0.05, 0.3]]) add(RAPIER.ColliderDesc.capsule(len / 2, 0.014), hx, cy + y, hz, 'fridge', 'metal');
+  }
   box(RADIO.halfX, RADIO.h / 2, RADIO.halfZ, RADIO.x, COUNTER.top + RADIO.h / 2, RADIO.z, 'radio', 'wood');
   add(RAPIER.ColliderDesc.cylinder(0.02, CLOCK.r), CLOCK.x, CLOCK.y, ROOM.minZ + 0.02, 'clock', 'wood', new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)));
   for (const F of FRAMES) {
@@ -86,14 +97,15 @@ export function buildHouseColliders(add, box, cyl) {
     else box(F.w / 2, F.h / 2, 0.012, F.x, F.y, ROOM.maxZ - 0.012, 'frame', 'wood');
   }
   for (const [x0, x1] of CURTAINS.panels) box((x1 - x0) / 2, (CURTAINS.rail - 0.05 - fy - 0.6) / 2, CURTAINS.depth / 2, (x0 + x1) / 2, (CURTAINS.rail - 0.05 + fy + 0.6) / 2, ROOM.minZ + 0.02 + CURTAINS.depth / 2, 'curtain', 'cloth');
-  add(RAPIER.ColliderDesc.capsule((CURTAINS.panels[1][1] - CURTAINS.panels[0][0]) / 2 + 0.03, 0.012), (CURTAINS.panels[0][0] + CURTAINS.panels[1][1]) / 2, CURTAINS.rail, ROOM.minZ + 0.06, 'curtain', 'wood', new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI / 2)));
+  add(RAPIER.ColliderDesc.capsule((CURTAINS.panels[1][1] - CURTAINS.panels[0][0]) / 2 + 0.06, 0.02), (CURTAINS.panels[0][0] + CURTAINS.panels[1][1]) / 2, CURTAINS.rail, ROOM.minZ + 0.06, 'curtain', 'wood', new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI / 2)));
   add(RAPIER.ColliderDesc.ball(0.075), W.x - 0.5, SILL.top + 0.17, ROOM.minZ + 0.07, 'plant', 'plant');
   // Outside: lantern by the door, down pipe at the corner.
   box(0.05, 0.08, 0.05, LANTERN.x, LANTERN.y, LANTERN.z, 'lantern', 'metal');
   cyl(0.032, (ROOF.eaveY - fy) / 2, ROOM.minX - WALL_T - 0.05, (ROOF.eaveY + fy) / 2, ROOM.minZ - WALL_T - 0.05, 'pipe', 'metal');
 
   // Hedge along the back fence.
-  box((G.maxX - G.minX) / 2, (HEDGE.top - fy) / 2, (HEDGE.z1 - HEDGE.z0) / 2, gx, (HEDGE.top + fy) / 2, (HEDGE.z0 + HEDGE.z1) / 2, 'hedge', 'plant');
+  // (The clipped hedge bulges a little proud of its line, so its collider does too.)
+  box((G.maxX - G.minX) / 2, (HEDGE.top - fy) / 2, (HEDGE.z1 + 0.24 - HEDGE.z0) / 2, gx, (HEDGE.top + fy) / 2, (HEDGE.z0 + HEDGE.z1 + 0.24) / 2, 'hedge', 'plant');
 
   // Garden table on four legs, its teapot and jam jar of flowers, two chairs.
   const T = GTABLE;
@@ -102,6 +114,14 @@ export function buildHouseColliders(add, box, cyl) {
     box(0.025, (T.top - T.thickness - fy) / 2, 0.025, T.x + sx * (T.halfX - 0.07), (T.top - T.thickness + fy) / 2, T.z + sz * (T.halfZ - 0.06), 'table', 'wood');
   }
   cyl(GTEAPOT.r, GTEAPOT.h / 2, GTEAPOT.x, T.top + GTEAPOT.h / 2, GTEAPOT.z, 'teapot', 'ceramic');
+  {
+    // Spout and handle (the pot is turned 0.85 of a half turn, see garden.js).
+    const yaw = Math.PI * 0.85, dx = Math.cos(yaw), dz = -Math.sin(yaw), P = GTEAPOT;
+    const a = new THREE.Vector3(P.x + dx * P.r * 0.8, T.top + 0.035, P.z + dz * P.r * 0.8), b = new THREE.Vector3(P.x + dx * (P.r + 0.055), T.top + 0.115, P.z + dz * (P.r + 0.055));
+    const mid = a.clone().add(b).multiplyScalar(0.5), dir = b.clone().sub(a);
+    add(RAPIER.ColliderDesc.capsule(dir.length() / 2, 0.011), mid.x, mid.y, mid.z, 'teapot', 'ceramic', new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize()));
+    box(0.006, 0.035, 0.025, P.x - dx * (P.r + 0.03), T.top + 0.06, P.z - dz * (P.r + 0.03), 'teapot', 'ceramic', yaw);
+  }
   cyl(GJAR.r, GJAR.h / 2, GJAR.x, T.top + GJAR.h / 2, GJAR.z, 'vase', 'glass');
   add(RAPIER.ColliderDesc.ball(0.05), GJAR.x, T.top + GJAR.h + 0.06, GJAR.z, 'flower', 'plant');
   for (const [x, z, yaw] of GCHAIRS) chairColliders(box, x, z, yaw, fy + 0.45, 0.4, 0.4, 0.48);
@@ -110,20 +130,22 @@ export function buildHouseColliders(add, box, cyl) {
   const A = ARCH;
   // Posts are fattened to take in the climbing rose's leaves.
   for (const sx of [-1, 1]) box(A.post + 0.025, (A.top - fy) / 2, A.post + 0.04, A.x + sx * A.halfW, (A.top + fy) / 2, A.z, 'arch', 'plant');
-  box(A.halfW + A.post, 0.04, A.post * 1.6, A.x, A.top + 0.04, A.z, 'arch', 'wood');
+  box(A.halfW + A.post + 0.03, 0.09, A.post * 1.6 + 0.05, A.x, A.top + 0.08, A.z, 'arch', 'plant'); // top bar, arc and the roses over it
 
   // Bird bath, tree stump, bench, apple tree, patio pots.
   const B = BIRDBATH;
   cyl(B.stemR, (B.top - 0.06 - fy) / 2, B.x, (B.top - 0.06 + fy) / 2, B.z, 'birdbath', 'stone');
   cyl(B.r, 0.03, B.x, B.top - 0.03, B.z, 'birdbath', 'stone');
-  cyl(STUMP.r, (STUMP.top - fy) / 2, STUMP.x, (STUMP.top + fy) / 2, STUMP.z, 'stump', 'wood');
+  cyl(0.16, 0.03, B.x, fy + 0.03, B.z, 'birdbath', 'stone');
+  cyl(STUMP.r * 1.12, (STUMP.top - fy) / 2, STUMP.x, (STUMP.top + fy) / 2, STUMP.z, 'stump', 'wood');
+  cyl(STUMP.r + 0.1, 0.05, STUMP.x, fy + 0.05, STUMP.z, 'stump', 'wood'); // roots
   const N = BENCH;
   box(N.halfX, 0.02, N.halfZ, N.x, N.seat - 0.02, N.z, 'bench', 'wood');
   box(N.halfX, (N.backTop - N.seat) / 2, 0.025, N.x, (N.backTop + N.seat) / 2 + 0.03, N.z - N.halfZ + 0.02, 'bench', 'wood');
   for (const sx of [-1, 1]) box(0.03, (N.seat + 0.12 - fy) / 2, N.halfZ, N.x + sx * (N.halfX + 0.02), (N.seat + 0.12 + fy) / 2, N.z, 'bench', 'wood');
   const R = TREE;
-  cyl(R.trunkR, (R.trunkTop - fy) / 2, R.x, (R.trunkTop + fy) / 2, R.z, 'tree', 'wood');
-  for (const [dx, y, dz, r] of R.canopy) add(RAPIER.ColliderDesc.ball(r * 0.82), R.x + dx, y, R.z + dz, 'tree', 'plant');
+  cyl(R.trunkR * 1.35, (R.trunkTop - fy) / 2, R.x, (R.trunkTop + fy) / 2, R.z, 'tree', 'wood'); // the trunk leans a little
+  for (const [dx, y, dz, r] of R.canopy) add(RAPIER.ColliderDesc.ball(r * 0.97), R.x + dx, y, R.z + dz, 'tree', 'plant');
   for (const [x, z, r, h] of POTS) {
     cyl(r, h / 2, x, ROOM.floorY + h / 2, z, 'pot', 'ceramic');
     add(RAPIER.ColliderDesc.ball(r * 0.95), x, ROOM.floorY + h + r * 0.45, z, 'plant', 'plant');
@@ -202,6 +224,23 @@ export function catBalls() {
   const fwd = { x: Math.sin(c.yaw), z: Math.cos(c.yaw) };
   const at = (d) => ({ x: c.x + fwd.x * d, z: c.z + fwd.z * d });
   return [[at(-0.04), seat + 0.1, 0.105], [at(0.05), seat + 0.17, 0.085], [at(0.08), seat + 0.3, 0.068]];
+}
+
+// Kitchen Windsor chair, fitted to its model: round seat, splayed turned legs, spindle back and bent rail.
+function windsorColliders(add, x, z, yaw) {
+  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+  const P = (lx, ly, lz) => new THREE.Vector3(lx, ly, lz).applyQuaternion(q).add(new THREE.Vector3(x, 0, z));
+  const fy = ROOM.floorY;
+  let p = P(0, -0.3, 0);
+  add(RAPIER.ColliderDesc.cylinder(0.018, 0.205), p.x, p.y, p.z, 'chair', 'wood');
+  const seg = (a, b, r) => {
+    const mid = a.clone().add(b).multiplyScalar(0.5), dir = b.clone().sub(a), len = dir.length();
+    add(RAPIER.ColliderDesc.capsule(len / 2, r), mid.x, mid.y, mid.z, 'chair', 'wood', new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize()));
+  };
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) seg(P(sx * 0.15, fy + 0.016, sz * 0.14), P(sx * 0.113, -0.32, sz * 0.103), 0.016);
+  // Spindle back on an arc behind the seat, up to the rail.
+  for (let k = -3; k <= 3; k++) { const a = k * 0.17; seg(P(Math.sin(a) * 0.17, -0.28, 0.06 + Math.cos(a) * 0.12 - 0.02), P(Math.sin(a) * 0.17, 0.16, 0.06 + Math.cos(a) * 0.12 + 0.03), 0.011); }
+  for (let k = -4; k < 4; k++) { const a0 = k * 0.13, a1 = (k + 1) * 0.13; seg(P(Math.sin(a0) * 0.19, 0.17, 0.03 + Math.cos(a0) * 0.14), P(Math.sin(a1) * 0.19, 0.17, 0.03 + Math.cos(a1) * 0.14), 0.017); }
 }
 
 function chairColliders(box, x, z, yaw, seatY, w, d, backH) {

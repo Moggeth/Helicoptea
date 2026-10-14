@@ -161,10 +161,10 @@ export function buildKitchen(scene, renderer, quality, progress, sim) {
         sp.rotation.x = 0.12;
         c.add(sp);
       }
-      const rail = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.016, 8, 24, 2.0), chairMat);
-      rail.rotation.set(Math.PI / 2 - 0.12, 0, Math.PI / 2 - 1.0 + Math.PI);
-      rail.position.set(0, 0.16, 0.06 - 0.03);
-      rail.scale.set(1, 0.75, 1);
+      // Bent top rail over the spindles (the collider in house.js follows the same arc).
+      const railPts = [];
+      for (let k = -4; k <= 4; k++) { const a = k * 0.13; railPts.push(new THREE.Vector3(Math.sin(a) * 0.19, 0.17, 0.03 + Math.cos(a) * 0.14)); }
+      const rail = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railPts), 24, 0.016, 8, false), chairMat);
       c.add(rail);
       c.position.set(x, 0, z);
       c.rotation.y = yaw;
