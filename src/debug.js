@@ -49,7 +49,7 @@ export class Debug {
       if (h.type === 'chinook') lines.push(`rotors F ${(h.rotorT[0] * 1000).toFixed(0)} mN  A ${(h.rotorT[1] * 1000).toFixed(0)} mN  disc tilt ${(h.tilt[0] * 57.3).toFixed(1)}° / ${(h.tilt[1] * 57.3).toFixed(1)}°  mix p ${h.mix.pitch.toFixed(2)} r ${h.mix.roll.toFixed(2)} y ${h.mix.yaw.toFixed(2)}  trim ${h.trim[0].toFixed(2)} ${h.trim[1].toFixed(2)}  bags ${s.carriedBags().length}/3`);
       lines.push(`collective ${h.collective.toFixed(2)}  thrust/W ${(h.thrust / ((h.def ? h.def.mass : CFG.heli.mass) * 9.81)).toFixed(2)}  rotor ${(h.rotorSpeed * 100).toFixed(0)}%  ground ${h.skidClearance.toFixed(3)} m${h.grounded ? ' (landed)' : ''}`);
     }
-    if (b) lines.push(`cargo mass ${(b.mass * 1000).toFixed(1)} g  wet ${(b.wetness * 100).toFixed(0)}%  immersion ${(b.immersion * 100).toFixed(0)}%  tension ${(b.tension * 1000).toFixed(0)} mN  potency ${(b.potency * 100).toFixed(0)}%`);
+    if (b) lines.push(`cargo mass ${(b.mass * 1000).toFixed(1)} g  wet ${(b.wetness * 100).toFixed(0)}%  immersion ${(b.immersion * 100).toFixed(0)}%  static load estimate ${(b.tension * 1000).toFixed(0)} mN  potency ${(b.potency * 100).toFixed(0)}%`);
     const tk = h && h.tank;
     if (tk) lines.push(`tank ${(tk.vol * 1e6).toFixed(1)} ml  doors ${(tk.doors * 100).toFixed(0)}%${tk.salvo ? ' SALVO' : ''}  pump ${(tk.pump * 100).toFixed(0)}% in ${(tk.flowIn * 1e6).toFixed(1)} out ${(tk.flowOut * 1e6).toFixed(1)} ml/s  hose ${(h.hose.length * 100).toFixed(1)} cm${h.hose.submerged ? ` in ${h.hose.submerged.name} ${(h.hose.depth * 1000).toFixed(0)} mm` : ''}${tk.auto ? ` auto:${tk.auto.phase}` : ''}  tail ${(h.tailT * 1000).toFixed(0)} mN  mass ${(h.body.mass() * 1000).toFixed(0)} g`);
     const k = s.milk.bucket;
