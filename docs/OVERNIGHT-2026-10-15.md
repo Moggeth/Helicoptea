@@ -206,6 +206,35 @@ Evidence: `test-results/tank-audio-{baseline,candidate}/`, including `tank-pour.
 Bucket handling passed **20/20** browser checks (**89.57 s**), audio lifecycle passed **18/18**
 (**14.79 s**), and audio unit checks passed **10/10**. Source and test review is self-reviewed.
 
+## Invisible HUD interception repair
+
+The general `#hud > *` pointer rule overrode the crash panel's intended disabled state. Although
+invisible, it intercepted camera drags and, at 844×390, the visible **Skip tips** button. A real
+coordinate tap on that button opened the hidden crash panel's replay action and paused the game.
+Dismissed hints also retained an invisible hit area. A scoped CSS rule now disables pointer events
+on those two panels while they lack `.show`; their appearance and visible controls are unchanged.
+
+Matched desktop and touch-browser checks confirm that hidden panels no longer intercept, Skip tips
+dismisses the hint without opening replay, and a 40 px drag through the former obstruction changes
+camera yaw by **−0.24 radians** instead of **0**. Keyboard takeoff and clicking the visible crash-restart
+button still work. The focused candidate passed **14/14**, in **9.06 s** (baseline reproduction **7.72 s**).
+Before/after screenshots were inspected at `test-results/hidden-hud/{baseline,candidate}/`.
+
+Harness learning: stop dependent assertions after an intercepted action opens replay; frozen replay
+cannot pass a subsequent live-flight crash setup. Combining immediate CDP drag and coordinate tap was
+also unstable in the touch harness, even after waiting two frames. Testing dismissal first, followed
+by the independent camera gesture, avoids that sequencing problem without forcing clicks or changing
+game behaviour. Physical phone sequences remain unverified.
+
+## Deferred hint investigations
+
+The same inspection measured **360–362 unchanged hint text-node replacements in 1.5 seconds** (two per
+frame). An unaccepted cache candidate is saved locally in `scratch/overnight-hint-cache.patch`; it is
+not in production. Its harness is `scratch/e2e-hints-candidate.mjs`. A fresh-start observation also found
+the lift hint can advance before the first physics sample: helicopter clearance initially defaults to
+1 while `grounded` is true. Reproduce and validate a separate progression fix before accepting it.
+These findings are not claims of implemented improvements.
+
 ## Remaining acceptance
 
 Physical phone, Steam Controller connection/feel, haptics, human listening and skilled acrobatic-flight

@@ -89,6 +89,8 @@ kbd {
 /* ---------------------------------------------------------------- HUD */
 #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
 #hud > * { pointer-events: auto; }
+/* Invisible panels must not override the flight canvas or visible touch controls. */
+#hud > .crash:not(.show), #hud > .hint:not(.show) { pointer-events: none; }
 .hud-tl { position: absolute; top: calc(12px + var(--safe-t)); left: calc(12px + var(--safe-l)); display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .hud-tr { position: absolute; top: calc(12px + var(--safe-t)); right: calc(12px + var(--safe-r)); display: flex; gap: 8px; }
 .pill {
