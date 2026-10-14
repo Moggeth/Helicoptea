@@ -355,6 +355,7 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
     update(dt, focus, camera, sim) {
       t += dt;
       if (charm) charm.update(dt, sim, camera);
+      if (kitchen.cloth) kitchen.cloth.update(dt, sim);
       wind.uTime.value = t;
       // Breeze slowly veers and freshens.
       const bd = 0.6 + 0.35 * Math.sin(t * 0.05);
