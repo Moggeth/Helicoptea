@@ -99,6 +99,7 @@ export class Gamepads {
     window.addEventListener('gamepaddisconnected', (e) => {
       this.prev.delete(e.gamepad.index);
       if (e.gamepad.index === this.activeIndex) {
+        this.stopRumble();
         this.activeIndex = null;
         this.zero();
         this.notices.push({ type: 'disconnected', text: `${prettyName(e.gamepad.id)} disconnected: controls released` });
@@ -120,7 +121,7 @@ export class Gamepads {
     return gp.mapping === 'standard' ? STANDARD_BINDING : guessBinding(gp);
   }
   isCustom(gp) { return this.hasBinding(gp); }
-  saveSettings() { save('settings', this.settings); }
+  saveSettings() { if (!this.settings.rumble) this.stopRumble(); save('settings', this.settings); }
   resetBinding(gp) { try { localStorage.removeItem(`${LS}bind.${gp.id}`); } catch { /* ignore */ } }
   isHeld(id) { return !!this.holds[id]; }
 
@@ -299,12 +300,29 @@ export class Gamepads {
   takeEvents() { const e = this.events; this.events = []; return e; }
   takeNotices() { const n = this.notices; this.notices = []; return n; }
 
-  rumble(strong, weak, ms) {
+  rumble(strong, weak, ms, priority = 0) {
     if (!this.settings.rumble) return;
     const gp = this.active();
     const act = gp && gp.vibrationActuator;
     if (!act || !act.playEffect) return;
-    act.playEffect('dual-rumble', { startDelay: 0, duration: ms, strongMagnitude: Math.min(1, strong), weakMagnitude: Math.min(1, weak) }).catch(() => {});
+    if (![strong, weak, ms, priority].every(Number.isFinite) || ms <= 0) return;
+    strong = Math.max(0, Math.min(1, strong)); weak = Math.max(0, Math.min(1, weak));
+    const now = performance.now(), strength = Math.max(strong, weak), current = this.rumbleEffect;
+    // Browsers replace the current effect on every call. A scrape must not truncate a crash pulse,
+    // and repeated contact events must not restart the same pulse hundreds of times a second.
+    if (current && current.act === act && now < current.until &&
+        (priority < current.priority || (priority === current.priority && strength <= current.strength))) return;
+    if (current && current.act !== act) this.stopRumble();
+    const effect = { act, until: now + ms, priority, strength };
+    this.rumbleEffect = effect;
+    const failed = () => { if (this.rumbleEffect === effect) this.rumbleEffect = null; };
+    try { Promise.resolve(act.playEffect('dual-rumble', { startDelay: 0, duration: ms, strongMagnitude: strong, weakMagnitude: weak })).catch(failed); }
+    catch { failed(); }
+  }
+  stopRumble() {
+    const effect = this.rumbleEffect;
+    this.rumbleEffect = null;
+    try { Promise.resolve(effect?.act.reset?.()).catch(() => {}); } catch { /* device was removed */ }
   }
   canRumble() { const gp = this.active(); return !!(gp && gp.vibrationActuator); }
 

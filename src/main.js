@@ -226,6 +226,7 @@ async function boot() {
   function setPaused(p) {
     if (p === paused || !started || replay.active) return;
     paused = p;
+    if (p) input.pads.stopRumble();
     if (p && recorder.current && recorder.current.dirty) flightStore.save(recorder.current);
     audio.suspend(p);
     input.enabled = !p;
@@ -236,6 +237,7 @@ async function boot() {
   // The replay freezes the world (as the pause menu does) and takes over the screen and the controls.
   function openReplay() {
     if (!started || replay.active) return;
+    input.pads.stopRumble();
     const from = paused ? 'pause' : 'crash';
     if (!paused) { paused = true; audio.suspend(true); input.enabled = false; }
     hud.closeModal();
@@ -758,14 +760,14 @@ async function boot() {
     // Rumble as physical feedback (only when flying with a controller).
     if (input.source === 'gamepad') {
       for (const e of events) {
-        if (e.type === 'crash') input.pads.rumble(1, 0.8, 450);
+        if (e.type === 'crash') input.pads.rumble(1, 0.8, 450, 3);
         else if (e.type === 'bump') input.pads.rumble(Math.min(0.6, e.dv * 0.5), 0.3, 90);
         else if (e.type === 'attach') input.pads.rumble(0, 0.35, 50);
         else if (e.type === 'release') input.pads.rumble(0, 0.25, 40);
         else if (e.type === 'splash' || e.type === 'bucketSplash') input.pads.rumble(0.1, Math.min(0.5, 0.15 + e.speed * 0.4), 90);
         else if (e.type === 'rotorTick') input.pads.rumble(e.harmless ? 0.05 : 0.25, e.harmless ? 0.1 : 0.4, 30);
-        else if (e.type === 'rotorShatter') input.pads.rumble(0.9, 1, 320);
-        else if (e.type === 'tailStrike') input.pads.rumble(0.4, 0.8, 200);
+        else if (e.type === 'rotorShatter') input.pads.rumble(0.9, 1, 320, 2);
+        else if (e.type === 'tailStrike') input.pads.rumble(0.4, 0.8, 200, 2);
         else if (e.type === 'touchdown') input.pads.rumble(Math.min(0.7, e.speed * 0.9), 0.2, 80);
         else if (e.type === 'scrape') input.pads.rumble(0.05, Math.min(0.35, e.speed * 0.5), 60);
         else if (e.type === 'snatch') input.pads.rumble(Math.min(0.5, e.speed * 0.5), 0.3, 60);

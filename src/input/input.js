@@ -84,6 +84,7 @@ export class Input {
   }
 
   clearAll() {
+    this.pads.stopRumble();
     this.keys.clear();
     Object.assign(this.kb, { pitch: 0, roll: 0, yaw: 0, collective: 0 });
     Object.assign(this.touch, { pitch: 0, roll: 0, yaw: 0, collective: 0, pour: false, doors: false, pump: false, reel: 0, bolt: false });
