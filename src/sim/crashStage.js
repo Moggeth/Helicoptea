@@ -66,7 +66,7 @@ export function stageCrash(sim, kind) {
       return 'Tipped over on the table: the blades thrash into it';
     }
     case 'impact': {
-      place(sim, new THREE.Vector3(-0.3, 0.1, 0.4), yaw0, new THREE.Vector3(0.2, -3.2, 0));
+      place(sim, new THREE.Vector3(0.65, 0.1, 0.42), yaw0, new THREE.Vector3(0.2, -3.2, 0)); // clear of the rollover's spot
       return 'Flown hard into the table';
     }
     case 'fall': {

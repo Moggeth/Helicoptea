@@ -20,6 +20,7 @@ export const DAMAGE = {
   shedKick: 9,           // rad/s of yaw the airframe picks up when a rotor stops dead (scaled by its size)
   tailSpin: 9,           // rad/s terminal spin at hover thrust with no tail rotor (micro; larger ones turn slower)
   spinLag: 0.6,          // s spin-up time constant
+  inflow: 0.4,           // m/s: the hover inflow the rotor's power scales against (climb adds, sinking takes away)
   teaWear: 3.5,
   shedRecoil: 0.4,       // m/s the airframe is thrown back off what its blades bit into
   tailRecoil: 0.18,          // blade wear per second with the tips in the tea
@@ -155,7 +156,10 @@ export class Damage {
       const wy = _w.set(av.x, av.y, av.z).dot(up);
       const damp = I.y / DAMAGE.spinLag;
       const k = 1 / Math.sqrt(heli.def.scale || 1);
-      const reaction = -rotorsOf(heli.type)[0].dir * damp * DAMAGE.tailSpin * k * (heli.def.thrustToWeight || 2) * heli.thrustFrac;
+      // Rotor torque follows the power the rotor draws: thrust times the air it pushes through, so it falls
+      // away in a descent (lower the collective and sink, and the spin slows) and builds in a climb.
+      const power = Math.min(1.8, Math.max(0.15, 1 + heli.vel.y / DAMAGE.inflow));
+      const reaction = -rotorsOf(heli.type)[0].dir * damp * DAMAGE.tailSpin * k * (heli.def.thrustToWeight || 2) * heli.thrustFrac * power;
       _c.addScaledVector(up, reaction - damp * wy);
       body.resetTorques(true);
       body.addTorque({ x: _c.x, y: _c.y, z: _c.z }, true);
@@ -242,7 +246,7 @@ export class Damage {
     const sim = this.sim, D = heli.dmg;
     if (D.shed & (1 << i)) return;
     D.shed |= 1 << i;
-    D.struck = material;
+    D.struck = D.struck || material; // named for the first thing the blades hit
     const R = rotorsOf(heli.type)[i];
     const body = heli.body;
     const av = body.angvel();
@@ -354,7 +358,7 @@ export class Damage {
     if (impact > heli.def.impactDv) return { reason: why, impact, material: why === 'rotor strike' ? struck : material };
     if (D && D.hulk && ((anyContact && impact > CFG.crash.bumpDv) || D.shedT > DAMAGE.hulkTime)) return { reason: over && anyContact ? 'rollover' : 'rotor strike', impact: Math.max(impact, speed), material: struck };
     if (D && D.shed & 3 && !D.hulk && D.shedT > DAMAGE.oneRotorTime) return { reason: 'rotor strike', impact: speed, material: struck };
-    if (heli.pos.y < -0.72 && heli.up.y < 0.5) return { reason: 'floor', impact: 1, material };
+    if (heli.pos.y < -0.72 && heli.up.y < 0.5) return D && (D.tail || D.shed) ? { reason: D.tail ? 'tail strike' : 'rotor strike', impact: 1, material: D.tail ? material : struck } : { reason: 'floor', impact: 1, material };
     if (anyContact && over) return { reason: D && D.tail ? 'tail strike' : 'rollover', impact: 1, material };
     return null;
   }

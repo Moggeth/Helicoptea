@@ -370,7 +370,7 @@ export class Sim {
     }
     this.limitDebris();
     const kind = CRASH_KINDS[reason] || 'impact';
-    const spin = dmg && dmg.tail ? w.dot(up) : 0;
+    const spin = dmg && dmg.tail ? dmg.spin : 0; // yaw rate it went in with (before the ground stopped it)
     this.crashInfo = { reason, kind, pos, vel, impact, time: this.time, wreckId, aircraft: def.id, material: extra.material || null };
     this.emit('crash', { pos, vel, reason, kind, impact, wreckId, parts, aircraft: def.id, scale: def.scale, up, spin,
       material: extra.material || null, cup: extra.cup ?? null, at: extra.at || null });
