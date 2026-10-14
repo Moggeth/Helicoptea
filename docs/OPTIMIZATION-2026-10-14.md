@@ -23,7 +23,8 @@ runtime; both appended timing records were retained when resolving the one docum
 No Claude task was interrupted or messaged. Other browser test processes were discovered on this machine;
 only this task's obsolete runner trees were stopped. An independent process pushed some early local fixes
 while this pass ran. This task has not pushed: `origin` is the public Moggeth/Helicoptea repository and
-master deploys production. User approval is required before this task publishes the remaining commits.
+master deploys production. The user subsequently approved publication and granted standing permission on
+14 October 2026 to push validated commits and trigger production deployments; see `AGENTS.md`.
 
 ## Repairs
 
