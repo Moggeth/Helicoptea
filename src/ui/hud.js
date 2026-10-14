@@ -63,6 +63,8 @@ export class Hud {
     this.assistBtn = this.q('[data-act=assist]');
     this.invite = this.q('.assist-invite');
     this.hint = this.q('.hint');
+    this.hintStep = this.hint.querySelector('.step');
+    this.hintText = this.hint.querySelector('.txt');
     this.prompt = this.q('.prompt');
     this.toastEl = this.q('.toast');
     this.crashEl = this.q('.crash');
@@ -238,10 +240,11 @@ export class Hud {
   }
 
   showHint(step, html) {
-    if (!html) { this.hint.classList.remove('show'); return; }
-    this.hint.querySelector('.step').textContent = step;
-    this.hint.querySelector('.txt').innerHTML = html;
-    this.hint.classList.add('show');
+    if (!html) { if (this.hint.classList.contains('show')) this.hint.classList.remove('show'); return; }
+    // Keep the existing nodes while flying; content can still change within a step when devices change.
+    if (this.hintStepValue !== step) { this.hintStep.textContent = step; this.hintStepValue = step; }
+    if (this.hintHTML !== html) { this.hintText.innerHTML = html; this.hintHTML = html; }
+    if (!this.hint.classList.contains('show')) this.hint.classList.add('show');
   }
 
   showPrompt(html) {

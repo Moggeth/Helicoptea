@@ -226,14 +226,28 @@ also unstable in the touch harness, even after waiting two frames. Testing dismi
 by the independent camera gesture, avoids that sequencing problem without forcing clicks or changing
 game behaviour. Physical phone sequences remain unverified.
 
-## Deferred hint investigations
+## Stable hint rendering
 
-The same inspection measured **360–362 unchanged hint text-node replacements in 1.5 seconds** (two per
-frame). An unaccepted cache candidate is saved locally in `scratch/overnight-hint-cache.patch`; it is
-not in production. Its harness is `scratch/e2e-hints-candidate.mjs`. A fresh-start observation also found
-the lift hint can advance before the first physics sample: helicopter clearance initially defaults to
-1 while `grounded` is true. Reproduce and validate a separate progression fix before accepting it.
-These findings are not claims of implemented improvements.
+Unchanged hints rebuilt both text nodes every frame and repeatedly wrote their visible class. The
+matched browser probe measured **360–362 text replacements plus 180–181 attribute writes in 1.5 s**;
+the candidate performs **zero** while preserving the same nodes. It updates when the step or complete
+instruction changes, including keyboard/touch/controller labels, and still hides and reopens normally.
+The change preserves content and layout; matched screenshots were inspected.
+
+Six sequential A/B/B/A/A/B runs used Chrome/RTX3080Ti, 844×390 touch emulation, medium cockpit, fixed
+DPR1.5, dynamic resolution disabled, deterministic random seed, 4× CPU throttle, 2.5 s warm-up and
+4 s measurement. Browser layout cost fell from **0.625–0.889 ms/frame** to **0.380–0.458 ms/frame**;
+style recalculation fell from **0.105–0.172** to **0.070–0.083 ms/frame**. Hint mutations were zero in
+all candidate runs. Frame pacing varied (before 30.0/31.5/44.6 fps; after 40.0/36.2/45.3 fps), with
+overlapping tails, so this establishes reduced DOM/layout work rather than a general FPS guarantee.
+All runs are retained in `logs/reviews/overnight-hint-bench.json`.
+The expanded keyboard, touch and emulated-controller scenario passed **21/21** checks in **17.82 s**;
+the six paired measurements took **51.89 s**. Evidence is self-reviewed, with no physical-device claim.
+
+The regression scenario deliberately replays tips after startup to isolate rendering. A separate
+fresh-start observation found that the lift hint can advance before the first physics sample:
+helicopter clearance initially defaults to 1 while `grounded` is true. That progression fix remains
+unaccepted and is not hidden by these rendering checks.
 
 ## Remaining acceptance
 
