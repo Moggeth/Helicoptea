@@ -74,3 +74,17 @@ The low-hover scenario (wash active, bags nearby) is harder than the earlier ove
 - Cost, phone landscape emulated (844×390, medium, 32 × 32 grid): liquid work 0.11 ms per frame unthrottled, 0.86 ms per frame at CPU ×4 (peak 1.4 ms), 36.5 fps over the tea at ×4. Side-by-side with master in the same hover at ×4, two runs each: master 30.5 and 35.3 fps, this branch 30.3 and 28.9 fps (before the phone grid was reduced from 40 to 32). The machine was busy with other runs, so the difference is within noise; expect up to a few fps at ×4.
 - On the same build: `npm run check` all green, e2e 52/52, e2e-chinook 17/17, e2e-milk 19/19, e2e-skycrane 31/31, e2e-depth 21/21, e2e-replay 47/47 (twice). e2e-cockpit 39/40 on both this branch and master today: the touch cockpit ×4 frame-rate check reads 29 fps here and 26 fps on master, under load.
 - Not verified: a real phone GPU (each tea pixel now does one PMREM lookup, one height-field fetch and a few noise calls; the surfaces are small on screen), how it reads in motion to a person, mist density by eye, the Chinook and skycrane over tea by eye (the coupling is per wake, so both Chinook rotors drive it), spray leaving marks on the cloth (it does not).
+
+### 2026-10-14: crashes and damage (rebased on bee66ac)
+
+Same machine, Chrome 155 headless. `npm run check`: 405/405 (42 new crash checks). Browser suites (`node tests/run-e2e.mjs`): every suite passes, including the new `e2e-crashes.mjs` (58/58), except `e2e-cockpit.mjs` "touch: cockpit frame rate at 4x CPU throttle" (21 fps), which also fails on master bee66ac without this work (13 fps on the same run).
+
+Crash-effect CPU cost, timed inside the page around `CrashFx` (update, live damage look, crash and strike handlers), per rendered frame:
+
+| Scenario | rAF fps | p95 frame | crash FX avg | crash FX max | live particles / shards |
+|---|---|---|---|---|---|
+| Micro flying | 120.4 | 8.4 ms | 0.006 ms | 0.1 ms | 64 / 0 |
+| Micro hard impact (first 1.5 s) | 119.9 | 8.4 ms | 0.021 ms | 0.2 ms | 715 / 231 |
+| Micro rotor shatter crash | 99.0 | 16.7 ms | 0.013 ms | 0.1 ms | 347 / 87 |
+
+The shatter row's lower rate was measured while other test runs shared the machine; an earlier isolated run gave 120.9 fps, p95 8.4 ms for the same scenario. Shards are one instanced draw call. **Not measured**: crashes on a phone GPU.
