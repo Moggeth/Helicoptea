@@ -303,8 +303,9 @@ export class Input {
       this.look.yaw += this.pads.cam.yaw * 1.5 * dt;
       this.look.pitch -= this.pads.cam.zoom * 1.1 * dt;
     } else if (this.pads.cam) {
-      this.camOrbit.yaw += this.pads.cam.yaw * 0.03;
-      this.camOrbit.zoom += this.pads.cam.zoom * 0.02;
+      // Match the original 60 Hz response regardless of rendering speed.
+      this.camOrbit.yaw += this.pads.cam.yaw * 1.8 * dt;
+      this.camOrbit.zoom += this.pads.cam.zoom * 1.2 * dt;
     }
     // Holding the view (or look) button: the right stick turns the pilot's head, or orbits the chase camera.
     if (this.pads.look && LOOK_MODES.has(this.viewMode)) {

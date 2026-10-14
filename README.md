@@ -2,6 +2,9 @@
 
 Reusable development reference: [AI game iteration research](docs/AI-GAME-ITERATION-RESEARCH.md) and [overnight improvement playbook and prompts](docs/AI-GAME-ITERATION-PLAYBOOK.md). These cover evidence, quality gates and handoffs for this and future games; no overnight runner is scheduled by these documents.
 
+The bounded [14–15 October overnight polish pass](docs/OVERNIGHT-2026-10-15.md) records its starting build,
+accepted fixes, before/after evidence, recovery steps and hardware limitations.
+
 Fly a 24 g scale-model helicopter (a deliberately serious, realistic light utility helicopter) around a cosy kitchen table, out through the back door or the open window into a little tea garden, hook a tea bag on its string, and dip it into a cup until the tea turns the colour you like. The bag swings, soaks up water, gets heavier, drips, and pulls on the helicopter the whole time. Crash and it comes apart in one of six ways: blades shattering on a rotor strike, a tail-rotor strike that spins you down, a dunk in the tea, a rollover, a hard hit or a long fall.
 
 Three.js (r169) for rendering, Rapier 3D (0.14, WASM) for rigid bodies and contacts. Everything visual and audible is generated procedurally at runtime, so there are no external asset files (see [docs/ATTRIBUTION.md](docs/ATTRIBUTION.md)).

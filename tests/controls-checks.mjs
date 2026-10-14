@@ -240,6 +240,24 @@ check('registerAction: a new action gets its default button and fires', added &&
 check('registerAction: …which clashes with help on X until resolved', L.conflicts(L.mappingOf(g.layout)).some((c) => c.button === BTN.X));
 releaseAll();
 
+// D-pad camera rates use wall time at both low and high refresh rates. Exercise the
+// real pad mapping and Input integration at exact timesteps independently of GPU load.
+const { Input } = await import('../src/input/input.js');
+for (const hz of [30, 60, 120]) {
+  for (const mode of ['chase', 'orbit', 'cockpit', 'cargo']) {
+    reset();
+    const input = Object.create(Input.prototype);
+    Object.assign(input, { pads: fresh(), gp: {}, source: 'keyboard', menuMode: false,
+      viewMode: mode, actions: [], notices: [], camOrbit: {yaw:0,pitch:0,zoom:0}, look: {yaw:0,pitch:0,zoom:0} });
+    input.pollGamepad(1 / hz);
+    press(BTN.LEFT); press(BTN.DOWN);
+    for (let i = 0; i < hz; i++) input.pollGamepad(1 / hz);
+    const looking = mode === 'cockpit' || mode === 'cargo';
+    const yaw = looking ? input.look.yaw : input.camOrbit.yaw;
+    const vertical = looking ? input.look.pitch : input.camOrbit.zoom;
+    check(`D-pad ${mode} is time-based at ${hz} Hz`, near(yaw, looking ? 1.5 : 1.8, 1e-8) && near(vertical, looking ? -1.1 : 1.2, 1e-8), `yaw=${yaw} vertical=${vertical}`);
+  }
+}
 const failed = results.filter((r) => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} controller layout checks passed`);
 if (failed.length) process.exit(1);
