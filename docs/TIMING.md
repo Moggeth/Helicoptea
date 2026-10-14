@@ -47,7 +47,6 @@ Measured elapsed seconds, not estimated work durations. Full local ledger:
 | Isolated pre-perf-merge archive/build | 3.86 | Baseline built without modifying active checkout |
 | Final merged full headless checks | 101.43 | 489 passed; other browser tasks active |
 | Explicit bounded wait during browser acceptance | 30.01 | Suite continued; no processes interrupted |
-
 | Final combined browser acceptance | 840.94 | 538 passed across 13 suites |
 | Final isolated production build | 2.80 | Passed; shared dist preserved for other tests |
 | Touch runner against old shared dist | 4.39 | Nine expected old-layout failures; final-build URL required |
