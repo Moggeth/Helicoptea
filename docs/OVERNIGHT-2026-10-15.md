@@ -147,6 +147,20 @@ Baseline reproduction took 6.50 s; candidate build 2.39 s. The first candidate t
 to the pause menu before the next render frame consumed Escape. Waiting for the actual visible menu
 resolved that harness race without changing game behaviour or relaxing the acceptance rule.
 
+Accepted in `d5a3856`, pushed to `origin/master`. Vercel reported successful deployment
+`Sn5F7HErsnosarXn6x5qKwFUUnnA`; all eleven editing checks also passed against the public production URL.
+
+## Unaccepted focus-loss hypothesis
+
+Source inspection suggested a camera drag might survive a missed pointer release across focus loss.
+Three probes (headless, focus emulation disabled, and headed) moved to a second browser page and back.
+None produced a `blur` or visibility transition: the game still reported focus, so these probes do
+**not** establish a real focus-loss bug. Playwright also tracks held mouse buttons separately per page;
+releasing on the other page does not prove the first page received button-free motion. No camera or
+flight input behaviour was changed on this evidence. Keep real OS tab/Alt-Tab/drag cancellation in
+hands-on acceptance; do not repeat this harness and claim physical focus testing. The three probes
+took 4.98, 4.47 and 4.46 seconds, with raw state saved in `logs/reviews/overnight-focus-probe.json`.
+
 ## Remaining acceptance
 
 Physical phone, Steam Controller connection/feel, haptics, human listening and skilled acrobatic-flight
