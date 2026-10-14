@@ -49,18 +49,20 @@ export class FlightStore {
       if (!this.available) return this.localSave(f);
       const binN = f.savedN;
       const { json, bin } = encodeFlight(f);
+      const revision = f.revision, n = json.nSamples;
       const put = (ext, body, type) => fetch(`${API}/${encodeURIComponent(f.id)}.${ext}`, { method: 'PUT', headers: { 'Content-Type': type }, body });
-      if (!notesOnly || binN !== f.n) {
+      if (!notesOnly || binN !== n) {
         const r = await put('bin', bin, 'application/octet-stream');
         if (!r.ok) throw new Error(`bin ${r.status}`);
-        f.savedN = f.n;
       }
       const r = await put('json', JSON.stringify(json), 'application/json');
       if (!r.ok) throw new Error(`json ${r.status}`);
       const res = await r.json();
       f.saved = true;
+      f.savedN = n;
       f.savedPath = res.path;
-      f.dirty = false;
+      f.dirty = f.n !== n || f.revision !== revision;
+      this.lastError = '';
       return true;
     }).catch((err) => { this.lastError = String(err.message || err); return false; }).finally(() => { this.saving--; });
     this.queue = job;
@@ -145,14 +147,15 @@ export class FlightStore {
     try { await this.openDb(); } catch { return false; }
     const { json, bin } = encodeFlight(f);
     const head = { id: f.id, startedAt: json.startedAt, savedAt: json.savedAt, aircraft: json.aircraft, wallDuration: json.wallDuration, notes: json.notes.length, crash: json.summary && json.summary.crash ? json.summary.crash.reason : null, json };
+    const revision = f.revision;
     await this.tx(['heads', 'bins'], 'readwrite', (t) => {
       t.objectStore('heads').put(head);
       t.objectStore('bins').put(bin, f.id);
     });
-    f.savedN = f.n;
+    f.savedN = json.nSamples;
     f.saved = true;
     f.savedPath = 'this browser';
-    f.dirty = false;
+    f.dirty = f.n !== json.nSamples || f.revision !== revision;
     this.lastError = '';
     this.prune().catch(() => {});
     return true;

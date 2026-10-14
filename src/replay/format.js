@@ -166,11 +166,22 @@ export function encodeFlight(f) {
     kinds: Object.fromEntries(Object.entries(KINDS).map(([k, v]) => [k, v.fields])),
     entities, events: f.events, notes: f.notes, summary: f.summary(), settings: f.settings, ended: f.ended,
   };
-  return { json, bin: bin.buffer };
+  // Detach metadata too: notes, events and entity lifetimes can change during an async save.
+  return { json: structuredClone(json), bin: bin.buffer };
 }
 
 export function decodeFlight(json, buf) {
   if (json.format !== FORMAT) throw new Error('not a Helicoptea flight');
+  const validCount = (n) => Number.isSafeInteger(n) && n >= 0;
+  if (!Array.isArray(json.channels) || !json.channels.length || !validCount(json.nSamples) ||
+      !Array.isArray(json.entities) || buf.byteLength % 4 !== 0) throw new Error('invalid flight layout');
+  const floats = buf.byteLength / 4, sampleEnd = json.nSamples * json.channels.length;
+  if (!Number.isSafeInteger(sampleEnd) || sampleEnd > floats) throw new Error('truncated flight samples');
+  for (const e of json.entities) {
+    if (!validCount(e.width) || e.width < 1 || !validCount(e.nKeys) || !validCount(e.offset) ||
+        e.offset < sampleEnd || !Number.isSafeInteger(e.offset + e.nKeys * e.width) ||
+        e.offset + e.nKeys * e.width > floats) throw new Error('invalid flight entity range');
+  }
   const all = new Float32Array(buf);
   const w = json.channels.length;
   const f = new Flight({ id: json.id, aircraft: json.aircraft, def: json.def, startedAt: json.startedAt, recordHz: json.recordHz, physicsHz: json.physicsHz, settings: json.settings || {} });
@@ -219,6 +230,8 @@ export class Flight {
     this.dirty = true;
   }
   get n() { return this.samples.n; }
+  get dirty() { return this._dirty; }
+  set dirty(value) { this._dirty = value; if (value) this.revision = (this.revision || 0) + 1; }
   duration() { return this.n ? this.samples.get(this.n - 1, CH.t) : 0; }
   wallDuration() { return this.n ? this.samples.get(this.n - 1, CH.wall) : 0; }
   get bytes() { let b = this.samples.bytes; for (const e of this.entities.values()) b += e.keys.bytes; return b; }
