@@ -15,7 +15,7 @@ const _v = new THREE.Vector3(), _c = new THREE.Vector3();
 // tea stand and cup, a rose arch, bird bath, stump, bench and an apple tree, all walled in by a fence
 // and hedge under an open sky. Decor and grass density scale with the quality tier.
 export function buildGarden(scene, quality, kitchen, teaStand, sim) {
-  const tier = quality.name;
+  const tier = quality.name === 'ultra' ? 'high' : quality.name; // ultra builds the world as high does
   const q = tier === 'high' ? 1 : tier === 'medium' ? 0.55 : 0.3;
   const shadows = quality.shadows > 0;
   const decor = { cast: tier === 'high' }; // small decor casts shadows only on the high tier
