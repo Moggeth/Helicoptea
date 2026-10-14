@@ -41,6 +41,7 @@ const browser = await chromium.launch({
 });
 
 const PLACES = {
+  pad: async () => null,   // sitting on the kitchen pad, rotor idling (as the cockpit check has it)
   house: async (page) => page.evaluate(() => { const c = window.__helicoptea.sim.cups[0]; return { x: c.x + 0.12, y: c.topY + 0.16, z: c.z + 0.1 }; }),
   garden: async () => ({ x: 0.35, y: -0.05 + 0.2, z: -2.6 }),   // over the garden table, beside the tea station
 };
@@ -108,12 +109,13 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
   });
   const cdp = await ctx.newCDPSession(page);
   await sleep(3000); // shaders, textures and the first frames settle before anything is measured
-  for (const place of ['house', 'garden']) {
+  for (const place of (opt('places', 'house,garden')).split(',')) {
     const p = await PLACES[place](page);
-    p.y += { micro: 0, chinook: 0.1, skycrane: 0.16 }[aircraft];
+    if (p) p.y += { micro: 0, chinook: 0.1, skycrane: 0.16 }[aircraft];
     for (const view of ['chase', 'cockpit']) {
       if (only && !only.split(',').some((o) => { const [a, pl, v] = o.split(':'); return a === aircraft && (!pl || pl === place) && (!v || v === view); })) continue;
-      await page.evaluate(([x, y, z, view]) => {
+      if (!p) await page.evaluate((view) => { window.__helicoptea.setView(view); window.__pilot.on = false; }, view);
+      else await page.evaluate(([x, y, z, view]) => {
         const H = window.__helicoptea, s = H.sim;
         if (s.state !== 'flying' || !s.heli) H.doAction('restart');
         const t = s.heli.body.translation(), dx = x - t.x, dy = y - t.y, dz = z - t.z;
@@ -123,7 +125,7 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
         window.__pilot.on = true; window.__pilot.ap.target.set(x, y, z); window.__pilot.ap.maxSpeed = 0.05;
         H.setView(view);
         H.doAction('recenter');
-      }, [p.x, p.y, p.z, view]);
+      }, p ? [p.x, p.y, p.z, view] : view);
       if (throttle > 1) await cdp.send('Emulation.setCPUThrottlingRate', { rate: throttle });
       await sleep(settle);
       const r = await page.evaluate(async (ms) => {

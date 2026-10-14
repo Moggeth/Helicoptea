@@ -28,6 +28,7 @@ export class ShadowCache {
     this.frame = 0;
     this.stats = { rebuilds: 0, statics: 0, movers: 0 };
     this._blit = false;
+    this.collect = (o) => { if ((o.isMesh || o.isLine || o.isPoints) && o.castShadow) this.visible.push(o); };
     const sm = renderer.shadowMap;
     const origRender = sm.render.bind(sm);
     const origClear = renderer.clear.bind(renderer);
@@ -48,7 +49,7 @@ export class ShadowCache {
     this.frame++;
     const vis = this.visible;
     vis.length = 0;
-    this.scene.traverseVisible((o) => { if ((o.isMesh || o.isLine || o.isPoints) && o.castShadow) vis.push(o); });
+    this.scene.traverseVisible(this.collect);
     let dirty = false;
     const seen = this.frame;
     for (const o of vis) {
@@ -102,8 +103,8 @@ export class ShadowCache {
     for (const o of vis) if (this.track.get(o).still >= STILL_FRAMES) statics++;
     this.stats.statics = statics; this.stats.movers = vis.length - statics;
     if (statics < 8) { origRender(lights, scene, camera); return; } // nothing worth caching yet
-    const hide = (still) => { for (const o of vis) if ((this.track.get(o).still >= STILL_FRAMES) === still) o.castShadow = false; };
-    const show = () => { for (const o of vis) o.castShadow = true; };
+    const hide = (still) => { for (let i = 0; i < vis.length; i++) if ((this.track.get(vis[i]).still >= STILL_FRAMES) === still) vis[i].castShadow = false; };
+    const show = () => { for (let i = 0; i < vis.length; i++) vis[i].castShadow = true; };
     const map = () => light.shadow.map;
     if (dirty || !this.valid || !map()) {
       // Static casters only, for the sun alone, then keep a copy.

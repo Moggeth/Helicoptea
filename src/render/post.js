@@ -19,7 +19,26 @@ export class Post {
     this.quality = quality;
     this.enabled = !!quality.ao;
     this.aoScale = 1;
+    // Without AO the scene normally goes straight to the screen. While the hook camera is running it goes
+    // through the half-float target as well: the hook camera renders into a target, and three.js picks a
+    // different shader variant for a material drawn to a target (no tone mapping, linear output) than to
+    // the screen, so alternating the two re-selected the program of every material twice a frame.
+    this.viaTarget = false;
+    this.target = null;
+    this.output = null;
+    this.ao = null;
     if (this.enabled) this.build(quality);
+  }
+
+  // Whether the world is drawn in linear light this frame (the depth cues blend to match).
+  get linear() { return this.enabled || this.viaTarget; }
+
+  ensureTarget() {
+    if (this.target) return;
+    const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    this.target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: this.quality.antialias ? 4 : 0 });
+    this.output = new FullScreenQuad(this.outputMaterial());
+    this.setSize(innerWidth, innerHeight);
   }
 
   build(quality) {
@@ -49,10 +68,15 @@ export class Post {
     };
     ao.restoreVisibility = () => { for (let i = 0; i < hidden.length; i++) hidden[i].visible = wasVisible[i]; };
     this.ao = ao;
-    this.output = new FullScreenQuad(new THREE.RawShaderMaterial({
+    this.output = new FullScreenQuad(this.outputMaterial());
+  }
+
+  outputMaterial() {
+    const ao = this.ao;
+    return new THREE.RawShaderMaterial({
       name: 'HeliOutput',
-      uniforms: { tDiffuse: { value: this.target.texture }, tAO: { value: ao.pdRenderTarget.texture }, intensity: { value: 1 }, toneMappingExposure: { value: 1 } },
-      defines: { ACES_FILMIC_TONE_MAPPING: '', SRGB_TRANSFER: '' },
+      uniforms: { tDiffuse: { value: this.target.texture }, tAO: { value: ao ? ao.pdRenderTarget.texture : null }, intensity: { value: 1 }, toneMappingExposure: { value: 1 } },
+      defines: ao ? { USE_AO: '' } : {},
       vertexShader: /* glsl */`
         precision highp float;
         uniform mat4 modelViewMatrix;
@@ -71,19 +95,22 @@ export class Post {
         varying vec2 vUv;
         void main() {
           gl_FragColor = texture2D(tDiffuse, vUv);
+          #ifdef USE_AO
           gl_FragColor.rgb *= mix(vec3(1.0), texture2D(tAO, vUv).rgb, intensity);
+          #endif
           gl_FragColor.rgb = ACESFilmicToneMapping(gl_FragColor.rgb);
           gl_FragColor = sRGBTransferOETF(gl_FragColor);
         }`,
       depthTest: false, depthWrite: false,
-    }));
+    });
   }
 
   setSize(w, h) {
-    if (!this.enabled) return;
+    if (!this.target) return;
     const pr = this.renderer.getPixelRatio();
     const W = Math.max(1, Math.floor(w * pr)), H = Math.max(1, Math.floor(h * pr));
     this.target.setSize(W, H);
+    if (!this.ao) return;
     // AO at no more than aoMaxHeight lines: it is a soft, denoised term, so a 4K screen gets it at half
     // resolution (a quarter of the pixels) and the output pass upsamples it without visible loss.
     const s = this.quality.aoMaxHeight ? Math.min(1, this.quality.aoMaxHeight / H) : 1;
@@ -93,10 +120,11 @@ export class Post {
 
   render() {
     const r = this.renderer;
-    if (!this.enabled) { r.render(this.scene, this.camera); return; }
+    if (!this.enabled && !this.viaTarget) { r.render(this.scene, this.camera); return; }
+    this.ensureTarget();
     r.setRenderTarget(this.target);
     r.render(this.scene, this.camera);
-    this.ao.render(r, null, this.target);
+    if (this.enabled) this.ao.render(r, null, this.target);
     this.output.material.uniforms.toneMappingExposure.value = r.toneMappingExposure;
     r.setRenderTarget(null);
     this.output.render(r);
