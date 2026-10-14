@@ -106,7 +106,9 @@ for (const aircraft of ['micro', 'skycrane']) {
 }
 {
   const r = trial('chinook', 'tail');
-  check('chinook: no tail rotor to strike, its aft rotor strikes instead', r.crash && r.crash.reason === 'rotor strike' && !r.first('tailStrike'));
+  // (How the rotorless airframe lands, upright or on its side, varies with the random lurch.)
+  check('chinook: no tail rotor to strike, its rotors strike instead', r.first('rotorShatter') && r.crash && ['rotor strike', 'rollover'].includes(r.crash.reason) && !r.first('tailStrike'),
+    r.crash ? `${r.crash.reason} after ${r.ev.filter((e) => e.type === 'rotorShatter').length} rotor(s) shed` : 'no crash');
 }
 
 // Dunk: the wreck stays in the cup, no fire kick.
