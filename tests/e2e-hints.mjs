@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 const base=process.argv.find(a=>a.startsWith('http'))||'http://127.0.0.1:4240/';
 const out=path.resolve('test-results/hints',process.env.HINT_LABEL||'candidate');fs.mkdirSync(out,{recursive:true});
-const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,args:['--use-angle=d3d11','--disable-background-timer-throttling','--disable-renderer-backgrounding']});
+const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,args:['--ignore-gpu-blocklist','--use-angle=d3d11','--disable-background-timer-throttling','--disable-renderer-backgrounding']});
 const checks=[];const check=(name,ok,detail='')=>{checks.push({name,ok,detail});console.log(`${ok?'PASS':'FAIL'}  ${name} ${JSON.stringify(detail)}`);};
 try{
  for(const mode of ['keyboard','touch','gamepad']){

@@ -267,6 +267,32 @@ cover pre-physics placeholders, idle settling and actual simulated takeoff. Base
 Matched pad screenshots were inspected in `test-results/startup-hints/{baseline,candidate}/`.
 This repairs instruction timing; it does not claim novice usability testing or a flight-feel change.
 
+## Integrated acceptance and hosted CI
+
+The clean, frozen `7867e82` build passed **520/520 headless checks in 78.02 s** and
+**555/555 browser checks across 20 suites in 888.08 s** on local Chrome 155 / RTX 3080 Ti.
+No performance gates were advisory. This includes all aircraft, hauling and dipping, milk handling,
+camera modes, pause/recovery, crash/restart, tuning, replay and touch layout. The exact build is kept
+in `releases/overnight-7867e82`; logs and the copied suite summary are in
+`logs/reviews/overnight-integrated-7867e82-*`. This later pass does not erase the earlier marginal
+phone-cockpit performance result.
+
+GitHub run `38572986671` passed headless checks but **failed** its browser phase at the 35-minute
+workflow limit. Microsoft Basic Render Driver measured roughly 10–15 fps. Functional failures also
+occurred: controller camera edges, transient crash/wash observations, a touch pump double-tap, and
+timeouts. These remain failures, not performance warnings or proven game regressions. Replay passed
+47/47 in this run, unlike earlier CI runs. Full evidence: `logs/reviews/overnight-7867e82-ci.log`.
+
+Three new hint/HUD suites omitted `--ignore-gpu-blocklist`, used by the established browser suites,
+and timed out waiting for Start on CI. Their launches now use the same renderer override. The missing
+flag is a plausible cause of those startup failures; the next hosted run must establish the outcome.
+No timeout, assertion or performance threshold was relaxed. The audio timeout was different: its
+click completed but Playwright waited for scheduled navigation; it must be investigated separately.
+
+The proposed Skycrane tutorial replacement was not accepted: the aircraft has a working cargo hook,
+so tea-bag guidance is applicable. Prioritising milk instructions needs a clearer usability criterion.
+No flight tuning alternatives were introduced, and flight forces and aircraft parameters are unchanged.
+
 ## Remaining acceptance
 
 Physical phone, Steam Controller connection/feel, haptics, human listening and skilled acrobatic-flight

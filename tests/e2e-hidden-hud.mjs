@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 const base=process.argv.find(a=>a.startsWith('http'))||'http://127.0.0.1:4235/';
 const out=path.resolve('test-results/hidden-hud',process.env.HUD_LABEL||'candidate');fs.mkdirSync(out,{recursive:true});
-const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,args:['--use-angle=d3d11']});
+const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,args:['--ignore-gpu-blocklist','--use-angle=d3d11']});
 const checks=[];const check=(name,ok,detail='')=>{checks.push({name,ok,detail});console.log(`${ok?'PASS':'FAIL'}  ${name} ${JSON.stringify(detail)}`);};
 try{
  for(const touch of [false,true]){
