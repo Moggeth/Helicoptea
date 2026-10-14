@@ -319,3 +319,71 @@ body.pip-top .hint:not(.show), body.pip-top .prompt:not(.show) { pointer-events:
 .pad-capture .wz-prompt { margin: 0; font-size: 17px; color: var(--ink); }
 .pad-capture small { font-size: 12px; color: var(--ink-soft); }
 @media (max-width: 520px) { .lay-axis select { max-width: 150px; } }
+
+/* ---------------------------------------------------------------- flight tuning board */
+.panel.tune-panel { width: min(1180px, 100%); height: min(820px, 100%); max-height: 100%; display: flex; flex-direction: column; padding: 20px 22px 16px; overflow: hidden; }
+.tune-head { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+.tune-head h2 { margin: 0; }
+.tune-sub { margin: 4px 0 0; font-size: 13px; }
+.tune-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tune-actions .secondary { padding: 8px 14px; font-size: 14px; }
+.tune-actions .primary { padding: 9px 20px; }
+.tune-preset { font-size: 13px; color: var(--ink-soft); display: inline-flex; gap: 6px; align-items: center; }
+.tune-preset select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid rgba(42,29,22,0.25); background: #fffaf1; }
+.tune-tabs { display: flex; gap: 6px; margin: 14px 0 10px; flex-wrap: wrap; }
+.tune-tabs button { border: 0; background: rgba(42,29,22,0.07); border-radius: 999px; padding: 8px 16px; font-weight: 650; font-size: 14px; display: inline-flex; gap: 6px; align-items: center; }
+.tune-tabs button.on { background: var(--ink); color: var(--cream); }
+.tune-count { background: var(--terracotta); color: #fff; border-radius: 999px; font-size: 11px; padding: 1px 7px; }
+.tune-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 18px; }
+.tune-list { overflow: auto; padding-right: 6px; }
+.tune-note { font-size: 13px; color: var(--ink-soft); margin: 0 0 6px; }
+.tune-group { margin-bottom: 14px; }
+.tune-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; position: sticky; top: 0; background: var(--paper); padding-top: 4px; z-index: 1; }
+.tune-group h3 { font-family: var(--serif); font-size: 18px; margin: 4px 0 0; }
+.tune-blurb { font-size: 12.5px; color: var(--ink-soft); margin: 2px 0 6px; }
+.tune-link { border: 0; background: none; color: var(--ink-soft); text-decoration: underline; font-size: 12px; padding: 2px; }
+.tune-row { display: grid; grid-template-columns: minmax(120px, 1.2fr) auto minmax(90px, 2fr) auto 54px 28px; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 10px; transition: background 0.15s; }
+.tune-row:hover, .tune-row.previewing { background: rgba(242,184,75,0.16); }
+.tune-row.changed .tune-name::after { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--terracotta); margin-left: 6px; vertical-align: middle; }
+.tune-name { font-size: 14px; font-weight: 600; }
+.tune-badge { display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 600; background: rgba(42,29,22,0.08); border-radius: 6px; padding: 1px 5px; color: var(--ink-soft); }
+.tune-end { font-size: 11px; color: var(--ink-soft); white-space: nowrap; }
+.tune-row input[type=range] { width: 100%; accent-color: var(--terracotta); }
+.tune-val { font: 600 13px/1 ui-monospace, Consolas, monospace; text-align: right; }
+.tune-reset { border: 0; background: rgba(42,29,22,0.06); border-radius: 50%; width: 26px; height: 26px; font-size: 14px; line-height: 1; padding: 0; }
+.tune-row:not(.changed) .tune-reset { opacity: 0.35; }
+.tune-preview { display: flex; flex-direction: column; min-height: 0; }
+.tune-compare { display: inline-flex; background: rgba(42,29,22,0.07); border-radius: 999px; padding: 3px; align-self: flex-start; margin-bottom: 8px; }
+.tune-compare button { border: 0; background: none; border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; }
+.tune-compare button.on { background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+.tune-clip { position: relative; aspect-ratio: 16 / 8; width: 100%; border-radius: 14px; overflow: hidden; background: #e9dcc5; box-shadow: inset 0 0 0 1px rgba(42,29,22,0.12); }
+.tune-clip canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.tune-clip::after { content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; background: rgba(250,244,233,0.9); box-shadow: 0 0 0 1px rgba(42,29,22,0.12); }
+.tune-label { position: absolute; top: 8px; max-width: 46%; background: rgba(42,29,22,0.78); color: var(--cream); border-radius: 10px; padding: 5px 9px; font-size: 12px; line-height: 1.3; pointer-events: none; }
+.tune-label b { display: block; font-size: 12.5px; }
+.tune-label span:empty { display: none; }
+.tune-label.l { left: 8px; }
+.tune-label.r { left: calc(50% + 8px); }
+.tune-idle { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; text-align: center; color: var(--ink-soft); background: rgba(250,244,233,0.85); font-size: 15px; z-index: 2; }
+.tune-pname { font-family: var(--serif); font-size: 19px; margin: 12px 0 2px; }
+.tune-watch { margin: 0; font-size: 14px; }
+.tune-hint { font-size: 13px; color: var(--ink-soft); margin: 6px 0 0; }
+.tune-import { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(520px, 92%); background: #fffaf1; border-radius: 14px; box-shadow: var(--shadow); padding: 16px; z-index: 5; }
+.tune-import textarea { width: 100%; font: 12px/1.4 ui-monospace, Consolas, monospace; border-radius: 8px; border: 1px solid rgba(42,29,22,0.25); padding: 8px; }
+.tune-error { color: var(--terracotta-deep); font-size: 13px; min-height: 1em; }
+.panel.tune-panel { position: relative; }
+@media (max-width: 860px) {
+  .panel.tune-panel { padding: 14px; }
+  .tune-body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .tune-preview { order: -1; }
+  .tune-clip { aspect-ratio: 16 / 7; }
+  .tune-hint { display: none; }
+  .tune-row { grid-template-columns: minmax(100px, 1fr) minmax(80px, 2fr) 50px 26px; }
+  .tune-end { display: none; }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  .tune-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: none; }
+  .tune-preview { order: 0; }
+  .tune-sub, .tune-blurb, .tune-hint { display: none; }
+  .tune-tabs { margin: 6px 0; }
+}

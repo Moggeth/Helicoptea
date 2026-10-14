@@ -179,6 +179,33 @@ Horizon-stable chase camera: follows heading only, smoothed at 2.2/s, never roll
 
 The default 30° elevation was reviewed for dipping. Going lower (21°) shows vertical gaps closer to full height, but the near rim then hides the middle of the tea: at 21° only the far third of a mug's tea is visible, at 30° about half. So with a load low over a vessel (the **Dipping camera** option) it eases to 34°, frames 62% of the way to the load and closes in to 78% of the carrying distance; the skycrane's intake counts as its load once the hose is out.
 
+## Flight tuning board ([src/tuning/](../src/tuning/))
+
+`knobs.js` is the registry: each knob names its group, range, slider shape (log for multipliers, linear for
+effects that can go to zero and for absolute values), the config paths it scales on each aircraft, a hint and
+its preview clip. `tuning.js` captures the base values from `config.js` once, then writes
+`base × global × per-aircraft` back into `CFG` whenever anything changes; the sims already read `CFG` every
+step, so a change is live with no restart (rotational weight sets the bodies' inertia, so it waits for the
+next restart). *Ground cushion* scales only the part of the ground-effect factor above 1, so zero means no
+cushion rather than no lift. World speed is the pause menu's World weight setting, shared rather than
+duplicated. The thrust and cyclic response lags are deliberately not exposed: instant thrust is part of the
+game's feel. Stick mapping (deadzone, expo, rates) shapes cyclic and pedals after the controller's own bindings,
+dead zone and curve have resolved, and never touches the collective, which is a rate. State lives in
+`localStorage` (`helicoptea.tuning.v1`); export/import use the same JSON and clamp anything out of range.
+
+The mouse-over clips are live, not pre-rendered: `preview.js` runs two lightweight `Sim`s (`bare`: an open
+table and the pad, nothing to hit) on a small separate renderer, split-screen. Before each frame one side's
+value is written into `CFG`, that side steps, then the real values are restored, so the live game never sees
+a preview value. Each clip settles into a trimmed hover off-screen, then flies a scripted stick sequence
+through the same pilot loops a person would use (an attitude loop for flicks and dashes, an altitude hold that
+respects the collective's limited rate), from the same pose, with the same camera. A red trail and dots every
+half second show the path and the speed. Extreme settings would fly some scripts into the ceiling, the far
+wall or the table, so the scripted pilot takes over in time to level off or brake; a browser test flies every
+clip at both ends of every range on every aircraft and requires all of them to finish flying. The skycrane is
+hard to hold steady with the assist off, so its clips fly with Flight Assist on (the board says so). Stick
+knobs show an animated response curve instead of a flight. Live clips cost about 1-2 ms of simulation per
+frame while the board is open and nothing when it is closed (the preview renderer is disposed).
+
 ## Presentation
 
 Procedural textures (oak planks with roughness, linen runner, cork pad, filter paper with visible leaves, printed tag, plaster, tiles, blurred garden), lathe-built ceramics with clearcoat glaze, a RoomEnvironment reflection probe, a soft-shadowed window sun, and a warm pendant. Readability aids: contact-shadow blobs under the helicopter and carried bag, a bright string, a rotor blur disc with tip ring, and tea downwash ripples when hovering over a cup.

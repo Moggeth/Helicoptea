@@ -1,4 +1,7 @@
 import './styles.css';
+import * as tuningKnobs from './tuning/knobs.js';
+import { Tuning } from './tuning/tuning.js';
+import { TuningPanel } from './ui/tuningPanel.js';
 import * as THREE from 'three';
 import { CFG } from './config.js';
 import { initPhysics, RAPIER, GROUPS } from './sim/physics.js';
@@ -89,6 +92,8 @@ async function boot() {
   const wantAircraft = params.get('aircraft') || store.get('aircraft', 'micro');
   // Phones and the low tier get fewer loose props (they also sleep when still).
   quality.liteProps = IS_TOUCH || quality.name === 'low';
+  // Flight tuning board: written into CFG before the sim is built (gravity, drag, power, ...).
+  const tuning = new Tuning();
   const sim = new Sim({ aircraft: AIRCRAFT_IDS.includes(wantAircraft) ? wantAircraft : 'micro', lite: quality.liteProps });
   // Rotor strikes break the blades (on by default; off, blades pass through scenery).
   sim.damage.rotorStrikes = (params.get('rotorStrikes') || store.get('rotorStrikes', '1')) !== '0';
@@ -162,6 +167,15 @@ async function boot() {
     },
   });
   const flow = new Flow(sim, hud);
+  tuning.worldSpeedHooks = {
+    get: () => worldSpeed,
+    set: (v) => { hud.h.setting('weight', Math.min(1, Math.max(0, (1 - v) / 0.6))); },
+  };
+  tuning.onChange(() => { sim.world.gravity = { x: 0, y: -CFG.physics.gravity, z: 0 }; });
+  const tuningPanel = new TuningPanel(hud, tuning, {
+    aircraft: () => sim.aircraft,
+    onClose: () => { hud.closeModal(); if (paused) hud.openPause(pauseOpts()); },
+  });
 
   // Every flight is recorded (inputs, telemetry, everything that moves) and saved to logs/flights via the
   // dev / preview server; the replay viewer plays them back from the snapshots, with notes.
@@ -251,7 +265,9 @@ async function boot() {
   }
 
   function doAction(a, el) {
+    if (a.startsWith('tune') && hud.modalKind === 'tuning' && tuningPanel.action(a, el)) return;
     switch (a) {
+      case 'tuning': tuningPanel.open(); break;
       case 'aircraft': {
         const id = el && el.dataset && el.dataset.id ? el.dataset.id : AIRCRAFT_IDS[(AIRCRAFT_IDS.indexOf(sim.aircraft) + 1) % AIRCRAFT_IDS.length];
         setAircraft(id);
@@ -320,7 +336,8 @@ async function boot() {
   function back() {
     if (input.pads.capture) { input.pads.cancelCapture(); return; }
     if (input.pads.wizard) { doAction('wizcancel'); return; }
-    if (hud.modalKind === 'controller') doAction('closecontroller');
+    if (hud.modalKind === 'tuning') tuningPanel.close();
+    else if (hud.modalKind === 'controller') doAction('closecontroller');
     else if (hud.modalKind === 'help') doAction('closehelp');
     else if (paused) setPaused(false);
   }
@@ -504,7 +521,7 @@ async function boot() {
     input.menuMode = !started || hud.modalKind !== null || crashShown || replay.active;
     input.aircraft = sim.aircraft;
     input.pads.triggerMode = sim.aircraft === 'skycrane' ? 'tank' : 'collective';
-    const ctl = input.update(frameDt);
+    const ctl = tuning.shapeCtl(input.update(frameDt)); // board deadzone/expo/rates, after the bindings
     for (const a of input.takeActions()) {
       if (replay.active) continue;   // the viewer reads keys and the pad itself
       if (a.startsWith('nav-')) { hud.nav(a.slice(4)); continue; }
@@ -726,7 +743,7 @@ async function boot() {
   requestAnimationFrame(frame);
 
   // Expose a tiny handle for console debugging and automated checks.
-  window.__helicoptea = { stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
+  window.__helicoptea = { tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
 }
 
 boot().catch((err) => showError('Helicoptea failed to start. Please reload.', err));

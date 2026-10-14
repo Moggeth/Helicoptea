@@ -56,6 +56,22 @@ and notes are saved to `logs/flights/` by the dev and preview servers (in the br
 with a **Download** button for a copy), and `node tools/flight-notes.mjs` summarises the notes with the
 telemetry around each one. See [docs/FLIGHT-LOGS.md](docs/FLIGHT-LOGS.md).
 
+## Flight tuning board
+
+**Pause → Flight tuning → Open board** shows every feel setting as a slider, grouped as *Moving a dot*
+(world speed, gravity, coasting, top-speed cap, climb damping, thrust-to-weight, collective trim speed),
+*Becoming a helicopter* (rotation rate, rotational weight, settling, yaw authority, Chinook pitch response),
+*Stick mapping* (deadzone, expo, rates), *Real-world flavour* (ground cushion, buffet, translational lift,
+weathervaning, torque kick, downwash, Chinook aft-rotor wake) and *Flight Assist* (max tilt, follow, drift
+catch, climb rate). Hover over (or select) any setting and a short clip plays on the right: the same scripted
+flight, side by side, at the low and high ends of that slider, or **Default vs yours**. The **All aircraft**
+tab sets the world; the **Micro heli**, **Chinook** and **Skycrane** tabs set each aircraft relative to it
+(effective value = aircraft base × all aircraft × this aircraft). Everything at ×1 is the game as shipped.
+Changes apply immediately (rotational weight on the next restart) and are remembered in the browser. Each row
+has its own ↺ reset, each group a *Reset group*, and there are presets (*Floaty*, *Snappy acro*), **Export**
+(clipboard and a `helicoptea-tuning.json` file) and **Import**. See
+[docs/DESIGN.md](docs/DESIGN.md#flight-tuning-board-srctuning).
+
 ## Rotor wash, AO
 
 The rotor's downwash is a small fluid simulation (wake column plus a 2D outwash solver over the table). It pushes the dangling bag and strings, buffets the helicopter near surfaces, ripples the linen runner, blows steam and dust, nods the flowers, and dimples and sprays the tea. Ambient occlusion (GTAO) grounds everything on desktop. See [docs/DESIGN.md](docs/DESIGN.md).
@@ -94,6 +110,7 @@ node tests/e2e-depth.mjs http://localhost:4192/   # depth cues: shadows on table
 node tests/e2e-replay.mjs            # flight recording, replay viewer, notes and saving on keyboard, gamepad and touch
 node tests/e2e-crashes.mjs           # every crash kind on every aircraft, strikes, the Rotor strikes setting, crash replays, effect cost
 node tests/e2e-static.mjs            # the build on a plain static host (no /api): browser saving, reload, Download
+node tests/e2e-tuning.mjs            # flight tuning board: sliders, tabs, persistence, presets, export/import, and every preview clip at both ends of every range
 ```
 
 A new `tests/e2e-<name>.mjs` joins CI automatically if it takes the base URL as an argument, prints
@@ -158,6 +175,7 @@ Yaw stays on a proportional stick in every preset, never on a bumper or trigger.
 - `?view=cockpit` starts in the pilot's seat (the choice is remembered). `node tests/e2e-cockpit.mjs http://localhost:4190/` checks the cockpit view in the browser and `node tests/shot-cockpit.mjs` writes look-around screenshots.
 - `?debug=1` or the backquote key shows frame time, physics time, body counts, draw calls, live inputs, assist state, collective, thrust/weight, rotor speed, cargo mass, wetness, immersion, string tension and brew levels. F4 (with the overlay open) draws the physics colliders.
 - `?quality=low|medium|high` overrides automatic quality (also in the pause menu). `?fps=30` caps rendering to test variable frame rates (physics stays at 240 Hz).
+- The flight tuning board (above) is the player-facing way to tune feel; `window.__helicoptea.tuning` is the same thing from the console (`tuning.setGlobal('coasting', 0.4)`, `tuning.exportText()`). Its stick mapping is applied after the controller's own dead zone and curve, so the two stack.
 - `window.__helicoptea` exposes the sim, view, input and an `Autopilot` class for console experiments.
 - **All tuning lives in [src/config.js](src/config.js)**: physics rate, helicopter mass/inertia/thrust/drag/damping, assist gains, cargo mass, water capacity, buoyancy, liquid drag, soak/drain/brew times, crash thresholds, camera and input curves. Table, house and garden layout is in [src/sim/layout.js](src/sim/layout.js).
 - Startup logs one line with load time, quality tier, pixel ratio, GPU and Rapier version. Fatal errors and WebGL context loss show a recoverable error screen. Nothing is logged per frame.

@@ -89,11 +89,14 @@ export class Sim {
     this.wreckCount = 0;
     this.lastStepMs = 0;
     this.heliId = 0;
-    buildStaticWorld(this);
+    // bare: an open table and the pad only (the tuning board's preview clips fly there).
+    this.bare = !!opts.bare;
+    buildStaticWorld(this, { bare: this.bare });
     this.air = new AirField(this);
     this.damage = new Damage(this);
     if (opts.rotorStrikes === false) this.damage.rotorStrikes = false;
     this.spawnHeli();
+    if (this.bare) this.pegs = [];
     for (const p of this.pegs) this.refillPeg(p);
     this.milk = new MilkSystem(this);
     this.props = new Props(this, !!opts.lite);
@@ -408,7 +411,7 @@ export class Sim {
     this.spawnHeli();
     for (const p of this.pegs) this.refillPeg(p);
     // Guarantee usable cargo even if every bag slot was taken by bags in cups.
-    if (!this.pegs.some((p) => p.bag && p.station === 0)) {
+    if (this.pegs.length && !this.pegs.some((p) => p.bag && p.station === 0)) {
       const p = this.pegs[1];
       const victim = this.bags.find((b) => !b.attach);
       if (victim) this.removeBag(victim);

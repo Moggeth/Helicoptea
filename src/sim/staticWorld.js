@@ -5,7 +5,7 @@ import { TABLE, PAD, STATIONS, CUPS, DISCARD, TEAPOT, SUGAR, VASE, JUG, PLATE, B
 
 // Builds every fixed collider. Thin ceramic walls are rings of overlapping boxes so cups stay
 // genuinely hollow: bags enter through the opening and rest on the real interior floor.
-export function buildStaticWorld(sim) {
+export function buildStaticWorld(sim, { bare = false } = {}) {
   const world = sim.world;
   const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
   const q = new THREE.Quaternion();
@@ -23,6 +23,12 @@ export function buildStaticWorld(sim) {
     return add(RAPIER.ColliderDesc.cuboid(hx, hy, hz), x, y, z, kind, material, rot);
   };
   const cyl = (r, hh, x, y, z, kind, material) => add(RAPIER.ColliderDesc.cylinder(hh, r), x, y, z, kind, material);
+
+  if (bare) {
+    box(2, 0.02, 2, 0.3, -0.02, 0.2, 'table', 'wood');
+    cyl(PAD.radius, PAD.height / 2, PAD.x, PAD.height / 2, PAD.z, 'pad', 'cork');
+    return body;
+  }
 
   // Table; the house shell, counter and garden.
   box(TABLE.halfX, TABLE.thickness / 2, TABLE.halfZ, 0, -TABLE.thickness / 2, 0, 'table', 'wood');

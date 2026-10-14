@@ -44,7 +44,7 @@ export class Props {
     this.items = [];
     this.apples = [];
     this.fixed = sim.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-    for (const d of defs(lite)) this.items.push(this.make(d));
+    if (!sim.bare) for (const d of defs(lite)) this.items.push(this.make(d));
     this.lamp = this.pendulum('lamp', LAMP.x, LAMP.z, LAMP.length, 0.35, GROUPS.world, (add) => {
       add(RAPIER.ColliderDesc.cone(LAMP.shadeH / 2, LAMP.shadeR), 0, 0, 0);
       add(RAPIER.ColliderDesc.capsule(LAMP.length / 2 - 0.05, 0.005), 0, LAMP.length / 2 + 0.03, 0);
