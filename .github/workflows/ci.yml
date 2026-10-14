@@ -1,0 +1,41 @@
+name: CI
+
+# Every push and pull request: install, build, the Node checks, then every browser suite (tests/e2e*.mjs,
+# found by tests/run-e2e.mjs, so new suites run without editing this file) in headless Chrome.
+# Windows matches the machine the suites were written on (Chrome path, ANGLE on D3D11). Hosted runners
+# have no GPU, so frame-rate checks are reported as warnings here rather than failures; every other check
+# must pass. Vercel builds and deploys on its own from the same pushes.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run check
+      - name: Browser suites
+        run: node tests/run-e2e.mjs --perf-advisory
+      - name: Upload screenshots and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            test-results/
+            logs/flights/
+          if-no-files-found: ignore
+          retention-days: 14

@@ -1,0 +1,1 @@
+{ "static": true, "flights": null, "note": "No flight log endpoint on a static host: the game saves flights in the browser (src/replay/store.js)." }

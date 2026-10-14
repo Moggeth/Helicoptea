@@ -61,6 +61,7 @@ export class ReplayViewer {
       <div class="rp-top">
         <div class="rp-title"><b>Replay</b><select class="rp-flight" aria-label="Flight"></select></div>
         <div class="rp-save" aria-live="polite"></div>
+        <button class="rp-btn sm rp-dl" data-rp="download" title="Download this flight and its notes as one file">Download</button>
         <button class="rp-btn rp-close" data-rp="close" title="Close (Esc, gamepad B)">Close <span class="k">Esc</span></button>
       </div>
       <div class="rp-readout" aria-live="off"><canvas class="rp-sticks" width="120" height="58"></canvas><pre class="rp-text"></pre></div>
@@ -216,7 +217,7 @@ export class ReplayViewer {
     const label = (f, live) => `${live ? 'This flight' : f.startedAt.slice(11, 19)} · ${NAMES[f.aircraft] || f.aircraft} · ${fmt(f.wallDuration()).slice(0, -3)}${f.crash() ? ' · crashed' : ''}${f.notes.length ? ` · ${f.notes.length} note${f.notes.length > 1 ? 's' : ''}` : ''}`;
     let html = `<optgroup label="Recent (this session)">${mem.map((f) => `<option value="m:${f.id}">${esc(label(f, f === this.recorder.current))}</option>`).join('')}</optgroup>`;
     const saved = this.diskList.filter((d) => !ids.has(d.id));
-    if (saved.length) html += `<optgroup label="Saved in logs/flights">${saved.slice(0, 60).map((d) => `<option value="d:${d.id}">${esc(`${d.id.slice(0, 8)} ${d.startedAt ? d.startedAt.slice(11, 19) : ''} · ${NAMES[d.aircraft] || d.aircraft} · ${fmt(d.wallDuration || 0).slice(0, -3)}${d.crash ? ' · crashed' : ''}${d.notes ? ` · ${d.notes} notes` : ''}`)}</option>`).join('')}</optgroup>`;
+    if (saved.length) html += `<optgroup label="${this.store.mode === 'browser' ? 'Saved in this browser' : 'Saved in logs/flights'}">${saved.slice(0, 60).map((d) => `<option value="d:${d.id}">${esc(`${d.id.slice(0, 8)} ${d.startedAt ? d.startedAt.slice(11, 19) : ''} · ${NAMES[d.aircraft] || d.aircraft} · ${fmt(d.wallDuration || 0).slice(0, -3)}${d.crash ? ' · crashed' : ''}${d.notes ? ` · ${d.notes} notes` : ''}`)}</option>`).join('')}</optgroup>`;
     this.sel.innerHTML = html;
     if (this.flight) this.sel.value = `${this.disk.has(this.flight.id) && !ids.has(this.flight.id) ? 'd' : 'm'}:${this.flight.id}`;
   }
@@ -267,6 +268,7 @@ export class ReplayViewer {
       case 'notes': this.el.classList.toggle('notes-open'); this.sizeCanvases(); break;
       case 'graphs': this.el.classList.toggle('graphs-off'); this.sizeCanvases(); break;
       case 'add': this.addNote(d.tag, this.input.value); break;
+      case 'download': if (f && this.store.download(f)) this.flash(`Downloaded ${f.id}.json`); break;
       default: break;
     }
     this.updateButtons();
@@ -333,7 +335,8 @@ export class ReplayViewer {
   updateSave() {
     const f = this.flight, st = this.store;
     if (!f) { this.saveEl.textContent = 'No flights recorded yet: fly first, then come back.'; return; }
-    if (st.available === false) this.saveEl.textContent = 'Kept in memory only: this server has no flight log endpoint.';
+    if (st.mode === 'memory') this.saveEl.textContent = 'Kept in memory only: use Download to keep this flight.';
+    else if (f.saved && st.mode === 'browser') this.saveEl.textContent = 'Saved in this browser: use Download to keep a copy.';
     else if (f.saved) this.saveEl.textContent = `Saved to ${f.savedPath || `logs/flights/${f.id}.json`}`;
     else if (st.lastError) this.saveEl.textContent = `Not saved (${st.lastError})`;
     else this.saveEl.textContent = 'Saving…';

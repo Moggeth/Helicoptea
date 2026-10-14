@@ -82,8 +82,13 @@ logs/flights/<id>.json   header, channel names and units, entity index, events, 
 logs/flights/<id>.bin    little-endian Float32: samples, then each entity's keys
 ```
 
-`<id>` is `YYYYMMDD-HHMMSS-<aircraft>-<n>` in local time. A static build hosted elsewhere has no endpoint:
-the viewer says so and keeps flights in memory.
+`<id>` is `YYYYMMDD-HHMMSS-<aircraft>-<n>` in local time. A static build hosted elsewhere (the Vercel
+deploy) has no endpoint: flights and notes are saved in that browser's IndexedDB instead (the newest 40),
+or kept in memory if the browser refuses storage, and the viewer says which.
+
+The viewer's **Download** button saves the current flight and its notes as one `<id>.json` with the binary
+embedded as base64 (`binBase64`). Put it in `logs/flights/` and `tools/flight-notes.mjs`, the replay viewer
+on the dev server and everything else read it like a flight the server saved.
 
 **JSON header** (the useful fields):
 

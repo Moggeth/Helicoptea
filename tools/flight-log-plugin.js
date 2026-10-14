@@ -7,7 +7,7 @@
 //   PUT  /api/flights/<id>.json     save the header (notes changes only rewrite this)
 //   PUT  /api/flights/<id>.bin      save the binary
 //
-// A static build hosted anywhere else simply has no endpoint; the game then keeps flights in memory.
+// A static build hosted anywhere else has no endpoint; the game then saves flights in the browser (src/replay/store.js).
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -46,6 +46,12 @@ export function flightLogPlugin(opts = {}) {
     if (!m || !ID.test(m[1])) { res.statusCode = 400; return res.end('bad flight id'); }
     const file = path.join(dir, `${m[1]}.${m[2]}`);
     if (req.method === 'GET') {
+      const json = path.join(dir, `${m[1]}.json`);
+      if (m[2] === 'bin' && !fs.existsSync(file) && fs.existsSync(json)) {
+        // A flight downloaded from a static host carries its binary inside the JSON (binBase64).
+        const j = JSON.parse(fs.readFileSync(json, 'utf8'));
+        if (j.binBase64) { res.setHeader('Content-Type', 'application/octet-stream'); return res.end(Buffer.from(j.binBase64, 'base64')); }
+      }
       if (!fs.existsSync(file)) { res.statusCode = 404; return res.end('not found'); }
       res.setHeader('Content-Type', m[2] === 'json' ? 'application/json' : 'application/octet-stream');
       return fs.createReadStream(file).pipe(res);

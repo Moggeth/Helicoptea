@@ -48,8 +48,9 @@ Every flight is recorded (inputs, telemetry and everything that moves, at 60 Hz)
 (gamepad **R3**, touch **⚑ Mark**) to mark a moment. **Pause → Flight replay**, or **Watch replay** after a
 crash, plays it back from the snapshots with a timeline, slow motion, frame step, chase / orbit / cockpit
 cameras and graphs of the sticks, height, speed and rope tension; add notes there tagged good or bad. Flights
-and notes are saved to `logs/flights/` by the dev and preview servers, and `node tools/flight-notes.mjs`
-summarises the notes with the telemetry around each one. See [docs/FLIGHT-LOGS.md](docs/FLIGHT-LOGS.md).
+and notes are saved to `logs/flights/` by the dev and preview servers (in the browser on the online build,
+with a **Download** button for a copy), and `node tools/flight-notes.mjs` summarises the notes with the
+telemetry around each one. See [docs/FLIGHT-LOGS.md](docs/FLIGHT-LOGS.md).
 
 ## Rotor wash, AO
 
@@ -77,6 +78,8 @@ Click **Start flying** (this also unlocks browser audio).
 ## Tests
 
 ```bash
+npm run build && npm run e2e         # every browser suite (tests/e2e*.mjs) against one preview server; what CI runs
+npm run e2e -- replay static         # only suites whose name contains these words
 npm run check                        # headless physics checks: both aircraft and the house + garden (Node only)
 node tests/e2e.mjs                   # browser checks against npm run preview (port 4178)
 node tests/e2e.mjs http://localhost:5178/ --headed --only=desktop
@@ -85,11 +88,26 @@ node tests/e2e-milk.mjs              # milk bucket: hook, dip, carry, pour with 
 node tests/e2e-skycrane.mjs          # skycrane: snorkel, pump, doors, salvo, auto-fill on keyboard, gamepad and touch
 node tests/e2e-depth.mjs http://localhost:4192/   # depth cues: shadows on table and tea, plumb line, rim glint, camera, toggles
 node tests/e2e-replay.mjs            # flight recording, replay viewer, notes and saving on keyboard, gamepad and touch
+node tests/e2e-static.mjs            # the build on a plain static host (no /api): browser saving, reload, Download
 ```
+
+A new `tests/e2e-<name>.mjs` joins CI automatically if it takes the base URL as an argument, prints
+`PASS` / `FAIL  <check>` lines and exits non-zero on failure.
 
 `tests/sim-checks.mjs` drives the real simulation with the same stick inputs a player produces (via a scripted autopilot) and asserts physical outcomes: hover, assist on/off behaviour, peg pickup, swing and load transfer, immersion, wetness and mass, per-cup brewing, extraction and draining, release onto the saucer, landing, crash thresholds, and bounded crash/restart cycles.
 
 `tests/e2e.mjs` uses your installed Chrome or Edge through `playwright-core` (no browser download). It flies the full loop with real keyboard events plus the in-page autopilot, then checks an emulated gamepad, emulated touch (multi-touch, cancel, portrait), a 30 fps render cap, focus loss and pause, 20 crash/restart cycles and sandbox reset. Screenshots and a JSON report go to `test-results/`.
+
+## Online build and CI
+
+`.github/workflows/ci.yml` runs on every push and pull request (Windows runner, headless Chrome): `npm ci`,
+the build, `npm run check` and every browser suite. Hosted runners have no GPU, so frame-rate checks show
+as warnings in the run summary there instead of failing; everything else must pass. Screenshots and reports
+are attached to each run as `test-results`.
+
+Vercel builds the same repo as a static Vite site (`vercel.json`: `npm run build`, output `dist/`, hashed
+`assets/` cached for a year, `index.html` always revalidated). `master` deploys to production and every
+other branch or pull request gets a preview URL.
 
 ## Controls
 

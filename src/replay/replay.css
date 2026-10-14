@@ -35,6 +35,7 @@ body.replay-on #hud, body.replay-on #touch, body.replay-on .overlay:not(#error) 
 .rp-flight option, .rp-flight optgroup { color: #2a1d16; background: #f8f1e4; }
 .rp-save { flex: 0 1 auto; min-width: 0; font-size: 12px; color: rgba(248, 241, 228, 0.82); background: var(--rp-bg); border-radius: 9px; padding: 6px 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rp-save:empty { display: none; }
+.rp-dl { flex: none; }
 .rp-close { margin-left: auto; background: var(--terracotta); border-color: var(--terracotta-deep); }
 
 .rp-readout {

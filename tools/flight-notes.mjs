@@ -42,7 +42,8 @@ const num = (v, k) => { const s = SHOW[k]; const x = s ? v * s[0] : v; return Ma
 const out = [];
 
 for (const h of pick) {
-  const bin = fs.readFileSync(path.join(dir, `${h.id}.bin`));
+  // A flight downloaded from a static host carries its binary inside the JSON (binBase64).
+  const bin = h.binBase64 ? Buffer.from(h.binBase64, 'base64') : fs.readFileSync(path.join(dir, `${h.id}.bin`));
   const f = decodeFlight(h, bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength));
   const S = f.samples;
   const sum = h.summary || f.summary();
