@@ -379,8 +379,8 @@ class AircraftFx {
     // Light quads face the camera: their local rotation undoes the airframe's.
     const faceQ = camera ? _q.copy(M.quaternion).invert().multiply(camera.quaternion) : null;
     for (const G of this.glows) G.update(t, alive, faceQ);
-    M.updateMatrixWorld();
-    this.grime.uBodyInv.value.copy(M.matrixWorld).invert();
+    // The model hangs straight off the scene, so its pose alone gives the body frame (no tree walk).
+    this.grime.uBodyInv.value.compose(M.position, M.quaternion, M.scale).invert();
 
     // --- Landing light: on the ground and in the low hover it lights a pool below.
     if (this.lamp) {
@@ -394,7 +394,10 @@ class AircraftFx {
       _p.set(...L.pos).applyQuaternion(h.quat).add(h.pos);
       _d.set(...L.dir).normalize().applyQuaternion(h.quat);
       let hit = null;
-      if (alive && h.body) hit = this.view.sim.world.castRay(new RAPIER.Ray({ x: _p.x, y: _p.y, z: _p.z }, { x: _d.x, y: _d.y, z: _d.z }), 0.6, true, undefined, GROUPS.queryWorld, undefined, h.body);
+      // The pool barely moves between frames: probe every third frame and reuse the hit in between.
+      this.lampN = (this.lampN || 0) + 1;
+      if (this.lampN % 3 !== 1 && this.lampHit !== undefined) hit = this.lampHit;
+      else if (alive && h.body) hit = this.lampHit = this.view.sim.world.castRay(new RAPIER.Ray({ x: _p.x, y: _p.y, z: _p.z }, { x: _d.x, y: _d.y, z: _d.z }), 0.6, true, undefined, GROUPS.queryWorld, undefined, h.body);
       if (hit && this.root.visible) {
         const dist = hit.timeOfImpact;
         this.pool.visible = true;
