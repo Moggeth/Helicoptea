@@ -153,8 +153,14 @@ async function boot() {
   const fpRig = new CockpitRig();
   setProgress(0.78, 'Warming the shaders…');
   await tick();
-  if (renderer.compileAsync) await renderer.compileAsync(scene, camera);
-  else renderer.compile(scene, camera);
+  const warm = async () => { if (renderer.compileAsync) await renderer.compileAsync(scene, camera); else renderer.compile(scene, camera); };
+  await warm();
+  // Materials drawn into a render target (the AO pipeline, the hook camera) use a different shader variant
+  // from the screen's: build those now too, or each one compiles mid-flight the first time it is seen.
+  post.ensureTarget();
+  renderer.setRenderTarget(post.target);
+  await warm();
+  renderer.setRenderTarget(null);
   for (const it of Object.values(cockpit.interiors)) it.group.visible = true;
   renderer.compile(cockpit.scene, cockpit.camera);
   for (const it of Object.values(cockpit.interiors)) it.group.visible = false;
