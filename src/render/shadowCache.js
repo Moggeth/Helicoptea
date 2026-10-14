@@ -13,6 +13,7 @@ import * as THREE from 'three';
 // visibility change; it stays in the moving set for a while (so a cup knocked over doesn't rebuild the
 // cache every frame) and becomes still again after STILL_FRAMES frames without change.
 const STILL_FRAMES = 240;
+const WALK_EVERY = 6;         // frames between walks of the scene for casters
 
 export class ShadowCache {
   constructor(renderer, scene, light) {
@@ -20,7 +21,8 @@ export class ShadowCache {
     this.scene = scene;
     this.light = light;
     this.enabled = true;
-    this.track = new Map();     // mesh -> { m: Float64Array(16), pos, inst, still: frames unchanged }
+    this.off = [];
+    this.tracked = new Set();   // casters carrying o.__shadowTrack = { m: Float64Array(16), pos, inst, still, seen }
     this.visible = [];          // casters reached by a visible walk this frame
     this.camKey = new Float64Array(32);
     this.cache = null;          // WebGLRenderTarget copy of the static-only shadow map
@@ -28,7 +30,13 @@ export class ShadowCache {
     this.frame = 0;
     this.stats = { rebuilds: 0, statics: 0, movers: 0 };
     this._blit = false;
-    this.collect = (o) => { if ((o.isMesh || o.isLine || o.isPoints) && o.castShadow) this.visible.push(o); };
+    // Casters that can draw into the shadow map (a mesh whose material is switched off never does).
+    this.collect = (o) => {
+      if (!(o.isMesh || o.isLine || o.isPoints) || !o.castShadow) return;
+      const m = o.material;
+      if (Array.isArray(m) ? !m.some((x) => x.visible) : !m.visible) return;
+      this.visible.push(o);
+    };
     const sm = renderer.shadowMap;
     const origRender = sm.render.bind(sm);
     const origClear = renderer.clear.bind(renderer);
@@ -45,20 +53,23 @@ export class ShadowCache {
   }
 
   // Which visible casters are still, and has anything about the still set changed since the cache was made?
+  // The scene is walked every few frames (casters appearing or vanishing are rare); in between, only the
+  // casters already found are checked. Tracking lives on the objects themselves (no map lookups).
   classify() {
     this.frame++;
-    const vis = this.visible;
-    vis.length = 0;
-    this.scene.traverseVisible(this.collect);
+    const vis = this.visible, seen = this.frame;
     let dirty = false;
-    const seen = this.frame;
-    for (const o of vis) {
-      let t = this.track.get(o);
+    const walk = this.frame % WALK_EVERY === 1 || !vis.length;
+    if (walk) { vis.length = 0; this.scene.traverseVisible(this.collect); }
+    for (let k = 0; k < vis.length; k++) {
+      const o = vis[k];
+      let t = o.__shadowTrack;
       const pos = o.geometry && o.geometry.attributes.position ? o.geometry.attributes.position.version : 0;
       const inst = o.isInstancedMesh ? o.instanceMatrix.version : 0;
       if (!t) {
         // New casters (and ones back in view) start as movers: they only join the cache once still.
-        this.track.set(o, { m: new Float64Array(o.matrixWorld.elements), pos, inst, still: 0, seen });
+        o.__shadowTrack = { m: new Float64Array(o.matrixWorld.elements), pos, inst, still: 0, seen };
+        this.tracked.add(o);
         continue;
       }
       t.seen = seen;
@@ -73,11 +84,13 @@ export class ShadowCache {
         m.set(e); t.pos = pos; t.inst = inst;
       }
     }
-    // Still casters that vanished leave a stale shadow in the cache.
-    for (const [o, t] of this.track) {
+    // Still casters that vanished (checked when the scene was walked) leave a stale shadow in the cache.
+    if (walk) for (const o of this.tracked) {
+      const t = o.__shadowTrack;
       if (t.seen === seen) continue;
       if (t.still >= STILL_FRAMES) dirty = true;
-      this.track.delete(o);
+      delete o.__shadowTrack;
+      this.tracked.delete(o);
     }
     return dirty;
   }
@@ -100,11 +113,14 @@ export class ShadowCache {
     const dirty = this.classify() || this.cameraMoved();
     const vis = this.visible;
     let statics = 0;
-    for (const o of vis) if (this.track.get(o).still >= STILL_FRAMES) statics++;
+    for (let i = 0; i < vis.length; i++) if (vis[i].__shadowTrack.still >= STILL_FRAMES) statics++;
     this.stats.statics = statics; this.stats.movers = vis.length - statics;
     if (statics < 8) { origRender(lights, scene, camera); return; } // nothing worth caching yet
-    const hide = (still) => { for (let i = 0; i < vis.length; i++) if ((this.track.get(vis[i]).still >= STILL_FRAMES) === still) vis[i].castShadow = false; };
-    const show = () => { for (let i = 0; i < vis.length; i++) vis[i].castShadow = true; };
+    // Switch one set off for a pass and back on after (only those we switched, so a caster the game itself
+    // turned off between walks of the scene stays off).
+    const off = this.off;
+    const hide = (still) => { off.length = 0; for (let i = 0; i < vis.length; i++) { const o = vis[i]; if (o.castShadow && (o.__shadowTrack.still >= STILL_FRAMES) === still) { o.castShadow = false; off.push(o); } } };
+    const show = () => { for (let i = 0; i < off.length; i++) off[i].castShadow = true; off.length = 0; };
     const map = () => light.shadow.map;
     if (dirty || !this.valid || !map()) {
       // Static casters only, for the sun alone, then keep a copy.
