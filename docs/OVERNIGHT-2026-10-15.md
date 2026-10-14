@@ -289,6 +289,23 @@ flag is a plausible cause of those startup failures; the next hosted run must es
 No timeout, assertion or performance threshold was relaxed. The audio timeout was different: its
 click completed but Playwright waited for scheduled navigation; it must be investigated separately.
 
+Follow-up hosted run `38580695857` completed all 20 suites in **31 min 43 s**. All three corrected
+hint/HUD suites passed **53/53**. Audio, camera, replay, static hosting and the main gameplay's
+functional checks also passed. Overall it still failed: **543 passed, 12 failed**, comprising eight
+frame-rate checks and four functional observations (Chinook survival after Assist-off, transient
+crash effects, rotor-wash settling and touch Pump double-tap). These are not a clean CI result.
+
+A bounded touch diagnostic copied the existing touch mission and recorded pointer timestamps and
+consumed actions, without changing the game. At 12× CPU throttle, the baseline and accepted builds
+both failed the Pump double-tap check: the two pointer-down events were actually **1.14 s / 1.11 s
+apart**, despite the harness requesting a 60 ms inter-tap pause. The accepted build at normal CPU
+passed **7/7** touch checks, with pointer downs **171 ms** apart and an `autofill` action consumed.
+This reproduces an invalid double-tap stimulus under heavy throttling, not a proven dropped-input
+bug. Do not widen the game's double-tap window to make this test pass. It does not establish the
+exact timing on CI or physical phones. Diagnostic script: `scratch/overnight-touch-timing.mjs`;
+event traces and screenshots: `test-results/touch-timing-*`; logs: `logs/reviews/overnight-touch-timing-*`.
+The proposed control change was therefore rejected; thresholds and gameplay remain unchanged.
+
 The proposed Skycrane tutorial replacement was not accepted: the aircraft has a working cargo hook,
 so tea-bag guidance is applicable. Prioritising milk instructions needs a clearer usability criterion.
 No flight tuning alternatives were introduced, and flight forces and aircraft parameters are unchanged.
