@@ -43,7 +43,9 @@ const base = `http://127.0.0.1:${port}/`;
 const stop = () => { try { preview.kill(); } catch { /* already gone */ } };
 process.on('exit', stop);
 for (let i = 0; ; i++) {
-  try { if ((await fetch(base)).ok) break; } catch { /* not up yet */ }
+  // An unrelated server may already own the port. Wait for OUR Vite child to announce readiness;
+  // a successful HTTP probe alone would silently test another checkout or an older build.
+  try { if (previewLog.includes('Local:') && (await fetch(base)).ok) break; } catch { /* not up yet */ }
   if (i > 120 || preview.exitCode !== null) { console.error(`preview server did not start on ${base}\n${previewLog}`); process.exit(1); }
   await new Promise((r) => setTimeout(r, 250));
 }
