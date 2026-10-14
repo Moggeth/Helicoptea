@@ -22,3 +22,28 @@ All times local (AEDT), 2026-10-13. One continuous session by Claude.
 | 13:20–14:40 | Live side-by-side preview rig, scripted pilot, scenarios; first screenshots |
 | 14:40–15:50 | Making every clip fly at both ends of every range on every aircraft: assist-flown skycrane clips, rate-aware altitude hold, ceiling/wall/table guard, bare preview world; headless and browser tests; docs |
 | 15:50–16:05 | Merges in between (Vercel CI, tablecloth, controller layouts, rotor wash, crashes), rebases, full suites |
+
+### 2026-10-14: Codex optimization and merge
+
+Measured elapsed seconds, not estimated work durations. Full local ledger:
+`logs/reviews/optimization-timings.jsonl`. See [handoff](OPTIMIZATION-2026-10-14.md) for outcomes and lessons.
+
+| Material step | Seconds | Outcome |
+|---|---:|---|
+| Initial review: rejected WorkCodex commission | 14.51 | HTTP 401; not retried without authorization repair |
+| Resource-fix production build | 2.70 | Passed |
+| Startup baseline, three contexts | 4.84 | Captured before measurements |
+| Lazy cockpit build and three contexts | 7.15 | Median ready time 1088 → 1026 ms |
+| Cockpit and lifecycle browser checks | 49.15 | Passed |
+| Pre-merge full headless checks | 80.58 | Passed |
+| Flight scratch-vector manoeuvre checks | 3.57 | 14 passed |
+| Replay lifecycle build/browser regression | 7.44 | Passed |
+| Pre-merge browser sweep, abandoned | 200.69 | New merge required rebuilt baseline |
+| Branch ancestry and patch equivalence | 3.07 | Outstanding perf branch identified |
+| Merged production build | 2.96 | Passed |
+| Duplicate browser sweep, abandoned | 70.58 | Shared port ownership discovered |
+| Occupied-port regression | 0.63 | Expected rejection, exit 1 |
+| Source-CSS touch layout checks | 3.17 | 15 passed |
+| Isolated pre-perf-merge archive/build | 3.86 | Baseline built without modifying active checkout |
+| Final merged full headless checks | 101.43 | 489 passed; other browser tasks active |
+| Explicit bounded wait during browser acceptance | 30.01 | Suite continued; no processes interrupted |

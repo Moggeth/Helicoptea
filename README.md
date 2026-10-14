@@ -65,7 +65,7 @@ Rotor strikes are damaging: brushing something chips the blades (less lift, a sh
 Every flight is recorded (inputs, telemetry and everything that moves, at 60 Hz). Press **N** in flight
 (gamepad **R3**, touch **⚑ Mark**) to mark a moment. **Pause → Flight replay**, or **Watch replay** after a
 crash, plays it back from the snapshots with a timeline, slow motion, frame step, chase / orbit / cockpit
-cameras and graphs of the sticks, height, speed and rope tension; add notes there tagged good or bad. Flights
+cameras and graphs of the sticks, height, speed and estimated static hanging load; add notes there tagged good or bad. Flights
 and notes are saved to `logs/flights/` by the dev and preview servers (in the browser on the online build,
 with a **Download** button for a copy), and `node tools/flight-notes.mjs` summarises the notes with the
 telemetry around each one. See [docs/FLIGHT-LOGS.md](docs/FLIGHT-LOGS.md).
@@ -190,11 +190,13 @@ Yaw stays on a proportional stick in every preset, never on a bumper or trigger.
 
 - `?view=cockpit` starts in the pilot's seat (the choice is remembered). `node tests/e2e-cockpit.mjs http://localhost:4190/` checks the cockpit view in the browser and `node tests/shot-cockpit.mjs` writes look-around screenshots.
 - `?debug=1` or the backquote key shows frame time, physics time, body counts, draw calls, live inputs, assist state, collective, thrust/weight, rotor speed, cargo mass, wetness, immersion, string tension and brew levels. F4 (with the overlay open) draws the physics colliders.
-- `?quality=low|medium|high` overrides automatic quality (also in the pause menu). `?fps=30` caps rendering to test variable frame rates (physics stays at 240 Hz).
+- `?quality=low|medium|high|ultra` overrides automatic quality (also in the pause menu). Ultra adds glass refraction. `?fps=30` caps rendering to test variable frame rates (physics stays at 240 Hz).
+- **F2** or **Pause → Frame rate readout** shows frame rate, 1% lows and CPU/GPU time where supported. `?dynres=0` holds resolution fixed for comparisons. Run `node tests/perf-bench.mjs http://127.0.0.1:4199/ --size 1920x1080 --quality high --out desktop` against your own preview server; results go to `test-results/perf/`. Avoid concurrent browser benchmarks.
 - The flight tuning board (above) is the player-facing way to tune feel; `window.__helicoptea.tuning` is the same thing from the console (`tuning.setGlobal('coasting', 0.4)`, `tuning.exportText()`). Its stick mapping is applied after the controller's own dead zone and curve, so the two stack.
 - `window.__helicoptea` exposes the sim, view, input and an `Autopilot` class for console experiments.
 - **All tuning lives in [src/config.js](src/config.js)**: physics rate, helicopter mass/inertia/thrust/drag/damping, assist gains, cargo mass, water capacity, buoyancy, liquid drag, soak/drain/brew times, crash thresholds, camera and input curves. Table, house and garden layout is in [src/sim/layout.js](src/sim/layout.js).
-- Startup logs one line with load time, quality tier, pixel ratio, GPU and Rapier version. Fatal errors and WebGL context loss show a recoverable error screen. Nothing is logged per frame.
+- Startup logs one line with load time, quality tier, pixel ratio, GPU and Rapier version. Fatal errors and WebGL context loss show a recoverable error screen. The last 20 fatal errors persist in this browser's localStorage under `helicoptea.errors`, with build identity and stack. Inspect with `JSON.parse(localStorage.getItem('helicoptea.errors') || '[]')`; reload to recover. Nothing is logged per frame.
+- [Optimization and merge handoff, 2026-10-14](docs/OPTIMIZATION-2026-10-14.md) records fixes, verification, performance evidence and remaining limitations. `npm run check` includes tuning, resource ownership, replay save races and haptic arbitration. `npm run e2e` discovers all browser suites, including reset/preview/replay resource soaks and touch-control overlap checks. Build first and use an unused port (`node tests/run-e2e.mjs --port 4210`); do not rebuild `dist/` during a running suite.
 
 ## Project layout
 

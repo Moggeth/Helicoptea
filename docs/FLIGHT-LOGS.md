@@ -33,7 +33,7 @@ note to edit it, and × deletes it. Notes save themselves.
 **as flown**: the clock you experienced, so "0:12" is twelve seconds into the flight from your point of view.
 
 The graphs show, around the playhead (5 s, 10 s, 30 s or the whole flight): the processed sticks (pitch,
-roll, yaw, collective), gear height above the surface, horizontal and vertical speed, and rope tension (the
+roll, yaw, collective), gear height above the surface, horizontal and vertical speed, and estimated static hanging load (the
 skycrane shows its tank). The readout top left shows height, speed, attitude, body rates, collective, thrust,
 T/W and load, with the sticks drawn as two boxes (on a gamepad, the faint blue dot is the raw stick before
 the dead zone and curve).
@@ -48,7 +48,7 @@ At 60 Hz (every 4th physics step), in `src/replay/recorder.js`:
   `touch.*`), the active gamepad's raw axes and triggers, aircraft position, orientation, velocity, body
   rates, attitude and heading, speeds, gear and hub height above the surface, collective, thrust, thrust
   fraction, T/W including the load, rotor speed and phases, disc tilts, the assist's commanded attitude and
-  the rotor mix, rope tension and carried mass, bag wetness and immersion, bucket fill, the skycrane's tank,
+  the rotor mix, static load estimate and carried mass, bag wetness and immersion, bucket fill, the skycrane's tank,
   doors, pump, hose length and intake depth, and the crash detector's state.
 - **Entities**, keyframed only when they move (with a hold key before each change, so interpolation is exact
   to 0.1 to 0.15 mm): every tea bag with its string, wetness and stain; the milk bucket with its fill and
@@ -58,12 +58,23 @@ At 60 Hz (every 4th physics step), in `src/replay/recorder.js`:
   splash, extract, bucket splash, auto-fill phases, radio, restart, reset, aircraft switch.
 
 A flight runs from take-off position to the next restart, reset or aircraft switch; after a crash, 10 more
-seconds of wreckage are kept. A flight longer than 15 minutes continues in a new log. The last 12 flights
+seconds of wreckage are kept. A flight longer than 15 minutes, or one reaching the recording memory budget, continues in a new log. The last 12 flights
 (at most 96 MB) stay in memory; finished flights are saved to disk. Recording costs about 10 µs per physics
 step (measured: 9 to 16 µs against 250 to 290 µs of simulation). `?record=0` turns it off.
 
 Not recorded: the air field, cups' tea colour and levels, milk streams and puddles, steam, the cat and the
 apples. The replay shows the cups as they are now.
+
+New recordings include immutable snapshots of the build ID, physics configuration, tuning, controller
+settings and world speed. Tuning changes add settings events. The historical `tension` channel name is
+retained for file compatibility: it means carried mass × gravity while taut, zero while slack, not a
+measurement of the dynamic Rapier constraint force.
+
+Saves capture one revision and sample count; recording or note edits during an asynchronous save remain
+dirty for the next save. Invalid or truncated binary ranges are rejected on load. The server writes its
+header and binary as separate files, so this does not promise a transactional pair across power loss.
+Switching replay selections discards stale asynchronous results and releases the previous flight's cargo
+and debris meshes. Clean, unselected disk-loaded flights are evicted from a small in-memory cache.
 
 ## Replay
 
