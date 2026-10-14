@@ -6,6 +6,7 @@ import { flagTexture, boardTexture, barkTexture, leafTexture, foliageTexture, gr
 import { Grass, WIND_GLSL } from './grass.js';
 import { buildHouseShell } from './houseShell.js';
 import { buildCharm } from './charm.js';
+import { buildDetail } from './detail.js';
 
 const V2 = (x, y) => new THREE.Vector2(x, y);
 const _v = new THREE.Vector3(), _c = new THREE.Vector3();
@@ -335,6 +336,7 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
 
   b.build(scene);
   const charm = sim ? buildCharm(scene, quality, kitchen, sim) : null;
+  const detail = buildDetail(scene, quality);
 
   // ---------------------------------------------------------------- per-frame
   const wind = grass.uniforms;
@@ -353,6 +355,7 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
       t += dt;
       if (charm) charm.update(dt, sim, camera);
       if (kitchen.cloth) kitchen.cloth.update(dt, sim);
+      detail.update(dt, sim, grass.uniforms.uBreeze.value);
       wind.uTime.value = t;
       // Breeze slowly veers and freshens.
       const bd = 0.6 + 0.35 * Math.sin(t * 0.05);

@@ -285,3 +285,116 @@ export class TableCloth {
 TableCloth._v = new THREE.Vector3();
 
 function fract(v) { return v - Math.floor(v); }
+
+// A small hanging cloth (tea towel): a grid pinned along its top edge, falling under gravity, pushed by
+// the rotor's air and (outdoors) the breeze, kept off a wall plane if it has one, and shoved aside by
+// the helicopter. Sleeps when nothing is moving it.
+export class HangingCloth {
+  // pins: array of [x, y, z] along the top edge (left to right); drop: length (m); out: unit vector the
+  // towel's face looks along (for the air pressure); wall: optional { axis: 'x'|'z', at, side } plane.
+  constructor(scene, quality, { pins, drop, out, map, color = 0xffffff, wall = null, outdoor = false }) {
+    const NX = pins.length, NY = quality.name === 'low' ? 6 : quality.name === 'medium' ? 8 : 11;
+    this.NX = NX; this.NY = NY; this.n = NX * NY;
+    this.p = new Float32Array(this.n * 3); this.q = new Float32Array(this.n * 3);
+    this.pinned = new Uint8Array(this.n);
+    this.out = out; this.wall = wall; this.outdoor = outdoor;
+    this.dy = drop / (NY - 1);
+    this.dx = Math.hypot(pins[1][0] - pins[0][0], pins[1][1] - pins[0][1], pins[1][2] - pins[0][2]);
+    for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+      const k = j * NX + i;
+      this.p[k * 3] = pins[i][0] + out[0] * 0.002 * j; this.p[k * 3 + 1] = pins[i][1] - j * this.dy; this.p[k * 3 + 2] = pins[i][2] + out[2] * 0.002 * j;
+      if (j === 0) this.pinned[k] = 1;
+    }
+    this.q.set(this.p);
+    const cons = [];
+    const add = (a, b, w) => cons.push(a, b, Math.hypot(this.p[a * 3] - this.p[b * 3], this.p[a * 3 + 1] - this.p[b * 3 + 1], this.p[a * 3 + 2] - this.p[b * 3 + 2]), w);
+    for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+      const k = j * NX + i;
+      if (i + 1 < NX) add(k, k + 1, 1);
+      if (j + 1 < NY) add(k, k + NX, 1);
+      if (i + 1 < NX && j + 1 < NY) { add(k, k + NX + 1, 0.6); add(k + 1, k + NX, 0.6); }
+      if (j + 2 < NY) add(k, k + 2 * NX, 0.25);
+    }
+    this.cons = new Float32Array(cons);
+    const geo = new THREE.BufferGeometry();
+    this.attr = new THREE.BufferAttribute(new Float32Array(this.p), 3).setUsage(THREE.DynamicDrawUsage);
+    geo.setAttribute('position', this.attr);
+    const uv = new Float32Array(this.n * 2);
+    for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) { uv[(j * NX + i) * 2] = i / (NX - 1); uv[(j * NX + i) * 2 + 1] = 1 - j / (NY - 1); }
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    const idx = [];
+    for (let j = 0; j < NY - 1; j++) for (let i = 0; i < NX - 1; i++) { const a = j * NX + i; idx.push(a, a + NX, a + 1, a + 1, a + NX, a + NX + 1); }
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    this.geo = geo;
+    this.mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map, color, roughness: 0.95, side: THREE.DoubleSide }));
+    this.mesh.castShadow = true; this.mesh.receiveShadow = true; this.mesh.frustumCulled = false;
+    scene.add(this.mesh);
+    this.acc = 0; this.t = Math.random() * 10; this.awake = 2; this.moved = 1;
+    this.centre = new THREE.Vector3(pins[Math.floor(NX / 2)][0], pins[0][1] - drop / 2, pins[Math.floor(NX / 2)][2]);
+  }
+
+  update(dt, sim, breeze) {
+    const heli = sim.heli, air = sim.air;
+    const nearHeli = heli && heli.pos.distanceTo(this.centre) < 0.7;
+    const windy = (air && !air.calm && air.near(this.centre, 0.6)) || nearHeli || (this.outdoor && breeze);
+    if (windy) this.awake = 2; else this.awake -= dt;
+    if (this.awake <= 0 && this.moved < 1e-6) return;
+    this.t += dt;
+    this.acc = Math.min(this.acc + dt, 3 / 60);
+    const h = 1 / 60, P = this.p, Q = this.q, o = this.out, v = HangingCloth._v;
+    while (this.acc >= h) {
+      this.acc -= h;
+      let moved = 0;
+      for (let k = 0; k < this.n; k++) {
+        if (this.pinned[k]) continue;
+        const i3 = k * 3, x = P[i3], y = P[i3 + 1], z = P[i3 + 2];
+        const vx = (x - Q[i3]) / h, vy = (y - Q[i3 + 1]) / h, vz = (z - Q[i3 + 2]) / h;
+        let wx = 0, wy = 0, wz = 0;
+        if (air && !air.calm) { air.sample(x, y, z, v); wx = v.x; wy = v.y; wz = v.z; }
+        if (this.outdoor && breeze) {
+          const g = 0.6 + 0.4 * Math.sin(this.t * 1.3 + x * 2.1) * Math.sin(this.t * 0.7 + z * 1.7);
+          wx += breeze.x * breeze.z * g; wz += breeze.y * breeze.z * g;
+        }
+        // Pressure across the towel's face (heavy cotton: ~250 g/m^2) and a touch of flutter.
+        const rx = wx - vx, ry = wy - vy, rz = wz - vz;
+        const rn = rx * o[0] + ry * o[1] + rz * o[2];
+        const k1 = 0.5 * 1.2 * 1.2 / 0.25;
+        let ax = o[0] * k1 * rn * Math.abs(rn), ay = o[1] * k1 * rn * Math.abs(rn), az = o[2] * k1 * rn * Math.abs(rn);
+        const sp = Math.hypot(wx, wz);
+        ax += 0.6 * sp * Math.sin(this.t * 11 + k * 1.7); az += 0.6 * sp * Math.sin(this.t * 9 + k * 2.3);
+        const nx = x + (x - Q[i3]) * 0.98 + ax * h * h, ny = y + (y - Q[i3 + 1]) * 0.98 + (ay - 9.81) * h * h, nz = z + (z - Q[i3 + 2]) * 0.98 + az * h * h;
+        Q[i3] = x; Q[i3 + 1] = y; Q[i3 + 2] = z;
+        P[i3] = nx; P[i3 + 1] = ny; P[i3 + 2] = nz;
+        moved = Math.max(moved, Math.abs(nx - x) + Math.abs(ny - y) + Math.abs(nz - z));
+      }
+      const C = this.cons;
+      for (let it = 0; it < 3; it++) {
+        for (let c = 0; c < C.length; c += 4) {
+          const a = C[c] * 3, b = C[c + 1] * 3, rest = C[c + 2], w = C[c + 3];
+          const dx = P[b] - P[a], dy = P[b + 1] - P[a + 1], dz = P[b + 2] - P[a + 2];
+          const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-9;
+          let diff = (d - rest) / d; if (diff < 0) diff *= 0.3; diff *= w;
+          const pa = this.pinned[C[c]], pb = this.pinned[C[c + 1]];
+          const wa = pa ? 0 : pb ? 1 : 0.5, wb = pb ? 0 : pa ? 1 : 0.5;
+          P[a] += dx * diff * wa; P[a + 1] += dy * diff * wa; P[a + 2] += dz * diff * wa;
+          P[b] -= dx * diff * wb; P[b + 1] -= dy * diff * wb; P[b + 2] -= dz * diff * wb;
+        }
+        for (let k = 0; k < this.n; k++) {
+          if (this.pinned[k]) continue;
+          const i3 = k * 3;
+          if (this.wall) { const ax2 = this.wall.axis === 'x' ? 0 : 2; const s = this.wall.side; if ((P[i3 + ax2] - this.wall.at) * s < 0) P[i3 + ax2] = this.wall.at; }
+          if (heli) {
+            const dx = P[i3] - heli.pos.x, dy = P[i3 + 1] - heli.pos.y, dz = P[i3 + 2] - heli.pos.z, d = Math.hypot(dx, dy, dz), r = heli.type === 'micro' ? 0.06 : 0.1;
+            if (d < r) { const s = r / (d || 1e-6); P[i3] = heli.pos.x + dx * s; P[i3 + 1] = heli.pos.y + dy * s; P[i3 + 2] = heli.pos.z + dz * s; }
+          }
+        }
+      }
+      this.moved = moved;
+    }
+    this.attr.array.set(P);
+    this.attr.needsUpdate = true;
+    this.geo.computeVertexNormals();
+  }
+}
+HangingCloth._v = new THREE.Vector3();

@@ -130,3 +130,25 @@ export function stringColliders() {
 // Milk station: a wide bowl to dip the bucket in, and a hanger the bucket waits on (arm points to +z).
 export const MILK_BOWL = { x: -0.22, z: -0.34, rOut: 0.068, rIn: 0.062, height: 0.046, bottom: 0.006, level: 0.036 };
 export const BUCKET_HANGER = { x: -0.06, z: -0.43, postHalf: 0.0065, height: 0.272, armY: 0.262, reach: 0.068, baseHalf: [0.03, 0.006, 0.03] };
+
+// ---------------------------------------------------------------- more of the house and garden
+// Welsh dresser against the front wall: cupboard base, open shelves of plates and hooked cups.
+export const DRESSER = { x0: 0.6, x1: 1.6, z0: ROOM.maxZ - 0.42, z1: ROOM.maxZ, baseTop: ROOM.floorY + 0.88, top: 1.3, shelves: [0.46, 0.8, 1.12], shelfDepth: 0.2 };
+// Range cooker on the left wall, with a towel rail along its front and a flue to the ceiling.
+export const RANGE = { x0: ROOM.minX, x1: ROOM.minX + 0.65, z0: -1.05, z1: -0.05, top: ROOM.floorY + 0.9, lids: [[-2.02, -0.8], [-2.02, -0.32]], lidR: 0.12, flue: [ROOM.minX + 0.09, -0.17], railY: 0.07 };
+export const TOWEL = { z0: -0.76, z1: -0.46, drop: 0.32 }; // hangs over the range's rail
+// Washing line from a prop post by the left fence to the apple tree, with tea towels pegged on it.
+export const LINE = { a: [-3.28, 0.55, -4.55], b: [TREE.x - 0.11, 0.6, TREE.z + 0.06], sag: 0.14, towels: [0.32, 0.52, 0.72] };
+export const FEEDER = { x: 2.33, z: -5.3, y: 0.72, r: 0.05, h: 0.16, hangFrom: 1.02 };
+export const BREADBIN = { x: ROOM.maxX - 0.19, z: 1.15, halfX: 0.12, halfZ: 0.17, h: 0.2 };
+export const FRUITBOWL = { x: ROOM.maxX - 0.45, z: 0.8, r: 0.12, h: 0.06 };
+export const CADDIES = [[ROOM.maxX - 0.12, 0.05], [ROOM.maxX - 0.12, 0.16], [ROOM.maxX - 0.12, 0.27]]; // tea tins on the counter
+export const CADDY = { r: 0.042, h: 0.13 };
+
+// Point on the washing line at t (0..1), sagging as a parabola.
+export function linePoint(t, out = [0, 0, 0]) {
+  const { a, b, sag } = LINE;
+  for (let i = 0; i < 3; i++) out[i] = a[i] + (b[i] - a[i]) * t;
+  out[1] -= 4 * sag * t * (1 - t);
+  return out;
+}

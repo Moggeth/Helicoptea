@@ -7,7 +7,7 @@ import { Sim } from '../src/sim/sim.js';
 import { Autopilot } from '../src/sim/autopilot.js';
 import { TeaBag } from '../src/sim/teabag.js';
 import { CFG } from '../src/config.js';
-import { GARDEN, BACKDOOR, WINDOW, ROOM, PAD, RADIO, COUNTER, TREE, LAMP } from '../src/sim/layout.js';
+import { GARDEN, BACKDOOR, WINDOW, ROOM, PAD, RADIO, COUNTER, TREE, LAMP, DRESSER, linePoint } from '../src/sim/layout.js';
 import { gearDrop } from '../src/sim/aircraft.js';
 
 await initPhysics();
@@ -126,6 +126,11 @@ function pilot(sim) {
   check('the boundary is still there 5 m up', !!high && high.timeOfImpact < 4.5);
   const wall = ray({ x: -1.6, y: 0.3, z: 0 }, { x: 0, y: 0, z: -1 }, 5);
   check('the back wall beside the window is solid', !!wall && Math.abs(wall.timeOfImpact - (0 - ROOM.minZ)) < 0.01, wall ? f(wall.timeOfImpact) : 'none');
+  const mid = linePoint(0.5);
+  const line = ray({ x: mid[0], y: mid[1] + 0.3, z: mid[2] }, { x: 0, y: -1, z: 0 }, 0.6);
+  check('the washing line is solid (a rotor will find it)', !!line && Math.abs(line.timeOfImpact - 0.3) < 0.02, line ? f(line.timeOfImpact) : 'none');
+  const dr = ray({ x: (DRESSER.x0 + DRESSER.x1) / 2, y: DRESSER.shelves[1] + 0.3, z: DRESSER.z1 - 0.1 }, { x: 0, y: -1, z: 0 }, 0.5);
+  check('the dresser shelves hold things up', !!dr && dr.timeOfImpact < 0.3, dr ? f(dr.timeOfImpact) : 'none');
   const door = ray({ x: (BACKDOOR.x0 + BACKDOOR.x1) / 2, y: 0.3, z: 0 }, { x: 0, y: 0, z: -1 }, 2.0);
   check('the doorway is open', !door || door.timeOfImpact > 1.9, door ? f(door.timeOfImpact) : 'clear');
 }

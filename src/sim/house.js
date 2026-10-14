@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RAPIER } from './physics.js';
 import { ROOM, WALL_T, BACKDOOR, WINDOW, SILL, COUNTER, KETTLE, CHAIRS, GARDEN, GTABLE, GTEAPOT, GJAR, GCHAIRS,
   ARCH, BIRDBATH, STUMP, BENCH, TREE, POTS, HEDGE, ROOF, CHIMNEY, BOUNDS, FRIDGE, RADIO, CLOCK, FRAMES, CURTAINS,
-  CAT, GNOME, LANTERN, CUPS } from './layout.js';
+  CAT, GNOME, LANTERN, CUPS, DRESSER, RANGE, LINE, FEEDER, BREADBIN, FRUITBOWL, CADDIES, CADDY, linePoint } from './layout.js';
 
 // Colliders for the house shell (back wall with an open door and window), the kitchen counter and chairs,
 // and the tea garden behind the house. Primitive shapes; the render meshes are richer.
@@ -43,6 +43,8 @@ export function buildHouseColliders(add, box, cyl) {
   box(C.upperDepth / 2, (C.upperY1 - C.upperY0) / 2, (C.z1 - C.z0) / 2, C.x1 - C.upperDepth / 2, (C.upperY0 + C.upperY1) / 2, (C.z0 + C.z1) / 2, 'counter', 'wood');
   cyl(KETTLE.r * 0.85, KETTLE.h / 2, KETTLE.x, C.top + KETTLE.h / 2, KETTLE.z, 'kettle', 'metal');
   for (const [x, z, yaw] of CHAIRS) windsorColliders(add, x, z, yaw);
+
+  buildDetailColliders(add, box, cyl);
 
   // Garden boundary: fences with tall invisible walls just behind them (the sky has no lid).
   const G = GARDEN;
@@ -161,6 +163,46 @@ export function buildHouseColliders(add, box, cyl) {
     box(0.06, 0.012, 0.03, (g.x + gc.x) / 2, gc.standY - 0.02, gc.z, 'gnome', 'ceramic');
   }
   for (const [f, y, r] of catBalls()) add(RAPIER.ColliderDesc.ball(r), f.x, y, f.z, 'cat', 'fur');
+}
+
+// The Welsh dresser, the range cooker, the counter's bread bin, fruit bowl and tea tins, the washing line
+// and the bird feeder.
+function buildDetailColliders(add, box, cyl) {
+  const fy = ROOM.floorY;
+  const D = DRESSER, dcx = (D.x0 + D.x1) / 2, dw = (D.x1 - D.x0) / 2;
+  box(dw, (D.baseTop - fy) / 2, (D.z1 - D.z0) / 2, dcx, (D.baseTop + fy) / 2, (D.z0 + D.z1) / 2, 'dresser', 'wood');
+  box(dw, (D.top - D.baseTop) / 2, 0.0125, dcx, (D.top + D.baseTop) / 2, D.z1 - 0.0125, 'dresser', 'wood');
+  for (const x of [D.x0 + 0.0125, D.x1 - 0.0125]) box(0.0125, (D.top - D.baseTop) / 2, 0.135, x, (D.top + D.baseTop) / 2, D.z1 - 0.135, 'dresser', 'wood');
+  box(dw + 0.02, 0.03, 0.15, dcx, D.top - 0.03, D.z1 - 0.15, 'dresser', 'wood');
+  for (const y of D.shelves) {
+    box(dw, 0.01, D.shelfDepth / 2, dcx, y, D.z1 - D.shelfDepth / 2, 'dresser', 'wood');
+    box(dw - 0.05, 0.1, 0.022, dcx, y + 0.11, D.z1 - 0.05, 'dresser', 'ceramic');          // plates standing on it
+    box(dw - 0.08, 0.045, 0.045, dcx, y - 0.065, D.z1 - D.shelfDepth + 0.03, 'dresser', 'ceramic'); // cups on hooks under it
+  }
+  cyl(0.055, 0.075, dcx - 0.25, D.baseTop + 0.075, D.z1 - 0.12, 'dresser', 'ceramic');
+  const R = RANGE;
+  box((R.x1 - R.x0) / 2, (R.top - fy) / 2, (R.z1 - R.z0) / 2, (R.x0 + R.x1) / 2, (R.top + fy) / 2, (R.z0 + R.z1) / 2, 'range', 'metal');
+  box(0.06, 0.18, (R.z1 - R.z0) / 2, R.x0 + 0.06, R.top + 0.18, (R.z0 + R.z1) / 2, 'range', 'metal');
+  for (const [x, z] of R.lids) cyl(R.lidR, 0.025, x, R.top + 0.025, z, 'range', 'metal');
+  cyl(0.085, 0.09, R.lids[1][0], R.top + 0.05 + 0.09, R.lids[1][1], 'kettle', 'metal');
+  cyl(0.06, (ROOM.ceilingY - R.top) / 2, R.flue[0], (ROOM.ceilingY + R.top) / 2, R.flue[1], 'range', 'metal');
+  add(RAPIER.ColliderDesc.capsule((R.z1 - R.z0) / 2 - 0.05, 0.012), R.x1 + 0.035, R.railY, (R.z0 + R.z1) / 2, 'range', 'metal', new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2));
+  const top = COUNTER.top;
+  box(BREADBIN.halfX, BREADBIN.h / 2, BREADBIN.halfZ, BREADBIN.x, top + BREADBIN.h / 2, BREADBIN.z, 'counter', 'metal');
+  cyl(FRUITBOWL.r, 0.06, FRUITBOWL.x, top + 0.06, FRUITBOWL.z, 'counter', 'ceramic');
+  for (const [x, z] of CADDIES) cyl(CADDY.r, CADDY.h / 2, x, top + CADDY.h / 2, z, 'counter', 'metal');
+  // Washing line (thin and taut: a rotor that finds it will know), its prop post, the bird feeder.
+  const N = 14, a = [0, 0, 0], b = [0, 0, 0];
+  for (let i = 0; i < N; i++) {
+    linePoint(i / N, a); linePoint((i + 1) / N, b);
+    const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), mid = A.clone().add(B).multiplyScalar(0.5), dir = B.clone().sub(A);
+    add(RAPIER.ColliderDesc.capsule(dir.length() / 2, 0.004), mid.x, mid.y, mid.z, 'line', 'rope', new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize()));
+  }
+  cyl(0.025, (LINE.a[1] + 0.06 - fy) / 2, LINE.a[0], (LINE.a[1] + 0.06 + fy) / 2, LINE.a[2], 'line', 'wood');
+  const F = FEEDER;
+  cyl(F.r, F.h / 2, F.x, F.y, F.z, 'feeder', 'wood');
+  add(RAPIER.ColliderDesc.cone(0.03, F.r + 0.03), F.x, F.y + F.h / 2 + 0.03, F.z, 'feeder', 'wood');
+  add(RAPIER.ColliderDesc.capsule((F.hangFrom - F.y - F.h / 2 - 0.06) / 2, 0.006), F.x, (F.hangFrom + F.y + F.h / 2 + 0.06) / 2, F.z, 'feeder', 'metal');
 }
 
 // Rectangles [x0, x1, y0, y1] of the back wall left after cutting the door and the window.
