@@ -12,6 +12,9 @@ Subjective flight settings remain candidate exports for the user, never silently
 
 ## Evidence and recovery
 
+The [curated before/after evidence](evidence/overnight-2026-10-15/README.md) includes camera clips,
+touch screenshots, the isolated milk-stream recording, measurements and file provenance.
+
 The immutable local starting build is `scratch/overnight-baseline`, served on 4235. Candidate builds
 use `scratch/overnight-candidate` on 4236. Require each owned server's ready banner. Other tasks have
 servers and browser tests on this machine: do not overwrite their `dist/` or stop their processes.

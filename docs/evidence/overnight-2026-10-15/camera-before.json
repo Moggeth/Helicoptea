@@ -1,0 +1,119 @@
+{
+  "base": "http://127.0.0.1:4235/",
+  "label": "baseline",
+  "results": [
+    {
+      "seconds": 1.0338000000000003,
+      "frames": 25,
+      "yaw": 0.7500000000000004,
+      "zoom": 0.5000000000000001,
+      "mode": "chase",
+      "state": "flying",
+      "cap": 30,
+      "yawPerSecond": 0.7254788160185724,
+      "zoomPerSecond": 0.4836525440123815
+    },
+    {
+      "seconds": 1.0156,
+      "frames": 45,
+      "yaw": 1.350000000000001,
+      "zoom": 0.9000000000000005,
+      "mode": "chase",
+      "state": "flying",
+      "cap": 60,
+      "yawPerSecond": 1.3292634895628208,
+      "zoomPerSecond": 0.8861756597085471
+    },
+    {
+      "seconds": 1.0144,
+      "frames": 46,
+      "yaw": 1.380000000000001,
+      "zoom": 0.9200000000000005,
+      "mode": "chase",
+      "state": "flying",
+      "cap": 120,
+      "yawPerSecond": 1.360410094637225,
+      "zoomPerSecond": 0.9069400630914831
+    }
+  ],
+  "checks": [
+    {
+      "name": "30 fps D-pad orbit is 1.8 radians/sec",
+      "ok": false,
+      "detail": "{\"seconds\":1.0338000000000003,\"frames\":25,\"yaw\":0.7500000000000004,\"zoom\":0.5000000000000001,\"mode\":\"chase\",\"state\":\"flying\",\"cap\":30,\"yawPerSecond\":0.7254788160185724,\"zoomPerSecond\":0.4836525440123815}"
+    },
+    {
+      "name": "30 fps D-pad zoom is 1.2 units/sec",
+      "ok": false
+    },
+    {
+      "name": "30 fps recenter clears camera offsets",
+      "ok": true
+    },
+    {
+      "name": "30 fps camera cycling works",
+      "ok": true
+    },
+    {
+      "name": "30 fps pause works",
+      "ok": true
+    },
+    {
+      "name": "30 fps resume works without errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "60 fps D-pad orbit is 1.8 radians/sec",
+      "ok": false,
+      "detail": "{\"seconds\":1.0156,\"frames\":45,\"yaw\":1.350000000000001,\"zoom\":0.9000000000000005,\"mode\":\"chase\",\"state\":\"flying\",\"cap\":60,\"yawPerSecond\":1.3292634895628208,\"zoomPerSecond\":0.8861756597085471}"
+    },
+    {
+      "name": "60 fps D-pad zoom is 1.2 units/sec",
+      "ok": false
+    },
+    {
+      "name": "60 fps recenter clears camera offsets",
+      "ok": true
+    },
+    {
+      "name": "60 fps camera cycling works",
+      "ok": true
+    },
+    {
+      "name": "60 fps pause works",
+      "ok": true
+    },
+    {
+      "name": "60 fps resume works without errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "120 fps D-pad orbit is 1.8 radians/sec",
+      "ok": false,
+      "detail": "{\"seconds\":1.0144,\"frames\":46,\"yaw\":1.380000000000001,\"zoom\":0.9200000000000005,\"mode\":\"chase\",\"state\":\"flying\",\"cap\":120,\"yawPerSecond\":1.360410094637225,\"zoomPerSecond\":0.9069400630914831}"
+    },
+    {
+      "name": "120 fps D-pad zoom is 1.2 units/sec",
+      "ok": false
+    },
+    {
+      "name": "120 fps recenter clears camera offsets",
+      "ok": true
+    },
+    {
+      "name": "120 fps camera cycling works",
+      "ok": true
+    },
+    {
+      "name": "120 fps pause works",
+      "ok": true
+    },
+    {
+      "name": "120 fps resume works without errors",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "base": "http://127.0.0.1:4235/",
+  "checks": [
+    {
+      "name": "desktop: hidden crash panel does not intercept the flight view",
+      "ok": false,
+      "detail": {
+        "x": 639.9999694824219,
+        "y": 547.1874847412109,
+        "hidden": true,
+        "pointer": "auto",
+        "intercepts": true
+      }
+    },
+    {
+      "name": "desktop: Skip tips responds through normal pointer input",
+      "ok": true,
+      "detail": {
+        "hidden": true,
+        "paused": false,
+        "replay": false
+      }
+    },
+    {
+      "name": "desktop: hidden hint does not intercept the flight view",
+      "ok": false,
+      "detail": {
+        "hidden": true,
+        "intercepts": true
+      }
+    },
+    {
+      "name": "desktop: dragging through the hidden panel orbits the camera",
+      "ok": false,
+      "detail": {
+        "yaw": 0,
+        "afterYaw": 0
+      }
+    },
+    {
+      "name": "desktop: takeoff works",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "desktop: visible crash restart remains clickable",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "desktop: no page errors",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "touch: hidden crash panel does not intercept the flight view",
+      "ok": false,
+      "detail": {
+        "x": 421.9999694824219,
+        "y": 296.39063262939453,
+        "hidden": true,
+        "pointer": "auto",
+        "intercepts": true
+      }
+    },
+    {
+      "name": "touch: Skip tips responds through normal pointer input",
+      "ok": false,
+      "detail": {
+        "hidden": false,
+        "paused": true,
+        "replay": true
+      }
+    }
+  ]
+}

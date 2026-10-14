@@ -1,0 +1,190 @@
+{
+  "base": "http://127.0.0.1:4240/",
+  "when": "2026-10-14T12:55:13.544Z",
+  "checks": [
+    {
+      "name": "start screen offers the skycrane (and it is picked from the URL)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "skycrane spawns on the pad with its tank gauge",
+      "ok": true,
+      "detail": "[-0.5599989891052246,0.0479813776910305,0.24000129103660583]"
+    },
+    {
+      "name": "X reels the snorkel out, Z reels it in",
+      "ok": true,
+      "detail": "0.070 -> 0.134 -> 0.099 m"
+    },
+    {
+      "name": "T spins the pump, but nothing comes up through thin air",
+      "ok": true,
+      "detail": "pump 0.82"
+    },
+    {
+      "name": "prompt suggests pumping over the crock",
+      "ok": true,
+      "detail": "Hover low over the milk crock and hold T to pump (double-tap T: auto-fill)"
+    },
+    {
+      "name": "double-tap T starts auto-fill",
+      "ok": true,
+      "detail": "down"
+    },
+    {
+      "name": "auto-fill: hose down, pumping, full, hose up",
+      "ok": true,
+      "detail": "32.4 ml, hose 0.049 m"
+    },
+    {
+      "name": "over the cup the prompt offers the doors and the salvo",
+      "ok": true,
+      "detail": "G opens the belly doors over the teacup (double-tap G: salvo)"
+    },
+    {
+      "name": "holding G opens the belly doors wider and wider",
+      "ok": true,
+      "detail": "0.30 -> 0.97"
+    },
+    {
+      "name": "tank discharge feeds the milk-stream sound channel",
+      "ok": true,
+      "detail": "{\"flow\":0.00003917728077510982,\"rate\":0.00003917728077510982,\"gain\":0.0858691930770874,\"rms\":0.013616391469172796}"
+    },
+    {
+      "name": "double-tap G fires a salvo",
+      "ok": true,
+      "detail": "salvo true, 2.3 ml"
+    },
+    {
+      "name": "the tank empties into the teacup",
+      "ok": true,
+      "detail": "teacup milk 10.6%"
+    },
+    {
+      "name": "empty tank stops the continuous pour sound",
+      "ok": true,
+      "detail": "stream gain 0"
+    },
+    {
+      "name": "keyboard: no errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "keyboard: no crash",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "desktop frame rate with the skycrane",
+      "ok": true,
+      "detail": "120.3 fps"
+    },
+    {
+      "name": "gamepad: d-pad down reels the hose out",
+      "ok": true,
+      "detail": "0.120 m"
+    },
+    {
+      "name": "gamepad: LB pumps",
+      "ok": true,
+      "detail": "pump input 1.00"
+    },
+    {
+      "name": "gamepad: RT is analog: a light squeeze cracks the doors, a full pull opens them",
+      "ok": true,
+      "detail": "0.19 -> 0.98"
+    },
+    {
+      "name": "gamepad: collective is not on the triggers in the skycrane",
+      "ok": true,
+      "detail": "pad collective with RT pulled 0.00"
+    },
+    {
+      "name": "gamepad: two quick full RT pulls fire a salvo",
+      "ok": true,
+      "detail": "salvo true"
+    },
+    {
+      "name": "gamepad: LB tapped twice starts auto-fill",
+      "ok": true,
+      "detail": "down"
+    },
+    {
+      "name": "gamepad: reeling by hand takes over from auto-fill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "gamepad: prompts name the pad controls",
+      "ok": true,
+      "detail": "Hover low over the milk crock and hold LB to pump (LBLB: auto-fill)"
+    },
+    {
+      "name": "gamepad (Classic): LT is an analog pump control",
+      "ok": true,
+      "detail": "pump input 0.57"
+    },
+    {
+      "name": "gamepad (Classic): both bumpers together start auto-fill",
+      "ok": true,
+      "detail": "down"
+    },
+    {
+      "name": "gamepad: no errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "touch: tank buttons show in the skycrane, the bucket Pour button does not",
+      "ok": true,
+      "detail": "{\"doors\":[616,99.8125,62,62],\"pump\":[552,103.8125,56,56],\"reel-in\":[92,95.8125,54,34],\"reel-out\":[92,135.8125,54,34],\"pour\":null}"
+    },
+    {
+      "name": "touch: no buttons overlap",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "touch: Hose ▼ reels out",
+      "ok": true,
+      "detail": "0.070 -> 0.121"
+    },
+    {
+      "name": "touch: holding Doors opens them",
+      "ok": true,
+      "detail": "0.79"
+    },
+    {
+      "name": "touch: double-tap Doors fires a salvo",
+      "ok": true,
+      "detail": "salvo true"
+    },
+    {
+      "name": "touch: double-tap Pump starts auto-fill",
+      "ok": true,
+      "detail": "down"
+    },
+    {
+      "name": "touch: no errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "help panel explains doors, pump, reel, salvo and auto-fill",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "perf": {
+    "desktop": 120.3
+  },
+  "pourAudio": {
+    "flow": 0.00003917728077510982,
+    "rate": 0.00003917728077510982,
+    "gain": 0.0858691930770874,
+    "rms": 0.013616391469172796
+  }
+}

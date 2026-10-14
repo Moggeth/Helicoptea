@@ -1,0 +1,119 @@
+{
+  "base": "https://helicoptea.vercel.app/",
+  "label": "production-da1037e",
+  "results": [
+    {
+      "seconds": 1.0016000000000003,
+      "frames": 25,
+      "yaw": 1.8028800000000003,
+      "zoom": 1.2019200000000008,
+      "mode": "chase",
+      "state": "flying",
+      "cap": 30,
+      "yawPerSecond": 1.7999999999999998,
+      "zoomPerSecond": 1.2000000000000004
+    },
+    {
+      "seconds": 1.0053999999999998,
+      "frames": 47,
+      "yaw": 1.8097199999999998,
+      "zoom": 1.2064799999999998,
+      "mode": "chase",
+      "state": "flying",
+      "cap": 60,
+      "yawPerSecond": 1.8,
+      "zoomPerSecond": 1.2
+    },
+    {
+      "seconds": 1.0139999999999998,
+      "frames": 47,
+      "yaw": 1.8252,
+      "zoom": 1.2168000000000003,
+      "mode": "chase",
+      "state": "flying",
+      "cap": 120,
+      "yawPerSecond": 1.8000000000000003,
+      "zoomPerSecond": 1.2000000000000006
+    }
+  ],
+  "checks": [
+    {
+      "name": "cap 30 D-pad orbit is 1.8 radians/sec",
+      "ok": true,
+      "detail": "{\"seconds\":1.0016000000000003,\"frames\":25,\"yaw\":1.8028800000000003,\"zoom\":1.2019200000000008,\"mode\":\"chase\",\"state\":\"flying\",\"cap\":30,\"yawPerSecond\":1.7999999999999998,\"zoomPerSecond\":1.2000000000000004}"
+    },
+    {
+      "name": "cap 30 D-pad zoom is 1.2 units/sec",
+      "ok": true
+    },
+    {
+      "name": "cap 30 recenter clears camera offsets",
+      "ok": true
+    },
+    {
+      "name": "cap 30 camera cycling works",
+      "ok": true
+    },
+    {
+      "name": "cap 30 pause works",
+      "ok": true
+    },
+    {
+      "name": "cap 30 resume works without errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "cap 60 D-pad orbit is 1.8 radians/sec",
+      "ok": true,
+      "detail": "{\"seconds\":1.0053999999999998,\"frames\":47,\"yaw\":1.8097199999999998,\"zoom\":1.2064799999999998,\"mode\":\"chase\",\"state\":\"flying\",\"cap\":60,\"yawPerSecond\":1.8,\"zoomPerSecond\":1.2}"
+    },
+    {
+      "name": "cap 60 D-pad zoom is 1.2 units/sec",
+      "ok": true
+    },
+    {
+      "name": "cap 60 recenter clears camera offsets",
+      "ok": true
+    },
+    {
+      "name": "cap 60 camera cycling works",
+      "ok": true
+    },
+    {
+      "name": "cap 60 pause works",
+      "ok": true
+    },
+    {
+      "name": "cap 60 resume works without errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "cap 120 D-pad orbit is 1.8 radians/sec",
+      "ok": true,
+      "detail": "{\"seconds\":1.0139999999999998,\"frames\":47,\"yaw\":1.8252,\"zoom\":1.2168000000000003,\"mode\":\"chase\",\"state\":\"flying\",\"cap\":120,\"yawPerSecond\":1.8000000000000003,\"zoomPerSecond\":1.2000000000000006}"
+    },
+    {
+      "name": "cap 120 D-pad zoom is 1.2 units/sec",
+      "ok": true
+    },
+    {
+      "name": "cap 120 recenter clears camera offsets",
+      "ok": true
+    },
+    {
+      "name": "cap 120 camera cycling works",
+      "ok": true
+    },
+    {
+      "name": "cap 120 pause works",
+      "ok": true
+    },
+    {
+      "name": "cap 120 resume works without errors",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

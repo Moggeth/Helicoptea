@@ -1,0 +1,86 @@
+[
+  {
+    "file": "camera-after.jpg",
+    "source": "test-results/camera-rate/candidate/contact-sheet.jpg",
+    "sha256": "017BECBAD9A136A84C81C84320B80BD2A60F0A8466AFD77E2EB56B92950B393B",
+    "bytes": 89187
+  },
+  {
+    "file": "camera-after.webm",
+    "source": "test-results/camera-rate/candidate/30-flight-camera.webm",
+    "sha256": "17FC47B7B840AED5FB82F88D639F9D7C0AABB503358129B149550C4035CCDB6E",
+    "bytes": 639034
+  },
+  {
+    "file": "camera-before.jpg",
+    "source": "test-results/camera-rate/baseline/contact-sheet.jpg",
+    "sha256": "43EF4135BCF31BE895FFDCFA0CD6C53998EA2A293055AAA05167DA5706F81E3D",
+    "bytes": 93658
+  },
+  {
+    "file": "camera-before.json",
+    "source": "test-results/camera-rate/baseline/report.json",
+    "sha256": "61BDDAB874C0BB0360BD7A73D3C47F124BC58E18BF60321B4DAFF7676EF39367",
+    "bytes": 3136
+  },
+  {
+    "file": "camera-before.webm",
+    "source": "test-results/camera-rate/baseline/30-flight-camera.webm",
+    "sha256": "69E1B4691C5836606E780C39CE0B4A3577F9AE84254CBBAB537FECCEA8638BA0",
+    "bytes": 653923
+  },
+  {
+    "file": "camera-production.json",
+    "source": "test-results/camera-rate/production-da1037e/report.json",
+    "sha256": "08F1A58E397BA2DA1E98C32DC23408C24FE97B4D8F6DDC6DC3BC455733161E61",
+    "bytes": 3118
+  },
+  {
+    "file": "tank-after.json",
+    "source": "test-results/tank-audio-candidate/sky-report.json",
+    "sha256": "9535CF429EE889A84F900DD66584A3DB6FFB97A967E68492050E1EF5DECD0C79",
+    "bytes": 4883
+  },
+  {
+    "file": "tank-after.webm",
+    "source": "test-results/tank-audio-candidate/tank-pour.webm",
+    "sha256": "B87CE64B293F3F6879699284A8D2539049CC0DDD9B2433C08468EC2F270B0E3B",
+    "bytes": 39279
+  },
+  {
+    "file": "tank-before.json",
+    "source": "test-results/tank-audio-baseline/sky-report.json",
+    "sha256": "229D535571269B36FD5B7C0E18F4F2F7E7DA16D91D6D0E0682AE1A8BB58E4897",
+    "bytes": 4771
+  },
+  {
+    "file": "tank-waveform.png",
+    "source": "test-results/tank-audio-candidate/tank-pour-waveform.png",
+    "sha256": "EEE91BC6FC7B989F42EFAEC6FFB78CED6DBF1EB59EA4ECD0951BA388229B4D21",
+    "bytes": 1350
+  },
+  {
+    "file": "touch-after.png",
+    "source": "test-results/hidden-hud/production-b931ed2/touch-after-skip.png",
+    "sha256": "F2FA2B81D595632FDE0004A421C923409BA342C9AB02557A6B0154DE9D7BC5B7",
+    "bytes": 319744
+  },
+  {
+    "file": "touch-before.json",
+    "source": "test-results/hidden-hud/baseline/report.json",
+    "sha256": "BA5BB4293C0A44C15DF4B32BF71B86C6CFF21D744E0CE6C46C8A9F6E4C60305F",
+    "bytes": 1676
+  },
+  {
+    "file": "touch-before.png",
+    "source": "test-results/hidden-hud/baseline/touch-intercepted-skip.png",
+    "sha256": "DBCCFE3AC745C1342215AD4E6A4CC48AFA6F5AF7758E771A641E412D62143711",
+    "bytes": 250879
+  },
+  {
+    "file": "touch-production.json",
+    "source": "test-results/hidden-hud/production-b931ed2/report.json",
+    "sha256": "3E0527BED93409909399F01452243D269F7A5BD63BEE7C9C7C79FABC522E091A",
+    "bytes": 2335
+  }
+]

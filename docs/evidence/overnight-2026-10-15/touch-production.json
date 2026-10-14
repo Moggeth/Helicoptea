@@ -1,0 +1,107 @@
+{
+  "base": "https://helicoptea.vercel.app/",
+  "checks": [
+    {
+      "name": "desktop: hidden crash panel does not intercept the flight view",
+      "ok": true,
+      "detail": {
+        "x": 639.9999694824219,
+        "y": 547.1874847412109,
+        "hidden": true,
+        "pointer": "none",
+        "intercepts": false
+      }
+    },
+    {
+      "name": "desktop: Skip tips responds through normal pointer input",
+      "ok": true,
+      "detail": {
+        "hidden": true,
+        "paused": false,
+        "replay": false
+      }
+    },
+    {
+      "name": "desktop: hidden hint does not intercept the flight view",
+      "ok": true,
+      "detail": {
+        "hidden": true,
+        "intercepts": false
+      }
+    },
+    {
+      "name": "desktop: dragging through the hidden panel orbits the camera",
+      "ok": true,
+      "detail": {
+        "yaw": 0,
+        "afterYaw": -0.24
+      }
+    },
+    {
+      "name": "desktop: takeoff works",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "desktop: visible crash restart remains clickable",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "desktop: no page errors",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "touch: hidden crash panel does not intercept the flight view",
+      "ok": true,
+      "detail": {
+        "x": 421.9999694824219,
+        "y": 296.39063262939453,
+        "hidden": true,
+        "pointer": "none",
+        "intercepts": false
+      }
+    },
+    {
+      "name": "touch: Skip tips responds through normal pointer input",
+      "ok": true,
+      "detail": {
+        "hidden": true,
+        "paused": false,
+        "replay": false
+      }
+    },
+    {
+      "name": "touch: hidden hint does not intercept the flight view",
+      "ok": true,
+      "detail": {
+        "hidden": true,
+        "intercepts": false
+      }
+    },
+    {
+      "name": "touch: dragging through the hidden panel orbits the camera",
+      "ok": true,
+      "detail": {
+        "yaw": 0,
+        "afterYaw": -0.24
+      }
+    },
+    {
+      "name": "touch: takeoff works",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "touch: visible crash restart remains clickable",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "touch: no page errors",
+      "ok": true,
+      "detail": []
+    }
+  ]
+}
