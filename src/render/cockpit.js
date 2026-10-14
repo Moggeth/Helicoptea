@@ -222,7 +222,7 @@ function hoodGeometry(w, back, front, top, lipDrop, thick) {
 }
 
 export class Cockpit {
-  constructor(renderer, worldScene, quality, kitchen, loadCam) {
+  constructor(renderer, worldScene, quality, kitchen, loadCam, aircraft = 'micro') {
     this.renderer = renderer;
     this.quality = quality;
     this.hi = quality.name === 'high';
@@ -243,8 +243,8 @@ export class Cockpit {
     this.sun.shadow.normalBias = 0.00004;
     this.sun.shadow.radius = 3;
     this.scene.add(this.hemi, this.sun, this.sun.target);
-    this.interiors = { micro: this.buildMicro(), chinook: this.buildChinook(), skycrane: this.buildSkycrane() };
-    for (const it of Object.values(this.interiors)) { it.group.visible = false; this.scene.add(it.group); }
+    this.interiors = {};
+    this.ensureInterior(aircraft);
     this.kind = null;
     this.buildPip();
   }
@@ -635,12 +635,22 @@ export class Cockpit {
     this.camera.updateProjectionMatrix();
   }
 
-  has(type) { return !!this.interiors[type]; }
+  has(type) { return ['micro', 'chinook', 'skycrane'].includes(type); }
+
+  ensureInterior(type) {
+    if (!this.has(type) || this.interiors[type]) return this.interiors[type];
+    const it = type === 'chinook' ? this.buildChinook() : type === 'skycrane' ? this.buildSkycrane() : this.buildMicro();
+    it.group.visible = false;
+    this.interiors[type] = it;
+    this.scene.add(it.group);
+    return it;
+  }
 
   // h: live aircraft (or null while the crash freeze plays), quat: drawn body orientation.
   update(dt, h, sim, quat, gearDrop, active) {
     const kind = h ? h.type : this.kind;
     if (kind !== this.kind) {
+      this.ensureInterior(kind);
       // Only the aircraft in use keeps its big panel texture.
       for (const [k, it] of Object.entries(this.interiors)) { it.group.visible = k === kind; if (k !== kind) it.panel.release(); }
       this.kind = kind;

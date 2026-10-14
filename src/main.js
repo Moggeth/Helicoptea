@@ -127,7 +127,7 @@ async function boot() {
   depth.linearBlend = post.enabled;
   // First person: pilot's-eye rig, cockpit interiors drawn over the world, and the belly hook camera.
   const loadCam = new LoadCamera(renderer, quality);
-  const cockpit = new Cockpit(renderer, scene, quality, kitchen, loadCam);
+  const cockpit = new Cockpit(renderer, scene, quality, kitchen, loadCam, sim.aircraft);
   const fpRig = new CockpitRig();
   setProgress(0.78, 'Warming the shaders…');
   await tick();
