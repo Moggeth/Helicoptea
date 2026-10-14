@@ -124,6 +124,29 @@ milk, static-host, touch-layout and tuning suites. It still failed other pre-exi
 functional checks, including replay elapsed-time assertions and skycrane touch auto-fill. Its full
 CI status is failure, despite the local camera and production checks passing.
 
+## Tuning editor keyboard repair
+
+The tuning importer had a concrete destructive shortcut collision: type
+`{"version":1,"global":{"coasting":0.8},"aircraft":{}}` into its text area. On the starting build,
+only `{"` remained in the field, the flight restarted (recording ID changed), Assist switched off,
+the game resumed and the view changed from chase to nose. The global flight handler ignored input
+and select elements but did not ignore text areas. Keyboard entry now belongs to text areas and
+editable content, while the existing flight shortcuts work after leaving the editor.
+
+The matched browser scenario uses real key events, not `fill()`, and confirms the whole JSON is
+retained, pause/flight ID/camera remain unchanged, Apply and Reset work, native text navigation and
+newlines work, Escape returns through the import/board/pause screens, and R/C still work in flight.
+All **11/11** focused browser checks and **108/108** controller checks pass. The full tuning-board
+suite also passed **33/33** (35.64 s), including all preview clips, persistence, sliders, import/export,
+repeated opening/closing and resumed flight. Before/after screenshots
+were inspected and retained with raw reports in `test-results/input-editing/{baseline,candidate}/`.
+The test applies its temporary coasting value only in a fresh browser context and resets it; shipped
+tuning is unchanged. This is a correctness repair, not an endorsement of different flight settings.
+
+Baseline reproduction took 6.50 s; candidate build 2.39 s. The first candidate test checked the return
+to the pause menu before the next render frame consumed Escape. Waiting for the actual visible menu
+resolved that harness race without changing game behaviour or relaxing the acceptance rule.
+
 ## Remaining acceptance
 
 Physical phone, Steam Controller connection/feel, haptics, human listening and skilled acrobatic-flight

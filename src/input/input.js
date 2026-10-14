@@ -55,7 +55,8 @@ export class Input {
     this.touchDoors = 0;
 
     window.addEventListener('keydown', (e) => {
-      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
+      // Text entry owns its keys, including letters that also restart or steer the game.
+      if (e.target?.matches?.('input, select, textarea') || e.target?.isContentEditable) return;
       const isGameKey = Object.values(KEYMAP).some((l) => l.includes(e.code)) || ACTION_KEYS[e.code] || POUR_KEYS.includes(e.code) || BOLT_KEYS.includes(e.code) || Object.values(TANK_KEYS).some((l) => l.includes(e.code));
       if (isGameKey) e.preventDefault();
       if (e.repeat) return;
