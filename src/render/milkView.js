@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RAPIER, GROUPS } from '../sim/physics.js';
 import { CFG } from '../config.js';
 import { MILK_BOWL, BUCKET_HANGER } from '../sim/layout.js';
@@ -126,6 +127,7 @@ export class MilkView {
       geo.translate((a0.x + a1.x) / 2, (a0.y + a1.y) / 2, (a0.z + a1.z) / 2);
       lines.push(geo);
     }
+    const linesG = mergeGeometries(lines, false); // the eight lines are one mesh (one draw call)
     const headG = new THREE.BoxGeometry(0.0055, 0.0065, 0.0055).translate(0, head, 0);
     const headStripe = new THREE.BoxGeometry(0.0057, 0.0014, 0.0057).translate(0, head + 0.0012, 0);
     const swivelG = new THREE.SphereGeometry(0.0012, 10, 8).translate(0, swivelY - 0.001, 0);
@@ -139,7 +141,7 @@ export class MilkView {
         const add = (geo, mat, cast = true) => { const m = new THREE.Mesh(geo, mat); m.castShadow = cast; m.receiveShadow = true; g.add(m); return m; };
         add(outer, fabric); add(innerG, inside, false); add(baseG, black); add(floorG, inside, false);
         add(rimG, alu); add(valveG, black); add(valveRing, brass);
-        for (const l of lines) add(l, lineMat, false);
+        add(linesG, lineMat, false);
         add(headG, yellow); add(headStripe, black, false); add(swivelG, brass, false);
         const milk = new THREE.Mesh(milkG, milkMat.clone());
         milk.visible = false;
