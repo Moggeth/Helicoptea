@@ -604,10 +604,8 @@ async function boot() {
     audio.unlock();
     // A gamepad press doesn't count as a user gesture for audio in every browser: offer a one-tap fix.
     setTimeout(() => {
-      if (audio.ctx && audio.ctx.state !== 'running') {
+      if (!paused && !document.hidden && audio.ctx && audio.ctx.state !== 'running') {
         hud.toast('Sound is waiting for a click or key press (browser rule)', 5);
-        const wake = () => { audio.unlock(); removeEventListener('pointerdown', wake); removeEventListener('keydown', wake); };
-        addEventListener('pointerdown', wake); addEventListener('keydown', wake);
       }
     }, 400);
     $('loading').classList.add('fade');
@@ -615,6 +613,12 @@ async function boot() {
     $('hud').classList.remove('hidden');
     removeEventListener('keydown', keyStart);
   };
+  // Recover autoplay denial or a later browser/OS interruption on a real gesture.
+  // Keep the listener: a one-shot retry can fail or be followed by another interruption.
+  // A menu click must never wake intentionally paused audio.
+  const wakeAudio = () => { if (started && !paused && !document.hidden) audio.unlock(); };
+  addEventListener('pointerdown', wakeAudio);
+  addEventListener('keydown', wakeAudio);
   const keyStart = (e) => { if (e.code === 'Tab' || picker.contains(document.activeElement)) return; begin(); };
   startBtn.addEventListener('click', begin);
   addEventListener('keydown', keyStart);

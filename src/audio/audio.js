@@ -21,7 +21,7 @@ export class Audio {
 
   // Must be called from a user gesture (browser autoplay policy).
   unlock() {
-    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
+    if (this.ctx) { this.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     const ctx = this.ctx = new AC();
@@ -54,7 +54,16 @@ export class Audio {
     try { localStorage.setItem('helicoptea.muted', m ? '1' : '0'); } catch { /* ignore */ }
     if (this.master) this.master.gain.setTargetAtTime(m ? 0 : this.volume, this.ctx.currentTime, 0.05);
   }
-  suspend(s) { if (!this.ctx) return; if (s) this.ctx.suspend(); else this.ctx.resume(); }
+  resume() {
+    if (!this.ctx || this.ctx.state === 'running' || this.ctx.state === 'closed') return;
+    // Includes Safari's interrupted state. A denied attempt is recoverable on the next gesture.
+    this.ctx.resume().catch(() => {});
+  }
+  suspend(s) {
+    if (!this.ctx || this.ctx.state === 'closed') return;
+    if (s) this.ctx.suspend().catch(() => {});
+    else this.resume();
+  }
 
   buildRotor() {
     const ctx = this.ctx;

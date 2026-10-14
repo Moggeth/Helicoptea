@@ -69,6 +69,60 @@ candidate passed all eighteen checks. Deployment status is tracked in the runnin
 - Heartbeat creation needs `destination: "thread"`; omitting it was rejected without creating a job.
 - WorkCodex's previously documented authorization failure remains unresolved. No new commission
   was attempted. Functional changes preserving existing UI do not require a fresh design commission.
+- Playwright's `page.evaluate` **and locator waiting** can grant user activation through its internal
+  `Runtime.callFunctionOn(userGesture: true)`. For controller-only autoplay tests, use CDP with
+  `userGesture: false` for readiness polling, pad input and inspection until the first real key/click.
+  The first two audio probes accidentally unlocked audio in their harness. The corrected probe
+  verifies `navigator.userActivation.hasBeenActive === false` and a genuinely suspended context.
+
+## Audio recovery experiment
+
+**Reproduction:** click Start flying, press Escape within 400 ms, wait for the pause menu, then click
+its heading. The delayed startup handler mistook intentional suspension for autoplay denial and
+installed a one-shot wake handler. Clicking the paused menu restarted rotor sound. Separately,
+after a browser audio suspension later in flight, subsequent flight keys did not recover sound.
+
+**Change:** trusted key/pointer gestures can retry audio recovery throughout the flight, guarded by
+the game's pause and page-visibility state. The delayed autoplay hint also respects intentional pause.
+Recovery handles interrupted contexts; closed contexts and rejected resume/suspend promises are safe.
+No synthesizer, volume default or flight-physics settings changed.
+
+| Matched browser scenario | Starting build | Candidate |
+|---|---|---|
+| Click in menu after rapid startup/pause | Audio running while game paused; clock 0.072 → 0.381 s | Audio stays suspended; clock 0.080 → 0.080 s |
+| Intentional pause | Misleading autoplay warning | No autoplay warning |
+| Unexpected context suspension, then U | Remains silent/suspended | Returns to running |
+| Controller-only startup, no browser activation | Blocked with a hint | Blocked with a hint; real key unlocks |
+| Mute output RMS | 0 | 0 |
+
+Chrome 1280×720, low quality, strict document-activation autoplay policy. The final baseline probe
+failed the three reproduced defects and passed the other fifteen checks; candidate **18/18**.
+Rejected/closed/interrupted-state unit checks **10/10**. Analyser output after resume: RMS 0.0165,
+peak 0.0450; mute RMS zero; after unmute RMS 0.0204. The recorded resume/flight/mute/recovery segment
+peaked at −23.6 dBFS. These measurements demonstrate signal and silence, **not human listening quality**.
+Keyboard W takeoff/A yaw and the resumed flight screenshot were inspected. Captures and JSON reports
+are in `test-results/audio-lifecycle/{baseline,candidate}/`; the audio WebM and waveform retain the
+mute interval. The comparison and review are self-reviewed. The OS-interruption test explicitly
+suspends the real AudioContext; it does not establish physical Safari/iPhone interruption behaviour.
+
+Final matched baseline capture took 15.05 s and candidate capture 15.01 s. The wider desktop core-loop
+regression passed **25/25**: keyboard takeoff, Assist on/off (retained attitude), bag attachment,
+transport, steeping, release onto the saucer, crash/restart, pause/resume and sandbox reset, with no
+captured console errors. Timing is retained in the ledger. The audio repair is accepted on this
+evidence; publication and exact commit identity are retained in the running handoff.
+
+## Existing CI failures
+
+The starting commit's GitHub run `38553108342` was already failing on the software Microsoft Basic
+Render Driver. Failures include screenshot/static-host timeouts, crash-effect timing, replay speed,
+wash settling, touch pump double-tap, preview timing and pad menu navigation. Local camera tests pass,
+but this does not make full CI green. Preserve the hard gates and discriminate actual game defects
+from fixed-duration test assumptions; do not relabel functional failures as performance warnings.
+Detailed baseline and subsequent CI logs are retained in `logs/reviews/`.
+Camera commit `da1037e` CI run `38558639038` passed both camera suites (100 checks), depth, lifecycle,
+milk, static-host, touch-layout and tuning suites. It still failed other pre-existing or intermittent
+functional checks, including replay elapsed-time assertions and skycrane touch auto-fill. Its full
+CI status is failure, despite the local camera and production checks passing.
 
 ## Remaining acceptance
 
