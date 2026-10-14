@@ -4,6 +4,8 @@
 //   npm run build && npm run e2e                 every suite
 //   node tests/run-e2e.mjs replay static         only suites whose name contains one of these words
 //   options: --port 4199          preview port
+//            --timeout 12         minutes before a suite is stopped and counted as failed
+//            --dir tests          where to look for e2e*.mjs
 //            --perf-advisory      frame-rate checks report as warnings, not failures (CI: no GPU)
 //            --headed             passed through to the suites
 //
@@ -20,12 +22,13 @@ const opt = (k, d) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i
 const port = parseInt(opt('port', '4199'), 10);
 const perfAdvisory = args.includes('--perf-advisory');
 const headed = args.includes('--headed');
-const words = args.filter((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1] === '--port'));
-const SUITE_TIMEOUT = 20 * 60 * 1000;
+const words = args.filter((a, i) => !a.startsWith('--') && !(i > 0 && ['--port', '--timeout', '--dir'].includes(args[i - 1])));
+const SUITE_TIMEOUT = parseFloat(opt('timeout', '12')) * 60 * 1000;   // a stuck suite fails instead of hanging the run
+const dir = opt('dir', 'tests');
 const PERF = /frame rate|\bfps\b/i;
 const gh = !!process.env.GITHUB_ACTIONS;
 
-const suites = fs.readdirSync('tests').filter((f) => /^e2e(-[\w-]+)?\.mjs$/.test(f)).sort()
+const suites = fs.readdirSync(dir).filter((f) => /^e2e(-[\w-]+)?\.mjs$/.test(f)).sort()
   .filter((f) => !words.length || words.some((w) => f.includes(w)));
 if (!suites.length) { console.error(`No suites match ${words.join(' ')}`); process.exit(1); }
 if (!fs.existsSync('dist/index.html')) { console.error('dist/index.html missing: run npm run build first'); process.exit(1); }
@@ -67,7 +70,7 @@ console.log(`preview ${base} · ${suites.length} suites: ${suites.join(', ')}${p
 function run(file) {
   return new Promise((resolve) => {
     const t0 = Date.now();
-    const child = spawn(process.execPath, [path.join('tests', file), base, ...(headed ? ['--headed'] : [])], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    const child = spawn(process.execPath, [path.join(dir, file), base, ...(headed ? ['--headed'] : [])], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     let out = '';
     const tee = (stream) => (d) => { out += d; stream.write(d); };
     child.stdout.on('data', tee(process.stdout));

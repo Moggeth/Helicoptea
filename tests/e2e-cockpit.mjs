@@ -164,7 +164,8 @@ const state = (page) => H(page, () => {
   await sleep(500);
   s = await state(page);
   const fr0 = s.frames; await sleep(2000); const fr1 = (await state(page)).frames;
-  check('12 crash/restart cycles from the cockpit stay healthy', s.sim === 'flying' && s.live && (fr1 - fr0) / 2 > 50, `${((fr1 - fr0) / 2).toFixed(0)} fps`);
+  check('12 crash/restart cycles from the cockpit stay healthy', s.sim === 'flying' && s.live, `${s.sim}${s.live ? '' : ', not live'}`);
+  check('frame rate after 12 crash/restart cycles from the cockpit', (fr1 - fr0) / 2 > 50, `${((fr1 - fr0) / 2).toFixed(0)} fps`);
   // Chinook from the cockpit.
   await page.keyboard.press('KeyV');
   await sleep(600);

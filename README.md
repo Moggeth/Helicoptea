@@ -137,8 +137,10 @@ A new `tests/e2e-<name>.mjs` joins CI automatically if it takes the base URL as 
 ## Online build and CI
 
 `.github/workflows/ci.yml` runs on every push and pull request (Windows runner, headless Chrome): `npm ci`,
-the build, `npm run check` and every browser suite. Hosted runners have no GPU, so frame-rate checks show
-as warnings in the run summary there instead of failing; everything else must pass. Screenshots and reports
+the build, `npm run check` and every browser suite. Hosted runners have no GPU, so Chrome renders in
+software; the game detects that (as it would on any GPU-less machine) and switches to its software tier:
+low quality at about 100k rendered pixels with longer physics catch-up, so the world keeps real speed.
+Frame-rate checks show as warnings in the run summary there instead of failing; everything else must pass. Screenshots and reports
 are attached to each run as `test-results`.
 
 Vercel builds the same repo as a static Vite site (`vercel.json`: `npm run build`, output `dist/`, hashed

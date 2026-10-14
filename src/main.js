@@ -58,8 +58,16 @@ const PRESETS = {
 const qualitySetting = params.get('quality') || store.get('quality', 'auto');
 const quality = { ...(PRESETS[qualitySetting] || (IS_TOUCH ? PRESETS.medium : PRESETS.high)) };
 quality.setting = qualitySetting;
-if (params.get('ao') === '0') quality.ao = false;
-if (params.get('ao') === '1') quality.ao = true;
+const applyAoParam = () => {
+  if (params.get('ao') === '0') quality.ao = false;
+  if (params.get('ao') === '1') quality.ao = true;
+};
+applyAoParam();
+// A software renderer (no usable GPU: SwiftShader, Windows' Basic Render Driver / WARP, Mesa llvmpipe) is
+// limited by how many pixels it shades, so there Auto picks the low tier and every tier renders at most
+// about SOFTWARE_PIXELS pixels, upscaled. That keeps such machines (and GPU-less CI runners) playable.
+const SOFTWARE_GL = /SwiftShader|Basic Render Driver|llvmpipe|softpipe|Software Rasterizer|WARP/i;
+const SOFTWARE_PIXELS = 100000;
 
 function setProgress(frac, text) {
   $('load-fill').style.width = `${Math.round(frac * 100)}%`;
@@ -72,6 +80,9 @@ async function boot() {
   const canvas = $('game');
   const probe = document.createElement('canvas').getContext('webgl2');
   if (!probe) { $('loading').classList.remove('show'); $('unsupported').classList.add('show'); console.warn('[Helicoptea] WebGL2 unavailable'); return; }
+  const probeInfo = probe.getExtension('WEBGL_debug_renderer_info');
+  quality.software = SOFTWARE_GL.test(probeInfo ? probe.getParameter(probeInfo.UNMASKED_RENDERER_WEBGL) : probe.getParameter(probe.RENDERER));
+  if (quality.software && !PRESETS[qualitySetting]) { Object.assign(quality, PRESETS.low); applyAoParam(); }
 
   let renderer;
   try {
@@ -417,7 +428,8 @@ async function boot() {
   let dprScale = 1;
   function resize() {
     const w = innerWidth, h = innerHeight;
-    renderer.setPixelRatio(dpr * dprScale);
+    const base = quality.software ? Math.min(dpr, Math.sqrt(SOFTWARE_PIXELS / (w * h))) : dpr;
+    renderer.setPixelRatio(base * dprScale);
     renderer.setSize(w, h, false);
     lensKey = '';
     stickTop = 0;
@@ -539,7 +551,7 @@ async function boot() {
   startBtn.classList.remove('hidden');
   $('start-hint').classList.remove('hidden');
   $('load-status').textContent = `Loaded in ${((performance.now() - t0) / 1000).toFixed(1)} s`;
-  console.info(`[Helicoptea] ready in ${(performance.now() - t0).toFixed(0)} ms | quality ${quality.name} (${quality.setting}) | dpr ${dpr.toFixed(2)} | ${debug.gpuName()} | Rapier ${RAPIER.version ? RAPIER.version() : ''}`);
+  console.info(`[Helicoptea] ready in ${(performance.now() - t0).toFixed(0)} ms | quality ${quality.name} (${quality.setting}${quality.software ? ', software renderer' : ''}) | dpr ${dpr.toFixed(2)} | ${debug.gpuName()} | Rapier ${RAPIER.version ? RAPIER.version() : ''}`);
   const begin = () => {
     if (started) return;
     started = true;
@@ -638,6 +650,9 @@ async function boot() {
 
   // ---------------------------------------------------------------- main loop
   const dt = sim.dt;
+  // A software renderer may only manage 10-20 fps: let the simulation catch up twice as far per frame
+  // there, so the world keeps its real speed instead of slowing down with the picture.
+  const maxSteps = CFG.physics.maxStepsPerFrame * (quality.software ? 2 : 1);
   let acc = 0;
   let last = performance.now();
   let frameEMA = 16.7;
@@ -708,13 +723,13 @@ async function boot() {
     const tPhys = performance.now();
     if (started && !paused) {
       acc += frameDt * runSpeed;
-      while (acc >= dt && steps < CFG.physics.maxStepsPerFrame) {
+      while (acc >= dt && steps < maxSteps) {
         sim.step(ctl);
         recorder.afterStep(ctl);
         acc -= dt;
         steps++;
       }
-      if (steps === CFG.physics.maxStepsPerFrame) acc = Math.min(acc, dt);
+      if (steps === maxSteps) acc = Math.min(acc, dt);
     }
     const physMs = performance.now() - tPhys;
     const alpha = acc / dt;
