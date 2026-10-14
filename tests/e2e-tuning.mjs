@@ -32,6 +32,7 @@ async function boot() {
 async function openBoard() {
   await page.keyboard.press('Escape');
   await sleep(250);
+  if (process.env.DBG) console.log('DBG', await H(() => ({ paused: window.__helicoptea.paused, modal: document.querySelector('#modal, .modal')?.className, act: document.activeElement?.outerHTML?.slice(0, 80), btn: !!document.querySelector('[data-act=tuning]') })).then(JSON.stringify));
   await page.click('[data-act=tuning]');
   await page.waitForSelector('.tune-panel', { timeout: 5000 });
 }
@@ -168,6 +169,8 @@ check('Import explains a bad file instead of failing silently', /Couldn't read/.
 await page.click('[data-act=tuneImportCancel]');
 await page.click('[data-act=tuneResetAll]');
 
+await page.hover('.tune-row[data-knob=coasting]');
+await sleep(300);
 // ---------------------------------------------------------------- every clip flies, at both ends, on every aircraft
 const sweep = await H(async () => {
   const { KNOBS } = window.__helicoptea.tuningKnobs;
@@ -207,7 +210,17 @@ await page.keyboard.press('Escape');
 await sleep(800);
 const flying = await H(() => ({ paused: window.__helicoptea.paused, state: window.__helicoptea.sim.state }));
 check('the game resumes and flies', !flying.paused && flying.state === 'flying');
-for (let i = 0; i < 3; i++) { await openBoard(); await page.hover('.tune-row[data-knob=gravity]'); await sleep(300); await page.keyboard.press('Escape'); await sleep(200); await page.keyboard.press('Escape'); await sleep(200); }
+const escTrail = [];
+for (let i = 0; i < 3; i++) {
+  await openBoard();
+  await page.hover('.tune-row[data-knob=gravity]');
+  await sleep(300);
+  await page.keyboard.press('Escape');  // Esc (gamepad B) closes the board back to the pause menu
+  await sleep(250);
+  escTrail.push(await H(() => `${document.querySelector('.tune-panel') ? 'board' : 'no board'}/${window.__helicoptea.paused ? 'paused' : 'flying'}`));
+  if (await H(() => window.__helicoptea.paused)) { await page.keyboard.press('Escape'); await sleep(250); }
+}
+check('Esc closes the board back to the pause menu', escTrail.every((e) => e === 'no board/paused'), escTrail.join(', '));
 check('opening and closing the board repeatedly stays clean', await H(() => !document.querySelector('.tune-panel') && !window.__helicoptea.tuningPanel.rig));
 check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 

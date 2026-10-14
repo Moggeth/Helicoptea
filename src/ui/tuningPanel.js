@@ -146,6 +146,16 @@ export class TuningPanel {
   // ---------------------------------------------------------------- events
   bind() {
     const el = this.el;
+    // Esc closes the board even with a slider or the preset menu focused (the game ignores keys typed into
+    // form controls); inside the import box it just closes the import box.
+    el.querySelector('.tune-panel').addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      const imp = el.querySelector('.tune-import');
+      if (!imp.classList.contains('hidden')) { imp.classList.add('hidden'); return; }
+      this.close();
+    });
     el.querySelectorAll('input[type=range][data-knob]').forEach((inp) => {
       inp.addEventListener('input', () => {
         const k = KNOB[inp.dataset.knob];

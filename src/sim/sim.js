@@ -100,6 +100,18 @@ export class Sim {
     for (const p of this.pegs) this.refillPeg(p);
     this.milk = new MilkSystem(this);
     this.props = new Props(this, !!opts.lite);
+    // A bare sim keeps only the table and pad: the milk station, lamp, cat and other set pieces
+    // still exist (their code expects them) but take no part in collisions.
+    if (this.bare) {
+      const keep = new Set(['heli', 'rotor', 'table', 'pad']);
+      this.world.forEachCollider((c) => {
+        const info = this.colliderInfo.get(c.handle);
+        if (info && keep.has(info.kind)) return;
+        c.setEnabled(false);
+        const b = c.parent();
+        if (b && b.isDynamic() && !this.heli.colliders.includes(c)) b.sleep();
+      });
+    }
   }
 
   register(collider, info) { this.colliderInfo.set(collider.handle, info); }

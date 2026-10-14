@@ -530,6 +530,7 @@ async function boot() {
       if (a === 'padLost') { if (started && input.source === 'gamepad') setPaused(true); continue; }
       if (!started) continue;
       if (a === 'pause' && !paused && (hud.modalKind === 'help' || hud.modalKind === 'controller')) { back(); continue; }
+      if (a === 'pause' && hud.modalKind === 'tuning') { back(); continue; } // Esc leaves the board for the pause menu
       if (paused && !['pause', 'resume', 'help', 'mute', 'debug', 'restart', 'reset', 'view'].includes(a)) { if (a === 'attach') setPaused(false); continue; }
       doAction(a);
     }
