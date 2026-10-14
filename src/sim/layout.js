@@ -139,7 +139,7 @@ export const RANGE = { x0: ROOM.minX, x1: ROOM.minX + 0.65, z0: -1.05, z1: -0.05
 export const TOWEL = { z0: -0.76, z1: -0.46, drop: 0.32 }; // hangs over the range's rail
 // Washing line from a prop post by the left fence to the apple tree, with tea towels pegged on it.
 export const LINE = { a: [-3.28, 0.55, -4.55], b: [TREE.x - 0.11, 0.6, TREE.z + 0.06], sag: 0.14, towels: [0.32, 0.52, 0.72] };
-export const FEEDER = { x: 2.33, z: -5.3, y: 0.72, r: 0.05, h: 0.16, hangFrom: 1.02 };
+export const FEEDER = { x: 3.12, z: -5.22, y: 0.72, r: 0.05, h: 0.16, hangFrom: 1.02 };
 export const BREADBIN = { x: ROOM.maxX - 0.19, z: 1.15, halfX: 0.12, halfZ: 0.17, h: 0.2 };
 export const FRUITBOWL = { x: ROOM.maxX - 0.45, z: 0.8, r: 0.12, h: 0.06 };
 export const CADDIES = [[ROOM.maxX - 0.12, 0.05], [ROOM.maxX - 0.12, 0.16], [ROOM.maxX - 0.12, 0.27]]; // tea tins on the counter
