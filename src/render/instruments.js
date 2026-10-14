@@ -583,7 +583,7 @@ export class InstrumentPanel {
     t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = this.aniso;
     this.staticTex = t;
     this.faceMat.map = t; this.faceMat.emissiveMap = t;
-    const cardPx = this.(quality.name === 'high' || quality.name === 'ultra') ? 1024 : 512;
+    const cardPx = (this.quality.name === 'high' || this.quality.name === 'ultra') ? 1024 : 512;
     for (const D of this.dials) {
       if (D.type !== 'hdg') continue;
       const ct = new THREE.CanvasTexture(cardTexture(cardPx)); ct.colorSpace = THREE.SRGBColorSpace; ct.anisotropy = this.aniso;
