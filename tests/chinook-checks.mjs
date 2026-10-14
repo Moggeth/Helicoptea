@@ -66,7 +66,7 @@ const hookWhenInReach = (sim, ap, peg, hook, secs) => {
   check('assist: neutral stick hovers level', Math.abs(h.vel.y) < 0.03 && tilt(h) < 0.03 && h.vel.length() < 0.05, `vy=${f(h.vel.y)} tilt=${f(tilt(h))} v=${f(h.vel.length())}`);
   const split = Math.abs(h.rotorT[0] - h.rotorT[1]) / (h.rotorT[0] + h.rotorT[1]);
   check('hover: both rotors carry half the weight', split < 0.03, `front ${f(h.rotorT[0])} N, aft ${f(h.rotorT[1])} N`);
-  check('hover: counter-rotating rotor torques cancel', Math.abs(h.reaction) < 0.05 * C.reactionK * Math.pow(h.rotorT[0], 1.5), `net ${h.reaction.toExponential(2)} N m vs one rotor ${(C.reactionK * Math.pow(h.rotorT[0], 1.5)).toExponential(2)} N m`);
+  check('hover: no yaw without pedals', Math.abs(h.body.angvel().y) < 0.02, `yaw rate ${f(h.body.angvel().y)} rad/s`);
   check('hover: collective near half', h.collective > 0.4 && h.collective < 0.65, `collective ${f(h.collective)}`);
 }
 

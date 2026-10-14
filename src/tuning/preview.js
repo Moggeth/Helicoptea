@@ -34,8 +34,6 @@ const SCENARIOS = {
   pedal: { y: 0.4, assist: false, cam: 'above', ctl: (t, p) => p.fly(0, 0, { alt: true, yaw: t > 0.3 && t < 1.8 ? 1 : 0 }) },
   // Trimmed for a hover well clear of the ground, then dropped to just above the pad with the same collective.
   lowHover: { y: 0.085, settleY: 0.45, assist: false, cam: 'low', ctl: (t, p) => p.hold({ collective: 0 }) },
-  transLift: { y: 0.3, assist: false, cam: 'wide', ctl: (t, p) => p.fly(t < 2.4 ? -0.2 : 0, 0, { collective: 0 }) },
-  sideslip: { y: 0.42, assist: false, cam: 'above', vel: [0, 0.7], ctl: (t, p) => p.fly(0, 0, { alt: true, freeYaw: true }) },
   assistDash: { y: 0.42, assist: true, cam: 'wide', ctl: (t) => ({ pitch: t < 2 ? 1 : 0, roll: 0, yaw: 0, collective: 0 }) },
   assistStep: { y: 0.42, assist: true, cam: 'side', ctl: (t) => ({ pitch: t > 0.3 && t < 1.1 ? 1 : 0, roll: 0, yaw: 0, collective: 0 }) },
   assistDrift: { y: 0.42, assist: true, cam: 'wide', vel: [0.6, 0], ctl: () => ({ pitch: 0, roll: 0, yaw: 0, collective: 0 }) },

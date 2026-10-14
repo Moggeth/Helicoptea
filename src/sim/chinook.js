@@ -29,7 +29,6 @@ export const CHINOOK_MASS = CHINOOK_PARTS.reduce((s, p) => s + p.mass, 0);
 export const ROTOR_DIR = [1, -1];
 const BLADE_SPAN = 0.05; // part origin is at mid-span
 // Hub plus a ring of six at 0.6 R, staggered so no straight bar under the hub lines up with three samples.
-const GE_SAMPLES = [[0, 0], ...[30, 90, 150, 210, 270, 330].map((d) => [0.6 * Math.cos(d * Math.PI / 180), 0.6 * Math.sin(d * Math.PI / 180)])];
 
 const Y = new THREE.Vector3(0, 1, 0);
 const _q = new THREE.Quaternion(), _qi = new THREE.Quaternion();
@@ -93,7 +92,6 @@ export class Chinook {
     this.rotorT = [0, 0];              // actual thrust per rotor this step (N)
     this.tilt = [0, 0];                // lagged lateral disc tilt per rotor (rad, + = towards +X)
     this.rotorGround = [1.2, 1.2];     // hub to surface below, per rotor
-    this.rotorGE = [1, 1];
     this.thrust = 0;
     this.thrustFrac = 0;
     this.rotorSpeed = 0.82;
@@ -102,8 +100,6 @@ export class Chinook {
     this.integ = 0;
     this.trim = [0, 0];                // assist pitch/roll trim (learned hook-load offsets)
     this.yawInteg = 0;
-    this.turb = [0, 0, 0];
-    this.reaction = 0;
     this.groundDist = 1;
     this.skidClearance = 1;
     this.grounded = true;
@@ -173,19 +169,12 @@ export class Chinook {
     const TmaxRot = C.thrustToWeight * weight / 2;
     this.ctlEcho.pitch = ctl.pitch; this.ctlEcho.roll = ctl.roll; this.ctlEcho.yaw = ctl.yaw; this.ctlEcho.collective = ctl.collective;
 
-    // Ground probes: seven under each disc (ground effect per rotor, so a thin peg bar under one side counts
-    // for little while a table under the whole disc counts fully) and one under the CG (landed state).
+    // Ground probes: one under each hub (height over what's below, for the wash and the cameras) and
+    // one under the CG (landed state).
     for (let i = 0; i < 2; i++) {
-      let geSum = 0;
-      for (let j = 0; j < GE_SAMPLES.length; j++) {
-        _hub.set(GE_SAMPLES[j][0] * C.rotorRadius, 0, GE_SAMPLES[j][1] * C.rotorRadius).applyQuaternion(q).add(this.hubWorlds[i]);
-        const hit = this.sim.world.castRay(new RAPIER.Ray({ x: _hub.x, y: _hub.y, z: _hub.z }, { x: 0, y: -1, z: 0 }), 1.2, true, undefined, GROUPS.queryWorld, undefined, body);
-        const d = hit ? hit.timeOfImpact : 1.2;
-        if (j === 0) this.rotorGround[i] = d;
-        const k = C.rotorRadius / (4 * Math.max(d, 0.02));
-        geSum += Math.min(1 / Math.max(1 - k * k, 0.01), C.groundEffectMax);
-      }
-      this.rotorGE[i] = geSum / GE_SAMPLES.length;
+      const hp = this.hubWorlds[i];
+      const hit = this.sim.world.castRay(new RAPIER.Ray({ x: hp.x, y: hp.y, z: hp.z }, { x: 0, y: -1, z: 0 }), 1.2, true, undefined, GROUPS.queryWorld, undefined, body);
+      this.rotorGround[i] = hit ? hit.timeOfImpact : 1.2;
     }
     const cg = this.sim.world.castRay(new RAPIER.Ray({ x: this.pos.x, y: this.pos.y, z: this.pos.z }, { x: 0, y: -1, z: 0 }), 1.2, true, undefined, GROUPS.queryWorld, undefined, body);
     const cgDist = cg ? cg.timeOfImpact : 1.2;
@@ -207,9 +196,8 @@ export class Chinook {
       this.lastAssist = assist;
     }
 
-    // Shared governor: the rotors are geared together through the synchronising shaft.
-    const rsTarget = 1 - C.governorDroop * this.thrustFrac;
-    this.rotorSpeed += (rsTarget - this.rotorSpeed) * (1 - Math.exp(-dt / C.spoolTime));
+    // Rotor speed: spins up to full and stays there.
+    this.rotorSpeed += (1 - this.rotorSpeed) * (1 - Math.exp(-dt / C.spoolTime));
     const rs2 = this.rotorSpeed * this.rotorSpeed;
     const TrotNow = TmaxRot * rs2;
 
@@ -273,7 +261,7 @@ export class Chinook {
       if (this.grounded) this.yawInteg = 0;
       else if (Math.abs(ctl.yaw) > 0.05) this.yawInteg *= Math.exp(-dt / 0.1); // turning: rate only
       else this.yawInteg = clamp(this.yawInteg + (rateCmd - wb.y) * dt, -0.4, 0.4);
-      const ty = C.inertia[1] * (A.yawKp * (rateCmd - wb.y) + A.yawKi * this.yawInteg) + C.angDamp[1] * rateCmd - this.reaction;
+      const ty = C.inertia[1] * (A.yawKp * (rateCmd - wb.y) + A.yawKi * this.yawInteg) + C.angDamp[1] * rateCmd;
       yCmd = clamp(-ty / yawPower, -1, 1);
     } else {
       this.collective = clamp(this.collective + ctl.collective * C.collectiveRate * dt, 0, 1);
@@ -293,23 +281,15 @@ export class Chinook {
     this.rotorThrust[0] = Math.max(0, this.tCommon - this.tDiff);
     this.rotorThrust[1] = Math.max(0, this.tCommon + this.tDiff);
 
-    // Airspeed along the fuselage: the rotor behind flies in the other's wake.
-    _fwd.set(0, 0, -1).applyQuaternion(q);
-    const vFwd = vel.dot(_fwd);
-    const vh = Math.hypot(vel.x, vel.z);
-    const etl = 1 + C.translationalLift * Math.min(vh / 0.8, 1);
-    const wake = C.aftWakeLoss * THREE.MathUtils.smoothstep(Math.abs(vFwd), 0.15, 0.7);
 
     _Ft.set(0, 0, 0);
     _tb.set(0, 0, 0);
     body.resetForces(true);
     body.resetTorques(true);
-    let Tsum = 0, reaction = 0;
+    let Tsum = 0;
     for (let i = 0; i < 2; i++) {
       this.tilt[i] += (sCmd[i] - this.tilt[i]) * kS;
-      const ge = this.rotorGE[i];
-      const inWake = (i === 1 && vFwd > 0) || (i === 0 && vFwd < 0);
-      const T = this.rotorThrust[i] * ge * etl * (inWake ? 1 - wake : 1);
+      const T = this.rotorThrust[i];
       this.rotorT[i] = T;
       Tsum += T;
       // Disc axis tilted laterally by the cyclic, in world space.
@@ -329,41 +309,24 @@ export class Chinook {
       _pt.copy(hp).addScaledVector(_ax, -_r.dot(_ax));
       body.addForceAtPoint({ x: _F.x, y: _F.y, z: _F.z }, { x: _pt.x, y: _pt.y, z: _pt.z }, true);
       _Ft.add(_F);
-      reaction += ROTOR_DIR[i] * -C.reactionK * Math.pow(Math.max(T, 0), 1.5);
     }
-    this.reaction = reaction;
     this.thrust = Tsum;
     this.thrustFrac = (this.rotorThrust[0] + this.rotorThrust[1]) / (2 * TmaxRot);
 
-    // Body drag, plus side drag on the long aft fuselage and pylon (weathervane stability).
+    // Body drag.
     // Quadratic drag mostly horizontal: caps cruise speed but lets slow drift glide and a drop fall hard.
     const vhz = Math.hypot(vel.x, vel.z);
     _F.copy(vel).multiplyScalar(-C.dragLinear - 0.1 * C.dragQuad * vel.length());
     _F.x -= C.dragQuad * vhz * vel.x; _F.z -= C.dragQuad * vhz * vel.z;
     _Ft.add(_F);
     body.addForce({ x: _F.x, y: _F.y, z: _F.z }, true);
-    _right.set(1, 0, 0).applyQuaternion(q);
-    _r.set(0, 0.01, 0.05).applyQuaternion(q);
-    _vh.crossVectors(wWorld, _r).add(vel);
-    const vSide = _vh.dot(_right);
-    _F.copy(_right).multiplyScalar(-C.sideDrag * vSide);
-    _hub.copy(_r).add(this.pos);
-    body.addForceAtPoint({ x: _F.x, y: _F.y, z: _F.z }, { x: _hub.x, y: _hub.y, z: _hub.z }, true);
-    _Ft.add(_F);
 
     this.predVel.copy(vel).addScaledVector(_Ft, dt / mass);
     this.predVel.y -= g * dt;
 
-    // Hub and flapping damping plus the net rotor reaction torque (zero only when the rotors are matched).
+    // Hub and flapping damping.
     const damp = 0.35 + 0.65 * this.rotorSpeed;
-    _tb.set(-C.angDamp[0] * wb.x * damp, -C.angDamp[1] * wb.y * damp + reaction, -C.angDamp[2] * wb.z * damp);
-    // Ground-effect recirculation: re-ingested air buffets the discs when hovering low (as on the micro heli).
-    for (let a = 0; a < 3; a++) this.turb[a] += (-this.turb[a] * 5 + (Math.random() * 2 - 1) * 30) * dt;
-    const cushion = Math.max(0, 1 - this.groundDist / (1.6 * C.rotorRadius)) * Math.min(1.5, this.thrustFrac * 2.2) * CFG.air.buffet;
-    if (cushion > 0.01 && !this.grounded) {
-      const amp = 3.0e-4 * cushion;
-      _tb.x += this.turb[0] * amp; _tb.z += this.turb[1] * amp; _tb.y += this.turb[2] * amp * 0.5;
-    }
+    _tb.set(-C.angDamp[0] * wb.x * damp, -C.angDamp[1] * wb.y * damp, -C.angDamp[2] * wb.z * damp);
     _tb.applyQuaternion(q);
     body.addTorque({ x: _tb.x, y: _tb.y, z: _tb.z }, true);
 

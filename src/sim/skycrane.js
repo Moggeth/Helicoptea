@@ -24,7 +24,6 @@ export const SKYCRANE_PARTS = [
 ];
 export const SKYCRANE_MASS = SKYCRANE_PARTS.reduce((s, p) => s + p.mass, 0);
 const BLADE_SPAN = 0.05;
-const GE_SAMPLES = [[0, 0], ...[30, 90, 150, 210, 270, 330].map((d) => [0.6 * Math.cos(d * Math.PI / 180), 0.6 * Math.sin(d * Math.PI / 180)])];
 
 const Y = new THREE.Vector3(0, 1, 0);
 const _q = new THREE.Quaternion(), _qi = new THREE.Quaternion();
@@ -235,7 +234,6 @@ export class Skycrane {
     this.cmdPitch = 0; this.cmdRoll = 0;
     this.rotorT = [0];
     this.rotorGround = [1.2];
-    this.rotorGE = [1];
     this.thrust = 0;
     this.thrustFrac = 0;
     this.rotorSpeed = 0.82;
@@ -245,8 +243,6 @@ export class Skycrane {
     this.trim = [0, 0];
     this.discTrim = [0, 0];
     this.yawInteg = 0;
-    this.turb = [0, 0, 0];
-    this.reaction = 0;
     this.groundDist = 1;
     this.skidClearance = 1;
     this.grounded = true;
@@ -327,17 +323,10 @@ export class Skycrane {
     body.resetForces(true);
     body.resetTorques(true);
 
-    // Ground effect from seven probes under the disc, and a CG probe for the landed state.
-    let geSum = 0;
-    for (let j = 0; j < GE_SAMPLES.length; j++) {
-      _hub.set(GE_SAMPLES[j][0] * C.rotorRadius, 0, GE_SAMPLES[j][1] * C.rotorRadius).applyQuaternion(q).add(this.hubWorlds[0]);
-      const hit = this.sim.world.castRay(new RAPIER.Ray({ x: _hub.x, y: _hub.y, z: _hub.z }, { x: 0, y: -1, z: 0 }), 1.2, true, undefined, GROUPS.queryWorld, undefined, body);
-      const d = hit ? hit.timeOfImpact : 1.2;
-      if (j === 0) this.rotorGround[0] = d;
-      const k = C.rotorRadius / (4 * Math.max(d, 0.02));
-      geSum += Math.min(1 / Math.max(1 - k * k, 0.01), C.groundEffectMax);
-    }
-    this.rotorGE[0] = geSum / GE_SAMPLES.length;
+    // Ground probes: one under the hub (height over what's below) and one under the CG (landed state).
+    const hp0 = this.hubWorlds[0];
+    const hit = this.sim.world.castRay(new RAPIER.Ray({ x: hp0.x, y: hp0.y, z: hp0.z }, { x: 0, y: -1, z: 0 }), 1.2, true, undefined, GROUPS.queryWorld, undefined, body);
+    this.rotorGround[0] = hit ? hit.timeOfImpact : 1.2;
     const cg = this.sim.world.castRay(new RAPIER.Ray({ x: this.pos.x, y: this.pos.y, z: this.pos.z }, { x: 0, y: -1, z: 0 }), 1.2, true, undefined, GROUPS.queryWorld, undefined, body);
     const cgDist = cg ? cg.timeOfImpact : 1.2;
     this.groundDist = this.rotorGround[0];
@@ -357,8 +346,7 @@ export class Skycrane {
       this.lastAssist = assist;
     }
 
-    const rsTarget = 1 - C.governorDroop * this.thrustFrac;
-    this.rotorSpeed += (rsTarget - this.rotorSpeed) * (1 - Math.exp(-dt / C.spoolTime));
+    this.rotorSpeed += (1 - this.rotorSpeed) * (1 - Math.exp(-dt / C.spoolTime));
     const rs2 = this.rotorSpeed * this.rotorSpeed;
     const TNow = Tmax * rs2;
     const h = C.hub, th = C.tailHub;
@@ -396,9 +384,7 @@ export class Skycrane {
         desired.x += clamp(-vel.x * A.driftDamping, -A.driftTiltMax, A.driftTiltMax) * neutral;
         desired.z += clamp(-vel.z * A.driftDamping, -A.driftTiltMax, A.driftTiltMax) * neutral;
       }
-      // Lean against the tail rotor's sideways push, as a pilot does (otherwise it crabs sideways), and let
-      // the fuselage hang so the disc is level when it is trimmed against an off-centre load (milk, hose).
-      desired.addScaledVector(_right, -this.tailT * this.rotorSpeed / (mass * g));
+      // Let the fuselage hang so the disc is level when it is trimmed against an off-centre load (milk, hose).
       this.discTrim[0] += (this.tilt[0] - this.discTrim[0]) * (1 - Math.exp(-dt / 1.5));
       this.discTrim[1] += (this.tilt[1] - this.discTrim[1]) * (1 - Math.exp(-dt / 1.5));
       if (!this.grounded) desired.addScaledVector(_fwd, Math.tan(-this.discTrim[0])).addScaledVector(_right, Math.tan(-this.discTrim[1]));
@@ -416,13 +402,11 @@ export class Skycrane {
       if (this.grounded) this.yawInteg = 0;
       else if (Math.abs(ctl.yaw) > 0.05) this.yawInteg *= Math.exp(-dt / 0.1);
       else this.yawInteg = clamp(this.yawInteg + (rateCmd - wb.y) * dt, -0.4, 0.4);
-      yawTorque = C.inertia[1] * (A.yawKp * (rateCmd - wb.y) + A.yawKi * this.yawInteg) + C.angDamp[1] * rateCmd - this.reaction;
+      yawTorque = C.inertia[1] * (A.yawKp * (rateCmd - wb.y) + A.yawKi * this.yawInteg) + C.angDamp[1] * rateCmd;
     } else {
       this.collective = clamp(this.collective + ctl.collective * C.collectiveRate * dt, 0, 1);
       pCmd = ctl.pitch; rCmd = ctl.roll;
-      // Tail rotor rigged to cancel the torque of a dry hover; pedals add or take away from that.
-      const hoverQ = C.reactionK * Math.pow(dryWeight, 1.5);
-      yawTorque = hoverQ - ctl.yaw * C.tailMax * tailArm;
+      yawTorque = -ctl.yaw * C.tailMax * tailArm;
     }
     this.mix.pitch = pCmd; this.mix.roll = rCmd;
     const tailCmd = clamp(yawTorque / tailArm, -C.tailMax, C.tailMax);
@@ -434,9 +418,7 @@ export class Skycrane {
     this.tilt[0] += (pCmd * C.cyclicMax - this.tilt[0]) * kS;
     this.tilt[1] += (rCmd * C.cyclicMax - this.tilt[1]) * kS;
     this.tailT += (tailCmd - this.tailT) * kY;
-    const vh = Math.hypot(vel.x, vel.z);
-    const etl = 1 + C.translationalLift * Math.min(vh / 0.8, 1);
-    const Tm = this.tLag * this.rotorGE[0] * etl;
+    const Tm = this.tLag;
     this.rotorT[0] = Tm;
     this.thrust = Tm;
     this.thrustFrac = this.tLag / Tmax;
@@ -456,36 +438,23 @@ export class Skycrane {
     _Ft.add(_F);
     // Hub moment of the tilted disc (articulated head offset): about the axis from up to the disc axis.
     _tb.crossVectors(this.up, _ax).multiplyScalar(C.hubStiffness * rs2);
-    // Rotor torque reaction (main rotor turns counter-clockwise seen from above: the body is pushed clockwise).
-    this.reaction = -C.reactionK * Math.pow(Math.max(Tm, 0), 1.5);
-    // Tail rotor: a sideways push at the tail pylon.
+    // Tail rotor: pure yaw (the moment of its push at the tail pylon), so pedals turn the nose without
+    // also pushing the aircraft sideways.
     _F.set(this.tailT * this.rotorSpeed, 0, 0).applyQuaternion(q);
     this.local(th[0], th[1], th[2], _pt);
-    body.addForceAtPoint({ x: _F.x, y: _F.y, z: _F.z }, { x: _pt.x, y: _pt.y, z: _pt.z }, true);
-    _Ft.add(_F);
+    _r.copy(_pt).sub(this.pos);
+    _a.crossVectors(_r, _F);
+    _tb.addScaledVector(_ax.copy(this.up), _a.dot(this.up));
 
-    // Body drag, and side drag on the long tail (weathervane).
+    // Body drag.
     const vhz = Math.hypot(vel.x, vel.z);
     _F.copy(vel).multiplyScalar(-C.dragLinear - 0.1 * C.dragQuad * vel.length());
     _F.x -= C.dragQuad * vhz * vel.x; _F.z -= C.dragQuad * vhz * vel.z;
     _Ft.add(_F);
     body.addForce({ x: _F.x, y: _F.y, z: _F.z }, true);
-    _right.set(1, 0, 0).applyQuaternion(q);
-    _r.set(0, 0.02, 0.07).applyQuaternion(q);
-    _vh.crossVectors(wWorld, _r).add(vel);
-    _F.copy(_right).multiplyScalar(-C.sideDrag * _vh.dot(_right));
-    _hub.copy(_r).add(this.pos);
-    body.addForceAtPoint({ x: _F.x, y: _F.y, z: _F.z }, { x: _hub.x, y: _hub.y, z: _hub.z }, true);
-    _Ft.add(_F);
 
     const damp = 0.35 + 0.65 * this.rotorSpeed;
-    _c.set(-C.angDamp[0] * wb.x * damp, -C.angDamp[1] * wb.y * damp + this.reaction, -C.angDamp[2] * wb.z * damp);
-    for (let a = 0; a < 3; a++) this.turb[a] += (-this.turb[a] * 5 + (Math.random() * 2 - 1) * 30) * dt;
-    const cushion = Math.max(0, 1 - this.groundDist / (1.6 * C.rotorRadius)) * Math.min(1.5, this.thrustFrac * 2.2) * CFG.air.buffet;
-    if (cushion > 0.01 && !this.grounded) {
-      const amp = 3.0e-4 * cushion;
-      _c.x += this.turb[0] * amp; _c.z += this.turb[1] * amp; _c.y += this.turb[2] * amp * 0.5;
-    }
+    _c.set(-C.angDamp[0] * wb.x * damp, -C.angDamp[1] * wb.y * damp, -C.angDamp[2] * wb.z * damp);
     _c.applyQuaternion(q).add(_tb);
     body.addTorque({ x: _c.x, y: _c.y, z: _c.z }, true);
 

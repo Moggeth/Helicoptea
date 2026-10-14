@@ -1,5 +1,5 @@
 // Manoeuvre checks: a J-turn (dash, pull up into a zoom climb, pedal-turn at the top, dive back the way
-// you came) for both aircraft, flown by a scripted "human" that only moves the sticks; plus weathervaning.
+// you came) for both aircraft, flown by a scripted "human" that only moves the sticks; plus no hidden yaw in a sideslip.
 import * as THREE from 'three';
 import { initPhysics } from '../src/sim/physics.js';
 import { Sim } from '../src/sim/sim.js';
@@ -75,7 +75,7 @@ function jTurn(type, assist) {
 for (const type of ['micro', 'chinook']) jTurn(type, false);
 jTurn('micro', true);
 
-// Weathervaning: sideslip at speed swings the nose into the airflow (assist off, sticks neutral).
+// Nothing invisible: a sideslip at speed with the sticks neutral keeps its heading (no weathervaning).
 for (const type of ['micro', 'chinook']) {
   const sim = setup(type);
   sim.assist = false;
@@ -86,7 +86,7 @@ for (const type of ['micro', 'chinook']) {
   h.body.setLinvel({ x: right.x, y: 0, z: right.z }, true);
   for (let i = 0; i < 240 * 0.8 && sim.heli; i++) sim.step({ pitch: 0, roll: 0, yaw: 0, collective: 0 });
   let d = sim.heli ? sim.heli.heading() - hdg0 : 0; d = Math.atan2(Math.sin(d), Math.cos(d));
-  check(`${type}: weathervanes into a sideslip at speed`, d < -0.08, `heading change ${f(d * 57.3, 0)} deg (negative = towards the slide)`);
+  check(`${type}: a sideslip leaves the heading alone`, Math.abs(d) < 0.02, `heading change ${f(d * 57.3, 1)} deg`);
 }
 
 const failed = results.filter((r) => !r.ok);

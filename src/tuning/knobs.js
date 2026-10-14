@@ -17,7 +17,7 @@ export const GROUPS = [
   { id: 'dot', label: 'Moving a dot', blurb: 'Momentum, drag and power: how the aircraft carries speed and climbs.' },
   { id: 'heli', label: 'Becoming a helicopter', blurb: 'How fast it tilts and turns, and how much rotational momentum it has.' },
   { id: 'sticks', label: 'Stick mapping', blurb: 'How your stick movement becomes control input. Applies to keyboard, pad and touch.' },
-  { id: 'flavour', label: 'Real-world flavour', blurb: 'Rotor effects near the ground and in moving air. Zero turns an effect off.' },
+  { id: 'flavour', label: 'Rotor wash', blurb: 'How hard the wash blows things about. It never pushes the aircraft itself.' },
   { id: 'assist', label: 'Flight Assist', blurb: 'Only matters with Flight Assist on.' },
 ];
 
@@ -88,35 +88,11 @@ export const KNOBS = [
     hint: 'Full-stick multiplier on cyclic and pedals (capped at full deflection).',
     clip: { scenario: 'curve', curve: 'rates', low: '×0.5', high: '×2', watch: 'Output reaches full deflection earlier with high rates.' } },
 
-  // ---------------------------------------------------------------- real-world flavour
-  { id: 'groundCushion', group: 'flavour', label: 'Ground cushion', kind: 'excess', min: 0, max: 2.5, global: true, perAircraft: true, linear: true,
-    targets: all({ micro: ['heli.groundEffectMax'], chinook: ['chinook.groundEffectMax'], skycrane: ['skycrane.groundEffectMax'] }),
-    hint: 'Ground effect: extra lift when the rotor is within about a diameter of a surface.',
-    clip: { scenario: 'lowHover', low: 'No cushion', high: 'Floating bubble', watch: 'Same collective, low over the pad.' } },
-  { id: 'buffet', group: 'flavour', label: 'Ground buffet', kind: 'mult', min: 0, max: 2.5, global: true, perAircraft: false, linear: true,
-    targets: { global: ['air.buffet'] },
-    hint: 'Recirculating downwash shoves the rotor around when you hover low.',
-    clip: { scenario: 'lowHover', low: 'Steady', high: 'Wobbly', watch: 'Low hover, hands off.' } },
-  { id: 'translationalLift', group: 'flavour', label: 'Translational lift', kind: 'mult', min: 0, max: 3, global: true, perAircraft: true, linear: true,
-    targets: all({ micro: ['heli.translationalLift'], chinook: ['chinook.translationalLift'], skycrane: ['skycrane.translationalLift'] }),
-    hint: 'A rotor moving through clean air makes more lift, so it climbs as you pick up speed.',
-    clip: { scenario: 'transLift', low: 'No change', high: 'Climbs with speed', watch: 'Pitch forward from a hover, collective untouched.' } },
-  { id: 'weathervane', group: 'flavour', label: 'Weathervane', kind: 'mult', min: 0, max: 3, global: true, perAircraft: true, linear: true,
-    targets: all({ micro: ['heli.weathervane'], chinook: ['chinook.sideDrag'], skycrane: ['skycrane.sideDrag'] }),
-    hint: 'The tail turns the nose into the airflow at speed.',
-    clip: { scenario: 'sideslip', low: 'Holds heading', high: 'Nose swings round', watch: 'Sliding sideways, hands off.' } },
-  { id: 'torqueKick', group: 'flavour', label: 'Rotor torque kick', kind: 'mult', min: 0, max: 3, global: true, perAircraft: true, linear: true,
-    targets: all({ micro: ['heli.reactionTorque'], chinook: ['chinook.reactionK'], skycrane: ['skycrane.reactionK'] }),
-    hint: 'Changing collective twists the airframe, so a punch of power yaws the nose unless you hold pedal.',
-    clip: { scenario: 'punchUp', low: 'Nose stays', high: 'Yaws away', watch: 'Punch the collective, pedals untouched.' } },
+  // ---------------------------------------------------------------- rotor wash (looks only)
   { id: 'downwash', group: 'flavour', label: 'Downwash strength', kind: 'mult', min: 0, max: 2, global: true, perAircraft: false, linear: true,
     targets: { global: ['air.strength'] },
-    hint: 'How hard the rotor wash blows the bag, string, tea, cloth and steam.',
+    hint: 'How hard the rotor wash blows the bag, string, tea, cloth and steam. It never pushes the aircraft.',
     clip: { scenario: 'lowHover', low: 'Calm', high: 'Gale', watch: 'Low hover over the pad.' } },
-  { id: 'aftWake', group: 'flavour', label: 'Aft-rotor wake loss', kind: 'mult', min: 0, max: 3, global: false, perAircraft: true, only: ['chinook'], linear: true,
-    targets: all({ chinook: ['chinook.aftWakeLoss'] }),
-    hint: 'Chinook only: the rear rotor loses lift in the front rotor\'s wake as you speed up (nose-up tendency).',
-    clip: { scenario: 'dashHold', low: 'Flat', high: 'Noses up', watch: 'Speeding up: watch the pitch.' } },
 
   // ---------------------------------------------------------------- assist
   { id: 'assistMaxTilt', group: 'assist', label: 'Max tilt', kind: 'mult', min: 0.5, max: 2, global: true, perAircraft: true,

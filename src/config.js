@@ -22,18 +22,13 @@ export const CFG = {
     skidDrop: 0.047,                   // centre of mass to skid bottom
     thrustToWeight: 2.3,               // full collective, heli alone
     thrustLag: 0.03,                   // thrust follows collective almost at once (F = ma from the moment you push)
-    spoolTime: 0.2,                    // governor response (s)
-    governorDroop: 0.07,               // rotor speed sag at full collective
-    groundEffectMax: 1.22,
-    translationalLift: 0.08,
+    spoolTime: 0.2,                    // rotor spin-up (s)
     dragPlane: 0.006,                  // rotor H-force, N per m/s in the rotor plane (low: momentum carries)
     dragAxial: 0.055,                  // N per m/s along the rotor axis (inflow): damps climbs and gives the flare kick when you pull up at speed
     dragQuad: 0.04,                    // N per (m/s)^2 in the rotor plane: a soft speed cap, otherwise you drift like a rocket
     angDamp: [4.0e-4, 2.2e-4, 3.0e-4], // rotor aerodynamic damping, N m per rad/s
-    weathervane: 1.0e-3,               // tail fin: yaw torque per (m/s)^2 of sideslip, nose turns into the airflow at speed
     cyclicTorque: 1.2e-3,              // N m at full cyclic deflection
     yawTorque: 1.0e-3,                 // pedal authority: enough to swing the nose round at the top of a J-turn
-    reactionTorque: 6.0e-5,            // main-rotor torque change with collective (yaw coupling)
     collectiveRate: 0.25,              // assist off: collective change per second at full stick (fine: little drag to hide mistakes)
     idleCollective: 0.12,
   },
@@ -125,7 +120,6 @@ export const CFG = {
     updateEvery: 4,         // physics steps per air update (240/4 = 60 Hz)
     bagDrag: 1.0,           // scales wind forces on tea bags
     stringFlutter: 0.06,
-    buffet: 1.0,            // ground-effect recirculation turbulence on the heli
   },
 
   camera: {
@@ -165,10 +159,6 @@ export const CFG = {
     diffLag: 0.14,                     // differential collective (pitch control) (s)
     cyclicLag: 0.05,
     spoolTime: 0.35,
-    governorDroop: 0.08,
-    groundEffectMax: 1.2,
-    translationalLift: 0.08,
-    aftWakeLoss: 0.008,                // aft rotor in the front rotor's wake loses a little lift (more set up a pitch oscillation)
     diffCollective: 0.045,             // max differential collective, fraction of one rotor's max thrust
     latCyclic: 0.08,                   // rad of lateral disc tilt at full roll input (~4.5 deg)
     yawCyclic: 0.14,                   // rad of opposite disc tilt at full yaw input (pedal turns at the top of a J-turn)
@@ -176,9 +166,7 @@ export const CFG = {
     dragPlane: 0.006,                  // per rotor H-force, N per m/s in the disc plane (acts at the hub)
     dragLinear: 0.01,                  // fuselage and rotor-wash drag at the CG, N per m/s
     dragQuad: 0.16,                    // horizontal body drag, N per (m/s)^2: soft speed cap, momentum carries
-    sideDrag: 0.02,                    // fuselage side area aft of the CG (weathervane), N per m/s
     angDamp: [5.5e-3, 1.8e-3, 2.2e-3], // flapping/hub damping, N m per rad/s (pitch: tandem rotors resist pitching strongly)
-    reactionK: 1.9e-3,                 // rotor torque ~ k T^1.5; cancels between the rotors at equal thrust
     collectiveRate: 0.2,                // assist off: fine collective trim
     idleCollective: 0.12,
     impactDv: 0.85,                    // heavier airframe, a little less forgiving
@@ -221,18 +209,13 @@ export const CFG = {
     cyclicLag: 0.06,
     tailLag: 0.05,
     spoolTime: 0.4,
-    governorDroop: 0.08,
-    groundEffectMax: 1.2,
-    translationalLift: 0.08,
     cyclicMax: 0.08,                   // rad of disc tilt at full stick
     hubStiffness: 0.025,               // N m per rad of disc tilt at full rotor speed (articulated head)
     tailMax: 0.06,                     // N of tail rotor thrust either way
-    reactionK: 1.9e-3,                 // main rotor torque ~ k T^1.5
     dragAxial: 0.06,
     dragPlane: 0.008,
     dragLinear: 0.012,
     dragQuad: 0.18,
-    sideDrag: 0.025,
     angDamp: [5.5e-3, 3.5e-3, 2.6e-3],
     collectiveRate: 0.3,
     idleCollective: 0.12,

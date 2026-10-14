@@ -16,16 +16,23 @@ True scale, SI units: metres, kilograms, seconds. Table top is y = 0. Rapier's `
 
 The helicopter is a Rapier dynamic rigid body; it is only ever moved by forces and torques.
 
-- Thrust acts along the rotor axis, so tilting redirects it and costs altitude. Collective sets blade pitch; thrust follows with a 70 ms lag.
-- Rotor speed is governed automatically and droops slightly under heavy collective. Thrust and control authority scale with rotor speed squared.
-- Ground effect (Cheeseman–Bennett, capped at +22%) from a downward ray at the hub. A little translational lift.
-- Drag: rotor-plane H-force, axial drag, quadratic body drag. Rotor aerodynamic damping on all three axes.
-- Main-rotor reaction torque changes with collective, so climbing yaws the nose unless corrected.
+**Principle: nothing invisible.** Every force the player feels is one they can read without helicopter
+training: thrust where the rotor points, gravity, momentum, drag, the rope. Real rotor aerodynamics
+(ground effect, translational lift, weathervaning, rotor torque reaction and yaw coupling, rotor-speed droop,
+ground-effect buffeting, the Chinook's aft-rotor wake loss) were in the model until 2026-10-14 and were
+removed, code and all, because they made the aircraft do things for reasons you can't see, and they cost
+per-step work (the Chinook alone cast 15 rays a step for ground effect; now 3). The rotor wash still blows
+the bags, tea, cloth and props, but never pushes the aircraft.
+
+- Thrust acts along the rotor axis, so tilting redirects it and costs altitude. Thrust is exactly what the collective asks for, anywhere (a 30 ms lag; F = ma from the moment you push).
+- Rotor speed spins up once and stays at full. Thrust and control authority scale with rotor speed squared (it only matters while spinning up and in crashes).
+- Drag: rotor-plane drag, axial drag, quadratic body drag. Rotor aerodynamic damping on all three axes.
+- Yaw only moves when you press the pedals.
 - The cargo hook sits directly below the centre of mass, so the string's pull produces real pendulum torques and drags the helicopter around when the bag swings.
 
 **Assist off**: cyclic and yaw are torques; collective is trimmed by the player and held. Releasing cyclic leaves the helicopter tilted (only aerodynamic damping slows rotation).
 
-**Assist on**: stabilising torques only. Neutral cyclic commands level; deflection commands up to ~22° of tilt in the heading frame; a small counter-tilt against drift applies only near neutral stick. Yaw becomes a rate command that also cancels reaction torque. Collective becomes a climb-rate command whose integrator learns the extra load slowly, so picking up a wet bag still makes the helicopter sag first. Torque is capped at 1.6× the manual cyclic authority. Nothing teleports or bypasses the cargo forces.
+**Assist on**: stabilising torques only. Neutral cyclic commands level; deflection commands up to ~22° of tilt in the heading frame; a small counter-tilt against drift applies only near neutral stick. Yaw becomes a rate command. Collective becomes a climb-rate command whose integrator learns the extra load slowly, so picking up a wet bag still makes the helicopter sag first. Torque is capped at 1.6× the manual cyclic authority. Nothing teleports or bypasses the cargo forces.
 
 ## Chinook ([src/sim/chinook.js](../src/sim/chinook.js))
 
@@ -35,8 +42,7 @@ A CH-47-style tandem-rotor heavy lifter at about 1:90: 17 cm fuselage, two 20 cm
 - **Pitch is differential collective**: forward stick unloads the forward rotor and loads the aft one (up to 4.5% of a rotor's max thrust each way, about 5 mN m).
 - **Roll is lateral cyclic**: both discs tilt the same way (up to ~6°); the side force acts above the CG.
 - **Yaw is differential lateral cyclic**: the forward disc tilts one way and the aft disc the other (up to ~3°), a couple about the CG. There is no tail rotor.
-- **Torque**: each rotor's reaction torque goes as T^1.5 and they turn opposite ways (forward counter-clockwise from above), so it cancels at equal thrust; differential collective leaves a small yaw coupling.
-- Per-rotor **ground effect** from seven rays across each disc (a thin peg bar under one side counts for little, a table under the whole disc counts fully), so hovering one rotor over the teapot pitches the aircraft. Axial inflow damping at each hub gives pitch damping; the disc H-force acts at the hub (speed stability). In forward flight the rotor behind loses 3% of its lift in the other's wake. Ground-effect recirculation buffets it like the micro heli.
+- No rotor torque, ground effect or wake effects (see *nothing invisible* above). Axial damping at each hub gives pitch damping; the disc drag acts level with the CG.
 - **Three hooks** (forward, centre, aft, 3 cm apart under the belly). Space hooks the nearest bag to a free hook; with none in reach it releases them all. Lining up along the tea stand takes all three bags at once. A load off the centre hook needs real differential collective to hold level: a soaked bag on the forward hook uses about two thirds of the pitch authority.
 - **Assist** is an AFCS that works only through the same rotor controls, within their physical range: attitude hold, pitch and roll trim integrators (learn off-centre hook loads), yaw-rate hold with heading hold, and the same climb-rate collective as the micro heli. **Assist off** maps the sticks straight to differential collective, lateral cyclic and differential cyclic.
 - **Breakup**: 19 pieces (nose with cockpit, cabin, aft cabin with ramp, both pylons with rotor heads, both engines, both sponsons, four gear legs, six blades). Blades keep spinning in their own rotor's direction; sponsons and engines cook off in delayed secondary fireballs; wreckage smoulders rather than glowing.
@@ -66,7 +72,7 @@ The model ([src/render/chinookModel.js](../src/render/chinookModel.js)) is lofte
 An S-64 Air-Crane-style tanker at about 1:110: 110 g dry, a 20 cm six-blade main rotor, a 4.2 cm four-blade tail rotor on the left of the tail pylon, wheeled gear, and a 32 ml belly tank. Original markings ("07", MILK TANKER).
 
 - **One main rotor**: thrust along a disc axis that tilts with the cyclic (up to 0.08 rad, lagged), applied at the hub, plus an articulated-head hub moment. Collective and assist work as on the Chinook (climb-rate collective with a load-learning integrator, attitude hold, pitch/roll trim integrators). The assist only knows the dry weight, so filling the tank makes it sag before it learns.
-- **Torque and the tail rotor**: the main rotor's reaction torque goes as T^1.5. The tail rotor is a sideways force at the tail pylon (it also rolls and translates the aircraft). With assist off it is rigged for a dry hover, so pulling collective yaws the nose. With assist on, the yaw hold drives it, and the attitude target leans the disc against its sideways push, so it hovers without crabbing.
+- **Tail rotor**: pure yaw. There is no main-rotor torque to fight, so it idles in a hover and the pedals only turn the nose (it no longer pushes the aircraft sideways).
 - **Hanging fuselage**: the assist lets the fuselage settle so that the disc is level when it is trimmed against an off-centre load (the hose, the tank). Holding the fuselage level instead made the disc thrust sideways, and the aircraft drifted at about 0.4 m/s.
 - **Snorkel hose**: nine rigid ball segments joined by rope links (slack, never stretched), the last one a weighted intake that sinks. It collides with the world and cargo but not the airframe, and feels air drag against the rotor wash, plus liquid drag and buoyancy. The reel re-rigs the link lengths (1.4 to 17 cm). A slack hose snapping taut emits a `snatch`, and a hose dragged over a surface emits `scrape`, which feed the shared feedback (sound, dust, rumble).
 - **Pump**: spools up over 0.3 s, and moves liquid (22 ml/s) only while the intake is at least 1.5 mm under a vessel's surface. It takes milk, tea or milky tea from that vessel, so the crock's level drops.
@@ -94,7 +100,7 @@ A small fluid simulation, run at 60 Hz inside the fixed-step sim:
 - **Outwash layer**: a 60 × 40 grid (3.4 cm cells) over the table holds a thin 2D incompressible flow. The impingement footprint is a mass source sized so the flow leaves its edge at the arriving wake speed. A warm-started pressure solve spreads it radially and steers it around the cups, teapot, sugar bowl, vase, jug, books and stand. Semi-Lagrangian advection carries gusts, and the field decays once the helicopter leaves. When the air is still, the solve is skipped.
 - `sample(x, y, z)` gives the 3D air velocity (column plus outwash fading over ~3.5 cm of height).
 
-Physical consumers: tea bags (flat-plate drag against moving air, at three points so they flutter and twist), the visible strings, and ground-effect recirculation buffeting on the helicopter when hovering within ~1.6 rotor radii of a surface. Visual consumers: the linen runner and its hanging ends ripple (vertex displacement driven by the air field as a texture), steam, smoke and dust ride the flow, flowers nod, and liquids under the rotor react (below).
+Physical consumers: tea bags (flat-plate drag against moving air, at three points so they flutter and twist), the visible strings and the skycrane's hose. It never pushes the aircraft itself. Visual consumers: the linen runner and its hanging ends ripple (vertex displacement driven by the air field as a texture), steam, smoke and dust ride the flow, flowers nod, and liquids under the rotor react (below).
 
 ## Rotor wash on liquids ([src/render/rotorwash.js](../src/render/rotorwash.js), [src/render/rippleField.js](../src/render/rippleField.js), [src/render/water.js](../src/render/water.js))
 
@@ -201,8 +207,7 @@ effects that can go to zero and for absolute values), the config paths it scales
 its preview clip. `tuning.js` captures the base values from `config.js` once, then writes
 `base × global × per-aircraft` back into `CFG` whenever anything changes; the sims already read `CFG` every
 step, so a change is live with no restart (rotational weight sets the bodies' inertia, so it waits for the
-next restart). *Ground cushion* scales only the part of the ground-effect factor above 1, so zero means no
-cushion rather than no lift. World speed is the pause menu's World weight setting, shared rather than
+next restart). World speed is the pause menu's World weight setting, shared rather than
 duplicated. The thrust and cyclic response lags are deliberately not exposed: instant thrust is part of the
 game's feel. Stick mapping (deadzone, expo, rates) shapes cyclic and pedals after the controller's own bindings,
 dead zone and curve have resolved, and never touches the collective, which is a rate. State lives in

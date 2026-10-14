@@ -78,7 +78,6 @@ export class Helicopter {
     this.ctlEcho = { pitch: 0, roll: 0, yaw: 0, collective: 0 };
     this.predVel = new THREE.Vector3();
     this.impactAcc = 0;
-    this.turb = [0, 0, 0];
     this.cmdPitch = 0; this.cmdRoll = 0;
     this.updateCached();
   }
@@ -113,7 +112,7 @@ export class Helicopter {
     const Tmax = H.thrustToWeight * weight;
     this.ctlEcho.pitch = ctl.pitch; this.ctlEcho.roll = ctl.roll; this.ctlEcho.yaw = ctl.yaw; this.ctlEcho.collective = ctl.collective;
 
-    // Ground probe from the rotor hub (ground effect, landed state, shadows).
+    // Ground probe from the rotor hub (landed state, shadows).
     _a.set(H.rotorHubOffset[0], H.rotorHubOffset[1], H.rotorHubOffset[2]).applyQuaternion(q).add(this.pos);
     const ray = new RAPIER.Ray({ x: _a.x, y: _a.y, z: _a.z }, { x: 0, y: -1, z: 0 });
     const hit = this.sim.world.castRay(ray, 1.2, true, undefined, GROUPS.queryWorld, undefined, body);
@@ -134,9 +133,8 @@ export class Helicopter {
       this.lastAssist = assist;
     }
 
-    // Rotor speed governor: automatic, droops a little under heavy collective.
-    const rsTarget = 1 - H.governorDroop * this.thrustFrac;
-    this.rotorSpeed += (rsTarget - this.rotorSpeed) * (1 - Math.exp(-dt / H.spoolTime));
+    // Rotor speed: spins up to full and stays there (no droop: thrust is exactly what the collective says).
+    this.rotorSpeed += (1 - this.rotorSpeed) * (1 - Math.exp(-dt / H.spoolTime));
     const rs2 = this.rotorSpeed * this.rotorSpeed;
     const TmaxNow = Tmax * rs2;
 
@@ -160,16 +158,12 @@ export class Helicopter {
       this.collective = THREE.MathUtils.clamp(this.collective + ctl.collective * H.collectiveRate * dt, 0, 1);
     }
 
-    // Thrust with lag, ground effect and a touch of translational lift.
+    // Thrust along the rotor axis: what the collective asks for, wherever you are (no ground effect,
+    // translational lift or other effects you can't see).
     const tCmd = this.collective * TmaxNow;
     this.thrust += (tCmd - this.thrust) * (1 - Math.exp(-dt / H.thrustLag));
     this.thrustFrac = this.thrust / Tmax;
-    const z = Math.max(this.groundDist, 0.02);
-    const k = H.rotorRadius / (4 * z);
-    const ge = Math.min(1 / Math.max(1 - k * k, 0.01), H.groundEffectMax);
-    const vh = Math.hypot(vel.x, vel.z);
-    const etl = 1 + H.translationalLift * Math.min(vh / 0.8, 1);
-    const T = this.thrust * ge * etl;
+    const T = this.thrust;
 
     const F = _b.copy(up).multiplyScalar(T);
     // Aerodynamic drag: rotor plane (H-force), axial and quadratic body drag.
@@ -191,11 +185,6 @@ export class Helicopter {
     const wb = _c.copy(wWorld).applyQuaternion(_qi);
     const damp = 0.35 + 0.65 * this.rotorSpeed;
     const tb = _d.set(-H.angDamp[0] * wb.x * damp, -H.angDamp[1] * wb.y * damp, -H.angDamp[2] * wb.z * damp);
-    // Weathervaning: the tail fin turns the nose into the relative airflow, in proportion to speed.
-    const vb = _a.copy(vel).applyQuaternion(_qi);
-    tb.y += -H.weathervane * vb.x * Math.hypot(vb.x, vb.z);
-    // Main rotor reaction torque: more collective, more yaw to the right that must be countered.
-    tb.y += -H.reactionTorque * (T / weight - 1);
 
     const tWorld = new THREE.Vector3();
     if (assist) {
@@ -224,24 +213,14 @@ export class Helicopter {
       tWorld.copy(err).multiplyScalar(A.tiltKp * I).addScaledVector(wTilt, -A.tiltKd * I);
       const lim = H.cyclicTorque * A.torqueLimit * rs2;
       if (tWorld.length() > lim) tWorld.setLength(lim);
-      // Yaw rate hold (also cancels rotor reaction torque).
+      // Yaw rate hold.
       const rCmd = -ctl.yaw * A.yawRate;
-      const ty = THREE.MathUtils.clamp(H.inertia[1] * A.yawKp * (rCmd - wb.y) + H.reactionTorque * (T / weight - 1),
-        -H.yawTorque * 1.5, H.yawTorque * 1.5);
+      const ty = THREE.MathUtils.clamp(H.inertia[1] * A.yawKp * (rCmd - wb.y), -H.yawTorque * 1.5, H.yawTorque * 1.5);
       tb.y += ty;
     } else {
       tb.x += -ctl.pitch * H.cyclicTorque * rs2;
       tb.z += -ctl.roll * H.cyclicTorque * rs2;
       tb.y += -ctl.yaw * H.yawTorque * rs2;
-    }
-    // Ground-effect recirculation: a cushion of re-ingested air buffets the rotor when hovering low.
-    const cushion = Math.max(0, 1 - this.groundDist / (1.6 * H.rotorRadius)) * Math.min(1.5, this.thrustFrac * 2.2) * CFG.air.buffet;
-    for (let a = 0; a < 3; a++) {
-      this.turb[a] += (-this.turb[a] * 6 + (Math.random() * 2 - 1) * 38) * dt;
-    }
-    if (cushion > 0.01 && !this.grounded) {
-      const amp = H.cyclicTorque * 0.22 * cushion;
-      tb.x += this.turb[0] * amp; tb.z += this.turb[1] * amp; tb.y += this.turb[2] * amp * 0.5;
     }
     tb.applyQuaternion(q).add(tWorld);
     body.addTorque({ x: tb.x, y: tb.y, z: tb.z }, true);

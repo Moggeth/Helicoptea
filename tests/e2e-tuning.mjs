@@ -118,7 +118,7 @@ await page.screenshot({ path: path.join(outDir, 'clip-expo.png') });
 await page.click('[data-act=tuneTab][data-tab=chinook]');
 await sleep(300);
 const ch = await H(() => [...document.querySelectorAll('.tune-row')].map((r) => r.dataset.knob));
-check('Chinook tab has the Chinook-only knobs', ch.includes('pitchResponse') && ch.includes('aftWake'));
+check('Chinook tab has the Chinook-only knob', ch.includes('pitchResponse'));
 check('per-aircraft tabs leave out global-only knobs', !ch.includes('worldSpeed') && !ch.includes('gravity') && !ch.includes('expo'));
 const chBefore = await H(() => window.__helicoptea.tuning.base.get('chinook.latCyclic'));
 await setSlider('rotationRate', 1);
@@ -127,7 +127,7 @@ check('a per-aircraft slider changes only that aircraft', chAfter.v === 2 && chA
 await page.click('[data-act=tuneTab][data-tab=micro]');
 await sleep(200);
 const mi = await H(() => [...document.querySelectorAll('.tune-row')].map((r) => r.dataset.knob));
-check('micro tab leaves out Chinook-only knobs', !mi.includes('pitchResponse') && !mi.includes('aftWake'));
+check('micro tab leaves out the Chinook-only knob', !mi.includes('pitchResponse'));
 check('Chinook changed count shows on its tab', await H(() => document.querySelector('[data-tab=chinook] .tune-count')?.textContent === '1'));
 
 // ---------------------------------------------------------------- persistence

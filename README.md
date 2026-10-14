@@ -75,9 +75,8 @@ telemetry around each one. See [docs/FLIGHT-LOGS.md](docs/FLIGHT-LOGS.md).
 **Pause → Flight tuning → Open board** shows every feel setting as a slider, grouped as *Moving a dot*
 (world speed, gravity, coasting, top-speed cap, climb damping, thrust-to-weight, collective trim speed),
 *Becoming a helicopter* (rotation rate, rotational weight, settling, yaw authority, Chinook pitch response),
-*Stick mapping* (deadzone, expo, rates), *Real-world flavour* (ground cushion, buffet, translational lift,
-weathervaning, torque kick, downwash, Chinook aft-rotor wake) and *Flight Assist* (max tilt, follow, drift
-catch, climb rate). Hover over (or select) any setting and a short clip plays on the right: the same scripted
+*Stick mapping* (deadzone, expo, rates), *Rotor wash* (how hard it blows things about) and *Flight Assist*
+(max tilt, follow, drift catch, climb rate). Hover over (or select) any setting and a short clip plays on the right: the same scripted
 flight, side by side, at the low and high ends of that slider, or **Default vs yours**. The **All aircraft**
 tab sets the world; the **Micro heli**, **Chinook** and **Skycrane** tabs set each aircraft relative to it
 (effective value = aircraft base × all aircraft × this aircraft). Everything at ×1 is the game as shipped.
@@ -88,7 +87,7 @@ has its own ↺ reset, each group a *Reset group*, and there are presets (*Float
 
 ## Rotor wash, AO
 
-The rotor's downwash is a small fluid simulation (wake column plus a 2D outwash solver over the table). It pushes the dangling bag and strings, buffets the helicopter near surfaces, ripples the linen runner, blows steam and dust, nods the flowers, and dimples and sprays the tea. Ambient occlusion (GTAO) grounds everything on desktop. See [docs/DESIGN.md](docs/DESIGN.md).
+The rotor's downwash is a small fluid simulation (wake column plus a 2D outwash solver over the table). It pushes the dangling bag and strings (never the aircraft itself), ripples the linen runner, blows steam and dust, nods the flowers, and dimples and sprays the tea. Ambient occlusion (GTAO) grounds everything on desktop. See [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Playing while it's being developed
 

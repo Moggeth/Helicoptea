@@ -45,17 +45,15 @@ check('resetting a per-aircraft knob restores the global value', Math.abs(CFG.ch
 t.resetGlobal('rotationRate');
 check('resetting a global knob restores the base value', CFG.heli.cyclicTorque === cyc && CFG.chinook.latCyclic === chLat);
 
-// Excess kind: only the part above 1 scales.
-const gem = CFG.heli.groundEffectMax;
-t.setGlobal('groundCushion', 0);
-check('ground cushion 0 removes ground effect entirely', Math.abs(CFG.heli.groundEffectMax - 1) < 1e-12, `${gem} → ${CFG.heli.groundEffectMax}`);
-t.setGlobal('groundCushion', 2);
-check('ground cushion ×2 doubles the extra lift', Math.abs(CFG.heli.groundEffectMax - (1 + (gem - 1) * 2)) < 1e-12);
+// Nothing hidden: the board has no knobs for helicopter aero quirks, and the config has none of them.
+const quirks = /groundEffect|translationalLift|weathervane|reaction|sideDrag|aftWake|governorDroop|buffet/;
+check('no knob drives a hidden aero effect', !paths.some((p) => quirks.test(p)));
+check('the flight config has no hidden aero effects', !quirks.test(JSON.stringify(Object.keys({ ...CFG.heli, ...CFG.chinook, ...CFG.skycrane, ...CFG.air }))));
 
 // Groups and reset all.
-t.setGlobal('buffet', 0); t.setGlobal('coasting', 3);
+t.setGlobal('downwash', 0.5); t.setGlobal('coasting', 3);
 t.resetGroup('global', 'flavour');
-check('reset group clears only that group', !t.isChanged('global', 'groundCushion') && !t.isChanged('global', 'buffet') && t.isChanged('global', 'coasting'));
+check('reset group clears only that group', !t.isChanged('global', 'downwash') && t.isChanged('global', 'coasting'));
 t.resetAll();
 check('reset all restores the exact config', snapshot() === before);
 

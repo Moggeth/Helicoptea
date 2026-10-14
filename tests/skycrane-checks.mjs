@@ -27,7 +27,7 @@ function pilot(sim, ap) {
     run(sim, secs, () => (sim.heli ? { ...ap.update(sim.heli), ...(extra.ctl || {}) } : zero()));
   };
 }
-const climb = (sim) => { run(sim, 1.6, () => ({ ...zero(), collective: 1 })); run(sim, 1.5); };
+const climb = (sim) => { run(sim, 2.0, () => ({ ...zero(), collective: 1 })); run(sim, 1.5); };
 
 // 1. On the pad.
 {
@@ -51,9 +51,7 @@ const climb = (sim) => { run(sim, 1.6, () => ({ ...zero(), collective: 1 })); ru
   run(sim, 3);
   check('assist: climbs on collective', yUp > 0.2, `y ${f(yUp)}`);
   check('assist: hovers level and nearly still', h.vel.length() < 0.15 && Math.acos(Math.min(1, h.up.y)) < 0.08 && sim.state === 'flying', `v ${f(h.vel.length())} tilt ${f(Math.acos(h.up.y))}`);
-  check('tail rotor pushes against the main rotor torque', h.tailT > 0.005 && Math.abs(h.body.angvel().y) < 0.03, `tail ${f(h.tailT * 1000, 1)} mN, yaw rate ${f(h.body.angvel().y)}`);
-  const disc = new THREE.Vector3(Math.sin(h.tilt[1]), 1, -Math.sin(h.tilt[0])).normalize().applyQuaternion(h.quat);
-  check('the disc leans against the tail rotor push', disc.x < -0.002, `disc axis x ${f(disc.x, 4)}`);
+  check('hover holds heading with the tail rotor idle (no torque to fight)', Math.abs(h.tailT) < 0.002 && Math.abs(h.body.angvel().y) < 0.03, `tail ${f(h.tailT * 1000, 1)} mN, yaw rate ${f(h.body.angvel().y)}`);
   // sideways: roll right, then let go
   run(sim, 1.0, () => ({ ...zero(), roll: 1 }));
   const vx = h.vel.x;
@@ -89,7 +87,7 @@ const climb = (sim) => { run(sim, 1.6, () => ({ ...zero(), collective: 1 })); ru
   const w0 = sim2.heli.body.angvel().y;
   run(sim2, 0.5, () => ({ ...zero(), collective: 1 }));
   const w1 = sim2.heli.body.angvel().y;
-  check('assist off: pulling collective yaws the nose (rotor torque)', w1 < w0 - 0.05, `yaw rate ${f(w0)} -> ${f(w1)} rad/s`);
+  check('assist off: pulling collective leaves the nose alone (no hidden torque)', Math.abs(w1 - w0) < 0.03, `yaw rate ${f(w0)} -> ${f(w1)} rad/s`);
 }
 
 // 4. The hose: hangs, reels, swings and collides.
@@ -117,9 +115,11 @@ const climb = (sim) => { run(sim, 1.6, () => ({ ...zero(), collective: 1 })); ru
   // descend until the hose touches the table: segments stay above it
   sim.heli && (sim.heli.hose.length = SC.hose.maxLength);
   const ap = new Autopilot();
-  pilot(sim, ap)(h.pos.x, 0.17, h.pos.z, 5, { speed: 0.1 });
+  // over open table (where it has drifted to depends on the flight above, so pick the spot)
+  pilot(sim, ap)(0.25, 0.3, 0.15, 6, { speed: 0.3 });
+  pilot(sim, ap)(0.25, 0.17, 0.15, 4, { speed: 0.1 });
   const minY = Math.min(...h.hose.segs.map((s) => s.pos.y));
-  check('hose segments collide with the table', sim.state === 'flying' && minY > 0, `lowest segment ${f(minY, 4)} m`);
+  check('hose segments collide with the table', sim.state === 'flying' && minY > 0, `lowest segment ${f(minY, 4)} m at ${h.pos.toArray().map((v) => f(v, 2))}`);
   check('a dragging hose does not crash the aircraft', sim.state === 'flying', why(sim));
 }
 
@@ -233,13 +233,18 @@ const climb = (sim) => { run(sim, 1.6, () => ({ ...zero(), collective: 1 })); ru
   sim.setAircraft('micro');
   const k = sim.milk.bucket;
   sim.detachBag(k, true);
+  // hover the micro (so the bucket hangs in the air rather than in the table)
+  sim.assist = true;
+  sim.heli.body.setTranslation({ x: sim.heli.pos.x, y: 0.4, z: sim.heli.pos.z }, true);
+  run(sim, 1.0);
   const hw = sim.heli.hookWorlds[0];
   k.body.setTranslation({ x: hw.x, y: hw.y - 0.17, z: hw.z }, true);
   sim.attachBag(k, { kind: 'heli', heli: sim.heli, hook: 0 });
   const got = sim.milk.take(sim.milk.bowl, 8e-6); k.mix(got.vol, got.milk, got.brew);
+  const v0 = k.vol;
   const r = sim.milk.salvo();
-  run(sim, 0.3);
-  check('micro heli: salvo combo latches the bucket valve open', r === 'latched' && k.valveOpen && k.flowOut > 0, `valve ${k.valveOpen}`);
+  run(sim, 0.6);
+  check('micro heli: salvo combo latches the bucket valve open', r === 'latched' && k.valveOpen && k.vol < v0 * 0.5, `valve ${k.valveOpen}, ${f(v0 * 1e6, 2)} ml -> ${f(k.vol * 1e6, 2)} ml`);
   run(sim, 4);
   check('the latch lets go once the bucket is empty', k.vol === 0 && !k.latched && !k.valveOpen, `${ml(k.vol)}`);
 }
