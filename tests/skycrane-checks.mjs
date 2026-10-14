@@ -68,6 +68,20 @@ const climb = (sim) => { run(sim, 2.0, () => ({ ...zero(), collective: 1 })); ru
   check('yaw: holds heading after release', Math.abs(h.heading() - hd1) < 0.05 && Math.abs(hd1 - hd0) > 0.5, `drift ${f(h.heading() - hd1)} rad`);
 }
 
+// 2b. Hands off: an assisted hover holds still (no slow creep).
+{
+  const sim = new Sim({ aircraft: 'skycrane' });
+  run(sim, 1);
+  run(sim, 0.8, () => ({ ...zero(), collective: 1 }));
+  run(sim, 3);
+  const p0 = sim.heli.pos.clone();
+  let vmax = 0;
+  const n = Math.round(8 / sim.dt);
+  for (let i = 0; i < n; i++) { sim.step(zero()); if (sim.heli) vmax = Math.max(vmax, Math.hypot(sim.heli.vel.x, sim.heli.vel.z)); }
+  const moved = sim.heli ? Math.hypot(sim.heli.pos.x - p0.x, sim.heli.pos.z - p0.z) : 99;
+  check('hands-off assisted hover holds still', sim.state === 'flying' && vmax < 0.04 && moved < 0.06, 'max drift ' + f(vmax) + ' m/s, moved ' + f(moved * 100, 1) + ' cm in 8 s');
+}
+
 // 3. Assist off: attitude persists, and more collective yaws it (torque).
 {
   const sim = new Sim({ aircraft: 'skycrane' });

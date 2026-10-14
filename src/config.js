@@ -253,6 +253,9 @@ export const CFG = {
       trimMax: 0.75,
       driftDamping: 0.04,
       driftTiltMax: 0.05,
+      holdKi: 0.2,          // rad of lean per metre of hands-off drift (integral hover hold)
+      holdKp: 0.2,          // rad of lean per m/s, sticks centred only (extra hands-off damping)
+      holdMax: 0.12,        // m
       yawRate: 0.8,
       yawKp: 7,
       yawKi: 8,

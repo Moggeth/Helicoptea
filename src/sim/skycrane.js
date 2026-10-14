@@ -241,6 +241,7 @@ export class Skycrane {
     this.tailPhase = 0;
     this.integ = 0;
     this.trim = [0, 0];
+    this.velInt = [0, 0];            // assist: integrated hands-off drift (m)
     this.discTrim = [0, 0];
     this.yawInteg = 0;
     this.groundDist = 1;
@@ -384,9 +385,23 @@ export class Skycrane {
         desired.x += clamp(-vel.x * A.driftDamping, -A.driftTiltMax, A.driftTiltMax) * neutral;
         desired.z += clamp(-vel.z * A.driftDamping, -A.driftTiltMax, A.driftTiltMax) * neutral;
       }
-      // Let the fuselage hang so the disc is level when it is trimmed against an off-centre load (milk, hose).
-      this.discTrim[0] += (this.tilt[0] - this.discTrim[0]) * (1 - Math.exp(-dt / 1.5));
-      this.discTrim[1] += (this.tilt[1] - this.discTrim[1]) * (1 - Math.exp(-dt / 1.5));
+      // Hands-off hover hold: an off-centre load (milk, the hose) needs a little disc tilt to balance, and that
+      // tilt pushes sideways. Integrating the drift and leaning against it lets the fuselage settle at whatever
+      // attitude makes the disc level, so it holds still. (Feeding the disc tilt itself back into the target
+      // attitude, as before, chased its own control action and crept at ~0.1 m/s for seconds.)
+      // Only truly hands-off (sticks centred): any cyclic means the pilot is flying, and the hold lets go.
+      if (Math.max(Math.abs(ctl.pitch), Math.abs(ctl.roll)) < 0.02 && !this.grounded) {
+        this.velInt[0] = clamp(this.velInt[0] + vel.x * dt, -A.holdMax, A.holdMax);
+        this.velInt[1] = clamp(this.velInt[1] + vel.z * dt, -A.holdMax, A.holdMax);
+      } else { const k = Math.exp(-dt / 0.15); this.velInt[0] *= k; this.velInt[1] *= k; }
+      const hold = Math.max(Math.abs(ctl.pitch), Math.abs(ctl.roll)) < 0.02 && !this.grounded ? 1 : 0;
+      desired.x -= A.holdKi * this.velInt[0] + hold * A.holdKp * vel.x;
+      desired.z -= A.holdKi * this.velInt[1] + hold * A.holdKp * vel.z;
+      // Let the fuselage hang so the disc is level against the steady part of the trim (the learned load
+      // offset), not against the instantaneous disc tilt, which includes the hold's own corrections.
+      const kd = 1 - Math.exp(-dt / 1.5);
+      this.discTrim[0] += (-this.trim[0] * C.cyclicMax - this.discTrim[0]) * kd;
+      this.discTrim[1] += (-this.trim[1] * C.cyclicMax - this.discTrim[1]) * kd;
       if (!this.grounded) desired.addScaledVector(_fwd, Math.tan(-this.discTrim[0])).addScaledVector(_right, Math.tan(-this.discTrim[1]));
       desired.normalize();
       const errB = _b.crossVectors(up, desired).applyQuaternion(_qi);
