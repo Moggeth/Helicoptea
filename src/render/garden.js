@@ -248,10 +248,7 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
     const p = [V2(0.0001, 0), V2(0.16, 0), V2(0.16, 0.04), V2(0.1, 0.06), V2(B.stemR, 0.12), V2(B.stemR * 0.8, (B.top - fy) * 0.55), V2(B.stemR, B.top - fy - 0.08),
       V2(B.r * 0.6, B.top - fy - 0.05), V2(B.r, B.top - fy - 0.01), V2(B.r - 0.02, B.top - fy), V2(B.r * 0.85, B.top - fy - 0.035), V2(0.0001, B.top - fy - 0.04)];
     b.add(new THREE.LatheGeometry(p, 40), stone, T(B.x, fy, B.z), 0xd0c9b8);
-    const water = new THREE.Mesh(new THREE.CircleGeometry(B.r * 0.86, 40), new THREE.MeshStandardMaterial({ color: 0x8aa6a2, roughness: 0.04, metalness: 0.1, envMapIntensity: 1.5 }));
-    water.rotation.x = -Math.PI / 2;
-    water.position.set(B.x, B.top - 0.02, B.z);
-    scene.add(water);
+    // Its water is a live liquid surface (View.birdbath), so the rotor wash ripples and sprays it.
     // Tree stump with roots and a ringed top.
     const S = STUMP, sh = S.top - fy;
     b.add(new THREE.CylinderGeometry(S.r, S.r * 1.15, sh, 24, 3), bark, T(S.x, fy + sh / 2, S.z), 0xffffff);

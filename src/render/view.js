@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { CFG } from '../config.js';
 import { RAPIER, GROUPS } from '../sim/physics.js';
-import { TABLE, surfaceY } from '../sim/layout.js';
+import { TABLE, surfaceY, BIRDBATH } from '../sim/layout.js';
 import { cloneHeliPart, makeMaterials, teabagAssets } from './models.js';
 import { buildRealisticHelicopter } from './heliModel.js';
-import { TeaSurface, teaColor } from './water.js';
+import { TeaSurface, teaColor, setLiquidEnvironment } from './water.js';
+import { LiquidWash } from './rotorwash.js';
 import { ParticlePool } from './particles.js';
 import { StringMesh } from './strings.js';
 import { radialTexture } from './textures.js';
@@ -38,6 +39,7 @@ export class View {
     this.debris = new Map();
     this.fading = [];
     this.stringMat = new THREE.MeshStandardMaterial({ color: 0xf5efe2, roughness: 0.8, emissive: 0x3a3428, emissiveIntensity: 0.25 });
+    setLiquidEnvironment(scene.environment, quality);
     this.surfaces = sim.cups.map((c) => {
       const s = new TeaSurface(c, kitchen.sun.position.clone().sub(kitchen.sun.target.position));
       s.air = sim.air;
@@ -103,7 +105,6 @@ export class View {
     this.clothUniforms.uAir.value = this.airTex;
     this.windFn = (x, y, z, o) => sim.air.sample(x, y, z, o);
     this.dustAcc = 0;
-    this.sprayAcc = 0;
     this.flowerWind = new THREE.Vector3();
     this.steamAcc = 0;
     this.downwashAcc = 0;
@@ -114,6 +115,14 @@ export class View {
     this.cupScreen = [];
     this.milkView = new MilkView(this, kitchen.sun.position.clone().sub(kitchen.sun.target.position));
     this.skycrane = new SkycraneView(this);
+    // Rotor wash on open liquid: every cup, the milk crock and the bird bath's water.
+    this.liquid = new LiquidWash(this);
+    for (const s of this.surfaces) this.liquid.add(s);
+    this.liquid.add(this.milkView.bowlSurface);
+    const B = BIRDBATH;
+    this.birdbath = this.liquid.add(new TeaSurface({ x: B.x, z: B.z, rIn: B.r * 0.86, waterY: B.top - 0.02, topY: B.top, brew: 0, milk: 0, steep: 0 },
+      kitchen.sun.position.clone().sub(kitchen.sun.target.position), { water: { color: 0x5d7a72, opacity: 0.82 }, wall: 0xb9b2a2, rim: 0xd0c9b8, fieldN: quality.name === 'high' ? 48 : 36 }));
+    scene.add(this.birdbath.mesh);
   }
 
   // In first person the cabin (and whatever around it the eye sits inside) only casts its shadow;
@@ -160,7 +169,7 @@ export class View {
         case 'snatch': camRig.addShake(Math.min(0.002, e.speed * 0.002)); break;
         case 'bagRemoved': this.retireBag(e.id); break;
         case 'debrisRemoved': this.retireDebris(e.id); break;
-        case 'reset': this.pendingFx.length = 0; this.fx.clear(); this.smoke.clear(); for (const s of this.scorches) { s.mesh.visible = false; s.age = 99; } for (const s of this.surfaces) s.displayBrew = 0; break;
+        case 'reset': this.pendingFx.length = 0; this.fx.clear(); this.smoke.clear(); for (const s of this.scorches) { s.mesh.visible = false; s.age = 99; } for (const s of this.surfaces) s.displayBrew = 0; this.liquid.clear(); break;
         default: break;
       }
     }
@@ -520,10 +529,12 @@ export class View {
       }
     }
 
+    this.liquid.couple();
     this.milkView.update(alpha, dt);
 
     // Surfaces, flash, scorch fade, particles.
     for (const s of this.surfaces) s.update(this.time, dt);
+    this.birdbath.update(this.time, dt);
     this.flashT += dt;
     this.flash.intensity = this.flashT < 0.6 ? 7 * Math.exp(-this.flashT * 9) : 0;
     for (const s of this.scorches) {
@@ -536,6 +547,7 @@ export class View {
     const floorFn = (x, z) => surfaceY(x, z) + 0.001;
     this.fx.update(dt, floorFn, this.windFn);
     this.smoke.update(dt, floorFn, this.windFn);
+    this.liquid.update(dt);
   }
 
   // The string simulates at half the physics rate, so its interpolated ends can trail the bag and hook
@@ -563,7 +575,7 @@ export class View {
     }
   }
 
-  // Rotor wash presentation: cloth texture, flowers, dust and tea spray.
+  // Rotor wash presentation: cloth texture, flowers and dust (liquids: LiquidWash).
   updateAir(dt) {
     const air = this.sim.air, d = this.airData, R = 4;
     for (let k = 0, n = air.nx * air.nz; k < n; k++) {
@@ -583,12 +595,10 @@ export class View {
       a.obj.rotation.z = a.base.z + Math.sin(this.time * 1.3 + a.phase) * 0.03 + this.flowerWind.x * 0.12 + jitter;
       a.obj.rotation.x = a.base.x - this.flowerWind.z * 0.12 + jitter * 0.7;
     }
-    this.sprayAcc += dt;
     for (const wk of air.wakes) if (wk.active && wk.vg) this.washEffects(wk, dt);
-    if (this.sprayAcc > 0.05) this.sprayAcc = 0;
   }
 
-  // Dust, spray and tea ripples where one rotor's wake meets the table.
+  // Dust where one rotor's wake meets the table.
   washEffects(wk, dt) {
     // Dust and crumbs lifted where the outwash is fastest (they then ride the flow, showing it).
     if (wk.hit.y < 0.02 && wk.vg > 1.2) {
@@ -602,23 +612,7 @@ export class View {
           col0: [0.93, 0.88, 0.78], alpha: 0.55, grav: 0.4, drag: 0.5 });
       }
     }
-    // Tea under the rotor: spray mist and a ring of wind ripples.
-    for (let i = 0; i < this.sim.cups.length; i++) {
-      const c = this.sim.cups[i];
-      const dx = wk.hit.x - c.x, dz = wk.hit.z - c.z;
-      if (Math.hypot(dx, dz) > c.rIn + wk.footR * 0.6 || Math.abs(wk.hit.y - c.waterY) > 0.03) continue;
-      const surf = this.surfaces[i];
-      surf.wash = Math.min(1.5, wk.vg * wk.vg * 0.12);
-      if (this.sprayAcc > 0.05 && wk.vg > 1.6) {
-        const col = teaColor(c.brew, _c);
-        for (let k = 0; k < 3; k++) {
-          const a = Math.random() * Math.PI * 2, r = c.rIn * (0.6 + Math.random() * 0.35);
-          this.smoke.emit({ p: [c.x + Math.cos(a) * r, c.waterY + 0.002, c.z + Math.sin(a) * r], v: [Math.cos(a) * 0.4, rand(0.15, 0.4), Math.sin(a) * 0.4], life: 0.5, size0: 0.0025, size1: 0.001,
-            col0: [col.r * 1.2, col.g * 1.2, col.b * 1.2], alpha: 0.7, grav: 6, drag: 0.6, kind: 1 });
-        }
-        surf.addRipple(c.x + Math.cos(Math.random() * 6.28) * c.rIn * 0.7, c.z + Math.sin(Math.random() * 6.28) * c.rIn * 0.7, 0.3 * surf.wash, this.time);
-      }
-    }
+    // Tea, milk and the bird bath under the rotor: see LiquidWash (rotorwash.js).
   }
 
   // Tandem rotors, contact shadow and downwash for the Chinook.
