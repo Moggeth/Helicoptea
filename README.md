@@ -143,14 +143,19 @@ low quality at about 100k rendered pixels with longer physics catch-up, so the w
 Frame-rate checks show as warnings in the run summary there instead of failing; everything else must pass. Screenshots and reports
 are attached to each run as `test-results`.
 
-The repo is configured for Vercel as a static Vite site (`vercel.json`: `npm run build`, output `dist/`,
-hashed `assets/` cached for a year, `index.html` always revalidated). **Hosting connection pending:** on
-14 October 2026, GitHub publication succeeded, but the connected Vercel account had no Helicoptea project
-and rejected project creation with HTTP 403 Forbidden. A permitted Vercel account must import/connect
-`Moggeth/Helicoptea` before automatic deployments work. Configure `master` as the production branch;
-other branches and pull requests can then receive preview URLs. Do not treat a Git push as proof of a
-successful production deployment. The user has granted standing permission for validated pushes and
-production deployments; see `AGENTS.md`.
+**Play online: [helicoptea.vercel.app](https://helicoptea.vercel.app/)** — public, no sign-in required.
+
+Vercel project `helicoptea` in `moggeths-projects` is connected to `Moggeth/Helicoptea`; `master` deploys
+to production. The Vercel GitHub app has access to this repository only. The static Vite build uses
+`vercel.json`: `npm ci`, `npm run build`, output `dist/`, hashed assets cached for a year and HTML
+revalidated. Flights stay in each visitor's browser; no local flight logs are published.
+
+Check deployment status in [Vercel](https://vercel.com/moggeths-projects/helicoptea) after a push; do not
+treat Git success alone as proof of a successful release. Standing permission for validated pushes and
+production deployments is recorded in `AGENTS.md`. If the Vercel connector returns 403/404 despite a
+working dashboard, use the signed-in browser: the initial import succeeded there after the user approved
+the GitHub app installation and completed GitHub reauthentication. Do not repeatedly retry unchanged
+connector calls or broaden repository permissions.
 
 ## Controls
 

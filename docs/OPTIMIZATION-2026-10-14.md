@@ -35,6 +35,17 @@ no mapped CLI fallback. Do not retry unchanged or assume signing in again will f
 and Git linkage need a permitted Vercel account before production deployment can be verified. The README
 now distinguishes the checked-in hosting configuration from an actual connected deployment.
 
+**Resolved later on 14 October:** the user approved installing Vercel's GitHub app for only
+`Moggeth/Helicoptea` and personally completed GitHub 2FA. The signed-in Edge dashboard imported the
+existing repository into `moggeths-projects/helicoptea` and successfully deployed `47d7879` as
+`dpl_BxKhdyLQTUjbmxSkBKuDxEkHyGhg`. Production is **https://helicoptea.vercel.app/**. Anonymous HTTP
+returned 200; the static flight endpoint returned its browser-storage fallback; the game loaded in
+1.8 seconds in the browser and Start flying showed the rendered scene with no captured console errors.
+Screenshot: `logs/reviews/helicoptea-live.png`. The connector still returned 404 for the newly created
+project/deployment, so dashboard evidence and public HTTP were used instead. No account upgrade or
+broader GitHub repository access was needed. GitHub popup clicks sometimes timed out; following the
+observed navigation links and opening the same permission form in a normal tab resolved that UI issue.
+
 ## Repairs
 
 - `fa437a8`: multiply all tuning contributions to each target before applying them. Chinook rotation rate
