@@ -390,12 +390,12 @@ body.pip-top .hint:not(.show), body.pip-top .prompt:not(.show) { pointer-events:
 
 /* ---------------------------------------------------------------- camera modes */
 .touch-btn.cam { width: 48px; height: 48px; left: calc(212px + var(--safe-l)); bottom: calc(58vh + 4px); border-radius: 14px; }
-.touch-btn.bolt { width: 52px; height: 52px; right: calc(22px + var(--safe-r)); bottom: calc(58vh + 78px); border-radius: 14px; background: #2b2420; color: #f3e9d8; }
+.touch-btn.bolt { width: 52px; height: 52px; left: calc(268px + var(--safe-l)); bottom: calc(58vh + 2px); border-radius: 14px; background: #2b2420; color: #f3e9d8; }
 .touch-btn.bolt .lbl { font-size: 9.5px; }
 .touch-btn.bolt.pressed { background: #e0463a; color: #fff; }
-@media (max-height: 520px) {
-  .touch-btn.cam { left: calc(282px + var(--safe-l)); bottom: calc(40vh + 16px); }
-  .touch-btn.bolt { bottom: calc(40vh + 94px); }
+@media (orientation: portrait) {
+  .touch-btn.cam { left: calc(150px + var(--safe-l)); bottom: calc(40vh + 84px); }
+  .touch-btn.bolt { left: calc(206px + var(--safe-l)); bottom: calc(40vh + 82px); }
 }
 .aircraft-row button.chk:not(.on) { opacity: 0.6; }
 .cam-row > span { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
