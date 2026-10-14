@@ -769,7 +769,7 @@ async function boot() {
     const mode = cam.bolt ? 'bolt' : fp.mode;
     const fpView = started && mode === 'cockpit' && cockpit.has(sim.aircraft) && (!!sim.heli || fp.crashT > 0);
     const fpLive = fpView && !!sim.heli;
-    const wd = rd * worldSpeed;
+    const wd = rd * runSpeed;   // the rigs feel the world's clock, slow motion included
     // Rigid rigs need an airframe; after a crash they hand over to the chase camera (the tripod and orbit keep filming).
     let rig = null;
     if (!fpView && started && sim.heli) {
