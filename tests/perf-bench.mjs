@@ -43,7 +43,7 @@ const rows = [];
 let gpuName = '';
 for (const aircraft of ['micro', 'chinook', 'skycrane']) {
   if (only && !only.split(',').some((o) => o.split(':')[0] === aircraft)) continue;
-  const ctx = await browser.newContext({ viewport: { width: W, height: Hh }, deviceScaleFactor: 1, hasTouch: touch, isMobile: touch });
+  const ctx = await browser.newContext({ viewport: { width: W, height: Hh }, deviceScaleFactor: parseFloat(opt('dpr', '1')), hasTouch: touch, isMobile: touch });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -80,6 +80,9 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
       if (scene.type === 'Scene' && scene.children.length < 3) return 'pip';
       return `scene${rt ? '' : '>screen'}`;
     };
+    acc.calls = {};
+    const sm = r.shadowMap, origShadow = sm.render.bind(sm);
+    sm.render = (...a) => { const c0 = r.info.render.calls; origShadow(...a); acc.calls.shadow = (acc.calls.shadow || 0) + r.info.render.calls - c0; };
     const orig = r.render.bind(r);
     r.render = (scene, cam) => {
       if (H.frames !== lastFrame) {
@@ -92,7 +95,9 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
       let k = label(scene, cam);
       if (r.shadowMap.needsUpdate && !scene.isMesh && !scene.overrideMaterial) k += '+shadow';
       const q = gl.createQuery(); gl.beginQuery(ext.TIME_ELAPSED_EXT, q);
+      const c0 = r.info.render.calls;
       orig(scene, cam);
+      acc.calls[k] = (acc.calls[k] || 0) + r.info.render.calls - c0;
       gl.endQuery(ext.TIME_ELAPSED_EXT); pending.push({ q, k });
     };
   });
@@ -118,21 +123,23 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
       await sleep(settle);
       const r = await page.evaluate(async (ms) => {
         const H = window.__helicoptea, P = H.perf;
-        if (window.__gpuDetail) { window.__gpuDetail.ms = {}; window.__gpuDetail.frames = 0; }
+        if (window.__gpuDetail) { window.__gpuDetail.ms = {}; window.__gpuDetail.calls = {}; window.__gpuDetail.frames = 0; }
         const f0 = H.frames, t0 = performance.now();
         await new Promise((res) => setTimeout(res, ms));
         const n = H.frames - f0, wall = (performance.now() - t0) / 1000;
         const s = P.summary(n);
         const info = H.renderer.info.render;
-        return { fps: +(n / wall).toFixed(1), low1: +s.low1.toFixed(1), p99Ms: +s.p99Ms.toFixed(2), worstMs: +s.worstMs.toFixed(1), cpuMs: +s.cpuMs.toFixed(2),
+        return { fps: +(n / wall).toFixed(1), low1: +s.low1.toFixed(1), p99Ms: +s.p99Ms.toFixed(2), worstMs: +s.worstMs.toFixed(1), cpuMs: +s.cpuMs.toFixed(2), cpuP99: +s.cpuP99.toFixed(1), cpuMax: +s.cpuMax.toFixed(1), phaseMax: P.phaseMax(n),
           simMs: +P.phase.sim.toFixed(2), updateMs: +P.phase.update.toFixed(2), renderMs: +P.phase.render.toFixed(2), gpuMs: +P.gpuMs.toFixed(2),
+          callDetail: window.__gpuDetail ? Object.fromEntries(Object.entries(window.__gpuDetail.calls).map(([k, v]) => [k, Math.round(v / window.__gpuDetail.frames)])) : undefined,
           gpuDetail: window.__gpuDetail ? Object.fromEntries(Object.entries(window.__gpuDetail.ms).map(([k, v]) => [k, +(v / window.__gpuDetail.frames).toFixed(2)])) : undefined,
           calls: info.calls, tris: info.triangles, dpr: +H.renderer.getPixelRatio().toFixed(2), state: H.sim.state === 'flying' ? 'flying' : `${H.sim.state}:${JSON.stringify(H.sim.crashInfo || {}).slice(0, 80)}`, view: H.viewMode };
       }, window_);
       if (throttle > 1) await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
       const row = { aircraft, place, view, ...r };
       rows.push(row);
-      console.log(`${aircraft.padEnd(8)} ${place.padEnd(6)} ${view.padEnd(7)} ${String(r.fps).padStart(6)} fps  1%low ${String(r.low1).padStart(6)}  p99 ${String(r.p99Ms).padStart(6)} ms  cpu ${r.cpuMs} (sim ${r.simMs} upd ${r.updateMs} rnd ${r.renderMs})  gpu ${r.gpuMs}  calls ${r.calls}  tris ${(r.tris / 1000).toFixed(0)}k  dpr ${r.dpr} ${r.state}${r.view !== view ? ` VIEW=${r.view}` : ''}`);
+      console.log(`${aircraft.padEnd(8)} ${place.padEnd(6)} ${view.padEnd(7)} ${String(r.fps).padStart(6)} fps  1%low ${String(r.low1).padStart(6)}  p99 ${String(r.p99Ms).padStart(6)} ms  cpu ${r.cpuMs} p99 ${r.cpuP99} max ${r.cpuMax} ${JSON.stringify(r.phaseMax)} (sim ${r.simMs} upd ${r.updateMs} rnd ${r.renderMs})  gpu ${r.gpuMs}  calls ${r.calls}  tris ${(r.tris / 1000).toFixed(0)}k  dpr ${r.dpr} ${r.state}${r.view !== view ? ` VIEW=${r.view}` : ''}`);
+      if (r.callDetail) console.log(`    calls by pass: ${JSON.stringify(r.callDetail)}`);
       if (r.gpuDetail) console.log(`    gpu by pass: ${Object.entries(r.gpuDetail).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(' | ')}`);
     }
   }

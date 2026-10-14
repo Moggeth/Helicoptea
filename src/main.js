@@ -28,6 +28,7 @@ import { stageCrash, STAGES } from './sim/crashStage.js';
 import { CrashCinema, crashMessage, crashTitle } from './game/crashCinema.js';
 import { CAM_IDS, CAM_NAME, DEFAULT_CYCLE, LockedRig, NoseRig, BoltRig, TripodRig, CargoRig, liquidAt } from './render/cameraModes.js';
 import { FrameStats } from './perf.js';
+import { ShadowCache } from './render/shadowCache.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -128,6 +129,9 @@ async function boot() {
   const kitchen = buildKitchen(scene, renderer, quality, (msg) => { stepN++; setProgress(0.3 + 0.4 * stepN / kitchenSteps.length, `${msg}…`); }, sim);
   await tick();
   const view = new View(scene, sim, quality, kitchen);
+  // The sun's shadows from everything that stands still are drawn once and reused (see shadowCache.js).
+  const shadowCache = new ShadowCache(renderer, scene, kitchen.sun);
+  if (params.get('shadowcache') === '0') shadowCache.enabled = false;
   const camRig = new FollowCamera(camera);
   const depth = new DepthCues(scene, sim, view);
   for (const k of Object.keys(DEPTH_DEFAULTS)) depth.set(k, store.get(`cue.${k}`, DEPTH_DEFAULTS[k] ? '1' : '0') === '1');
@@ -992,7 +996,7 @@ async function boot() {
   requestAnimationFrame(frame);
 
   // Expose a tiny handle for console debugging and automated checks.
-  window.__helicoptea = { perf, cam, cycleView, get camMode() { return cam.eff; }, tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
+  window.__helicoptea = { perf, shadowCache, cam, cycleView, get camMode() { return cam.eff; }, tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
 }
 
 boot().catch((err) => showError('Helicoptea failed to start. Please reload.', err));
