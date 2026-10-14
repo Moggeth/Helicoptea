@@ -13,3 +13,12 @@ All times local (AEDT), 2026-10-13. One continuous session by Claude.
 | 21:05–21:25 | Full controller support: new gamepad layer (any mapping, bind wizard, settings, rumble), pad-driven menus, Steam Controller guide, 13 new browser checks |
 | 21:35–22:45 | Stable/dev split (4178 stable, 5178 dev, 4179 tests); GTAO; rotor-downwash air field and its consumers (cloth, tea, bags, strings, steam, dust, flowers, buffeting); realistic helicopter model; wreck-on-pad fix; performance pass |
 | 22:45–23:55 | Heavy retune v1 (lag/slew, 0.55x world); Chinook merge and its heavy retune merge; v2 retune per feedback: instant thrust, low drag rocket drift, 0.7x world; Chinook phugoid fix; string pinning; tests retuned |
+
+### 2026-10-14: flight tuning board
+
+| Time (AEDT) | Work |
+|---|---|
+| 12:10–13:20 | Knob registry, tuning state (base × global × per-aircraft into CFG), board UI with tabs, groups, presets, export/import |
+| 13:20–14:40 | Live side-by-side preview rig, scripted pilot, scenarios; first screenshots |
+| 14:40–15:50 | Making every clip fly at both ends of every range on every aircraft: assist-flown skycrane clips, rate-aware altitude hold, ceiling/wall/table guard, bare preview world; headless and browser tests; docs |
+| 15:50–16:05 | Merges in between (Vercel CI, tablecloth, controller layouts, rotor wash, crashes), rebases, full suites |
