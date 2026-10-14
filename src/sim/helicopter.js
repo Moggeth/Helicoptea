@@ -20,6 +20,7 @@ const _q = new THREE.Quaternion(), _qi = new THREE.Quaternion();
 const _p = new THREE.Vector3(), _v = new THREE.Vector3(), _w = new THREE.Vector3();
 const _up = new THREE.Vector3(), _fwd = new THREE.Vector3(), _right = new THREE.Vector3();
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3();
+const _torque = new THREE.Vector3(), _desired = new THREE.Vector3(), _error = new THREE.Vector3(), _wTilt = new THREE.Vector3();
 
 export class Helicopter {
   constructor(sim, pos, yaw) {
@@ -186,7 +187,7 @@ export class Helicopter {
     const damp = 0.35 + 0.65 * this.rotorSpeed;
     const tb = _d.set(-H.angDamp[0] * wb.x * damp, -H.angDamp[1] * wb.y * damp, -H.angDamp[2] * wb.z * damp);
 
-    const tWorld = new THREE.Vector3();
+    const tWorld = _torque.set(0, 0, 0);
     if (assist) {
       // Attitude hold: neutral cyclic means level; deflection commands a tilt in the heading frame.
       _fwd.set(0, 0, -1).applyQuaternion(q); _fwd.y = 0;
@@ -197,7 +198,7 @@ export class Helicopter {
       const step = A.tiltSlew * dt;
       this.cmdPitch += THREE.MathUtils.clamp(ctl.pitch * A.maxTilt - this.cmdPitch, -step, step);
       this.cmdRoll += THREE.MathUtils.clamp(ctl.roll * A.maxTilt - this.cmdRoll, -step, step);
-      const desired = new THREE.Vector3(0, 1, 0)
+      const desired = _desired.set(0, 1, 0)
         .addScaledVector(_fwd, Math.tan(this.cmdPitch))
         .addScaledVector(_right, Math.tan(this.cmdRoll));
       const neutral = 1 - Math.min(1, Math.hypot(ctl.pitch, ctl.roll) * 1.6);
@@ -207,8 +208,8 @@ export class Helicopter {
         desired.x += dx * neutral; desired.z += dz * neutral;
       }
       desired.normalize();
-      const err = new THREE.Vector3().crossVectors(up, desired);
-      const wTilt = wWorld.clone().addScaledVector(up, -wWorld.dot(up));
+      const err = _error.crossVectors(up, desired);
+      const wTilt = _wTilt.copy(wWorld).addScaledVector(up, -wWorld.dot(up));
       const I = H.inertia[0];
       tWorld.copy(err).multiplyScalar(A.tiltKp * I).addScaledVector(wTilt, -A.tiltKd * I);
       const lim = H.cyclicTorque * A.torqueLimit * rs2;
