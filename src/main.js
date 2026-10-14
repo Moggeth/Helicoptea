@@ -7,7 +7,7 @@ import { CFG } from './config.js';
 import { initPhysics, RAPIER, GROUPS } from './sim/physics.js';
 import { Sim } from './sim/sim.js';
 import { buildKitchen } from './render/kitchen.js';
-import { View } from './render/view.js';
+import { View, SHADOW_ONLY } from './render/view.js';
 import { FollowCamera } from './render/camera.js';
 import { Input } from './input/input.js';
 import { Audio } from './audio/audio.js';
@@ -28,6 +28,7 @@ import { stageCrash, STAGES } from './sim/crashStage.js';
 import { CrashCinema, crashMessage, crashTitle } from './game/crashCinema.js';
 import { CAM_IDS, CAM_NAME, DEFAULT_CYCLE, LockedRig, NoseRig, BoltRig, TripodRig, CargoRig, liquidAt } from './render/cameraModes.js';
 import { FrameStats } from './perf.js';
+import { FpsMeter } from './ui/fpsMeter.js';
 import { ShadowCache } from './render/shadowCache.js';
 
 const $ = (id) => document.getElementById(id);
@@ -120,7 +121,11 @@ async function boot() {
   sim.damage.rotorStrikes = (params.get('rotorStrikes') || store.get('rotorStrikes', '1')) !== '0';
 
   const scene = new THREE.Scene();
+  scene.matrixWorldAutoUpdate = false; // updated once per frame in frame(), before the first render
   const camera = new THREE.PerspectiveCamera(CFG.camera.fov, innerWidth / innerHeight, 0.01, 60);
+  // Viewport size, read once per resize: reading innerWidth/innerHeight inside the frame, after the HUD has
+  // touched the DOM, forces a synchronous style and layout pass each time.
+  let vw = innerWidth, vh = innerHeight;
   // Yield between heavy steps so the progress bar paints.
   const tick = () => new Promise((r) => setTimeout(r, 0));
   let stepN = 0;
@@ -132,6 +137,11 @@ async function boot() {
   // The sun's shadows from everything that stands still are drawn once and reused (see shadowCache.js).
   const shadowCache = new ShadowCache(renderer, scene, kitchen.sun);
   if (params.get('shadowcache') === '0') shadowCache.enabled = false;
+  {
+    // Shadow-only meshes (the cockpit view's own airframe) are visible to the shadow maps alone.
+    const sm = renderer.shadowMap, smRender = sm.render.bind(sm);
+    sm.render = (...a) => { SHADOW_ONLY.visible = true; smRender(...a); SHADOW_ONLY.visible = false; };
+  }
   const camRig = new FollowCamera(camera);
   const depth = new DepthCues(scene, sim, view);
   for (const k of Object.keys(DEPTH_DEFAULTS)) depth.set(k, store.get(`cue.${k}`, DEPTH_DEFAULTS[k] ? '1' : '0') === '1');
@@ -193,6 +203,7 @@ async function boot() {
     setting: (k, v) => {
       if (k === 'quality') { store.set('quality', v); location.reload(); }
       if (k === 'debug') { debug.enabled = v; store.set('debug', v ? '1' : '0'); }
+      if (k === 'fpsMeter') { fpsMeter.shown = !!v; store.set('fpsMeter', v ? '1' : '0'); }
       if (k === 'weight') { weight = v; worldSpeed = speedOf(v); store.set('weight', String(v)); }
       if (k === 'fpFov' || k === 'fpMotion' || k === 'fpVibration') { fp[{ fpFov: 'fov', fpMotion: 'motion', fpVibration: 'vibration' }[k]] = v; store.set(k, String(v)); }
       if (k === 'loadCam') { fp.loadCam = v; store.set('loadCam', v); }
@@ -265,7 +276,7 @@ async function boot() {
     } else hud.openPause(pauseOpts());
   }
 
-  function pauseOpts() { return { quality: quality.setting, debug: debug.enabled, aircraft: sim.aircraft, weight, view: fp.mode, camCycle: cam.cycle, camFeel: cam.feel, fpFov: fp.fov, fpMotion: fp.motion, fpVibration: fp.vibration, loadCam: fp.loadCam, cues: { ...depth.settings }, rotorStrikes: sim.damage.rotorStrikes }; }
+  function pauseOpts() { return { quality: quality.setting, debug: debug.enabled, fpsMeter: fpsMeter.shown, aircraft: sim.aircraft, weight, view: fp.mode, camCycle: cam.cycle, camFeel: cam.feel, fpFov: fp.fov, fpMotion: fp.motion, fpVibration: fp.vibration, loadCam: fp.loadCam, cues: { ...depth.settings }, rotorStrikes: sim.damage.rotorStrikes }; }
 
   // Something to ride for the cargo cam: a load on a hook, or the skycrane's snorkel paid out.
   function cargoReady() {
@@ -401,6 +412,7 @@ async function boot() {
       case 'helptab': hud.setHelpTab(el.dataset.tab); break;
       case 'mute': audio.setMuted(!audio.muted); hud.setVolume(audio.volume, audio.muted); break;
       case 'debug': debug.enabled = !debug.enabled; store.set('debug', debug.enabled ? '1' : '0'); break;
+      case 'fpsmeter': fpsMeter.shown = !fpsMeter.shown; store.set('fpsMeter', fpsMeter.shown ? '1' : '0'); break;
       case 'skiphints': flow.skip(); break;
       case 'resethints': flow.replay(); setPaused(false); break;
       case 'controller': hud.openController(input.pads); break;
@@ -442,6 +454,7 @@ async function boot() {
   let dprScale = 1;
   function resize() {
     const w = innerWidth, h = innerHeight;
+    vw = w; vh = h;
     const base = quality.software ? Math.min(dpr, Math.sqrt(SOFTWARE_PIXELS / (w * h))) : dpr;
     renderer.setPixelRatio(base * dprScale);
     renderer.setSize(w, h, false);
@@ -458,7 +471,7 @@ async function boot() {
   const vfov = (hdeg, aspect) => THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(hdeg) / 2) / Math.max(aspect, 1.25)));
   const lensLast = { f: 0, near: 0, w: 0, h: 0, pr: 0 };
   function applyLens(cockpitView, zoom = fpRig.fovZoom, custom = null) {
-    const w = innerWidth, h = innerHeight, aspect = w / h;
+    const w = vw, h = vh, aspect = w / h;
     let fov, near;
     if (custom) {
       fov = THREE.MathUtils.clamp(custom.fov, 5, 120);
@@ -488,7 +501,7 @@ async function boot() {
   let stickTop = 0;
   // Hook-camera inset: bottom right on desktop, top centre on touch screens.
   function pipRect() {
-    const w = innerWidth, h = innerHeight;
+    const w = vw, h = vh;
     if (IS_TOUCH) {
       // Top centre: the corners belong to the assist and view buttons, the bottom to the sticks.
       if (!stickTop) { const z = document.querySelector('.stick-zone'); stickTop = z ? z.getBoundingClientRect().top : h * 0.42; }
@@ -657,7 +670,7 @@ async function boot() {
       for (const v of sim.milk.vessels) if (Math.hypot(p.x - v.x, p.z - v.z) < v.rIn && p.y > v.waterY) gy = Math.max(gy ?? -9, v.waterY);
       if (gy !== null) {
         tmp.set(p.x, gy, p.z).project(camera);
-        if (tmp.z < 1 && Math.abs(tmp.x) < 1.2 && Math.abs(tmp.y) < 1.2) ring = { x: (tmp.x * 0.5 + 0.5) * innerWidth, y: (-tmp.y * 0.5 + 0.5) * innerHeight };
+        if (tmp.z < 1 && Math.abs(tmp.x) < 1.2 && Math.abs(tmp.y) < 1.2) ring = { x: (tmp.x * 0.5 + 0.5) * vw, y: (-tmp.y * 0.5 + 0.5) * vh };
       }
     }
     boltState.readT -= dt;
@@ -689,6 +702,8 @@ async function boot() {
   let lastAlpha = 0;
   const perf = new FrameStats(renderer.getContext());
   let lastFrameAt = 0;
+  const fpsMeter = new FpsMeter($('hud'), perf);
+  fpsMeter.shown = params.get('fpsmeter') === '1' || store.get('fpsMeter', '0') === '1';
 
   function frame(now) {
     requestAnimationFrame(frame);
@@ -696,7 +711,7 @@ async function boot() {
     if (fpsCap && now - lastRender < 1000 / fpsCap - 1) return;
     lastRender = now;
     const cpu0 = performance.now();
-    if (lastFrameAt) perf.frame(now - lastFrameAt, 0);
+    if (lastFrameAt) { perf.frame(now - lastFrameAt, 0); fpsMeter.frame(now - lastFrameAt); }
     lastFrameAt = now;
     const frameDt = Math.min((now - last) / 1000, CFG.physics.maxFrameDt);
     last = now;
@@ -715,7 +730,7 @@ async function boot() {
       if (!started) continue;
       if (a === 'pause' && !paused && (hud.modalKind === 'help' || hud.modalKind === 'controller')) { back(); continue; }
       if (a === 'pause' && hud.modalKind === 'tuning') { back(); continue; } // Esc leaves the board for the pause menu
-      if (paused && !['pause', 'resume', 'help', 'mute', 'debug', 'restart', 'reset', 'view', 'cockpit', 'camNext', 'camPrev'].includes(a) && !a.startsWith('cam:')) { if (a === 'attach') setPaused(false); continue; }
+      if (paused && !['pause', 'resume', 'help', 'mute', 'debug', 'fpsmeter', 'restart', 'reset', 'view', 'cockpit', 'camNext', 'camPrev'].includes(a) && !a.startsWith('cam:')) { if (a === 'attach') setPaused(false); continue; }
       doAction(a);
     }
     for (const n of input.takeNotices()) hud.toast(n);
@@ -861,7 +876,7 @@ async function boot() {
         camera.position.x += Math.sin(t * 53) * s; camera.position.y += Math.sin(t * 61 + 1.3) * s * 0.7; camera.position.z += Math.sin(t * 47 + 2.1) * s;
       }
       camRig.shake *= Math.exp(-Math.max(rd, 1e-4) * 5);
-      const aspect = innerWidth / innerHeight;
+      const aspect = vw / vh;
       const lens = mode === 'bolt' ? { fov: Math.min(100, vfov(122, aspect)), near: 0.0015 }
         : mode === 'locked' ? { fov: (aspect < 1 ? 66 : 58) + cam.locked.fovKick, near: 0.004 }
           : mode === 'nose' ? { fov: vfov(fp.fov, aspect) + cam.nose.fovKick, near: 0.0015 }
@@ -896,7 +911,7 @@ async function boot() {
     fp.wasLive = fpLive;
     camera.updateMatrixWorld();
     depth.linearBlend = post.linear;
-    depth.update(rd * worldSpeed, camera, innerWidth, innerHeight);
+    depth.update(rd * worldSpeed, camera, vw, vh);
     hud.setPlumb(crashShown ? null : depth.readout);
     fp.flash = Math.max(0, fp.flash - frameDt * 1.6);
     hud.flash(fp.flash * fp.flash);
@@ -932,7 +947,7 @@ async function boot() {
       const extra = sim.carriedCargo().reduce((m, b) => m + b.mass, 0);
       hud.setCollective(h.collective, Math.min(1, (h.def.mass + extra) / (h.def.mass * h.def.thrustToWeight)));
     }
-    hud.updateBrew(view.projectCups(camera, innerWidth, innerHeight), flow.steepTimers);
+    hud.updateBrew(view.projectCups(camera, vw, vh), flow.steepTimers);
     const tk = h && h.tank;
     hud.setTank(tk && started ? { fill: tk.vol / tk.capacity, doors: tk.doors,
       state: tk.auto ? `auto: ${tk.auto.phase === 'down' ? 'lowering' : tk.auto.phase === 'pump' ? 'pumping' : 'reeling in'}` : tk.salvo ? 'salvo' : tk.pumping ? 'pumping' : tk.flowOut > 0 ? 'dropping' : h.hose.submerged ? 'intake in' : '' } : null);
@@ -944,6 +959,9 @@ async function boot() {
     renderer.info.reset();
     perf.gpuBegin();
     renderer.shadowMap.needsUpdate = true;
+    // World matrices once per frame: every renderer.render() of the scene (hook camera, main view, AO
+    // normals) would otherwise walk and update the whole scene graph again.
+    scene.updateMatrixWorld();
     // The hook camera feeds the cockpit display and, when shown, the inset.
     const looksDown = cam.eff === 'bolt' || cam.eff === 'cargo';
     // The inset is an extra render of the world: the cockpit has it (its display shows it too); the other
@@ -959,7 +977,7 @@ async function boot() {
       loadCam.render(scene);
     }
     const rect = showPip ? pipRect() : null;
-    cockpit.setPipRect(rect, innerWidth, innerHeight);
+    cockpit.setPipRect(rect, vw, vh);
     fp.readT -= frameDt;
     if (showPip && fp.readT <= 0) { fp.readT = 0.1; fp.readText = loadReadout(); }
     hud.setLoadCam(rect, fp.readText, h && h.type === 'skycrane' ? 'BELLY CAM' : 'HOOK CAM');
@@ -993,6 +1011,7 @@ async function boot() {
     const out = replay.update(frameDt);
     renderer.info.reset();
     renderer.shadowMap.needsUpdate = true;
+    scene.updateMatrixWorld();
     post.render();
     if (out.cockpit) cockpit.render();
     renderedFrames++;
@@ -1001,7 +1020,7 @@ async function boot() {
   requestAnimationFrame(frame);
 
   // Expose a tiny handle for console debugging and automated checks.
-  window.__helicoptea = { perf, shadowCache, cam, cycleView, get camMode() { return cam.eff; }, tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
+  window.__helicoptea = { perf, get fpsMeter() { return fpsMeter; }, shadowCache, cam, cycleView, get camMode() { return cam.eff; }, tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
 }
 
 boot().catch((err) => showError('Helicoptea failed to start. Please reload.', err));
