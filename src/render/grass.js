@@ -121,7 +121,7 @@ export class Grass {
     this.scene = scene;
     this.mask = mask;
     this.uniforms = windUniforms();
-    const tier = quality.name;
+    const tier = quality.name === 'ultra' ? 'high' : quality.name; // ultra builds the world as high does
     const G = GARDEN;
     // Layers per quality tier: cell size (m) and window size in cells. The far layer covers the garden.
     const near = tier === 'high' ? { cell: 0.0058, n: 340 } : tier === 'medium' ? { cell: 0.0085, n: 170 } : { cell: 0.012, n: 104 };
