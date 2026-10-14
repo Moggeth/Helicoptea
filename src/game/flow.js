@@ -43,7 +43,8 @@ export class Flow {
     const h = sim.heli;
     const carried = sim.carriedBag();
     // auto-advance conditions
-    if (s === 'lift' && h && h.skidClearance > 0.06) this.advance();
+    // Startup clearance is a placeholder; the first force pass also precedes Rapier's query update.
+    if (s === 'lift' && h && sim.stepCount > 1 && !h.grounded && h.skidClearance > 0.06) this.advance();
     if (s === 'carry' && carried && carried.immersion > 0.25) this.advance();
     if (s === 'dip' && carried && carried.wetness > 0.55 && carried.immersion < 0.05) this.advance();
     if (s === 'land' && h && h.grounded && Math.hypot(h.pos.x - PAD.x, h.pos.z - PAD.z) < PAD.radius + 0.02) this.advance();

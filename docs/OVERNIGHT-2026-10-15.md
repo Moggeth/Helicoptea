@@ -244,10 +244,28 @@ All runs are retained in `logs/reviews/overnight-hint-bench.json`.
 The expanded keyboard, touch and emulated-controller scenario passed **21/21** checks in **17.82 s**;
 the six paired measurements took **51.89 s**. Evidence is self-reviewed, with no physical-device claim.
 
-The regression scenario deliberately replays tips after startup to isolate rendering. A separate
-fresh-start observation found that the lift hint can advance before the first physics sample:
-helicopter clearance initially defaults to 1 while `grounded` is true. That progression fix remains
-unaccepted and is not hidden by these rendering checks.
+The original cache regression replayed tips after startup to isolate rendering from the separately
+reproduced startup issue below. That workaround is now removed: device-label and stable-node checks
+start from a fresh flight.
+
+## Keep lift instructions until actual takeoff
+
+At startup, aircraft clearance defaults to one metre; the first force pass also precedes Rapier's
+ground-query update. The tutorial treated these temporary values as a completed takeoff. In the
+matched heavy-world (`worldSpeed=0.4`) browser scenario, all three aircraft skipped directly to bag
+hooking while still on the pad at a requested 120 fps cap; the 30 fps cases happened to pass because
+more physics steps ran before hint evaluation.
+
+Progression now waits until the initial physics queries have run and the aircraft is no longer
+grounded, then uses the unchanged 6 cm clearance threshold. No force, inertia or control setting
+changed. All three aircraft retain the lift instruction on the pad and advance through normal W
+input at both render caps. **18/18** browser startup checks (**23.76 s**), **21/21** device/cache/replay
+checks (**16.44 s**) and **9/9** headless progression checks (**0.59 s**) passed. The headless checks
+cover pre-physics placeholders, idle settling and actual simulated takeoff. Baseline browser run took
+**23.71 s** and failed exactly the three high-cap startup assertions.
+
+Matched pad screenshots were inspected in `test-results/startup-hints/{baseline,candidate}/`.
+This repairs instruction timing; it does not claim novice usability testing or a flight-feel change.
 
 ## Remaining acceptance
 

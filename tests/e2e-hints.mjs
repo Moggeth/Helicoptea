@@ -15,10 +15,6 @@ try{
   await page.goto(`${base}?quality=medium&dynres=0&worldSpeed=1`);
   await page.locator('#start-btn:not(.hidden)').click();
   await page.waitForFunction(()=>document.querySelector('.hint')?.classList.contains('show'));
-  // Isolate hint rendering from the separately reproduced pre-physics startup skip.
-  await page.waitForTimeout(500); await page.keyboard.press('Escape');
-  await page.locator('[data-act=resethints]').click();
-  await page.waitForFunction(()=>document.querySelector('.hint .step').textContent==='1');
   const prefix=mode;
   if(touch){await page.locator('.touch-btn.recenter').tap();await page.waitForFunction(()=>document.querySelector('.hint .txt').textContent.includes('left stick'));}
   if(pad){await page.evaluate(()=>window.__pad.buttons[1]={pressed:true,value:1});await page.waitForTimeout(120);await page.evaluate(()=>window.__pad.buttons[1]={pressed:false,value:0});await page.waitForFunction(()=>document.querySelector('.hint .txt').textContent.includes('L-stick'));}
