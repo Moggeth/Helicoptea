@@ -12,6 +12,7 @@ import { radialTexture } from './textures.js';
 import { buildChinook, cloneChinookPart } from './chinookModel.js';
 import { MilkView } from './milkView.js';
 import { SkycraneView } from './skycraneView.js';
+import { AircraftFxSet } from './aircraftFx.js';
 import { cloneSkycranePart } from './skycraneModel.js';
 import { CrashFx } from './crashFx.js';
 
@@ -125,6 +126,7 @@ export class View {
       kitchen.sun.position.clone().sub(kitchen.sun.target.position), { water: { color: 0x5d7a72, opacity: 0.82 }, wall: 0xb9b2a2, rim: 0xd0c9b8, fieldN: quality.name === 'high' ? 48 : 36 }));
     scene.add(this.birdbath.mesh);
     this.crashFx = new CrashFx(this);
+    this.aircraftFx = new AircraftFxSet(this, { micro: this.heliModel, chinook: this.chinookModel, skycrane: this.skycrane.model }, quality);
   }
 
   // In first person the cabin (and whatever around it the eye sits inside) only casts its shadow;
@@ -166,7 +168,7 @@ export class View {
         case 'drip': this.dripLand(e); break;
         case 'crash': this.crashFx.crash(e, camRig); break;
         case 'rotorTick': case 'rotorShatter': case 'tailStrike': case 'teaStrike': this.crashFx.event(e, camRig); break;
-        case 'bump': camRig.addShake(Math.min(0.004, e.dv * 0.004)); this.dust(e.pos, e.dv); break;
+        case 'bump': camRig.addShake(Math.min(0.004, e.dv * 0.004)); this.dust(e.pos, e.dv); this.aircraftFx.kick(this.sim.heli, e.dv); break;
         case 'touchdown': camRig.addShake(Math.min(0.003, e.speed * 0.004)); this.dust(e.pos, Math.min(1, e.speed * 2)); break;
         case 'scrape': if (Math.random() < 0.5) this.dust(e.pos, Math.min(0.6, e.speed)); break;
         case 'snatch': camRig.addShake(Math.min(0.002, e.speed * 0.002)); break;
@@ -585,6 +587,8 @@ export class View {
     this.liquid.update(dt);
     this.crashFx.updateLive(dt, sim, { micro: this.heliModel, chinook: this.chinookModel, skycrane: this.skycrane.model });
     this.crashFx.update(dt);
+    // After the crash layer: blade coning, disc tilt and the rest layer over any damage wobble.
+    this.aircraftFx.update(sim.heli, dt, camera);
   }
 
   // The string simulates at half the physics rate, so its interpolated ends can trail the bag and hook

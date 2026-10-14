@@ -151,6 +151,21 @@ GTAO (Three.js `GTAOPass`) with a 12 cm world radius, tuned for the miniature sc
 
 A serious, scale-accurate light utility helicopter (single turbine, two-blade teetering rotor, skid gear), deliberately realistic against the cosy setting. The fuselage is lofted from superellipse sections with a flat floor, true glazing (windscreen, chin windows, door windows), a cabin lining, seats, instrument panel and a pilot. It has an engine fairing with intakes and exhausts, a tapered boom with stripes and registration, a stabiliser with endplates and nav lights, a swept fin and ventral fin with tail skid, and a tail rotor with gearbox. The skids have arched cross tubes and upturned toes, and the rotor head has a swashplate, pitch links and grips. A navy/white/red livery has panel lines, rivets (bump map) and a blinking beacon. Each part's static meshes are merged by material to keep draw calls low. Lower quality tiers use fewer loft segments.
 
+## Aircraft life ([src/render/aircraftFx.js](../src/render/aircraftFx.js))
+
+A presentation layer over all three models, applied after the view places them each frame (it never touches the sim). Each aircraft's lights, exhausts, intakes, gear and fittings are listed in `FX_SPECS`.
+
+- **Blades** cone up with each rotor's own thrust and droop when unloaded or slow. The coning is a lightly damped spring, so blades sail up as load comes on and ring after a hard touchdown (bump events kick them). Discs blow back away from the relative wind and lag the fuselage's pitch and roll rates. The micro's teetering disc also follows the cyclic. Rotor groups use Euler order ZXY so the spin stays innermost under any tilt (the skycrane's previous order wobbled its disc).
+- **Motion-blur discs** replace the ghost-blade copies: a sweep trails each blade in its direction of rotation, longer at the tips, with a soft tip-path ring. The disc cones with the blades. Colours run through tone mapping so the disc looks the same with and without the AO composer.
+- **Lights**: steady red/green/white nav lights, white anti-collision strobes (double flash), red rotating beacons (top and belly), and a landing light with a faint beam and a pool of light where the beam lands, brighter in the low hover. The glows are camera-facing transparent quads, not `THREE.Sprite`: the GTAO normal pass draws sprites and leaves dark wedges around them.
+- **Small moving parts**: compressor faces spin in the Chinook and skycrane intakes, and oleo struts compress under weight on wheels.
+- **Airframe buzz**: a fine vibration of the model (cameras follow the physics pose, not the model) that scales with rotor speed and load, plus the transverse-flow shudder around 0.3 m/s.
+- **Grime**: the airframe paint materials are patched to darken in body coordinates, with soot fanning back from each exhaust, a dirtier belly and faint streaks running aft.
+- **Fittings**: wire-strike cutters and antennas on the micro, mirrors, blade antennas and formation (slime) lights on the Chinook, mirrors and antennas on the skycrane.
+- All fx blend colour without touching the framebuffer's alpha, so they can't let the page background through.
+- Cost, measured headless on the dev machine with each aircraft hovering: about +0.1 ms CPU per frame and +2 to 8 draw calls on every quality tier. Render submission time was within timer noise. `?fx=0` turns the layer off for comparisons.
+- Exhaust heat shimmer was tried twice. A transmission plume forced an extra full-scene render (+200 draw calls), and a shader haze column showed as dark dashes through the AO pass. Both were cut.
+
 ## Cockpit view ([src/render/cockpit.js](../src/render/cockpit.js), [src/render/cockpitCam.js](../src/render/cockpitCam.js))
 
 - **Two layers.** The world renders as usual (with AO), then the depth buffer is cleared and the cockpit interior renders from its own scene and camera, in the aircraft's body coordinates at model scale. The cockpit camera has a 0.4 mm near plane and a 40 cm far plane; the world camera keeps a 5 mm near plane, so the house and garden keep their depth precision. Nothing inside the cabin can clip, and the world can only clip in the last few millimetres before the airframe touches it: the rotor keeps walls 10 cm away, so only things under the disc (a mug, the sill's edge) get that close, and those were checked from 4 mm.
