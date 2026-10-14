@@ -21,7 +21,7 @@ const BOLT_KEYS = ['KeyB'];
 const ACTION_KEYS = {
   ...Object.fromEntries(Object.entries(CAM_KEYS).map(([k, id]) => [k, `cam:${id}`])),
   Space: 'attach', Enter: 'attach', KeyV: 'aircraft', Digit1: 'cockpit', KeyF: 'assist', KeyR: 'restart', KeyC: 'camNext', KeyU: 'recenter', Home: 'recenter',
-  Escape: 'pause', KeyP: 'pause', KeyH: 'help', Slash: 'help', KeyM: 'mute', Backquote: 'debug', F3: 'debug', KeyB: 'reset', KeyN: 'mark',
+  Escape: 'pause', KeyP: 'pause', KeyH: 'help', Slash: 'help', KeyM: 'mute', Backquote: 'debug', F3: 'debug', F2: 'fpsmeter', KeyB: 'reset', KeyN: 'mark',
 };
 
 function shape(x) {

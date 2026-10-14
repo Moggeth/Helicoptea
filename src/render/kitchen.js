@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { CHAIRS, TABLE, ROOM, PAD, STATION, CUPS, DISCARD, TEAPOT, SUGAR, VASE, JUG, PLATE, BOOKS } from '../sim/layout.js';
 import * as TX from './textures.js';
@@ -283,14 +284,16 @@ export function buildKitchen(scene, renderer, quality, progress, sim) {
       g.add(stem);
       const head = new THREE.Group();
       const pm = new THREE.MeshStandardMaterial({ color: petal[i], roughness: 0.6, side: THREE.DoubleSide });
+      // Seven petals, one mesh (they nod together; one draw call per pass instead of seven).
+      const petals = [];
       for (let k = 0; k < 7; k++) {
-        const p = new THREE.Mesh(new THREE.SphereGeometry(0.012, 10, 6), pm);
-        p.scale.set(1, 0.3, 0.55);
         const ang = k / 7 * Math.PI * 2;
-        p.position.set(Math.cos(ang) * 0.011, 0, Math.sin(ang) * 0.011);
-        p.rotation.y = -ang;
-        head.add(p);
+        const pg = new THREE.SphereGeometry(0.012, 10, 6);
+        pg.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(Math.cos(ang) * 0.011, 0, Math.sin(ang) * 0.011),
+          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -ang), new THREE.Vector3(1, 0.3, 0.55)));
+        petals.push(pg);
       }
+      head.add(new THREE.Mesh(mergeGeometries(petals, false), pm));
       const centre = new THREE.Mesh(new THREE.SphereGeometry(0.006, 10, 8), new THREE.MeshStandardMaterial({ color: 0xc98a1b, roughness: 0.8 }));
       head.add(centre);
       head.position.copy(b).add(new THREE.Vector3(0, 0.008, 0));
