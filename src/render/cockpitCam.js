@@ -182,7 +182,7 @@ export class CockpitRig {
 export class LoadCamera {
   constructor(renderer, quality) {
     this.renderer = renderer;
-    const n = quality.name === 'high' ? 384 : quality.name === 'medium' ? 288 : 224;
+    const n = (quality.name === 'high' || quality.name === 'ultra') ? 384 : quality.name === 'medium' ? 288 : 224;
     this.rt = new THREE.WebGLRenderTarget(n, n, { type: THREE.HalfFloatType, samples: quality.antialias ? 2 : 0 });
     this.rt.texture.colorSpace = THREE.LinearSRGBColorSpace;
     this.camera = new THREE.PerspectiveCamera(72, 1, 0.003, 4);
@@ -190,8 +190,8 @@ export class LoadCamera {
     // quality), so a 120 Hz display does not pay for a second world render every frame.
     // On slower tiers it also skips frames, as before, so a struggling device is not made to pay for
     // it every frame.
-    this.period = quality.name === 'high' ? 1 / 60 : quality.name === 'medium' ? 1 / 40 : 1 / 25;
-    this.every = quality.name === 'high' ? 1 : quality.name === 'medium' ? 2 : 3;
+    this.period = (quality.name === 'high' || quality.name === 'ultra') ? 1 / 60 : quality.name === 'medium' ? 1 / 40 : 1 / 25;
+    this.every = (quality.name === 'high' || quality.name === 'ultra') ? 1 : quality.name === 'medium' ? 2 : 3;
     this.frame = 0;
     this.last = -1;
     this.active = false;

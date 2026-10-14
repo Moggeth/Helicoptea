@@ -232,7 +232,7 @@ export function heliMaterials() {
 
 // ---------------------------------------------------------------- model
 export function buildRealisticHelicopter(quality = { name: 'high' }) {
-  const hi = quality.name === 'high';
+  const hi = (quality.name === 'high' || quality.name === 'ultra');
   const M = heliMaterials();
   const root = new THREE.Group();
   root.name = 'heli';

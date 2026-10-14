@@ -124,7 +124,7 @@ export class View {
     this.liquid.add(this.milkView.bowlSurface);
     const B = BIRDBATH;
     this.birdbath = this.liquid.add(new TeaSurface({ x: B.x, z: B.z, rIn: B.r * 0.86, waterY: B.top - 0.02, topY: B.top, brew: 0, milk: 0, steep: 0 },
-      kitchen.sun.position.clone().sub(kitchen.sun.target.position), { water: { color: 0x5d7a72, opacity: 0.82 }, wall: 0xb9b2a2, rim: 0xd0c9b8, fieldN: quality.name === 'high' ? 48 : 36 }));
+      kitchen.sun.position.clone().sub(kitchen.sun.target.position), { water: { color: 0x5d7a72, opacity: 0.82 }, wall: 0xb9b2a2, rim: 0xd0c9b8, fieldN: (quality.name === 'high' || quality.name === 'ultra') ? 48 : 36 }));
     scene.add(this.birdbath.mesh);
     this.crashFx = new CrashFx(this);
     this.aircraftFx = new AircraftFxSet(this, { micro: this.heliModel, chinook: this.chinookModel, skycrane: this.skycrane.model }, quality);

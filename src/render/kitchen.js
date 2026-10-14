@@ -260,7 +260,17 @@ export function buildKitchen(scene, renderer, quality, progress, sim) {
   // Bud vase with three stems.
   {
     const g = new THREE.Group();
-    const glass = new THREE.MeshPhysicalMaterial({ color: 0xbfd8d0, roughness: 0.05, transmission: quality.transmission ? 0.9 : 0, transparent: !quality.transmission, opacity: quality.transmission ? 1 : 0.55, thickness: 0.01, ior: 1.45 });
+    // Ultra refracts through the glass (a transmission pass: the whole opaque scene drawn again at full
+    // resolution whenever the vase is on screen). Other tiers tint what is behind it by the glass colour
+    // and add the reflections on top, which reads the same at this size for one draw call.
+    let glass;
+    if (quality.transmission) glass = new THREE.MeshPhysicalMaterial({ color: 0xbfd8d0, roughness: 0.05, transmission: 0.9, thickness: 0.01, ior: 1.45 });
+    else {
+      const tint = new THREE.Color(0xbfd8d0);
+      glass = new THREE.MeshPhysicalMaterial({ color: tint.clone().multiplyScalar(0.1), roughness: 0.05, ior: 1.45, transparent: true,
+        blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.ConstantColorFactor });
+      glass.blendColor.copy(tint).multiplyScalar(0.9);
+    }
     const vase = new THREE.Mesh(vesselGeometry({ rOutBottom: VASE.r, rOut: VASE.r * 0.55, rIn: VASE.r * 0.45, rInBottom: VASE.r * 0.85, height: VASE.h, bottom: 0.008, belly: 0.006 }), glass);
     g.add(vase);
     const stemMat = new THREE.MeshStandardMaterial({ color: 0x4d7a3a, roughness: 0.6 });

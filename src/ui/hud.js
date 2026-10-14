@@ -317,7 +317,7 @@ export class Hud {
         <div class="row stack">
           <label class="opt">Graphics quality
             <select data-setting="quality">
-              ${['auto', 'high', 'medium', 'low'].map((q) => `<option value="${q}" ${opts.quality === q ? 'selected' : ''}>${q[0].toUpperCase() + q.slice(1)}</option>`).join('')}
+              ${['auto', 'ultra', 'high', 'medium', 'low'].map((q) => `<option value="${q}" ${opts.quality === q ? 'selected' : ''}>${q[0].toUpperCase() + q.slice(1)}</option>`).join('')}
             </select></label>
           <label class="opt">World weight <span class="weight-row"><small>light</small><input type="range" min="0" max="1" step="0.05" value="${opts.weight ?? 0.75}" data-setting="weight" aria-label="World weight" /><small>heavy</small></span></label>
           <label class="opt">Debug overlay <input type="checkbox" data-setting="debug" ${opts.debug ? 'checked' : ''}/></label>
