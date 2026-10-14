@@ -8,6 +8,7 @@ import { TeaBag } from './teabag.js';
 import { AirField } from './air.js';
 import { Props } from './props.js';
 import { MilkSystem } from './milk.js';
+import { Damage, CRASH_KINDS } from './damage.js';
 
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _q = new THREE.Quaternion();
 
@@ -90,6 +91,8 @@ export class Sim {
     this.heliId = 0;
     buildStaticWorld(this);
     this.air = new AirField(this);
+    this.damage = new Damage(this);
+    if (opts.rotorStrikes === false) this.damage.rotorStrikes = false;
     this.spawnHeli();
     for (const p of this.pegs) this.refillPeg(p);
     this.milk = new MilkSystem(this);
@@ -105,6 +108,7 @@ export class Sim {
     const pos = new THREE.Vector3(PAD.x, PAD.height + gearDrop(this.aircraft) + 0.0015, PAD.z);
     this.heli = createAircraft(this, this.aircraft, pos, 0);
     for (const c of this.heli.colliders) this.colliderInfo.get(c.handle).heli = this.heli;
+    this.damage.attach(this.heli);
     this.heliId++;
     this.state = 'flying';
     this.crashInfo = null;
@@ -291,7 +295,11 @@ export class Sim {
   }
 
   // ---------- crash ----------
-  crash(reason, impact = 1.5) {
+  // A loose part as a debris body (crash wreckage, or blades a rotor strike throws off).
+  spawnDebris(part, worldPos, worldQuat, vel, angvel, wreckId) { return new Debris(this, part, worldPos, worldQuat, vel, angvel, wreckId); }
+
+  // extra: { material, cup, at } from the damage model's verdict (what was hit, which cup was dunked in).
+  crash(reason, impact = 1.5, extra = {}) {
     if (this.state !== 'flying' || !this.heli) return;
     const heli = this.heli;
     const def = heli.def;
@@ -301,6 +309,7 @@ export class Sim {
     const w = new THREE.Vector3(av.x, av.y, av.z);
     const up = heli.up.clone();
     const rotorPhase = heli.rotorPhase, rotorSpeed = heli.rotorSpeed;
+    const shed = heli.shed || new Set(), dmg = heli.dmg;
     const blades = def.parts.filter((p) => p.blade).map((p) => (heli.bladePose ? heli.bladePose(p) : null));
     heli.crashing = true; // the skycrane's tank bursts rather than being put away
     for (const c of heli.colliders) this.unregister(c);
@@ -318,6 +327,7 @@ export class Sim {
       let localQ = new THREE.Quaternion();
       let spin = 1;
       const pose = part.blade ? blades[bladeN++] : null;
+      if (shed.has(part.name)) continue; // already thrown off by a rotor strike
       if (pose) {
         local.copy(pose.pos);
         localQ.copy(pose.quat);
@@ -358,8 +368,11 @@ export class Sim {
       }
     }
     this.limitDebris();
-    this.crashInfo = { reason, pos, vel, impact, time: this.time, wreckId, aircraft: def.id };
-    this.emit('crash', { pos, vel, reason, impact, wreckId, parts, aircraft: def.id, scale: def.scale });
+    const kind = CRASH_KINDS[reason] || 'impact';
+    const spin = dmg && dmg.tail ? w.dot(up) : 0;
+    this.crashInfo = { reason, kind, pos, vel, impact, time: this.time, wreckId, aircraft: def.id, material: extra.material || null };
+    this.emit('crash', { pos, vel, reason, kind, impact, wreckId, parts, aircraft: def.id, scale: def.scale, up, spin,
+      material: extra.material || null, cup: extra.cup ?? null, at: extra.at || null });
   }
 
   limitDebris() {
@@ -422,7 +435,10 @@ export class Sim {
     const dt = this.dt;
     for (const c of this.cups) c.steep = 0;
     if (this.stepCount % CFG.air.updateEvery === 0) this.air.update(dt * CFG.air.updateEvery);
-    if (this.heli) this.heli.applyForces(dt, ctl, this.assist);
+    if (this.heli && !this.damage.hulkStep(this.heli, dt)) {
+      this.heli.applyForces(dt, ctl, this.assist);
+      this.damage.afterForces(this.heli, dt);
+    }
     for (const b of this.bags) b.applyForces(dt);
     this.milk.applyForces(dt, ctl);
     this.props.applyForces(dt);
@@ -467,31 +483,24 @@ export class Sim {
     if (this.heli) {
       const heli = this.heli;
       heli.afterStep();
-      // Rotor strike: blades touching scenery.
-      let rotorHit = false;
-      for (const r of heli.rotors) {
-        this.world.intersectionPairsWith(r, (other) => {
-          const info = this.colliderInfo.get(other.handle);
-          if (info && (info.kind !== 'heli')) rotorHit = true;
-        });
-      }
       const speed = heli.vel.length();
+      // A hit resolved by continuous collision detection reports no contact force: a big unexplained
+      // velocity change while touching scenery is one too.
+      if (!anyContact && heli.vel.distanceTo(heli.predVel) > 0.5) {
+        const other = this.damage.touching(heli);
+        if (other) { anyContact = true; impactPos = impactPos || other; }
+      }
       // Impact severity: velocity change not explained by flight forces, summed over a few ms
       // (contacts are often resolved across two or three steps).
       // Resting support (at most gravity per step) is not an impact.
       const dvStep = anyContact ? Math.max(0, heli.vel.distanceTo(heli.predVel) - CFG.physics.gravity * dt * 1.1) : 0;
       heli.impactAcc = heli.impactAcc * Math.pow(0.5, dt / 0.012) + dvStep;
       impact = Math.max(impact, heli.impactAcc);
-      if (rotorHit && heli.rotorSpeed > 0.4) {
-        heli.rotorContact += dt * (1 + speed * 6);
-        if (Math.random() < 0.3) this.emit('rotorTick', { pos: heli.pos.clone() });
-      } else heli.rotorContact = Math.max(0, heli.rotorContact - dt * 0.5);
-
-      if (impact > heli.def.impactDv) this.crash('impact', impact);
-      else if (rotorHit && speed > CFG.crash.rotorStrikeSpeed) this.crash('rotor strike', speed);
-      else if (heli.rotorContact > CFG.crash.rotorStrikeBudget) this.crash('rotor strike', speed);
-      else if (anyContact && heli.up.y < CFG.crash.rolloverUpY) this.crash('rollover', 1);
-      else if (heli.pos.y < -0.72 && heli.up.y < 0.5) this.crash('floor', 1);
+      // Rotor and tail strikes (wear, shedding, tail loss), tea, then the verdict (see damage.js).
+      this.damage.contacts(heli, dt, speed);
+      const dunk = this.damage.tea(heli, dt);
+      const v = this.damage.verdict(heli, impact, anyContact, impactPos, speed, dunk);
+      if (v) this.crash(v.reason, v.impact, v);
       else if (impact > CFG.crash.bumpDv) this.emit('bump', { pos: heli.pos.clone(), dv: impact });
       if (bagHeliHit > 0.0005) this.emit('bagHit', { pos: heli.pos.clone(), dv: bagHeliHit / 0.004, material: 'heli' });
       // Contact feedback: touchdowns and skid scrapes (sound, dust, rumble).
