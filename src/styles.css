@@ -245,15 +245,15 @@ body.touch-ui .tank-gauge { top: 34%; }
 
 /* Portrait phones: sticks along the bottom, buttons above; a gentle nudge to rotate. */
 @media (orientation: portrait) {
+  #touch { --button-cell: calc((100vw - var(--safe-l) - var(--safe-r) - 24px) / 5); --button-left: calc(12px + var(--safe-l)); }
   .stick-zone { height: 40vh; width: 50vw; }
-  .touch-btn.attach { bottom: calc(40vh + 8px); }
-  .touch-btn.assist { bottom: calc(40vh + 14px); }
-  .touch-btn.mark { left: calc(226px + var(--safe-l)); bottom: calc(40vh + 16px); }
-  .touch-btn.recenter { bottom: calc(40vh + 20px); }
-  .touch-btn.pour { bottom: calc(40vh + 18px); }
-  .touch-btn.doors { bottom: calc(40vh + 16px); }
-  .touch-btn.pump { right: auto; left: calc(96px + var(--safe-l)); bottom: calc(40vh + 18px); }
-  .touch-btn.reel-in, .touch-btn.reel-out { left: calc(162px + var(--safe-l)); }
+  .touch-btn.attach { right: auto; left: calc(var(--button-left) + 4 * var(--button-cell)); width: min(74px, calc(var(--button-cell) - 4px)); bottom: calc(40vh + 8px); }
+  .touch-btn.assist { left: var(--button-left); width: min(60px, calc(var(--button-cell) - 4px)); bottom: calc(40vh + 14px); }
+  .touch-btn.mark { left: var(--button-left); bottom: calc(40vh + 84px); }
+  .touch-btn.recenter { right: auto; left: calc(var(--button-left) + 3 * var(--button-cell)); bottom: calc(40vh + 20px); }
+  .touch-btn.pour, .touch-btn.doors { right: auto; left: calc(var(--button-left) + var(--button-cell)); width: min(62px, calc(var(--button-cell) - 4px)); bottom: calc(40vh + 80px); }
+  .touch-btn.pump { right: auto; left: calc(var(--button-left) + var(--button-cell)); width: min(56px, calc(var(--button-cell) - 4px)); bottom: calc(40vh + 18px); }
+  .touch-btn.reel-in, .touch-btn.reel-out { left: calc(var(--button-left) + 2 * var(--button-cell)); width: min(54px, calc(var(--button-cell) - 4px)); }
   .touch-btn.reel-in { bottom: calc(40vh + 46px); }
   .touch-btn.reel-out { bottom: calc(40vh + 8px); }
   .hint { max-width: calc(100vw - 32px); top: calc(96px + var(--safe-t)); font-size: 13.5px; }
@@ -401,8 +401,8 @@ body.pip-top .hint:not(.show), body.pip-top .prompt:not(.show) { pointer-events:
 .touch-btn.bolt .lbl { font-size: 9.5px; }
 .touch-btn.bolt.pressed { background: #e0463a; color: #fff; }
 @media (orientation: portrait) {
-  .touch-btn.cam { left: calc(150px + var(--safe-l)); bottom: calc(40vh + 84px); }
-  .touch-btn.bolt { left: calc(206px + var(--safe-l)); bottom: calc(40vh + 82px); }
+  .touch-btn.cam { left: calc(var(--button-left) + 2 * var(--button-cell)); bottom: calc(40vh + 84px); }
+  .touch-btn.bolt { left: calc(var(--button-left) + 3 * var(--button-cell)); bottom: calc(40vh + 82px); }
 }
 .aircraft-row button.chk:not(.on) { opacity: 0.6; }
 .cam-row > span { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
