@@ -14,7 +14,7 @@ const LIFT = 0.0012;    // cloth thickness above the table top
 
 export class TableCloth {
   constructor(scene, quality, map) {
-    const tier = quality.name;
+    const tier = quality.name === 'ultra' ? 'high' : quality.name; // ultra builds the world as high does
     // Resolution, steps per second and constraint rounds scale with the quality tier.
     const NX = tier === 'high' ? 96 : tier === 'medium' ? 56 : 40;
     const NZ = tier === 'high' ? 17 : tier === 'medium' ? 10 : 7;
@@ -179,7 +179,7 @@ export class TableCloth {
         ay += tb * 0.6 * Math.sin(t * 6.7 + this.phase[k] * 0.6 + x * 13);
       }
       // Never more than a few g from the air: heavy linen lifts and rolls, it doesn't snap about.
-      const am = Math.hypot(ax, ay, az), lim = 3 * 9.81;
+      const am = Math.sqrt(ax * ax + ay * ay + az * az), lim = 3 * 9.81;
       if (am > lim) { ax *= lim / am; ay *= lim / am; az *= lim / am; }
       const damp = 0.985;
       const nx = x + (x - Q[i3]) * damp + ax * h * h;
@@ -214,7 +214,7 @@ export class TableCloth {
   collide(sim) {
     const P = this.p, n = this.n;
     const hx = TABLE.halfX, hz = TABLE.halfZ;
-    const heli = sim.heli;
+    const heli = sim.heli, circles = this.circles, boxes = this.boxes, bags = sim.bags;
     for (let k = 0; k < n; k++) {
       if (this.pin[k]) continue;
       const i3 = k * 3;
@@ -224,12 +224,15 @@ export class TableCloth {
         if (Math.abs(x) <= hx) { if (y < LIFT && y > -TABLE.thickness) { this.note(LIFT - y); y = LIFT; } }
         else {
           const ex = x - Math.sign(x) * hx, R = EDGE_R + LIFT;
-          if (y > -EDGE_R) { const d = Math.hypot(ex, y); if (d < R) { const s = R / (d || 1e-6); this.note(R - d); x = Math.sign(x) * hx + ex * s; y *= s; } }
+          if (y > -EDGE_R) { const d = Math.sqrt(ex * ex + y * y); if (d < R) { const s = R / (d || 1e-6); this.note(R - d); x = Math.sign(x) * hx + ex * s; y *= s; } }
           else if (Math.abs(ex) < R && y > -TABLE.thickness - 0.08) { x = Math.sign(x) * (hx + R); }
         }
       }
       // Things standing on the cloth: it can rise around them or drape over them, never pass through.
-      for (const [cx, cz, r, top] of this.circles) {
+      // (Indexed loops, no destructuring: this runs for every particle a few times a step, and the
+      // destructuring for-of allocated about a megabyte a frame, which the garbage collector paid for.)
+      for (let c = 0; c < circles.length; c++) {
+        const C = circles[c], cx = C[0], cz = C[1], r = C[2], top = C[3];
         const dx = x - cx, dz = z - cz, d2 = dx * dx + dz * dz, R = r + 0.002;
         if (d2 < R * R && y < top + LIFT) {
           const d = Math.sqrt(d2) || 1e-6;
@@ -237,7 +240,8 @@ export class TableCloth {
           if (y > top - 0.003) y = top + LIFT; else { this.note(R - d); x = cx + dx / d * R; z = cz + dz / d * R; }
         }
       }
-      for (const [cx, cz, bx, bz, top] of this.boxes) {
+      for (let c = 0; c < boxes.length; c++) {
+        const B = boxes[c], cx = B[0], cz = B[1], bx = B[2], bz = B[3], top = B[4];
         const dx = x - cx, dz = z - cz;
         if (Math.abs(dx) < bx + 0.002 && Math.abs(dz) < bz + 0.002 && y < top + LIFT) {
           const px = bx + 0.002 - Math.abs(dx), pz = bz + 0.002 - Math.abs(dz), py = top + LIFT - y;
@@ -247,11 +251,12 @@ export class TableCloth {
       // The helicopter's belly and skids, and any bag, push the cloth aside.
       if (heli) {
         const r = heli.type === 'micro' || !heli.type ? 0.05 : 0.08;
-        const dx = x - heli.pos.x, dy = y - heli.pos.y, dz = z - heli.pos.z, d = Math.hypot(dx, dy, dz);
+        const dx = x - heli.pos.x, dy = y - heli.pos.y, dz = z - heli.pos.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (d < r) { const s = r / (d || 1e-6); x = heli.pos.x + dx * s; y = heli.pos.y + dy * s; z = heli.pos.z + dz * s; }
       }
-      for (const b of sim.bags) {
-        const dx = x - b.pos.x, dy = y - b.pos.y, dz = z - b.pos.z, d = Math.hypot(dx, dy, dz);
+      for (let q = 0; q < bags.length; q++) {
+        const b = bags[q];
+        const dx = x - b.pos.x, dy = y - b.pos.y, dz = z - b.pos.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (d < 0.03) { const s = 0.03 / (d || 1e-6); x = b.pos.x + dx * s; y = b.pos.y + dy * s; z = b.pos.z + dz * s; }
       }
       P[i3] = x; P[i3 + 1] = y; P[i3 + 2] = z;
@@ -361,7 +366,7 @@ export class HangingCloth {
         const rn = rx * o[0] + ry * o[1] + rz * o[2];
         const k1 = 0.5 * 1.2 * 1.2 / 0.25;
         let ax = o[0] * k1 * rn * Math.abs(rn), ay = o[1] * k1 * rn * Math.abs(rn), az = o[2] * k1 * rn * Math.abs(rn);
-        const sp = Math.hypot(wx, wz);
+        const sp = Math.sqrt(wx * wx + wz * wz);
         ax += 0.6 * sp * Math.sin(this.t * 11 + k * 1.7); az += 0.6 * sp * Math.sin(this.t * 9 + k * 2.3);
         const nx = x + (x - Q[i3]) * 0.98 + ax * h * h, ny = y + (y - Q[i3 + 1]) * 0.98 + (ay - 9.81) * h * h, nz = z + (z - Q[i3 + 2]) * 0.98 + az * h * h;
         Q[i3] = x; Q[i3 + 1] = y; Q[i3 + 2] = z;
@@ -385,7 +390,7 @@ export class HangingCloth {
           const i3 = k * 3;
           if (this.wall) { const ax2 = this.wall.axis === 'x' ? 0 : 2; const s = this.wall.side; if ((P[i3 + ax2] - this.wall.at) * s < 0) P[i3 + ax2] = this.wall.at; }
           if (heli) {
-            const dx = P[i3] - heli.pos.x, dy = P[i3 + 1] - heli.pos.y, dz = P[i3 + 2] - heli.pos.z, d = Math.hypot(dx, dy, dz), r = heli.type === 'micro' ? 0.06 : 0.1;
+            const dx = P[i3] - heli.pos.x, dy = P[i3 + 1] - heli.pos.y, dz = P[i3 + 2] - heli.pos.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz), r = heli.type === 'micro' ? 0.06 : 0.1;
             if (d < r) { const s = r / (d || 1e-6); P[i3] = heli.pos.x + dx * s; P[i3 + 1] = heli.pos.y + dy * s; P[i3 + 2] = heli.pos.z + dz * s; }
           }
         }

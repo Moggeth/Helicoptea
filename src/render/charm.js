@@ -25,7 +25,7 @@ function shadowed(o, cast = true, receive = true) { o.traverse((m) => { if (m.is
 export function buildCharm(scene, quality, kitchen, sim) {
   const charm = { audio: null };
   const fy = ROOM.floorY;
-  const hi = quality.name === 'high';
+  const hi = (quality.name === 'high' || quality.name === 'ultra');
   // Static pieces are merged by material (a handful of draw calls instead of dozens).
   const batches = { cr: new Batcher(), r: new Batcher() };
   const bake = (g, cast = true, receive = true) => {

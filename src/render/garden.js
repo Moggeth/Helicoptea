@@ -15,7 +15,7 @@ const _v = new THREE.Vector3(), _c = new THREE.Vector3();
 // tea stand and cup, a rose arch, bird bath, stump, bench and an apple tree, all walled in by a fence
 // and hedge under an open sky. Decor and grass density scale with the quality tier.
 export function buildGarden(scene, quality, kitchen, teaStand, sim) {
-  const tier = quality.name;
+  const tier = quality.name === 'ultra' ? 'high' : quality.name; // ultra builds the world as high does
   const q = tier === 'high' ? 1 : tier === 'medium' ? 0.55 : 0.3;
   const shadows = quality.shadows > 0;
   const decor = { cast: tier === 'high' }; // small decor casts shadows only on the high tier
@@ -308,10 +308,11 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
       pts.push([R.x + dx + _v.x * rr, y + _v.y * rr * 0.85, R.z + dz + _v.z * rr, _v.x, _v.y + 0.3, _v.z]);
     }
     leafGroups.push(leafCards(scene, grass.uniforms, pts, { size: 0.2, hue: 100, light: 1, cast: shadows, shadows }));
+    const appleGlaze = glazeMaterial(0xffffff, { roughness: 0.45, extra: { clearcoat: 0.3 } }); // one material: one draw for every apple
     for (let i = 0; i < Math.round(28 * q + 6); i++) {
       const [dx, y, dz, r] = R.canopy[Math.floor(rnd() * R.canopy.length)];
       _v.set(rnd() * 2 - 1, -rnd(), rnd() * 2 - 1).normalize();
-      b.add(new THREE.SphereGeometry(0.035, 12, 9), glazeMaterial(0xffffff, { roughness: 0.45, extra: { clearcoat: 0.3 } }), T(R.x + dx + _v.x * r * 0.9, y + _v.y * r * 0.8, R.z + dz + _v.z * r * 0.9), rnd() < 0.7 ? 0xb3261e : 0x9fb53a, decor);
+      b.add(new THREE.SphereGeometry(0.035, 12, 9), appleGlaze, T(R.x + dx + _v.x * r * 0.9, y + _v.y * r * 0.8, R.z + dz + _v.z * r * 0.9), rnd() < 0.7 ? 0xb3261e : 0x9fb53a, decor);
     }
   }
 

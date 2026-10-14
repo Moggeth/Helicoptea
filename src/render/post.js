@@ -1,52 +1,132 @@
 import * as THREE from 'three';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 
 // Ground-truth ambient occlusion (GTAO) tuned for a centimetre-scale world: contact darkening where
 // cups, the teapot, the tea bags and the helicopter's skids meet the table. Optional per quality tier.
+//
+// The chain is kept short because at 4K every full-screen pass costs about a millisecond:
+//   1. the scene into a multisampled half-float target,
+//   2. normals, AO and denoise at no more than quality.aoMaxHeight lines,
+//   3. one pass to the screen that applies the AO, tone maps and converts to sRGB.
+// (The stock EffectComposer chain copied the frame, blended the AO in a second pass and tone mapped in a
+// third, all into multisampled 4K targets.)
 export class Post {
   constructor(renderer, scene, camera, quality) {
     this.renderer = renderer;
     this.scene = scene;
     this.camera = camera;
+    this.quality = quality;
     this.enabled = !!quality.ao;
-    this.composer = null;
+    this.aoScale = 1;
+    // Without AO the scene normally goes straight to the screen. While the hook camera is running it goes
+    // through the half-float target as well: the hook camera renders into a target, and three.js picks a
+    // different shader variant for a material drawn to a target (no tone mapping, linear output) than to
+    // the screen, so alternating the two re-selected the program of every material twice a frame.
+    this.viaTarget = false;
+    this.target = null;
+    this.output = null;
+    this.ao = null;
     if (this.enabled) this.build(quality);
+  }
+
+  // Whether the world is drawn in linear light this frame (the depth cues blend to match).
+  get linear() { return this.enabled || this.viaTarget; }
+
+  ensureTarget() {
+    if (this.target) return;
+    const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    this.target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: this.quality.antialias ? 4 : 0 });
+    this.output = new FullScreenQuad(this.outputMaterial());
+    this.setSize(innerWidth, innerHeight);
   }
 
   build(quality) {
     const r = this.renderer;
     const size = r.getDrawingBufferSize(new THREE.Vector2());
-    const rt = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: quality.antialias ? 4 : 0 });
-    this.composer = new EffectComposer(r, rt);
-    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: quality.antialias ? 4 : 0 });
     const ao = new GTAOPass(this.scene, this.camera, size.x, size.y);
+    ao.output = GTAOPass.OUTPUT.Off; // compute the denoised AO only; the output pass below applies it
     ao.updateGtaoMaterial({ radius: 0.12, distanceExponent: 1.3, thickness: 0.06, scale: 1.9, samples: quality.aoSamples || 16, distanceFallOff: 1.0, screenSpaceRadius: false });
     ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, radiusExponent: 1.5, rings: 2, samples: 16 });
-    ao.blendIntensity = 1.0;
-    // Transparent and effect-only objects (tea, rotor blur, particles, decals, glass) must not occlude.
-    const baseOverride = ao.overrideVisibility.bind(ao);
-    ao.overrideVisibility = () => {
-      baseOverride();
+    // Transparent and effect-only objects (tea, rotor blur, particles, decals, glass, points, lines) must not
+    // occlude. The list of them is gathered by walking the scene a few times a second rather than twice
+    // every frame (the stock pass walks it and fills a Map per frame).
+    const hidden = [], wasVisible = [];
+    let age = Infinity;
+    const gather = () => {
+      hidden.length = 0;
       this.scene.traverse((o) => {
-        if (o.isMesh && (o.userData.noAO || (o.material && (Array.isArray(o.material) ? o.material.some((m) => m.transparent) : o.material.transparent)))) o.visible = false;
+        if (o.isPoints || o.isLine || (o.isMesh && (o.userData.noAO || (o.material && (Array.isArray(o.material) ? o.material.some((m) => m.transparent) : o.material.transparent))))) hidden.push(o);
       });
+      age = 0;
     };
+    ao.overrideVisibility = () => {
+      if (++age > 20) gather();
+      wasVisible.length = hidden.length;
+      for (let i = 0; i < hidden.length; i++) { wasVisible[i] = hidden[i].visible; hidden[i].visible = false; }
+    };
+    ao.restoreVisibility = () => { for (let i = 0; i < hidden.length; i++) hidden[i].visible = wasVisible[i]; };
     this.ao = ao;
-    this.composer.addPass(ao);
-    this.composer.addPass(new OutputPass());
+    this.output = new FullScreenQuad(this.outputMaterial());
+  }
+
+  outputMaterial() {
+    const ao = this.ao;
+    return new THREE.RawShaderMaterial({
+      name: 'HeliOutput',
+      uniforms: { tDiffuse: { value: this.target.texture }, tAO: { value: ao ? ao.pdRenderTarget.texture : null }, intensity: { value: 1 }, toneMappingExposure: { value: 1 } },
+      defines: ao ? { USE_AO: '' } : {},
+      vertexShader: /* glsl */`
+        precision highp float;
+        uniform mat4 modelViewMatrix;
+        uniform mat4 projectionMatrix;
+        attribute vec3 position;
+        attribute vec2 uv;
+        varying vec2 vUv;
+        void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: /* glsl */`
+        precision highp float;
+        uniform sampler2D tDiffuse;
+        uniform sampler2D tAO;
+        uniform float intensity;
+        #include <tonemapping_pars_fragment>
+        #include <colorspace_pars_fragment>
+        varying vec2 vUv;
+        void main() {
+          gl_FragColor = texture2D(tDiffuse, vUv);
+          #ifdef USE_AO
+          gl_FragColor.rgb *= mix(vec3(1.0), texture2D(tAO, vUv).rgb, intensity);
+          #endif
+          gl_FragColor.rgb = ACESFilmicToneMapping(gl_FragColor.rgb);
+          gl_FragColor = sRGBTransferOETF(gl_FragColor);
+        }`,
+      depthTest: false, depthWrite: false,
+    });
   }
 
   setSize(w, h) {
-    if (!this.composer) return;
-    this.composer.setPixelRatio(this.renderer.getPixelRatio());
-    this.composer.setSize(w, h);
+    if (!this.target) return;
+    const pr = this.renderer.getPixelRatio();
+    const W = Math.max(1, Math.floor(w * pr)), H = Math.max(1, Math.floor(h * pr));
+    this.target.setSize(W, H);
+    if (!this.ao) return;
+    // AO at no more than aoMaxHeight lines: it is a soft, denoised term, so a 4K screen gets it at half
+    // resolution (a quarter of the pixels) and the output pass upsamples it without visible loss.
+    const s = this.quality.aoMaxHeight ? Math.min(1, this.quality.aoMaxHeight / H) : 1;
+    this.aoScale = s;
+    this.ao.setSize(Math.max(1, Math.round(W * s)), Math.max(1, Math.round(H * s)));
   }
 
   render() {
-    if (this.composer) this.composer.render();
-    else this.renderer.render(this.scene, this.camera);
+    const r = this.renderer;
+    if (!this.enabled && !this.viaTarget) { r.render(this.scene, this.camera); return; }
+    this.ensureTarget();
+    r.setRenderTarget(this.target);
+    r.render(this.scene, this.camera);
+    if (this.enabled) this.ao.render(r, null, this.target);
+    this.output.material.uniforms.toneMappingExposure.value = r.toneMappingExposure;
+    r.setRenderTarget(null);
+    this.output.render(r);
   }
 }

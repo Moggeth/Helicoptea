@@ -181,6 +181,13 @@ body.touch-ui .mark-btn { display: none; }
 .help-note { font-size: 12.5px; color: var(--ink-soft); margin-top: 14px; line-height: 1.45; }
 
 /* debug */
+/* Frame-rate readout (F2): under the top-right buttons, out of the way of the hook camera and the sticks. */
+.fps-meter {
+  position: absolute; top: calc(62px + var(--safe-t)); right: calc(12px + var(--safe-r)); background: rgba(20, 14, 10, 0.72); color: #d9f5c8;
+  font: 600 12px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace; padding: 5px 9px; border-radius: 8px; white-space: pre; text-align: right;
+  pointer-events: none !important; font-variant-numeric: tabular-nums;
+}
+.fps-meter.short { color: #ffd59a; }
 .debug {
   position: absolute; left: calc(12px + var(--safe-l)); bottom: calc(12px + var(--safe-b)); background: rgba(20, 14, 10, 0.78); color: #d9f5c8;
   font: 11.5px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace; padding: 8px 10px; border-radius: 8px; white-space: pre; pointer-events: none !important;

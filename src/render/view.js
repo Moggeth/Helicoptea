@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { CFG } from '../config.js';
 import { RAPIER, GROUPS } from '../sim/physics.js';
 import { TABLE, surfaceY, BIRDBATH } from '../sim/layout.js';
@@ -21,7 +22,11 @@ const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _v = new THREE.Vect
 const _pinA = new THREE.Vector3(), _pinL = new THREE.Vector3(), _pinQ = new THREE.Quaternion();
 const rand = (a, b) => a + Math.random() * (b - a);
 // First person hides the airframe around the pilot's eye but keeps its shadow on the table.
-const SHADOW_ONLY = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+// The airframe around the pilot in the cockpit view: still casts its shadow, draws nothing. The material is
+// switched off (so no pass issues draw calls for it) except while the shadow maps render (see main.js).
+export const SHADOW_ONLY = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, visible: false });
+const HIDDEN = new THREE.MeshBasicMaterial({ visible: false });
+const _inv = new THREE.Matrix4(), _rel = new THREE.Matrix4();
 const FP_HIDE = { micro: ['fuselage', 'tailBoom', 'tail'], chinook: ['noseCab', 'cabin', 'aftCabin', 'fwdPylon'], skycrane: ['cockpit'] };
 
 // Presentation layer: mirrors simulation state into the Three.js scene and turns sim events into effects.
@@ -124,7 +129,7 @@ export class View {
     this.liquid.add(this.milkView.bowlSurface);
     const B = BIRDBATH;
     this.birdbath = this.liquid.add(new TeaSurface({ x: B.x, z: B.z, rIn: B.r * 0.86, waterY: B.top - 0.02, topY: B.top, brew: 0, milk: 0, steep: 0 },
-      kitchen.sun.position.clone().sub(kitchen.sun.target.position), { water: { color: 0x5d7a72, opacity: 0.82 }, wall: 0xb9b2a2, rim: 0xd0c9b8, fieldN: quality.name === 'high' ? 48 : 36 }));
+      kitchen.sun.position.clone().sub(kitchen.sun.target.position), { water: { color: 0x5d7a72, opacity: 0.82 }, wall: 0xb9b2a2, rim: 0xd0c9b8, fieldN: (quality.name === 'high' || quality.name === 'ultra') ? 48 : 36 }));
     scene.add(this.birdbath.mesh);
     this.crashFx = new CrashFx(this);
     this.aircraftFx = new AircraftFxSet(this, { micro: this.heliModel, chinook: this.chinookModel, skycrane: this.skycrane.model }, quality);
@@ -137,15 +142,20 @@ export class View {
     this.firstPerson = on;
     const models = { micro: this.heliModel, chinook: this.chinookModel, skycrane: this.skycrane.model };
     for (const [key, names] of Object.entries(FP_HIDE)) {
-      const U = models[key].userData;
+      const root = models[key], U = root.userData;
       const spinning = new Set([...(U.rotors || []), U.rotor].filter(Boolean)); // rotors keep drawing
+      // The hidden airframe's shadow comes from one merged proxy (one draw call in the shadow pass instead
+      // of one per piece); the pieces themselves draw nothing.
+      const casters = [];
       const visit = (o) => {
         if (spinning.has(o)) return;
         if (o.isMesh) {
           if (on) {
+            const vis = Array.isArray(o.material) ? o.material.some((m) => m.visible) : o.material.visible;
+            if (vis && o.castShadow) casters.push(o);
             o.userData.fpMat = o.material;
             o.userData.fpNoAO = o.userData.noAO;
-            o.material = Array.isArray(o.material) ? o.material.map((m) => (m.visible ? SHADOW_ONLY : m)) : SHADOW_ONLY;
+            o.material = Array.isArray(o.material) ? o.material.map(() => HIDDEN) : HIDDEN;
             o.userData.noAO = true;
           } else if (o.userData.fpMat) {
             o.material = o.userData.fpMat;
@@ -156,6 +166,26 @@ export class View {
         for (const c of o.children) visit(c);
       };
       for (const n of names) visit(U.parts[n]);
+      if (on) {
+        if (U.fpShadow) U.fpShadow.removeFromParent();
+        root.updateMatrixWorld(true);
+        _inv.copy(root.matrixWorld).invert();
+        const geos = casters.map((o) => {
+          const g = new THREE.BufferGeometry();
+          const src = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry;
+          g.setAttribute('position', src.attributes.position.clone());
+          g.applyMatrix4(_rel.multiplyMatrices(_inv, o.matrixWorld));
+          return g;
+        });
+        const merged = geos.length ? mergeGeometries(geos, false) : null;
+        if (merged) {
+          const proxy = new THREE.Mesh(merged, SHADOW_ONLY);
+          proxy.castShadow = true;
+          proxy.userData.noAO = true;
+          root.add(proxy);
+          U.fpShadow = proxy;
+        }
+      } else if (U.fpShadow) { U.fpShadow.removeFromParent(); U.fpShadow.geometry.dispose(); U.fpShadow = null; }
     }
   }
 

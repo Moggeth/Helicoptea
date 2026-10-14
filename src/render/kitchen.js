@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { CHAIRS, TABLE, ROOM, PAD, STATION, CUPS, DISCARD, TEAPOT, SUGAR, VASE, JUG, PLATE, BOOKS } from '../sim/layout.js';
 import * as TX from './textures.js';
@@ -89,14 +90,17 @@ export function buildKitchen(scene, renderer, quality, progress, sim) {
     pot.position.set(-0.75, winY - winH / 2 + 0.005, ROOM.minZ + 0.07);
     scene.add(shadowed(pot));
     const leafMat = new THREE.MeshStandardMaterial({ color: 0x4f7a43, roughness: 0.7, side: THREE.DoubleSide });
+    const leaves = [];
     for (let i = 0; i < 9; i++) {
-      const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), leafMat);
+      const leaf = new THREE.Object3D();
       leaf.scale.set(0.35, 1.0, 0.12);
       const a = i / 9 * Math.PI * 2;
       leaf.position.set(pot.position.x + Math.cos(a) * 0.03, pot.position.y + 0.11, pot.position.z + Math.sin(a) * 0.03);
       leaf.rotation.set(Math.sin(a) * 0.5, a, Math.cos(a) * 0.5);
-      scene.add(leaf);
+      leaf.updateMatrix();
+      leaves.push(new THREE.SphereGeometry(0.05, 8, 6).applyMatrix4(leaf.matrix));
     }
+    scene.add(new THREE.Mesh(mergeGeometries(leaves, false), leafMat)); // nine leaves, one draw call
 
     // Counter, cabinets and shelf along the right-hand wall (soft background shapes).
     const cab = new THREE.MeshStandardMaterial({ color: 0x8fa79a, roughness: 0.55 });
@@ -260,7 +264,17 @@ export function buildKitchen(scene, renderer, quality, progress, sim) {
   // Bud vase with three stems.
   {
     const g = new THREE.Group();
-    const glass = new THREE.MeshPhysicalMaterial({ color: 0xbfd8d0, roughness: 0.05, transmission: quality.transmission ? 0.9 : 0, transparent: !quality.transmission, opacity: quality.transmission ? 1 : 0.55, thickness: 0.01, ior: 1.45 });
+    // Ultra refracts through the glass (a transmission pass: the whole opaque scene drawn again at full
+    // resolution whenever the vase is on screen). Other tiers tint what is behind it by the glass colour
+    // and add the reflections on top, which reads the same at this size for one draw call.
+    let glass;
+    if (quality.transmission) glass = new THREE.MeshPhysicalMaterial({ color: 0xbfd8d0, roughness: 0.05, transmission: 0.9, thickness: 0.01, ior: 1.45 });
+    else {
+      const tint = new THREE.Color(0xbfd8d0);
+      glass = new THREE.MeshPhysicalMaterial({ color: tint.clone().multiplyScalar(0.1), roughness: 0.05, ior: 1.45, transparent: true,
+        blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.ConstantColorFactor });
+      glass.blendColor.copy(tint).multiplyScalar(0.9);
+    }
     const vase = new THREE.Mesh(vesselGeometry({ rOutBottom: VASE.r, rOut: VASE.r * 0.55, rIn: VASE.r * 0.45, rInBottom: VASE.r * 0.85, height: VASE.h, bottom: 0.008, belly: 0.006 }), glass);
     g.add(vase);
     const stemMat = new THREE.MeshStandardMaterial({ color: 0x4d7a3a, roughness: 0.6 });
@@ -273,14 +287,16 @@ export function buildKitchen(scene, renderer, quality, progress, sim) {
       g.add(stem);
       const head = new THREE.Group();
       const pm = new THREE.MeshStandardMaterial({ color: petal[i], roughness: 0.6, side: THREE.DoubleSide });
+      // Seven petals, one mesh (they nod together; one draw call per pass instead of seven).
+      const petals = [];
       for (let k = 0; k < 7; k++) {
-        const p = new THREE.Mesh(new THREE.SphereGeometry(0.012, 10, 6), pm);
-        p.scale.set(1, 0.3, 0.55);
         const ang = k / 7 * Math.PI * 2;
-        p.position.set(Math.cos(ang) * 0.011, 0, Math.sin(ang) * 0.011);
-        p.rotation.y = -ang;
-        head.add(p);
+        const pg = new THREE.SphereGeometry(0.012, 10, 6);
+        pg.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(Math.cos(ang) * 0.011, 0, Math.sin(ang) * 0.011),
+          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -ang), new THREE.Vector3(1, 0.3, 0.55)));
+        petals.push(pg);
       }
+      head.add(new THREE.Mesh(mergeGeometries(petals, false), pm));
       const centre = new THREE.Mesh(new THREE.SphereGeometry(0.006, 10, 8), new THREE.MeshStandardMaterial({ color: 0xc98a1b, roughness: 0.8 }));
       head.add(centre);
       head.position.copy(b).add(new THREE.Vector3(0, 0.008, 0));

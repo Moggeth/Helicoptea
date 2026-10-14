@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { ROOM, COUNTER, DRESSER, RANGE, TOWEL, LINE, FEEDER, BREADBIN, FRUITBOWL, CADDIES, CADDY, linePoint } from '../sim/layout.js';
 import { Batcher, T, boxUV } from './batch.js';
@@ -122,7 +123,8 @@ export function buildDetail(scene, quality) {
     b.add(new THREE.PlaneGeometry(0.14, 0.04), new THREE.MeshStandardMaterial({ map: canvasTex(256, 72, (c, W, H) => { c.fillStyle = '#ece2c8'; c.fillRect(0, 0, W, H); c.fillStyle = '#7d2a20'; c.font = 'bold 44px Georgia, serif'; c.textAlign = 'center'; c.fillText('BREAD', W / 2, 52); }), roughness: 0.5 }), T(BREADBIN.x - BREADBIN.halfX - 0.001, top + BREADBIN.h * 0.6, BREADBIN.z, -Math.PI / 2));
     b.add(saucerGeometry(FRUITBOWL.r, FRUITBOWL.h), glazeMaterial(0x6f8f7a, { roughness: 0.3 }), T(FRUITBOWL.x, top, FRUITBOWL.z));
     const fruit = [[0xb3261e, 0.035], [0x9fb53a, 0.035], [0xe8a33a, 0.04], [0xb3261e, 0.034], [0xd9c13a, 0.03]];
-    fruit.forEach(([c, r], i) => { const a = i / fruit.length * Math.PI * 2; b.add(new THREE.SphereGeometry(r, 14, 10), glazeMaterial(c, { roughness: 0.5, extra: { clearcoat: 0.3 } }), T(FRUITBOWL.x + Math.cos(a) * 0.05, top + 0.035 + r * 0.8 + (i === 4 ? 0.03 : 0), FRUITBOWL.z + Math.sin(a) * 0.05)); });
+    const fruitGlaze = glazeMaterial(0xffffff, { roughness: 0.5, extra: { clearcoat: 0.3 } }); // shared, each fruit's colour per vertex
+    fruit.forEach(([c, r], i) => { const a = i / fruit.length * Math.PI * 2; b.add(new THREE.SphereGeometry(r, 14, 10), fruitGlaze, T(FRUITBOWL.x + Math.cos(a) * 0.05, top + 0.035 + r * 0.8 + (i === 4 ? 0.03 : 0), FRUITBOWL.z + Math.sin(a) * 0.05), c); });
     const tins = [[0x2f5d50, 'EARL GREY'], [0x8a2f2f, 'BREAKFAST'], [0x2f3f6a, 'DARJEELING']];
     CADDIES.forEach(([x, z], i) => {
       const [col, label] = tins[i];
@@ -168,6 +170,7 @@ export function buildDetail(scene, quality) {
     const L = LINE, len = Math.hypot(L.b[0] - L.a[0], L.b[2] - L.a[2]);
     const across = [-(L.b[2] - L.a[2]) / len, 0, (L.b[0] - L.a[0]) / len];
     const looks = [['#f3efe6', '#2f4f8f'], ['#e9d9b9', '#5f8f5a'], ['#f6f1e6', '#b5523b']];
+    const pegs = [];
     L.towels.forEach((t, k) => {
       const n = 6, half = 0.15 / len, pins = [];
       for (let i = 0; i < n; i++) pins.push(linePoint(t - half + 2 * half * i / (n - 1), [0, 0, 0]).map((v, j) => (j === 1 ? v - 0.004 : v)));
@@ -175,11 +178,10 @@ export function buildDetail(scene, quality) {
       // Wooden pegs at the corners.
       for (const i of [0, n - 1]) {
         const p = pins[i];
-        const peg = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.05, 0.012), new THREE.MeshStandardMaterial({ color: 0xc8a070, roughness: 0.7 }));
-        peg.position.set(p[0], p[1] - 0.01, p[2]);
-        scene.add(peg);
+        pegs.push(new THREE.BoxGeometry(0.008, 0.05, 0.012).translate(p[0], p[1] - 0.01, p[2]));
       }
     });
+    scene.add(new THREE.Mesh(mergeGeometries(pegs, false), new THREE.MeshStandardMaterial({ color: 0xc8a070, roughness: 0.7 }))); // all the pegs, one draw call
   }
   return {
     cloths,
