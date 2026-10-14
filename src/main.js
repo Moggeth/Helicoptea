@@ -27,6 +27,7 @@ import { ReplayViewer } from './replay/viewer.js';
 import { stageCrash, STAGES } from './sim/crashStage.js';
 import { CrashCinema, crashMessage, crashTitle } from './game/crashCinema.js';
 import { CAM_IDS, CAM_NAME, DEFAULT_CYCLE, LockedRig, NoseRig, BoltRig, TripodRig, CargoRig, liquidAt } from './render/cameraModes.js';
+import { FrameStats } from './perf.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -51,8 +52,12 @@ window.addEventListener('unhandledrejection', (e) => showError('Something failed
 // ---------------------------------------------------------------- quality
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 const PRESETS = {
-  high: { name: 'high', dprCap: 2, shadows: 2048, particles: 520, textureSize: 2048, steam: 1, antialias: true, transmission: true, ao: true, aoSamples: 16 },
-  medium: { name: 'medium', dprCap: 1.5, shadows: 1024, particles: 360, textureSize: 1024, steam: 0.7, antialias: true, transmission: false, ao: !IS_TOUCH, aoSamples: 8 },
+  // Ultra: everything at full resolution, true refraction in the glass. Built for screenshots, not 4K at 120 Hz.
+  ultra: { name: 'ultra', dprCap: 2, shadows: 2048, particles: 520, textureSize: 2048, steam: 1, antialias: true, transmission: true, ao: true, aoSamples: 16, aoMaxHeight: 0 },
+  // High: the signed-off look, with ambient occlusion worked out at no more than ~1080 lines (it is a soft,
+  // denoised term, so a 4K screen gets it at half resolution) and tinted glass instead of a refraction pass.
+  high: { name: 'high', dprCap: 2, shadows: 2048, particles: 520, textureSize: 2048, steam: 1, antialias: true, transmission: false, ao: true, aoSamples: 16, aoMaxHeight: 1100 },
+  medium: { name: 'medium', dprCap: 1.5, shadows: 1024, particles: 360, textureSize: 1024, steam: 0.7, antialias: true, transmission: false, ao: !IS_TOUCH, aoSamples: 8, aoMaxHeight: 720 },
   low: { name: 'low', dprCap: 1, shadows: 512, particles: 220, textureSize: 1024, steam: 0.4, antialias: false, transmission: false, ao: false },
 };
 const qualitySetting = params.get('quality') || store.get('quality', 'auto');
@@ -96,6 +101,9 @@ async function boot() {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = quality.shadows > 0;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // Shadow maps are drawn once per frame (see frame()), not again for every pass that renders the scene
+  // (the AO normal pass and the hook camera would otherwise each redraw every shadow caster).
+  renderer.shadowMap.autoUpdate = false;
   canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); showError('The graphics context was lost (the GPU may have been reset). Reload to continue.'); });
 
   setProgress(0.15, 'Starting the physics…');
@@ -658,6 +666,7 @@ async function boot() {
   let frameEMA = 16.7;
   let lowFrames = 0, highFrames = 0;
   const fpsCap = parseFloat(params.get('fps')) || 0;
+  const dynRes = params.get('dynres') !== '0';
   let lastRender = 0;
   let crashShown = false;
   let renderedFrames = 0;
@@ -669,12 +678,17 @@ async function boot() {
   const camTarget = new THREE.Vector3();
   const tmp = new THREE.Vector3();
   let lastAlpha = 0;
+  const perf = new FrameStats(renderer.getContext());
+  let lastFrameAt = 0;
 
   function frame(now) {
     requestAnimationFrame(frame);
     if (fatal) return;
     if (fpsCap && now - lastRender < 1000 / fpsCap - 1) return;
     lastRender = now;
+    const cpu0 = performance.now();
+    if (lastFrameAt) perf.frame(now - lastFrameAt, 0);
+    lastFrameAt = now;
     const frameDt = Math.min((now - last) / 1000, CFG.physics.maxFrameDt);
     last = now;
 
@@ -915,7 +929,11 @@ async function boot() {
     hud.update(frameDt);
 
     const tR = performance.now();
+    perf.phaseMs('sim', physMs);
+    perf.phaseMs('update', tR - cpu0 - physMs);
     renderer.info.reset();
+    perf.gpuBegin();
+    renderer.shadowMap.needsUpdate = true;
     // The hook camera feeds the cockpit display and, when shown, the inset.
     const looksDown = cam.eff === 'bolt' || cam.eff === 'cargo';
     // The inset is an extra render of the world: the cockpit has it (its display shows it too); the other
@@ -936,14 +954,16 @@ async function boot() {
     hud.setLoadCam(rect, fp.readText, h && h.type === 'skycrane' ? 'BELLY CAM' : 'HOOK CAM');
     boltOverlay(cam.eff === 'bolt' && !crashShown, frameDt);
     post.render();
-    if (fpView) cockpit.render();
+    if (fpView) cockpit.render();   // the cabin has its own sun and shadow map
     if (showPip) cockpit.renderPip();
+    perf.gpuEnd();
     renderedFrames++;
     const renderMs = performance.now() - tR;
+    perf.phaseMs('render', renderMs);
 
     // Dynamic resolution: protect frame rate before touching simulation quality.
     frameEMA = frameEMA * 0.95 + (frameDt * 1000) * 0.05;
-    if (started && !paused) {
+    if (started && !paused && dynRes) {
       if (frameEMA > 19.5) { lowFrames++; highFrames = 0; } else if (frameEMA < 14) { highFrames++; lowFrames = 0; } else { lowFrames = highFrames = 0; }
       if (lowFrames > 90 && dprScale > 0.55) { dprScale = Math.max(0.55, dprScale - 0.1); lowFrames = 0; resize(); }
       if (highFrames > 240 && dprScale < 1) { dprScale = Math.min(1, dprScale + 0.1); highFrames = 0; resize(); }
@@ -951,6 +971,7 @@ async function boot() {
     if (debug.enabled) hud.setDebug(debug.text({ frameDt, frameEMA, physMs, steps, renderMs, ctl, dprScale, dpr: renderer.getPixelRatio(), quality, source: input.source, gamepad: input.gp }));
     else hud.setDebug(null);
     debug.updateColliders();
+    perf.cpu[(perf.i - 1 + perf.cpu.length) % perf.cpu.length] = performance.now() - cpu0;
   }
   // Replay frames: the world stays frozen; the viewer poses the scene from the recording.
   function replayFrame(frameDt) {
@@ -960,6 +981,7 @@ async function boot() {
     kitchen.garden.update(frameDt, replay.stage.focus, camera, sim);
     const out = replay.update(frameDt);
     renderer.info.reset();
+    renderer.shadowMap.needsUpdate = true;
     post.render();
     if (out.cockpit) cockpit.render();
     renderedFrames++;
@@ -968,7 +990,7 @@ async function boot() {
   requestAnimationFrame(frame);
 
   // Expose a tiny handle for console debugging and automated checks.
-  window.__helicoptea = { cam, cycleView, get camMode() { return cam.eff; }, tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
+  window.__helicoptea = { perf, cam, cycleView, get camMode() { return cam.eff; }, tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
 }
 
 boot().catch((err) => showError('Helicoptea failed to start. Please reload.', err));

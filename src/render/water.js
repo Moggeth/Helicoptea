@@ -48,7 +48,7 @@ const MAX_RIPPLES = 8;
 // PMREM environment (the kitchen's room environment) for reflections, and the ripple grid size for this
 // quality tier (phones get a coarser grid); set by the view before surfaces exist.
 let ENV = null, FIELD_N = 40;
-export function setLiquidEnvironment(tex, quality) { ENV = tex; FIELD_N = !quality || quality.name === 'high' ? 40 : 32; }
+export function setLiquidEnvironment(tex, quality) { ENV = tex; FIELD_N = !quality || (quality.name === 'high' || quality.name === 'ultra') ? 40 : 32; }
 function cubeUVDefines(tex) {
   // Same constants three.js derives for its own materials (WebGLProgram generateCubeUVSize).
   const imageHeight = tex.image.height;

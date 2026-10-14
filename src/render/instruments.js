@@ -433,7 +433,7 @@ export class InstrumentPanel {
     this.missionDt = 0;
     this.glassAge = 9;
     // Glass redraws a second: the hover map and PFD tapes follow the aircraft closely enough at this rate.
-    this.glassPeriod = 1 / (quality.name === 'high' ? 40 : quality.name === 'medium' ? 20 : 12);
+    this.glassPeriod = 1 / ((quality.name === 'high' || quality.name === 'ultra') ? 40 : quality.name === 'medium' ? 20 : 12);
     this.active = false;
     this.ms = 0;   // CPU time of the last update, for the frame-cost check
   }
@@ -583,7 +583,7 @@ export class InstrumentPanel {
     t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = this.aniso;
     this.staticTex = t;
     this.faceMat.map = t; this.faceMat.emissiveMap = t;
-    const cardPx = this.quality.name === 'high' ? 1024 : 512;
+    const cardPx = this.(quality.name === 'high' || quality.name === 'ultra') ? 1024 : 512;
     for (const D of this.dials) {
       if (D.type !== 'hdg') continue;
       const ct = new THREE.CanvasTexture(cardTexture(cardPx)); ct.colorSpace = THREE.SRGBColorSpace; ct.anisotropy = this.aniso;

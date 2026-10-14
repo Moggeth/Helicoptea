@@ -225,7 +225,7 @@ export class Cockpit {
   constructor(renderer, worldScene, quality, kitchen, loadCam) {
     this.renderer = renderer;
     this.quality = quality;
-    this.hi = quality.name === 'high';
+    this.hi = (quality.name === 'high' || quality.name === 'ultra');
     this.loadCam = loadCam;
     this.scene = new THREE.Scene();
     this.scene.environment = worldScene.environment;
@@ -237,7 +237,7 @@ export class Cockpit {
     this.hemi = new THREE.HemisphereLight(0xe8eef8, 0x6a5440, 0.32);
     this.sun = new THREE.DirectionalLight(this.sunColor, kitchen.sun.intensity * 0.95);
     this.sun.castShadow = quality.shadows > 0;
-    const sm = quality.name === 'high' ? 1024 : 512;
+    const sm = (quality.name === 'high' || quality.name === 'ultra') ? 1024 : 512;
     this.sun.shadow.mapSize.set(sm, sm);
     this.sun.shadow.bias = -0.0005;
     this.sun.shadow.normalBias = 0.00004;
@@ -668,6 +668,7 @@ export class Cockpit {
     const ac = r.autoClear;
     r.autoClear = false;
     r.clearDepth();
+    r.shadowMap.needsUpdate = true;
     r.render(this.scene, this.camera);
     r.autoClear = ac;
   }
