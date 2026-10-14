@@ -45,7 +45,9 @@ process.on('exit', stop);
 for (let i = 0; ; i++) {
   // An unrelated server may already own the port. Wait for OUR Vite child to announce readiness;
   // a successful HTTP probe alone would silently test another checkout or an older build.
-  try { if (previewLog.includes('Local:') && (await fetch(base)).ok) break; } catch { /* not up yet */ }
+  // Vite colours its banner (on CI too), e.g. "\x1b[1mLocal\x1b[22m:", so strip ANSI codes before matching.
+  const announced = previewLog.replace(/\x1b\[[0-9;]*m/g, '').includes(`Local:   ${base}`);
+  try { if (announced && (await fetch(base)).ok) break; } catch { /* not up yet */ }
   if (i > 120 || preview.exitCode !== null) { console.error(`preview server did not start on ${base}\n${previewLog}`); process.exit(1); }
   await new Promise((r) => setTimeout(r, 250));
 }
