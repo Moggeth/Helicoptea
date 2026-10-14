@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import './replay.css';
 import { FollowCamera } from '../render/camera.js';
 import { CockpitRig } from '../render/cockpitCam.js';
+import { LockedRig, BoltRig, TripodRig } from '../render/cameraModes.js';
 import { gearDrop } from '../sim/aircraft.js';
 import { CH } from './format.js';
 
@@ -11,7 +12,8 @@ import { CH } from './format.js';
 // Keyboard, mouse, touch and gamepad all work.
 
 const SPEEDS = [0.1, 0.25, 0.5, 1, 2];
-const CAMS = [['chase', 'Chase'], ['orbit', 'Orbit'], ['cockpit', 'Cockpit']];
+const CAMS = [['chase', 'Chase'], ['orbit', 'Orbit'], ['cockpit', 'Cockpit'], ['locked', 'Locked'], ['gopro', 'GoPro'], ['tripod', 'Tripod']];
+const vfov = (hdeg, aspect) => THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(hdeg) / 2) / Math.max(aspect, 1.25)));
 const NAMES = { micro: 'Micro heli', chinook: 'Chinook', skycrane: 'Skycrane' };
 const TAGS = { good: 'Good', bad: 'Bad', note: 'Note', mark: 'Mark' };
 const WINDOWS = [5, 10, 30, 0];  // graph window in seconds (0: the whole flight)
@@ -26,6 +28,7 @@ const STRIPS = [
   { name: 'Speed', lines: [['hspeed', '#7fc4ff', 'horiz'], ['vspeed', '#f2b84b', 'vert']], unit: 'm/s' },
   { name: 'Rope', lines: [['load', '#ff8f6b', 'tension mN']], scale: 1000, unit: 'mN', min0: true, alt: { skycrane: [['tankFill', '#f4f0e6', 'tank %']], scale: 100, name: 'Tank' } },
 ];
+const _zero = new THREE.Vector3();
 const fmt = (w) => { const m = Math.floor(w / 60), s = w - m * 60; return `${m}:${s < 10 ? '0' : ''}${s.toFixed(2)}`; };
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -41,6 +44,7 @@ export class ReplayViewer {
     this.win = 10;
     this.chase = new FollowCamera(this.camera);
     this.rig = new CockpitRig();
+    this.locked = new LockedRig(); this.bolt = new BoltRig(); this.tripod = new TripodRig();
     this.orbit = { yaw: 0.6, pitch: 0.35, dist: 0.6, focus: new THREE.Vector3(), init: false };
     this.disk = new Map();      // flights loaded from disk, by id
     this.diskList = [];
@@ -87,7 +91,7 @@ export class ReplayViewer {
           <button class="rp-btn" data-rp="fwd1" title="Forward 1 s (Shift+→)">+1s</button>
           <span class="rp-time"><b>0:00.00</b> / 0:00.00</span>
           <span class="rp-group rp-speeds" role="radiogroup" aria-label="Speed" title="Speed ([ ] keys, gamepad LB / RB)">${SPEEDS.map((v) => `<button class="rp-btn sm" data-rp="speed" data-v="${v}">${v}×</button>`).join('')}</span>
-          <span class="rp-group rp-cams" role="radiogroup" aria-label="Camera" title="Camera (1 2 3 or C, gamepad D-pad ↑↓)">${CAMS.map(([id, nm]) => `<button class="rp-btn sm" data-rp="cam" data-v="${id}">${nm}</button>`).join('')}</span>
+          <span class="rp-group rp-cams" role="radiogroup" aria-label="Camera" title="Camera (1 to 6 or C, gamepad D-pad ↑↓)">${CAMS.map(([id, nm]) => `<button class="rp-btn sm" data-rp="cam" data-v="${id}">${nm}</button>`).join('')}</span>
           <button class="rp-btn sm rp-wbtn" data-rp="window" title="Graph window">10 s</button>
           <button class="rp-btn sm rp-gtoggle" data-rp="graphs" title="Show / hide the graphs (H)">Graphs</button>
           <button class="rp-btn sm rp-ntoggle" data-rp="notes" title="Show / hide notes">Notes</button>
@@ -305,7 +309,7 @@ export class ReplayViewer {
     this.s = Math.max(0, Math.min(f.n - 1, s));
     this.snapCam = true;
   }
-  setCam(c) { if (CAMS.some(([id]) => id === c)) { this.cam = c; this.snapCam = true; this.rig.reset(); this.rig.lookYaw = this.rig.lookPitch = 0; } }
+  setCam(c) { if (CAMS.some(([id]) => id === c)) { this.cam = c; this.snapCam = true; this.rig.reset(); this.rig.lookYaw = this.rig.lookPitch = 0; this.locked.reset(); this.tripod.reset(); } }
   speedStep(d) { const i = SPEEDS.indexOf(this.rate); this.rate = SPEEDS[Math.max(0, Math.min(SPEEDS.length - 1, (i < 0 ? 3 : i) + d))]; this.updateButtons(); }
 
   look(dyaw, dpitch) {
@@ -400,7 +404,7 @@ export class ReplayViewer {
     else if (k === 'End') this.seek(this.flight ? this.flight.n - 1 : 0);
     else if (k === 'BracketLeft' || k === 'Minus') this.speedStep(-1);
     else if (k === 'BracketRight' || k === 'Equal') this.speedStep(1);
-    else if (k === 'Digit1' || k === 'Digit2' || k === 'Digit3') this.setCam(CAMS[+k.slice(5) - 1][0]);
+    else if (/^Digit[1-6]$/.test(k)) this.setCam(CAMS[+k.slice(5) - 1][0]);
     else if (k === 'KeyC') this.setCam(CAMS[(CAMS.findIndex(([id]) => id === this.cam) + 1) % CAMS.length][0]);
     else if (k === 'KeyG' || k === 'KeyB' || k === 'KeyN') {
       this.pendingTag = { KeyG: 'good', KeyB: 'bad', KeyN: 'note' }[k];
@@ -468,7 +472,13 @@ export class ReplayViewer {
     const r = this.stage.pose(f, this.s, playDt, wantFp && this.stage.alive !== false);
     const alive = this.stage.alive;
     const fp = wantFp && alive;
-    this.setLens(fp);
+    // The rigid cameras need an airframe; with none (after a crash) they fall back to the orbit.
+    const rigid = alive && (this.cam === 'locked' || this.cam === 'gopro');
+    const aspect = innerWidth / innerHeight;
+    if (rigid || this.cam === 'tripod') {
+      const lens = this.cam === 'gopro' ? { fov: Math.min(100, vfov(122, aspect)), near: 0.0015 } : this.cam === 'locked' ? { fov: (aspect < 1 ? 66 : 58) + this.locked.fovKick, near: 0.004 } : { fov: this.tripod.fov * (aspect < 1 ? 1.35 : 1), near: 0.01 };
+      this.setLens(false, 0, lens);
+    } else this.setLens(fp);
     // Cameras. A seek snaps them; playback moves them on the replay's clock.
     const camDt = this.playing ? frameDt * this.rate : frameDt;
     const P = this.stage.puppet;
@@ -477,7 +487,20 @@ export class ReplayViewer {
       this.rig.update(this.snapCam ? 0 : playDt, P, this.stage.heliPos, this.stage.heliQuat, S, 0);
       this.rig.apply(this.camera, this.cockpit.camera);
       this.cockpit.update(playDt, P, this.stage.fakeSim, this.stage.heliQuat, gearDrop(f.aircraft), true);
-    } else if (this.cam === 'orbit' || (wantFp && !alive)) {
+    } else if (rigid) {
+      const R = this.cam === 'gopro'
+        ? this.bolt.update(playDt, P, this.stage.heliPos, this.stage.heliQuat, f.aircraft, S.vibration)
+        : this.locked.update(this.snapCam ? 0 : playDt, P, this.stage.heliPos, this.stage.heliQuat, f.aircraft, { chinook: 1.45, skycrane: 1.55 }[f.aircraft] || 1, S.camFeel ?? 0.5, !!this.stage.carriedPos, this.sim);
+      this.camera.position.copy(R.pos); this.camera.quaternion.copy(R.quat);
+    } else if (this.cam === 'tripod') {
+      const T = this.tripod;
+      if (this.snapCam) T.reset();
+      const scale = { chinook: 1.45, skycrane: 1.55 }[f.aircraft] || 1;
+      const span = this.stage.carriedPos ? this.stage.carriedPos.distanceTo(this.stage.focus) : 0;
+      T.update(Math.max(camDt, 1e-4), this.stage.focus, alive ? P.vel : _zero, 0.055 * scale + span * 0.6, scale, this.sim);
+      if (this.snapCam) T.look.copy(this.stage.focus);
+      this.camera.position.copy(T.pos); this.camera.quaternion.copy(T.quat);
+    } else if (this.cam === 'orbit' || (wantFp && !alive) || this.cam === 'locked' || this.cam === 'gopro') {
       const O = this.orbit;
       if (this.snapCam || !O.init) { O.focus.copy(this.stage.focus); O.init = true; }
       O.focus.lerp(this.stage.focus, 1 - Math.exp(-camDt * 10));

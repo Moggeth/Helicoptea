@@ -4,6 +4,7 @@ import {
   ACTIONS, ACTION, AXIS_LABEL, AXIS_SOURCES, BTN, FLIGHT_AXES, MAX_PER_ACTION, PRESETS, PRESET_ORDER, SOURCE_LABEL,
   activeAxes, activeButtons, buttonName, defaultLayout, describe, mappingOf, presetName,
 } from '../input/layouts.js';
+import { CAM_MODES, CAM_NAME } from '../render/cameraModes.js';
 
 const ICONS = {
   restart: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/></svg>',
@@ -16,6 +17,7 @@ const ICONS = {
   flag: '<svg viewBox="0 0 24 24"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg>',
   replay: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v5h5"/><path d="m10 9 5 3-5 3z"/></svg>',
   chase: '<svg viewBox="0 0 24 24"><path d="M4 13h9l3-3h4"/><path d="M8 13v3h6"/><path d="M2 8h12"/><path d="M8 8v5"/></svg>',
+  camera: '<svg viewBox="0 0 24 24"><rect x="3" y="7" width="13" height="11" rx="2"/><path d="m16 11 5-3v9l-5-3"/><circle cx="9.5" cy="12.5" r="2.5"/></svg>',
 };
 
 const BREW_NAMES = [[0.08, 'Just water'], [0.22, 'Pale'], [0.42, 'Golden'], [0.62, 'Proper'], [0.82, 'Strong'], [2, "Builder's"]];
@@ -32,8 +34,8 @@ export class Hud {
       </div>
       <div class="hud-tr">
         <button class="icon-btn" data-act="restart" title="Restart flight (R)" aria-label="Restart flight">${ICONS.restart}<span class="key kb">R</span></button>
-        <button class="icon-btn" data-act="view" title="Cockpit view (1)" aria-label="Switch to cockpit view">${ICONS.cockpit}<span class="key kb">1</span></button>
-        <button class="icon-btn" data-act="recenter" title="Recenter camera (C)" aria-label="Recenter camera">${ICONS.view}</button>
+        <button class="icon-btn" data-act="view" title="Next camera (C)" aria-label="Next camera">${ICONS.camera}<span class="key kb">C</span></button>
+        <button class="icon-btn" data-act="recenter" title="Recenter camera (U)" aria-label="Recenter camera">${ICONS.view}</button>
         <button class="icon-btn mark-btn" data-act="mark" title="Mark this moment for a flight note (N, gamepad R3)" aria-label="Mark this moment for a flight note">${ICONS.flag}<span class="key kb">N</span></button>
         <div style="position:relative">
           <button class="icon-btn" data-act="sound" title="Sound (M to mute)" aria-label="Sound settings">${ICONS.sound}</button>
@@ -54,6 +56,8 @@ export class Hud {
         <div class="crash-row"><button class="primary" data-act="restart">Restart Flight <span class="kb-inline"></span></button><button class="secondary crash-replay" data-act="replay">${ICONS.replay}Watch replay</button></div>
       </div>
       <div class="loadcam hidden" aria-hidden="true"><span class="lc-name">HOOK CAM</span><span class="lc-read"></span></div>
+      <div class="boltcam hidden" aria-hidden="true"><span class="bc-rec">REC <b>0:00</b></span><span class="bc-mount"></span><span class="bc-corner tl"></span><span class="bc-corner tr"></span><span class="bc-corner bl"></span><span class="bc-corner br"></span><span class="bc-ring"></span><span class="bc-read"></span></div>
+      <div class="underwater hidden" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
       <div class="fp-flash"></div>
       <div class="debug hidden"></div>
     `;
@@ -143,10 +147,36 @@ export class Hud {
   }
   setViewMode(mode) {
     const fp = mode === 'cockpit';
-    this.viewBtn.innerHTML = `${fp ? ICONS.chase : ICONS.cockpit}<span class="key kb"${this.device === 'keyboard' ? '' : ' style="display:none"'}>1</span>`;
-    this.viewBtn.title = fp ? 'Chase view (1)' : 'Cockpit view (1)';
-    this.viewBtn.setAttribute('aria-label', fp ? 'Switch to chase view' : 'Switch to cockpit view');
+    this.viewBtn.title = `Camera: ${CAM_NAME[mode] || mode}. Next camera (C)`;
+    this.viewBtn.setAttribute('aria-label', `Camera: ${CAM_NAME[mode] || mode}. Next camera`);
     document.body.classList.toggle('fp', fp);
+    document.body.dataset.cam = mode;
+  }
+
+  // The bolted GoPro: REC and a clock, the mount, corner marks, and a ring where the load would land.
+  setBolt(o) {
+    if (!this.boltEl) { this.boltEl = this.q('.boltcam'); this.boltRing = this.q('.bc-ring'); this.boltRec = this.q('.bc-rec b'); this.boltRead = this.q('.bc-read'); this.boltMount = this.q('.bc-mount'); }
+    const el = this.boltEl;
+    document.body.classList.toggle('bolt', !!o);
+    if (!o) { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    const t = Math.floor(o.t);
+    const clock = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+    if (this.boltRec.textContent !== clock) this.boltRec.textContent = clock;
+    if (this.boltRead.textContent !== o.text) this.boltRead.textContent = o.text;
+    const mount = `GOPRO · ${o.mount}`;
+    if (this.boltMount.textContent !== mount) this.boltMount.textContent = mount;
+    this.boltRing.style.display = o.ring ? '' : 'none';
+    if (o.ring) this.boltRing.style.transform = `translate(${Math.round(o.ring.x)}px, ${Math.round(o.ring.y)}px)`;
+  }
+
+  // Under the tea (or the milk): a tinted, wobbling vignette with bubbles going up past the lens.
+  setUnder(u) {
+    const el = this.q('.underwater');
+    if (!u) { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    el.dataset.kind = u.kind;
+    el.style.setProperty('--uw', u.color);
   }
 
   // The hook-camera inset: a frame and a readout laid over the picture the renderer draws.
@@ -296,8 +326,11 @@ export class Hud {
           <label class="opt">Controller <button class="secondary" style="padding:6px 12px" data-act="controller">Settings</button></label>
           <label class="opt">Flight tuning <button class="secondary" style="padding:6px 12px" data-act="tuning">Open board</button></label>
           <label class="opt">Show tips again <button class="secondary" style="padding:6px 12px" data-act="resethints">Replay</button></label>
-          <div class="opt aircraft-row" role="radiogroup" aria-label="View">View
-            <span>${[['chase', 'Chase'], ['cockpit', 'Cockpit']].map(([id, nm]) => `<button class="secondary${opts.view === id ? ' on' : ''}" style="padding:6px 12px" role="radio" aria-checked="${opts.view === id}" data-act="view" data-id="${id}">${nm}</button>`).join(' ')}</span></div>
+          <div class="opt aircraft-row cam-row" role="radiogroup" aria-label="Camera">Camera
+            <span>${CAM_MODES.map(({ id, name, blurb }) => `<button class="secondary${opts.view === id ? ' on' : ''}" style="padding:6px 12px" role="radio" aria-checked="${opts.view === id}" title="${blurb}" data-act="view" data-id="${id}">${name}</button>`).join(' ')}</span></div>
+          <div class="opt aircraft-row cam-row" role="group" aria-label="Cameras in the C / L3 cycle">In the <kbd>C</kbd> / L3 cycle
+            <span>${CAM_MODES.map(({ id, name }) => { const on = (opts.camCycle || []).includes(id); return `<button class="secondary chk${on ? ' on' : ''}" style="padding:6px 12px" aria-pressed="${on}" data-act="camcycle" data-id="${id}">${name}</button>`; }).join(' ')}</span></div>
+          <label class="opt">Speed feel <span class="weight-row"><small>rigid</small><input type="range" min="0" max="1" step="0.05" value="${opts.camFeel ?? 0.5}" data-setting="camFeel" aria-label="Speed feel on the locked and nose cameras" /><small>lots</small></span></label>
           <label class="opt">Cockpit field of view <span class="weight-row"><small>${opts.fpFov}°</small><input type="range" min="60" max="110" step="1" value="${opts.fpFov}" data-setting="fpFov" aria-label="Cockpit field of view" /></span></label>
           <label class="opt">Head motion <span class="weight-row"><small>off</small><input type="range" min="0" max="1" step="0.05" value="${opts.fpMotion}" data-setting="fpMotion" aria-label="Head motion in the cockpit" /><small>lots</small></span></label>
           <label class="opt">Rotor vibration <span class="weight-row"><small>off</small><input type="range" min="0" max="1" step="0.05" value="${opts.fpVibration}" data-setting="fpVibration" aria-label="Rotor vibration in the cockpit" /><small>lots</small></span></label>
@@ -316,7 +349,7 @@ export class Hud {
     this.modal.querySelector('[data-setting=debug]').addEventListener('change', (e) => this.h.setting('debug', e.target.checked));
     this.modal.querySelector('[data-setting=rotorStrikes]').addEventListener('change', (e) => this.h.setting('rotorStrikes', e.target.checked));
     this.modal.querySelector('[data-setting=weight]').addEventListener('input', (e) => this.h.setting('weight', parseFloat(e.target.value)));
-    for (const k of ['fpMotion', 'fpVibration', 'fpFov']) {
+    for (const k of ['fpMotion', 'fpVibration', 'fpFov', 'camFeel']) {
       const el = this.modal.querySelector(`[data-setting=${k}]`);
       el.addEventListener('input', () => {
         this.h.setting(k, parseFloat(el.value));
@@ -352,10 +385,10 @@ export class Hud {
     const R = {
       keyboard: [['<kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd>', 'Cyclic: tilt forward, back and sideways (or I J K L)'], ['<kbd>W</kbd><kbd>S</kbd>', 'Collective: more / less lift'], ['<kbd>A</kbd><kbd>D</kbd>', 'Yaw: turn left / right'],
         ['<kbd>Space</kbd>', 'Hook a bag or the milk bucket / release it (the Chinook has three hooks: Space drops them all)'], ['<kbd>G</kbd> (hold)', 'Pour milk: the bucket\'s valve, or the skycrane\'s belly doors (they open wider the longer you hold)'], ['Double-tap <kbd>G</kbd> or <kbd>Shift</kbd>+<kbd>G</kbd>', 'Salvo: dump the lot (latches the doors or the bucket valve open; again to close)'], ['<kbd>T</kbd> (hold)', 'Skycrane: pump milk up the snorkel (only with the intake under the surface)'], ['Double-tap <kbd>T</kbd> or <kbd>Shift</kbd>+<kbd>T</kbd>', 'Skycrane auto-fill: reel down, pump until full, reel up (any hose or pump key takes over)'], ['<kbd>Z</kbd> / <kbd>X</kbd> (hold)', 'Skycrane: reel the snorkel in / out'], ['<kbd>V</kbd>', 'Switch aircraft: micro heli / Chinook / skycrane'], ['<kbd>F</kbd>', 'Flight Assist on / off'], ['<kbd>R</kbd>', 'Restart flight'], ['<kbd>Shift</kbd>+<kbd>R</kbd>', 'Reset sandbox'],
-        ['<kbd>1</kbd>', 'Cockpit / chase view. In the cockpit, drag the mouse to look around, wheel to zoom'], ['<kbd>C</kbd>', 'Recenter camera or look ahead (drag to orbit, wheel to zoom)'], ['<kbd>N</kbd>', 'Mark this moment for a flight note (describe it later in Pause → Flight replay)'], ['<kbd>M</kbd>', 'Mute'], ['<kbd>Esc</kbd>', 'Pause'], ['<kbd>`</kbd>', 'Debug overlay']],
+        ['<kbd>C</kbd> / <kbd>Shift</kbd>+<kbd>C</kbd>', 'Next / previous camera: chase, cockpit, locked chase, nose cam, tripod, cargo cam (pick which in Pause)'], ['<kbd>1</kbd>', 'Cockpit and back. In the cockpit, drag the mouse to look around, wheel to zoom'], ['<kbd>2</kbd>–<kbd>7</kbd>', 'Chase, locked chase, nose cam, orbit, tripod, cargo cam'], ['<kbd>B</kbd> or right mouse (hold)', 'GoPro: bolted under the side, straight down, with a ring where the load will land'], ['<kbd>U</kbd> / <kbd>Home</kbd>', 'Recenter camera or look ahead (drag to orbit, wheel to zoom)'], ['<kbd>N</kbd>', 'Mark this moment for a flight note (describe it later in Pause → Flight replay)'], ['<kbd>M</kbd>', 'Mute'], ['<kbd>Esc</kbd>', 'Pause'], ['<kbd>`</kbd>', 'Debug overlay']],
       gamepad: this.padHelpRows(),
       touch: [['Left thumb', 'Up / down: collective. Left / right: yaw'], ['Right thumb', 'Cyclic: tilt in any direction'], ['<kbd>Hook</kbd>', 'Hook / release (glows when a loop is in reach)'], ['<kbd>Pour</kbd> (hold)', 'Pour milk (appears while you carry the bucket); double-tap latches it open'], ['<kbd>Doors</kbd> (hold)', 'Skycrane belly doors, opening wider as you hold; double-tap = salvo'], ['<kbd>Pump</kbd> (hold)', 'Skycrane pump; double-tap = auto-fill'], ['<kbd>Hose ▲</kbd> <kbd>Hose ▼</kbd>', 'Reel the snorkel in / out'],
-        ['<kbd>Assist</kbd>', 'Flight Assist on / off'], ['Cockpit icon (top right)', 'Cockpit / chase view'], ['Drag open screen', 'Look around in the cockpit, or orbit the chase camera'], ['<kbd>View</kbd>', 'Recenter camera or look ahead'], ['<kbd>Mark</kbd>', 'Mark this moment for a flight note'], ['↻ (top right)', 'Restart flight']],
+        ['<kbd>Assist</kbd>', 'Flight Assist on / off'], ['Camera icon (top right)', 'Next camera'], ['<kbd>GoPro</kbd> (hold)', 'Bolted camera looking straight down'], ['Drag open screen', 'Look around in the cockpit, or orbit the chase camera'], ['<kbd>View</kbd>', 'Recenter camera or look ahead'], ['<kbd>Mark</kbd>', 'Mark this moment for a flight note'], ['↻ (top right)', 'Restart flight']],
     };
     return R[tab].map(([k, d]) => `<dt>${k}</dt><dd>${d}</dd>`).join('');
   }

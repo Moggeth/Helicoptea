@@ -76,10 +76,10 @@ const state = (page) => H(page, () => {
   s = await state(page);
   check('mouse drag turns the head (left and down)', s.yaw > 0.4 && s.pitch < -0.15, `yaw ${s.yaw.toFixed(2)} pitch ${s.pitch.toFixed(2)}`);
   check('wheel zooms the cockpit field of view', s.fov > f0 + 2 || s.fov < f0 - 2, `${f0.toFixed(1)} -> ${s.fov.toFixed(1)}`);
-  await page.keyboard.press('KeyC');
+  await page.keyboard.press('KeyU');
   await sleep(900);
   s = await state(page);
-  check('C looks ahead again', Math.abs(s.yaw) < 0.02 && Math.abs(s.pitch) < 0.02 && s.zoom === 0);
+  check('U looks ahead again', Math.abs(s.yaw) < 0.02 && Math.abs(s.pitch) < 0.02 && s.zoom === 0);
   // Fly a little: the cockpit view follows, no errors.
   await page.keyboard.down('KeyW'); await sleep(900); await page.keyboard.up('KeyW');
   await page.keyboard.down('ArrowUp'); await sleep(500); await page.keyboard.up('ArrowUp');
@@ -90,7 +90,7 @@ const state = (page) => H(page, () => {
   await page.click('#hud [data-act=view]');
   await sleep(200);
   s = await state(page);
-  check('HUD view button returns to chase', s.mode === 'chase' && !s.hiddenFuselage && !s.pip);
+  check('HUD camera button steps on to the locked chase', s.mode === 'locked' && !s.hiddenFuselage && !s.pip);
   await page.keyboard.press('Escape');
   await sleep(200);
   await page.click('.overlay [data-act=view][data-id=cockpit]');
@@ -104,7 +104,7 @@ const state = (page) => H(page, () => {
   await page.keyboard.press('Digit1');   // works from the pause menu too
   await sleep(150);
   s = await state(page);
-  check('X toggles the view from the pause menu', s.mode === 'chase');
+  check('1 toggles the cockpit from the pause menu (back to the last camera)', s.mode === 'locked');
   await page.keyboard.press('Digit1');
   await page.keyboard.press('Escape');
   await sleep(300);
@@ -235,7 +235,7 @@ const state = (page) => H(page, () => {
   check('pad: B looks ahead again', Math.abs(s.yaw) < 0.02);
   await press(10);
   s = await state(page);
-  check('pad: L3 again returns to chase', s.mode === 'chase');
+  check('pad: L3 again steps on to the locked chase', s.mode === 'locked');
   check('no console errors (gamepad)', logs.length === 0, logs.slice(0, 4).join(' | '));
   await ctx.close();
 }

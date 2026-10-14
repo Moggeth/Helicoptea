@@ -36,7 +36,21 @@ Everything is solid, and plenty of it moves: napkins blow off the table in your 
 
 Press **1** (gamepad **L3**, a click of the left stick, or the cockpit icon top right) to fly from the pilot's seat; it also switches from **Pause → View**, and `?view=cockpit` in the URL works too. The view is bolted to the airframe, so it rolls and pitches with it; your head sways a little under g, lags sudden rotation, and the airframe buzzes with the rotor (both adjustable in the pause menu, as is the field of view). Each aircraft has its own modelled cockpit: a Bell-style cabin with analogue instruments for the micro heli, a two-pilot CH-47F-style glass cockpit with a copilot for the Chinook, and the skycrane's glazed bubble with its copilot beside you. Your hands and feet are on the controls and move with them. Instruments read live, in full-size equivalents (a 30 cm hover reads about 30 ft on the micro heli's altimeter, a soaked bag about 400 kg on the hook).
 
-Look around by dragging the mouse (wheel to zoom), holding **L3** and using the right stick (it stops flying while you look; in the chase view it orbits the camera) or the D-pad, or dragging any open part of a touch screen. **C** (gamepad **B**, touch **View**) looks ahead again. Look down to see through the chin windows. For dipping, a downward **hook camera** shows the bag or bucket with its height over the tea (on the skycrane it is a belly camera on the snorkel and doors, with the tank level and the intake's height); it appears as an inset (bottom right, or top centre on touch screens) and on the panel display. **Pause → Hook camera** can show it in the chase view too, or hide it. A crash from the cockpit shakes and flashes in the seat, then pulls out to the wreck; restarting puts you back in the seat. See [docs/DESIGN.md](docs/DESIGN.md#cockpit-view-srcrendercockpitjs-srcrendercockpitcamjs).
+Look around by dragging the mouse (wheel to zoom), holding **L3** and using the right stick (it stops flying while you look; in the chase view it orbits the camera) or the D-pad, or dragging any open part of a touch screen. **U** or **Home** (gamepad **B**, touch **View**) looks ahead again. Look down to see through the chin windows. For dipping, a downward **hook camera** shows the bag or bucket with its height over the tea (on the skycrane it is a belly camera on the snorkel and doors, with the tank level and the intake's height); it appears as an inset (bottom right, or top centre on touch screens) and on the panel display. **Pause → Hook camera** can show it in the chase view too, or hide it. A crash from the cockpit shakes and flashes in the seat, then pulls out to the wreck; restarting puts you back in the seat. See [docs/DESIGN.md](docs/DESIGN.md#cockpit-view-srcrendercockpitjs-srcrendercockpitcamjs).
+
+## Cameras
+
+**C** (gamepad **L3** tap, the camera icon top right, or touch **Cam**) steps through the cameras; **Shift+C** steps back, **1** jumps to the cockpit and back, and **2** to **7** pick one directly. **Pause → Camera** lists them all and chooses which are in the C / L3 cycle (remembered, as is the camera you left in).
+
+- **Chase**: the horizon-steady camera behind you that turns with your heading and frames the load.
+- **Cockpit**: the pilot's seat (above).
+- **Locked chase**: bolted rigidly behind and above the tail, so it rolls and pitches with the airframe; every attitude change and burst of speed reads at once. **Speed feel** (pause menu) lets the arm stretch a little under acceleration and widens the lens with speed; at zero it is perfectly rigid.
+- **Nose cam**: hard-mounted under the nose, no cockpit, nothing in the way; the same speed feel through the lens.
+- **Orbit**: a free orbit that does not turn with the aircraft (drag or the D-pad to swing, wheel to zoom).
+- **Tripod**: a camera operator standing on the table with a long lens. It pans after you with a human lag, zooms to keep you a steady size, and cuts to a fresh spot ahead when you fly off or behind something. It keeps filming after a crash.
+- **Cargo cam**: rides the load, dangling under the tea bag or bucket (or on the skycrane's snorkel head), so it swings when you swing and goes into the tea first; under the surface the picture turns the colour of the brew and bubbles stream past. Drag or the D-pad to look about, right up at the aircraft above. It joins the C cycle while something is on a hook.
+
+Hold **B** (or the right mouse button, gamepad **LT** in the default Aim layout, **LB** in Arcade; any button in Pause → Controller, touch **GoPro**) for the **GoPro**: a camera bolted on a stub arm off the right side of each aircraft, looking straight down past the skid, sponson or tank, with REC, the height readout and a ring on the surface where the lowest load (or the snorkel) would land if you lowered it now. Let go and you are back in your camera. The flight replay has **Locked**, **GoPro** and **Tripod** cameras too (keys 4 to 6).
 
 ## Judging height
 
@@ -111,6 +125,7 @@ node tests/e2e-replay.mjs            # flight recording, replay viewer, notes an
 node tests/e2e-crashes.mjs           # every crash kind on every aircraft, strikes, the Rotor strikes setting, crash replays, effect cost
 node tests/e2e-static.mjs            # the build on a plain static host (no /api): browser saving, reload, Download
 node tests/e2e-tuning.mjs            # flight tuning board: sliders, tabs, persistence, presets, export/import, and every preview clip at both ends of every range
+node tests/e2e-camera.mjs http://localhost:4196/  # camera modes, GoPro, cargo cam into the tea, cycling, frame cost per mode
 ```
 
 A new `tests/e2e-<name>.mjs` joins CI automatically if it takes the base URL as an argument, prints
@@ -142,15 +157,15 @@ other branch or pull request gets a preview URL.
 | Hook / release | Space (Chinook: each press hooks the nearest bag or the milk bucket to a free hook; with none in reach it drops them all) | A or RB | Hook button |
 | Pour milk (hold) | G | RT (past half-way) | Pour button (shown while carrying the bucket) |
 | Salvo (latch the bucket valve open) | double-tap G, or Shift+G | two quick RT pulls | double-tap Pour |
-| Bolted-on camera (hold) | (camera pass) | LT | (camera pass) |
+| GoPro, straight down (hold) | B, or the right mouse button | LT (Aim layouts; LB in Arcade) | GoPro button |
 | Switch aircraft | V (micro, Chinook, skycrane) | Pause menu | Pause menu |
 | Flight Assist | F | Y | Assist button |
 | Restart flight | R | Start | ↻ (top right) |
 | Reset sandbox | Shift+R | Pause menu | Pause menu |
-| Camera | C recenter, mouse drag orbit, wheel zoom | B recenter, D-pad orbit/zoom | View button, drag open screen to orbit |
+| Camera | C next, Shift+C previous, 1–7 pick; U / Home recenter; mouse drag orbit, wheel zoom | L3 tap next; B recenter; D-pad orbit/zoom | Cam button next; View recenter; drag open screen to orbit |
 | Mark a moment for a flight note | N | LB or R3 | ⚑ Mark |
 | Flight replay | Pause menu, or Watch replay after a crash | same | same |
-| Cockpit view | 1 toggles; mouse drag look, wheel zoom, C look ahead | L3 click toggles; hold L3 + right stick look, D-pad glance, B look ahead | Cockpit icon (top right); drag open screen to look |
+| Cockpit view | 1 toggles; mouse drag look, wheel zoom, U look ahead | L3 tap steps to it; hold L3 + right stick look, D-pad glance, B look ahead | Cam button; drag open screen to look |
 | Pause / help / mute / debug | Esc, H, M, ` (or F3) | Back/View, X | ‖ and ? buttons |
 | Menus | Arrow keys/Tab, Enter | D-pad or left stick, A select, B back | Tap |
 

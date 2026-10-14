@@ -1,5 +1,6 @@
 import { CFG } from '../config.js';
 import { Gamepads } from './gamepad.js';
+import { CAM_KEYS, LOOK_MODES } from '../render/cameraModes.js';
 
 // Merges keyboard, gamepad and touch into one control state.
 // Axes (all -1..1): pitch (+ forward), roll (+ right), yaw (+ right), collective (+ up).
@@ -15,8 +16,11 @@ const POUR_KEYS = ['KeyG'];
 // Skycrane tank: T pumps (held), Z / X reel the snorkel in / out (held).
 const TANK_KEYS = { pump: ['KeyT'], reelIn: ['KeyZ'], reelOut: ['KeyX'] };
 const DOUBLE_TAP = 320; // ms
+// Camera: C steps through the cameras (Shift+C back), 1 is the cockpit and back, 2-7 pick one, B (held) is the GoPro.
+const BOLT_KEYS = ['KeyB'];
 const ACTION_KEYS = {
-  Space: 'attach', Enter: 'attach', KeyV: 'aircraft', Digit1: 'view', KeyF: 'assist', KeyR: 'restart', KeyC: 'recenter',
+  ...Object.fromEntries(Object.entries(CAM_KEYS).map(([k, id]) => [k, `cam:${id}`])),
+  Space: 'attach', Enter: 'attach', KeyV: 'aircraft', Digit1: 'cockpit', KeyF: 'assist', KeyR: 'restart', KeyC: 'camNext', KeyU: 'recenter', Home: 'recenter',
   Escape: 'pause', KeyP: 'pause', KeyH: 'help', Slash: 'help', KeyM: 'mute', Backquote: 'debug', F3: 'debug', KeyB: 'reset', KeyN: 'mark',
 };
 
@@ -37,7 +41,8 @@ export class Input {
     this.actions = [];
     this.source = 'keyboard';
     this.gp = { pitch: 0, roll: 0, yaw: 0, collective: 0, connected: false, id: '' };
-    this.touch = { pitch: 0, roll: 0, yaw: 0, collective: 0, active: false, pour: false, doors: false, pump: false, reel: 0 };
+    this.touch = { pitch: 0, roll: 0, yaw: 0, collective: 0, active: false, pour: false, doors: false, pump: false, reel: 0, bolt: false };
+    this.mouseBolt = false;
     this.camOrbit = { yaw: 0, pitch: 0, zoom: 0 };
     // First-person free-look deltas (radians) and zoom, taken by the game each frame.
     this.look = { yaw: 0, pitch: 0, zoom: 0 };
@@ -51,7 +56,7 @@ export class Input {
 
     window.addEventListener('keydown', (e) => {
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
-      const isGameKey = Object.values(KEYMAP).some((l) => l.includes(e.code)) || ACTION_KEYS[e.code] || POUR_KEYS.includes(e.code) || Object.values(TANK_KEYS).some((l) => l.includes(e.code));
+      const isGameKey = Object.values(KEYMAP).some((l) => l.includes(e.code)) || ACTION_KEYS[e.code] || POUR_KEYS.includes(e.code) || BOLT_KEYS.includes(e.code) || Object.values(TANK_KEYS).some((l) => l.includes(e.code));
       if (isGameKey) e.preventDefault();
       if (e.repeat) return;
       this.keys.add(e.code);
@@ -59,6 +64,7 @@ export class Input {
       let a = ACTION_KEYS[e.code];
       if (a === 'reset' && !e.shiftKey) a = null;
       if (e.code === 'KeyR' && e.shiftKey) a = 'reset';
+      if (a === 'camNext' && e.shiftKey) a = 'camPrev';
       if (a) this.actions.push(a);
       // Combos: Shift or a double-tap. G: salvo (dump everything). T: skycrane auto-fill.
       const combo = { KeyG: 'salvo', KeyT: 'autofill' }[e.code];
@@ -80,7 +86,8 @@ export class Input {
   clearAll() {
     this.keys.clear();
     Object.assign(this.kb, { pitch: 0, roll: 0, yaw: 0, collective: 0 });
-    Object.assign(this.touch, { pitch: 0, roll: 0, yaw: 0, collective: 0, pour: false, doors: false, pump: false, reel: 0 });
+    Object.assign(this.touch, { pitch: 0, roll: 0, yaw: 0, collective: 0, pour: false, doors: false, pump: false, reel: 0, bolt: false });
+    this.mouseBolt = false;
     this.pourBtn?.classList.remove('pressed');
     for (const s of this.sticks || []) s.release();
   }
@@ -89,6 +96,7 @@ export class Input {
   // cockpit, turns the pilot's head. The wheel zooms either.
   bindCanvas(canvas) {
     canvas.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button === 2) { this.mouseBolt = true; this.source = 'keyboard'; return; }
       if (this.dragging) return;
       this.dragging = { x: e.clientX, y: e.clientY, id: e.pointerId, touch: e.pointerType !== 'mouse' };
       canvas.setPointerCapture(e.pointerId);
@@ -97,7 +105,7 @@ export class Input {
     canvas.addEventListener('pointermove', (e) => {
       if (!this.dragging || e.pointerId !== this.dragging.id) return;
       const dx = e.clientX - this.dragging.x, dy = e.clientY - this.dragging.y;
-      if (this.viewMode === 'cockpit') {
+      if (LOOK_MODES.has(this.viewMode)) {
         const k = this.dragging.touch ? 0.006 : 0.004;
         this.look.yaw -= dx * k;
         this.look.pitch -= dy * k;
@@ -107,13 +115,15 @@ export class Input {
       }
       this.dragging.x = e.clientX; this.dragging.y = e.clientY;
     });
-    const end = (e) => { if (this.dragging && e.pointerId === this.dragging.id) this.dragging = null; };
+    const end = (e) => { if (e.pointerType === 'mouse' && e.button === 2) this.mouseBolt = false; if (this.dragging && e.pointerId === this.dragging.id) this.dragging = null; };
+    // Right button released over the HUD or outside the window still lets go of the GoPro.
+    window.addEventListener('pointerup', (e) => { if (e.button === 2) this.mouseBolt = false; });
     canvas.addEventListener('pointerup', end);
     canvas.addEventListener('pointercancel', end);
     canvas.addEventListener('lostpointercapture', end);
     canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
-      if (this.viewMode === 'cockpit') this.look.zoom += Math.sign(e.deltaY) * 4;
+      if (LOOK_MODES.has(this.viewMode)) this.look.zoom += Math.sign(e.deltaY) * 4;
       else this.camOrbit.zoom += Math.sign(e.deltaY) * 0.08;
     }, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -190,6 +200,8 @@ export class Input {
     this.attachBtn = btn('attach', '<span class="ico">⚓</span><span class="lbl">Hook</span>', 'attach');
     this.assistBtn = btn('assist', '<span class="lbl">Assist</span>', 'assist');
     btn('recenter', '<span class="lbl">View</span>', 'recenter');
+    // Next camera, and the GoPro while held.
+    btn('cam', '<span class="lbl">Cam</span>', 'view');
     // Mark this moment for a flight note (described later in the replay).
     btn('mark', '<span class="ico">⚑</span><span class="lbl">Mark</span>', 'mark');
     // Pour: held. Shown only while the milk bucket is on a hook.
@@ -209,6 +221,8 @@ export class Input {
       root.appendChild(b);
       return b;
     };
+    this.boltBtn = hold('bolt', '<span class="lbl">GoPro</span>', (v) => { this.touch.bolt = v; });
+    this.boltBtn.classList.remove('hidden');
     // Pour (bucket): shown only while the bucket is on a hook. Double-tap latches the valve open.
     this.pourBtn = hold('pour', '<span class="ico">🥛</span><span class="lbl">Pour</span>', (v) => { this.touch.pour = v; }, 'salvo');
     // Skycrane tank: doors (open wider the longer you hold; double-tap = salvo), pump (double-tap = auto-fill), hose reel.
@@ -268,8 +282,9 @@ export class Input {
     // The bucket's valve: G / RB / Pour; on the skycrane its hook's bucket opens with the doors.
     this.ctl.pour = sky ? this.ctl.doors > 0.05 : gHeld || !!this.pads.pour || this.touch.pour;
     // Held camera buttons from the pad layout (the camera code reads these; keys and touch can add theirs).
-    this.ctl.boltCam = this.pads.isHeld('boltCam');
-    if (!this.enabled) { this.ctl.pitch = this.ctl.roll = this.ctl.yaw = this.ctl.collective = 0; this.ctl.pour = false; this.ctl.doors = this.ctl.pump = this.ctl.reel = 0; }
+    // The GoPro: the pad's boltCam binding (LT in the Aim presets), B, the right mouse button or touch GoPro.
+    this.ctl.boltCam = this.pads.isHeld('boltCam') || BOLT_KEYS.some((c) => k.has(c)) || this.mouseBolt || this.touch.bolt;
+    if (!this.enabled) { this.ctl.pitch = this.ctl.roll = this.ctl.yaw = this.ctl.collective = 0; this.ctl.pour = false; this.ctl.doors = this.ctl.pump = this.ctl.reel = 0; this.ctl.boltCam = false; }
     return this.ctl;
   }
 
@@ -282,7 +297,7 @@ export class Input {
     if (used) this.source = 'gamepad';
     for (const e of this.pads.takeEvents()) this.actions.push(e);
     for (const n of this.pads.takeNotices()) { this.notices.push(n.text); if (n.type === 'disconnected') this.actions.push('padLost'); }
-    if (this.pads.cam && this.viewMode === 'cockpit') {
+    if (this.pads.cam && LOOK_MODES.has(this.viewMode)) {
       // D-pad glances around the cockpit; holding L3 lets the right stick look freely.
       this.look.yaw += this.pads.cam.yaw * 1.5 * dt;
       this.look.pitch -= this.pads.cam.zoom * 1.1 * dt;
@@ -291,7 +306,7 @@ export class Input {
       this.camOrbit.zoom += this.pads.cam.zoom * 0.02;
     }
     // Holding the view (or look) button: the right stick turns the pilot's head, or orbits the chase camera.
-    if (this.pads.look && this.viewMode === 'cockpit') {
+    if (this.pads.look && LOOK_MODES.has(this.viewMode)) {
       this.look.yaw -= this.pads.look.x * 2.2 * dt;
       this.look.pitch += this.pads.look.y * 1.6 * dt;
     } else if (this.pads.look) {
