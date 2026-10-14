@@ -90,14 +90,17 @@ export function buildKitchen(scene, renderer, quality, progress, sim) {
     pot.position.set(-0.75, winY - winH / 2 + 0.005, ROOM.minZ + 0.07);
     scene.add(shadowed(pot));
     const leafMat = new THREE.MeshStandardMaterial({ color: 0x4f7a43, roughness: 0.7, side: THREE.DoubleSide });
+    const leaves = [];
     for (let i = 0; i < 9; i++) {
-      const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), leafMat);
+      const leaf = new THREE.Object3D();
       leaf.scale.set(0.35, 1.0, 0.12);
       const a = i / 9 * Math.PI * 2;
       leaf.position.set(pot.position.x + Math.cos(a) * 0.03, pot.position.y + 0.11, pot.position.z + Math.sin(a) * 0.03);
       leaf.rotation.set(Math.sin(a) * 0.5, a, Math.cos(a) * 0.5);
-      scene.add(leaf);
+      leaf.updateMatrix();
+      leaves.push(new THREE.SphereGeometry(0.05, 8, 6).applyMatrix4(leaf.matrix));
     }
+    scene.add(new THREE.Mesh(mergeGeometries(leaves, false), leafMat)); // nine leaves, one draw call
 
     // Counter, cabinets and shelf along the right-hand wall (soft background shapes).
     const cab = new THREE.MeshStandardMaterial({ color: 0x8fa79a, roughness: 0.55 });
