@@ -100,6 +100,18 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
   check('ring buffer keeps only the most recent flights', rec.flights.length <= 3, `${rec.flights.length} kept`);
 }
 
+{
+  const sim = new Sim({ lite: true, bare: true });
+  const settings = { tuning: { rotationRate: 1 } };
+  const rec = new FlightRecorder(sim, { settings: () => settings });
+  const f = rec.startFlight();
+  settings.tuning.rotationRate = 2;
+  rec.recordSettings();
+  settings.tuning.rotationRate = 3;
+  check('recordings preserve initial settings and immutable tuning-change snapshots', f.settings.tuning.rotationRate === 1 && f.events[0].settings.tuning.rotationRate === 2);
+  sim.dispose();
+}
+
 const failed = results.filter((r) => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} replay checks passed`);
 if (failed.length) process.exit(1);

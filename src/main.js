@@ -30,6 +30,7 @@ import { CAM_IDS, CAM_NAME, DEFAULT_CYCLE, LockedRig, NoseRig, BoltRig, TripodRi
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
+const BUILD_ID = typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'unknown';
 const store = {
   get(k, d) { try { const v = localStorage.getItem(`helicoptea.${k}`); return v === null ? d : v; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(`helicoptea.${k}`, String(v)); } catch { /* ignore */ } },
@@ -41,6 +42,12 @@ function showError(msg, detail) {
   if (fatal) return;
   fatal = true;
   console.error('[Helicoptea] fatal:', msg, detail || '');
+  // Keep a small local crash history even after this tab or its devtools have been closed.
+  try {
+    const history = JSON.parse(store.get('errors', '[]'));
+    const entry = { at: new Date().toISOString(), build: BUILD_ID, message: msg, detail: String(detail?.stack || detail || '').slice(0, 6000) };
+    store.set('errors', JSON.stringify([...(Array.isArray(history) ? history : []), entry].slice(-20)));
+  } catch { /* reporting must not hide the original failure */ }
   $('error-msg').textContent = msg;
   $('loading').classList.remove('show');
   $('error').classList.add('show');
@@ -154,7 +161,8 @@ async function boot() {
   let weight = parseFloat(store.get('weight', String(defaultWeight)));
   if (!(weight >= 0 && weight <= 1)) weight = defaultWeight;
   const speedOf = (w) => 1 - 0.6 * w;
-  let worldSpeed = params.get('worldSpeed') ? parseFloat(params.get('worldSpeed')) : speedOf(weight);
+  const requestedSpeed = Number(params.get('worldSpeed'));
+  let worldSpeed = params.has('worldSpeed') && Number.isFinite(requestedSpeed) && requestedSpeed >= 0.4 && requestedSpeed <= 1 ? requestedSpeed : speedOf(weight);
   sim.assist = state.assist;
   const numSetting = (k, d, lo, hi) => { const v = parseFloat(store.get(k, String(d))); return v >= lo && v <= hi ? v : d; };
   const wantView = params.get('view') || store.get('view', 'chase');
@@ -205,10 +213,12 @@ async function boot() {
   const flightStore = new FlightStore();
   const recorder = new FlightRecorder(sim, {
     getInput: () => ({ source: input.source, kb: input.kb, gp: input.gp, touch: input.touch, raw: input.pads.raw }),
-    settings: () => ({ view: fp.mode, quality: quality.name, weight, touchUi: IS_TOUCH, rotorStrikes: sim.damage.rotorStrikes }),
+    settings: () => ({ build: BUILD_ID, view: fp.mode, quality: quality.name, weight, worldSpeed, touchUi: IS_TOUCH, rotorStrikes: sim.damage.rotorStrikes,
+      tuning: JSON.parse(tuning.exportText()), physics: structuredClone(CFG), controller: structuredClone({ settings: input.pads.settings, layout: input.pads.layout }) }),
     onFlightEnd: (f) => flightStore.save(f),
   });
   if (params.get('record') === '0') recorder.enabled = false;
+  tuning.onChange(() => recorder.recordSettings());
   const replay = new ReplayViewer({
     recorder, store: flightStore, stage: new ReplayStage(view, kitchen, () => [...depth.shadows, depth.line, depth.dot, depth.ring]), camera, cockpit, sim,
     fpSettings: () => ({ ...fp, camFeel: cam.feel }), setLens: (on, zoom, lens) => applyLens(on, zoom, lens),

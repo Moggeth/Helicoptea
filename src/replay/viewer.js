@@ -26,7 +26,7 @@ const STRIPS = [
   { name: 'Sticks', lines: [['in.pitch', '#7fc4ff', 'pitch'], ['in.roll', '#f2b84b', 'roll'], ['in.yaw', '#c79bff', 'yaw'], ['in.coll', '#9fd3a8', 'coll']], range: [-1, 1] },
   { name: 'Height', lines: [['agl', '#9fd3a8', 'gear cm']], scale: 100, unit: 'cm', min0: true },
   { name: 'Speed', lines: [['hspeed', '#7fc4ff', 'horiz'], ['vspeed', '#f2b84b', 'vert']], unit: 'm/s' },
-  { name: 'Rope', lines: [['load', '#ff8f6b', 'tension mN']], scale: 1000, unit: 'mN', min0: true, alt: { skycrane: [['tankFill', '#f4f0e6', 'tank %']], scale: 100, name: 'Tank' } },
+  { name: 'Load estimate', lines: [['load', '#ff8f6b', 'static load mN']], scale: 1000, unit: 'mN', min0: true, alt: { skycrane: [['tankFill', '#f4f0e6', 'tank %']], scale: 100, name: 'Tank' } },
 ];
 const _zero = new THREE.Vector3();
 const fmt = (w) => { const m = Math.floor(w / 60), s = w - m * 60; return `${m}:${s < 10 ? '0' : ''}${s.toFixed(2)}`; };
@@ -662,7 +662,7 @@ export class ReplayViewer {
       `height ${(r[CH.agl] * 100).toFixed(1)} cm   speed ${r[CH.hspeed].toFixed(2)} m/s   climb ${r[CH.vspeed] >= 0 ? '+' : ''}${r[CH.vspeed].toFixed(2)}`,
       `pitch ${r[CH.pitch].toFixed(1)}°  roll ${r[CH.roll].toFixed(1)}°  rates ${r[CH['rate.pitch']].toFixed(0)}/${r[CH['rate.roll']].toFixed(0)}/${r[CH['rate.yaw']].toFixed(0)}°/s`,
       `collective ${pct(r[CH.collective])}  thrust ${pct(r[CH.thrustFrac])}  T/W ${r[CH.tw].toFixed(2)}`,
-      r[CH.nCarried] > 0 ? `load ${(r[CH.loadMass] * 1000).toFixed(1)} g  tension ${(r[CH.load] * 1000).toFixed(0)} mN${r[CH.wetness] > 0.01 ? `  wet ${pct(r[CH.wetness])}` : ''}` : 'no load',
+      r[CH.nCarried] > 0 ? `load ${(r[CH.loadMass] * 1000).toFixed(1)} g  static estimate ${(r[CH.load] * 1000).toFixed(0)} mN${r[CH.wetness] > 0.01 ? `  wet ${pct(r[CH.wetness])}` : ''}` : 'no load',
     ] : ['Crashed: replaying the wreck'];
     if (alive && f.aircraft === 'skycrane') lines.push(`tank ${pct(r[CH.tankFill])}  doors ${pct(r[CH.tankDoors])}${r[CH.pumping] > 0.5 ? '  pumping' : ''}`);
     const t = lines.join('\n');

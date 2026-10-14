@@ -73,7 +73,7 @@ export const CHANNELS = [
   ['tailPhase', 'rad', 'tail rotor phase'],
   ['tilt0', 'rad', 'disc tilt (Chinook forward rotor; skycrane longitudinal)'],
   ['tilt1', 'rad', 'disc tilt (Chinook aft rotor; skycrane lateral)'],
-  ['load', 'N', 'rope tension on the hooks'],
+  ['load', 'N', 'taut-rope static load estimate (mass × gravity), not measured dynamic tension'],
   ['loadMass', 'kg', 'mass on the hooks (bags, bucket and its milk)'],
   ['nCarried', '', 'number of things on the hooks'],
   ['wetness', '0..1', 'wettest carried bag'],

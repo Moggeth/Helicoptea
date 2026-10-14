@@ -45,7 +45,7 @@ export class FlightRecorder {
     const sim = this.sim, h = sim.heli;
     if (this.cur) this.endFlight();
     const def = h ? { id: h.def.id, mass: +h.def.mass.toFixed(5), thrustToWeight: h.def.thrustToWeight, hooks: h.def.hooks, rotorRadius: h.def.rotorRadius, gearDrop: h.def.gearDrop, scale: h.def.scale } : null;
-    const f = new Flight({ aircraft: sim.aircraft, def, recordHz: Math.round(1 / (sim.dt * RECORD_EVERY)), physicsHz: Math.round(1 / sim.dt), settings: { ...this.settings(), continuedFrom: continued } });
+    const f = new Flight({ aircraft: sim.aircraft, def: structuredClone(def), recordHz: Math.round(1 / (sim.dt * RECORD_EVERY)), physicsHz: Math.round(1 / sim.dt), settings: structuredClone({ ...this.settings(), continuedFrom: continued }) });
     f.heliId = sim.heliId;
     f.t0 = sim.time;
     f.crashAt = -1;
@@ -65,6 +65,13 @@ export class FlightRecorder {
     f.dirty = true;
     if (f.n === 0) { this.flights.splice(this.flights.indexOf(f), 1); return; }
     if (this.onFlightEnd) this.onFlightEnd(f);
+  }
+
+  recordSettings() {
+    const f = this.cur;
+    if (!f || !this.enabled) return;
+    f.events.push({ type: 'settings', i: f.n, t: this.sim.time - f.t0, wall: this.wall, settings: structuredClone(this.settings()) });
+    f.dirty = true;
   }
 
   evict() {
