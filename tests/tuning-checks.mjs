@@ -33,7 +33,12 @@ check('knob ids are unique', new Set(ids).size === ids.length);
 
 // Global multiplier.
 const cyc = CFG.heli.cyclicTorque, chLat = CFG.chinook.latCyclic;
+const chPitch = CFG.chinook.diffCollective;
 t.setGlobal('rotationRate', 2);
+check('global rotation rate doubles Chinook pitch authority', Math.abs(CFG.chinook.diffCollective - chPitch * 2) < 1e-12);
+t.setAircraft('chinook', 'pitchResponse', 1.5);
+check('pitch response composes with rotation rate', Math.abs(CFG.chinook.diffCollective - chPitch * 3) < 1e-12);
+t.resetAircraft('chinook', 'pitchResponse');
 check('global rotation rate doubles the micro cyclic', Math.abs(CFG.heli.cyclicTorque - cyc * 2) < 1e-12, `${cyc} → ${CFG.heli.cyclicTorque}`);
 check('global rotation rate reaches the Chinook too', Math.abs(CFG.chinook.latCyclic - chLat * 2) < 1e-12);
 // Per-aircraft multiplier stacks on top.
@@ -56,6 +61,16 @@ t.resetGroup('global', 'flavour');
 check('reset group clears only that group', !t.isChanged('global', 'downwash') && t.isChanged('global', 'coasting'));
 t.resetAll();
 check('reset all restores the exact config', snapshot() === before);
+let worldSpeed = CFG.physics.worldSpeed;
+t.worldSpeedHooks = { get: () => worldSpeed, set: (v) => { worldSpeed = v; } };
+t.setGlobal('worldSpeed', 0.4);
+t.resetGroup('global', KNOB.worldSpeed.group);
+check('group reset restores the external world clock', worldSpeed === CFG.physics.worldSpeed);
+t.setGlobal('worldSpeed', 0.4);
+t.resetAll();
+check('reset all restores the external world clock', worldSpeed === CFG.physics.worldSpeed);
+t.importState({ worldSpeed: NaN });
+check('invalid imported world clock cannot poison simulation time', worldSpeed === CFG.physics.worldSpeed);
 
 // Presets.
 t.applyPreset('floaty');

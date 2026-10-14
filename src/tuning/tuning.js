@@ -65,12 +65,15 @@ export class Tuning {
   resetGroup(scope, group) {
     for (const k of KNOBS) {
       if (k.group !== group) continue;
-      if (scope === 'global') { if (k.kind !== 'world') delete this.state.global[k.id]; }
+      if (scope === 'global') {
+        if (k.kind === 'world') this.worldSpeedHooks?.set(CFG.physics.worldSpeed);
+        else delete this.state.global[k.id];
+      }
       else delete this.state.aircraft[scope][k.id];
     }
     this.commit();
   }
-  resetAll() { this.state = this.blank(); this.commit(); }
+  resetAll() { this.state = this.blank(); this.worldSpeedHooks?.set(CFG.physics.worldSpeed); this.commit(); }
 
   applyPreset(name) {
     const p = PRESETS[name];
@@ -92,6 +95,7 @@ export class Tuning {
       if (override && override.id === id && override.scope === scope) return override.value;
       return scope === 'global' ? this.getGlobalRaw(id) : this.getAircraft(scope, id);
     };
+    const factors = new Map();
     for (const k of KNOBS) {
       if (!k.targets) continue;
       const g = k.global ? val('global', k.id) : 1;
@@ -99,13 +103,18 @@ export class Tuning {
         const m = scope === 'global' ? g : g * (k.perAircraft && appliesTo(k, scope) ? val(scope, k.id) : 1);
         for (const path of paths) {
           if (!this.base.has(path)) continue;
-          const base = this.base.get(path);
-          const [o, key] = getPath(path);
-          if (k.kind === 'excess') o[key] = 1 + (base - 1) * m;
-          else if (Array.isArray(base)) o[key] = base.map((b) => b * m);
-          else o[key] = base * m;
+          const previous = factors.get(path);
+          factors.set(path, { multiplier: (previous?.multiplier ?? 1) * m, excess: k.kind === 'excess' });
         }
       }
+    }
+    // A path can be driven by several knobs (e.g. Chinook rotation rate and pitch response).
+    // Combine all contributions before writing; later knobs must not erase earlier ones.
+    for (const [path, { multiplier: m, excess }] of factors) {
+      const base = this.base.get(path), [o, key] = getPath(path);
+      if (excess) o[key] = 1 + (base - 1) * m;
+      else if (Array.isArray(base)) o[key] = base.map((b) => b * m);
+      else o[key] = base * m;
     }
     // Sticks (absolute values).
     this.sticks = {
@@ -172,7 +181,7 @@ export class Tuning {
       if (k && k.perAircraft && appliesTo(k, a) && ok(k, v)) { const [lo, hi] = aircraftRange(k); s.aircraft[a][id] = Math.min(hi, Math.max(lo, v)); }
     }
     this.state = s;
-    if (typeof obj.worldSpeed === 'number' && this.worldSpeedHooks) this.worldSpeedHooks.set(Math.min(1, Math.max(0.4, obj.worldSpeed)));
+    if (Number.isFinite(obj.worldSpeed) && this.worldSpeedHooks) this.worldSpeedHooks.set(Math.min(1, Math.max(0.4, obj.worldSpeed)));
     if (commit) this.commit(); else this.apply();
   }
 }
