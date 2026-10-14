@@ -456,6 +456,7 @@ async function boot() {
   let lensKey = '', lensFp = false;
   // Vertical field of view for a horizontal one on a landscape screen (portrait keeps the landscape height).
   const vfov = (hdeg, aspect) => THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(hdeg) / 2) / Math.max(aspect, 1.25)));
+  const lensLast = { f: 0, near: 0, w: 0, h: 0, pr: 0 };
   function applyLens(cockpitView, zoom = fpRig.fovZoom, custom = null) {
     const w = innerWidth, h = innerHeight, aspect = w / h;
     let fov, near;
@@ -473,9 +474,11 @@ async function boot() {
       near = 0.01;
     }
     lensFp = !!cockpitView && !custom;
-    const key = `${fov.toFixed(2)}|${near}|${w}|${h}|${renderer.getPixelRatio()}`;
-    if (key === lensKey) return;
-    lensKey = key;
+    // Compared as numbers (this runs every frame; building a key string each time showed up in profiles).
+    const L = lensLast, pr = renderer.getPixelRatio(), f100 = Math.round(fov * 100);
+    if (lensKey && L.f === f100 && L.near === near && L.w === w && L.h === h && L.pr === pr) return;
+    lensKey = 'set';
+    L.f = f100; L.near = near; L.w = w; L.h = h; L.pr = pr;
     camera.fov = fov; camera.near = near; camera.aspect = aspect;
     camera.updateProjectionMatrix();
     cockpit.setAspect(aspect, fov);
@@ -892,6 +895,7 @@ async function boot() {
     kitchen.garden.update(rd * worldSpeed, view.focusPoint(), camera, sim); // grass wind, shadow follow (also in first person)
     fp.wasLive = fpLive;
     camera.updateMatrixWorld();
+    depth.linearBlend = post.linear;
     depth.update(rd * worldSpeed, camera, innerWidth, innerHeight);
     hud.setPlumb(crashShown ? null : depth.readout);
     fp.flash = Math.max(0, fp.flash - frameDt * 1.6);
@@ -946,6 +950,7 @@ async function boot() {
     // modes only with Hook camera set to Always, and never where the picture already looks down.
     const wantLoadCam = !!h && !looksDown && (fpLive || fp.loadCam === 'always');
     const showPip = wantLoadCam && fp.loadCam !== 'off' && !crashShown;
+    post.viaTarget = wantLoadCam;   // keep the world and the hook camera on the same shader variants
     if (wantLoadCam) {
       const hooks = h.def.hooks;
       // The skycrane's camera sits under the front of the tank, between the snorkel and the doors.
