@@ -171,6 +171,41 @@ its log confirms `scratch/overnight-editing` was served. Use
 `node tests/run-e2e.mjs --outDir <preserved-build> --port <unused-port>` for subsequent sweeps.
 This changes verification tooling only; it does not weaken any game acceptance gate.
 
+## Integrated checkpoint at 23:50 Sydney
+
+Frozen build `42e18cf` passed **511/511** headless checks in **85.05 s**, and **499/500** browser
+checks in **841.56 s**. All functional checks passed, including cargo, dipping, milk, all aircraft,
+replay, controller recovery and touch layouts. The sole failure was the strict emulated-phone cockpit
+performance gate (>30 fps under 4× CPU throttling), which reported 30 fps. This first sweep is not an
+all-green result.
+
+Six sequential warm comparisons at 844×390, touch, DPR2, medium auto quality on local Chrome/RTX3080Ti
+gave baseline 39.76/61.79/61.87 fps and accepted 37.53/60.66/57.64 fps. Frame-time medians were 25 ms
+in both first runs and 16.7 ms thereafter; p95 was roughly 33.4 ms then 25 ms. Dynamic resolution
+varied the actual DPR from 0.9 to 1.2. This is **inconclusive** for a performance difference, not a
+speedup claim. The unchanged full cockpit suite then passed **41/41 on both builds**, each reporting
+33 fps for that gate (42.18/42.32 s). Keep the initial miss as evidence of limited performance margin.
+Raw paired data and exact repeats are in `logs/reviews/overnight-cockpit-*.json`.
+
+## Skycrane pour-sound repair
+
+The Skycrane's belly stream omitted the existing continuous milk sound entirely: only bucket outflow
+was sent to the audio system. The matched full browser mission fills through the snorkel, flies the
+load over the cup using the existing input-pipeline autopilot, and opens the doors with real keyboard
+events. Baseline tank flow peaked at **39.17 ml/s**, while the audio rate, stream gain and measured
+stream RMS all remained **zero**. The candidate passes bucket plus tank outflow to the existing sound,
+with pan weighted by each source's flow. It changes no synthesis, volume curve or flight settings.
+
+The same mission measured **39.18 ml/s** tank and audio flow, gain **0.0859**, RMS **0.0136**, then zero
+stream gain after the tank emptied. All **35/35** Skycrane browser checks passed (baseline 34/35 failed
+exactly the missing-sound assertion). The 3.77-second isolated stream recording peaks at **−26.8 dBFS**,
+with a clear discharge envelope followed by silence. Waveform and matched discharge screenshots were
+inspected. This verifies sound routing and signal recovery, not a human listening judgment. Browser
+controller/touch checks are emulated. Full baseline/candidate runs took **66.73/66.80 s**, build **2.80 s**.
+Evidence: `test-results/tank-audio-{baseline,candidate}/`, including `tank-pour.webm` and its waveform.
+Bucket handling passed **20/20** browser checks (**89.57 s**), audio lifecycle passed **18/18**
+(**14.79 s**), and audio unit checks passed **10/10**. Source and test review is self-reviewed.
+
 ## Remaining acceptance
 
 Physical phone, Steam Controller connection/feel, haptics, human listening and skilled acrobatic-flight

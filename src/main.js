@@ -953,12 +953,17 @@ async function boot() {
       tailGone: !!(h && h.dmg && h.dmg.tail),
     });
 
-    // The milk stream: a pour that you can hear land.
+    // Both milk sources share the stream sound, positioned by their actual outflow.
     const bk = sim.milk.bucket;
+    const bucketRate = bk ? bk.flowOut + bk.spillRate : 0;
+    const tankRate = h?.tank?.flowOut || 0;
+    const pourRate = bucketRate + tankRate;
+    const bucketPan = bucketRate > 0 ? tmp.copy(bk.pos).project(camera).x : 0;
+    const tankPan = tankRate > 0 ? tmp.copy(h.pos).project(camera).x : 0;
     audio.updatePour({
-      rate: started && !paused && bk ? bk.flowOut + bk.spillRate : 0,
+      rate: started && !paused ? pourRate : 0,
       intoLiquid: events.some((e) => e.type === 'milkLand'),
-      pan: bk ? tmp.copy(bk.pos).project(camera).x : 0,
+      pan: pourRate > 0 ? (bucketPan * bucketRate + tankPan * tankRate) / pourRate : 0,
     });
 
     // HUD.

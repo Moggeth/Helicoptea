@@ -10,7 +10,7 @@ import path from 'node:path';
 
 const base = process.argv.find((a) => a.startsWith('http')) || 'http://localhost:4179/';
 const headed = process.argv.includes('--headed');
-const outDir = path.resolve('test-results');
+const outDir = path.resolve('test-results', process.env.SKY_LABEL || '');
 fs.mkdirSync(outDir, { recursive: true });
 const CHROME = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   '/usr/bin/google-chrome', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find((p) => fs.existsSync(p));
@@ -111,12 +111,45 @@ try {
     s = await st(page);
     check('over the cup the prompt offers the doors and the salvo', /doors.*teacup/i.test(s.prompt) && /salvo/i.test(s.prompt), s.prompt);
     const v0 = s.vol, tc0 = s.teacup;
+    // Observe the existing stream channel while real doors discharge a tank filled through the snorkel.
+    await page.evaluate((capture) => {
+      const a = window.__helicoptea.audio, original = a.updatePour.bind(a);
+      const analyser = a.ctx.createAnalyser(); analyser.fftSize = 2048; a.pour.g.connect(analyser);
+      const data = new Float32Array(analyser.fftSize);
+      if (capture) {
+        const dest = a.ctx.createMediaStreamDestination(); a.pour.g.connect(dest);
+        const chunks = [], recorder = new MediaRecorder(dest.stream, { mimeType: 'audio/webm' });
+        window.__pourRecording = recorder;
+        window.__pourRecordingDone = new Promise(resolve => {
+          recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+          recorder.onstop = () => {
+            a.pour.g.disconnect(dest); dest.stream.getTracks().forEach(t => t.stop());
+            const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.readAsDataURL(new Blob(chunks, { type: 'audio/webm' }));
+          };
+        });
+        recorder.start();
+      }
+      const probe = window.__pourProbe = { flow: 0, rate: 0, gain: 0, rms: 0 };
+      a.updatePour = (o) => {
+        original(o);
+        const flow = window.__helicoptea.sim.heli?.tank?.flowOut || 0;
+        if (flow <= 0) return;
+        analyser.getFloatTimeDomainData(data);
+        probe.flow = Math.max(probe.flow, flow); probe.rate = Math.max(probe.rate, o.rate);
+        probe.gain = Math.max(probe.gain, a.pour.g.gain.value);
+        probe.rms = Math.max(probe.rms, Math.sqrt(data.reduce((sum, v) => sum + v * v, 0) / data.length));
+      };
+      window.__stopPourProbe = () => { a.updatePour = original; a.pour.g.disconnect(analyser); analyser.disconnect(); };
+    }, !!process.env.SKY_CAPTURE);
     await page.keyboard.down('KeyG'); await sleep(250);
     const sA = await st(page);
     await sleep(500);
     const sB = await st(page);
     await page.keyboard.up('KeyG'); await sleep(400);
     check('holding G opens the belly doors wider and wider', sA.doors > 0.1 && sB.doors > sA.doors + 0.2, `${sA.doors.toFixed(2)} -> ${sB.doors.toFixed(2)}`);
+    report.pourAudio = await page.evaluate(() => ({ ...window.__pourProbe }));
+    check('tank discharge feeds the milk-stream sound channel', report.pourAudio.flow > 0 && report.pourAudio.rate > 0 && report.pourAudio.gain > 0.001 && report.pourAudio.rms > 0.00001, JSON.stringify(report.pourAudio));
     // double-tap G: salvo
     await page.keyboard.press('KeyG'); await sleep(80); await page.keyboard.press('KeyG');
     await sleep(250);
@@ -127,6 +160,12 @@ try {
     s = await st(page);
     await shot(page, '05-after-drop');
     check('the tank empties into the teacup', s.vol === 0 && s.teacup > tc0 + 0.03, `teacup milk ${(s.teacup * 100).toFixed(1)}%`);
+    const silent = await page.evaluate(() => { window.__stopPourProbe(); return window.__helicoptea.audio.pour.g.gain.value; });
+    check('empty tank stops the continuous pour sound', silent < 0.0001, `stream gain ${silent}`);
+    if (process.env.SKY_CAPTURE) {
+      const audio = await page.evaluate(() => { window.__pourRecording.stop(); return window.__pourRecordingDone; });
+      fs.writeFileSync(path.join(outDir, 'tank-pour.webm'), Buffer.from(audio, 'base64'));
+    }
     check('keyboard: no errors', errors(logs).length === 0, errors(logs).slice(0, 3).join(' | '));
     check('keyboard: no crash', s.state === 'flying');
     report.perf.desktop = await page.evaluate(() => new Promise((res) => { const t0 = performance.now(); let n = 0; const f = (t) => { n++; if (t - t0 < 3000) requestAnimationFrame(f); else res(+(n / ((t - t0) / 1000)).toFixed(1)); }; requestAnimationFrame(f); }));
