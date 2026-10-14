@@ -1,6 +1,6 @@
 # Helicoptea
 
-Fly a 24 g scale-model helicopter (a deliberately serious, realistic light utility helicopter) around a cosy kitchen table, out through the back door or the open window into a little tea garden, hook a tea bag on its string, and dip it into a cup until the tea turns the colour you like. The bag swings, soaks up water, gets heavier, drips, and pulls on the helicopter the whole time. Crash hard and it explodes into its parts.
+Fly a 24 g scale-model helicopter (a deliberately serious, realistic light utility helicopter) around a cosy kitchen table, out through the back door or the open window into a little tea garden, hook a tea bag on its string, and dip it into a cup until the tea turns the colour you like. The bag swings, soaks up water, gets heavier, drips, and pulls on the helicopter the whole time. Crash and it comes apart in one of six ways: blades shattering on a rotor strike, a tail-rotor strike that spins you down, a dunk in the tea, a rollover, a hard hit or a long fall.
 
 Three.js (r169) for rendering, Rapier 3D (0.14, WASM) for rigid bodies and contacts. Everything visual and audible is generated procedurally at runtime, so there are no external asset files (see [docs/ATTRIBUTION.md](docs/ATTRIBUTION.md)).
 
@@ -41,6 +41,10 @@ Look around by dragging the mouse (wheel to zoom), holding **L3** and using the 
 ## Judging height
 
 Every hanging load (bags, the bucket, the skycrane's intake) casts a soft shadow straight down onto whatever is below it, including the tea, and the shadow tightens and darkens as the load closes on the surface. When a load is right over a cup's opening its rim glints, and with a load low over a cup the chase camera closes in and looks a little more steeply into it. An optional plumb line drops from the lowest load (or the hook) to a small laser dot with the height beside it. Each is a switch in the pause menu (the plumb line starts off). See [docs/DESIGN.md](docs/DESIGN.md#depth-cues-srcrenderdepthcuesjs).
+
+## Crashes and damage
+
+Rotor strikes are damaging: brushing something chips the blades (less lift, a shake), and a real strike throws them off, whips the airframe round and drops it. Losing the tail rotor (micro heli and skycrane) leaves you flying but spinning; lower the collective to slow the spin and put it down. Each way of crashing has its own effect and sound, with a beat of slow motion. **Pause → Rotor strikes break the blades** turns strikes off (blades pass through scenery). To try each one, add `?stage=rotor`, `wear`, `tail`, `dunk`, `rollover`, `impact` or `fall` to the URL. See [docs/DESIGN.md](docs/DESIGN.md#crashes-and-damage-srcsimsimjs-srcsimdamagejs-srcrendercrashfxjs).
 
 ## Flight replay and feel notes
 
@@ -88,6 +92,7 @@ node tests/e2e-milk.mjs              # milk bucket: hook, dip, carry, pour with 
 node tests/e2e-skycrane.mjs          # skycrane: snorkel, pump, doors, salvo, auto-fill on keyboard, gamepad and touch
 node tests/e2e-depth.mjs http://localhost:4192/   # depth cues: shadows on table and tea, plumb line, rim glint, camera, toggles
 node tests/e2e-replay.mjs            # flight recording, replay viewer, notes and saving on keyboard, gamepad and touch
+node tests/e2e-crashes.mjs           # every crash kind on every aircraft, strikes, the Rotor strikes setting, crash replays, effect cost
 node tests/e2e-static.mjs            # the build on a plain static host (no /api): browser saving, reload, Download
 ```
 
