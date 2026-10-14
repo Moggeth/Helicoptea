@@ -47,3 +47,10 @@ Measured elapsed seconds, not estimated work durations. Full local ledger:
 | Isolated pre-perf-merge archive/build | 3.86 | Baseline built without modifying active checkout |
 | Final merged full headless checks | 101.43 | 489 passed; other browser tasks active |
 | Explicit bounded wait during browser acceptance | 30.01 | Suite continued; no processes interrupted |
+### 2026-10-14: performance pass
+
+| Time (AEDT) | Work |
+|---|---|
+| 16:10–16:40 | Worktree, frame stats, benchmark, 4K baseline (37–62 fps uncapped, 55–115 synced) |
+| 16:40–17:30 | AO pipeline, shadow once per frame, shadow cache, vase glass, Ultra tier; vsync measurement; rebases onto 86eb316 and cf8d54e |
+| 17:30–19:00 | Phone-path profiling: allocations, matrices, layout reads, shader-variant swaps, draw-call merges; F2 readout; dynamic resolution; suites; rebases onto 25e6222 and fa437a8; final measurements |
