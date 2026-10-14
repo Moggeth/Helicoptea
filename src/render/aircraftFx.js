@@ -505,7 +505,7 @@ export const FX_SPECS = {
     gearTravel: 0.0022,
     rotors: (m) => [{
       group: m.userData.rotor, blades: [0, 1, 2, 3, 4, 5].map((k) => m.userData.parts[`blade${k}`]),
-      radius: CFG.skycrane.rotorRadius, dir: 1, coneK: 0.06, droop: 0.045, ownTiltX: true,
+      radius: CFG.skycrane.rotorRadius, dir: 1, coneK: 0.06, droop: 0.045,
       tip: [0.92, 0.9, 0.86],
     }],
     lights: [
