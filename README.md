@@ -143,9 +143,14 @@ low quality at about 100k rendered pixels with longer physics catch-up, so the w
 Frame-rate checks show as warnings in the run summary there instead of failing; everything else must pass. Screenshots and reports
 are attached to each run as `test-results`.
 
-Vercel builds the same repo as a static Vite site (`vercel.json`: `npm run build`, output `dist/`, hashed
-`assets/` cached for a year, `index.html` always revalidated). `master` deploys to production and every
-other branch or pull request gets a preview URL.
+The repo is configured for Vercel as a static Vite site (`vercel.json`: `npm run build`, output `dist/`,
+hashed `assets/` cached for a year, `index.html` always revalidated). **Hosting connection pending:** on
+14 October 2026, GitHub publication succeeded, but the connected Vercel account had no Helicoptea project
+and rejected project creation with HTTP 403 Forbidden. A permitted Vercel account must import/connect
+`Moggeth/Helicoptea` before automatic deployments work. Configure `master` as the production branch;
+other branches and pull requests can then receive preview URLs. Do not treat a Git push as proof of a
+successful production deployment. The user has granted standing permission for validated pushes and
+production deployments; see `AGENTS.md`.
 
 ## Controls
 

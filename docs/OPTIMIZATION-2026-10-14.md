@@ -22,9 +22,18 @@ runtime; both appended timing records were retained when resolving the one docum
 
 No Claude task was interrupted or messaged. Other browser test processes were discovered on this machine;
 only this task's obsolete runner trees were stopped. An independent process pushed some early local fixes
-while this pass ran. This task has not pushed: `origin` is the public Moggeth/Helicoptea repository and
-master deploys production. The user subsequently approved publication and granted standing permission on
+while this pass ran. Publication was initially held because `origin` is the public Moggeth/Helicoptea repository.
+The user subsequently approved publication and granted standing permission on
 14 October 2026 to push validated commits and trigger production deployments; see `AGENTS.md`.
+
+Publication follow-up: `b22f1b7` and all validated preceding commits were pushed to `origin/master`;
+local and remote were synced. GitHub CI run `38532748902` was queued. No Vercel deployment existed for
+this or the preceding remote commit. The connected personal Vercel account/team had no Helicoptea
+project; `create_git_project` for the verified repository/team failed with **403 Forbidden: You don't
+have permission to create the project**. No configured Vercel CLI was available, and that operation has
+no mapped CLI fallback. Do not retry unchanged or assume signing in again will fix it. Project creation
+and Git linkage need a permitted Vercel account before production deployment can be verified. The README
+now distinguishes the checked-in hosting configuration from an actual connected deployment.
 
 ## Repairs
 
