@@ -194,7 +194,7 @@ export function decodeFlight(json, buf) {
 }
 
 // ---------------------------------------------------------------- a flight
-let seq = 0;
+let seq = Math.floor(Math.random() * 900);  // two tabs starting flights in the same second get different ids
 const pad2 = (n) => String(n).padStart(2, '0');
 export function flightId(aircraft, d = new Date()) {
   seq = (seq + 1) % 1000;

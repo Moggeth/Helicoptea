@@ -107,11 +107,30 @@ export class ReplayViewer {
     this.text = q('.rp-text');
     this.timeEl = q('.rp-time');
     this.saveEl = q('.rp-save');
+    // Buttons act on click, and on touch also on lifting the finger: Chrome turns a press held a little
+    // long (or a tap while the page is busy) into a long press and never sends the click.
+    const press = (t) => {
+      const b = t.closest('[data-rp]');
+      if (b) { this.act(b.dataset.rp, b.dataset); if (b.dataset.rp !== 'add') b.blur(); return; }
+      this.listPress(t);
+    };
+    let touchDown = null, touchDone = null;
+    el.addEventListener('pointerdown', (e) => { touchDown = e.pointerType === 'touch' ? e.target.closest('[data-rp], .rp-list button') : null; });
+    el.addEventListener('pointerup', (e) => {
+      const b = touchDown;
+      touchDown = null;
+      if (!b || e.pointerType !== 'touch') return;
+      const r = b.getBoundingClientRect();
+      if (e.clientX < r.left - 8 || e.clientX > r.right + 8 || e.clientY < r.top - 8 || e.clientY > r.bottom + 8) return;
+      touchDone = { b, t: performance.now() };
+      press(b);
+    });
+    el.addEventListener('pointercancel', () => { touchDown = null; });
     el.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-rp]');
-      if (!b) return;
-      this.act(b.dataset.rp, b.dataset);
-      if (b.dataset.rp !== 'add') b.blur();
+      // The click that follows a handled touch is not a second press, even when it lands on the button that
+      // has just taken the pressed one's place (a phone shows only the current speed and camera).
+      if (touchDone && (e.pointerType === 'touch' || performance.now() - touchDone.t < 1000)) { touchDone = null; return; }
+      press(e.target);
     });
     this.sel.addEventListener('change', () => this.selectFlight(this.sel.value));
     this.input.addEventListener('keydown', (e) => {
@@ -119,15 +138,7 @@ export class ReplayViewer {
       else if (e.key === 'Escape') { e.preventDefault(); this.input.blur(); }
       e.stopPropagation();
     });
-    this.list.addEventListener('click', (e) => {
-      const row = e.target.closest('[data-note]');
-      if (!row || !this.flight) return;
-      const n = this.flight.notes.find((x) => x.id === row.dataset.note);
-      if (!n) return;
-      if (e.target.closest('.rp-del')) { this.flight.notes.splice(this.flight.notes.indexOf(n), 1); this.notesChanged(); return; }
-      if (e.target.closest('.rp-chip')) { const order = ['good', 'bad', 'note']; n.tag = order[(order.indexOf(n.tag) + 1) % order.length]; this.notesChanged(); return; }
-      if (e.target.closest('.rp-at')) { this.seek(n.i); this.playing = false; }
-    });
+
     this.list.addEventListener('change', (e) => {
       const row = e.target.closest('[data-note]');
       const n = row && this.flight && this.flight.notes.find((x) => x.id === row.dataset.note);
@@ -171,6 +182,17 @@ export class ReplayViewer {
     stage.addEventListener('wheel', (e) => { e.preventDefault(); this.zoom(e.deltaY * 0.0012); }, { passive: false });
     this.onKey = (e) => this.key(e);
     this.onResize = () => { this.sizeCanvases(); this.drawTimeline(); };
+  }
+
+  // A button in the notes list: jump to the note, change its tag, or delete it.
+  listPress(t) {
+    const row = t.closest('[data-note]');
+    if (!row || !this.flight || !this.list.contains(row)) return;
+    const n = this.flight.notes.find((x) => x.id === row.dataset.note);
+    if (!n) return;
+    if (t.closest('.rp-del')) { this.flight.notes.splice(this.flight.notes.indexOf(n), 1); this.notesChanged(); return; }
+    if (t.closest('.rp-chip')) { const order = ['good', 'bad', 'note']; n.tag = order[(order.indexOf(n.tag) + 1) % order.length]; this.notesChanged(); return; }
+    if (t.closest('.rp-at')) { this.seek(n.i); this.playing = false; }
   }
 
   // ---------------------------------------------------------------- open / close

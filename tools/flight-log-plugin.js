@@ -64,7 +64,7 @@ export function flightLogPlugin(opts = {}) {
       if (m[2] === 'json') JSON.parse(body.toString('utf8')); // refuse anything that isn't JSON
       fs.mkdirSync(dir, { recursive: true });
       // Write then rename, so a reader never sees half a file.
-      const tmp = `${file}.${process.pid}.tmp`;
+      const tmp = `${file}.${process.pid}-${Math.random().toString(36).slice(2)}.tmp`;  // unique: two tabs may save at once
       fs.writeFileSync(tmp, body);
       fs.renameSync(tmp, file);
       res.setHeader('Content-Type', 'application/json');

@@ -77,7 +77,8 @@ const hold = async (page, keys, ms) => { for (const k of keys) await page.keyboa
   await page.click('.overlay [data-act=replay]');
   await sleep(500);
   let s = await rp(page);
-  check('pause menu opens the replay viewer', s.active && s.visible && s.hudHidden && s.paused && s.n === rec.n, `n ${s.n}`);
+  const liveN = await H(page, () => window.__helicoptea.recorder.current.n);
+  check('pause menu opens the replay viewer on this flight', s.active && s.visible && s.hudHidden && s.paused && s.n >= rec.n && s.n === liveN, `n ${s.n}`);
   check('viewer starts playing near the end of the flight', s.playing && s.wall > s.dur - 8.5);
   const simT = s.simTime;
   await sleep(600);
@@ -176,7 +177,9 @@ const hold = async (page, keys, ms) => { for (const k of keys) await page.keyboa
   s = await rp(page);
   const crash = await H(page, () => window.__helicoptea.replay.flight.crash());
   check('crash screen opens the replay a few seconds before the crash', s.active && crash && s.wall < crash.wall + 0.5 && s.wall > crash.wall - 6.5, `at ${s.wall.toFixed(2)}, crash ${crash && crash.wall.toFixed(2)}`);
-  await sleep(4500);
+  // Play on through the crash (at 1x; give a slow machine time to get there).
+  await page.waitForFunction(() => window.__helicoptea.replay.stage.alive === false, null, { timeout: 30000 }).catch(() => {});
+  await sleep(300);
   s = await rp(page);
   const deb = await H(page, () => [...window.__helicoptea.replay.stage.debris.values()].filter((m) => m.visible).length);
   check('the crash replays with its wreckage', s.stageAlive === false && deb >= 6, `${deb} pieces visible`);
@@ -297,7 +300,7 @@ const hold = async (page, keys, ms) => { for (const k of keys) await page.keyboa
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await sleep(150);
   s = await rp(page);
-  check('touch: dragging the picture orbits the camera', Math.hypot(s.camPos[0] - pa[0], s.camPos[2] - pa[2]) > 0.02);
+  check('touch: dragging the picture orbits the camera', s.cam === 'orbit' && Math.hypot(s.camPos[0] - pa[0], s.camPos[2] - pa[2]) > 0.02, s.cam);
   await tap('[data-rp=notes]');
   await page.fill('.rp-input', 'Hose swung into the cup');
   await tap('[data-rp=add][data-tag=bad]');
