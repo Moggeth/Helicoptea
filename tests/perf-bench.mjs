@@ -24,6 +24,10 @@ const window_ = parseInt(opt('ms', '3000'), 10);
 const outName = opt('out', `bench-${W}x${Hh}-${quality}${throttle > 1 ? `-cpu${throttle}x` : ''}`);
 const only = opt('only', '');   // e.g. micro or micro:garden:cockpit
 const extra = opt('query', '');
+// --vsync: keep the browser's normal frame pacing (synced to the display when --headed), to see whether a
+// display's refresh rate is held. --offscreen: a headed window parked off the desktop.
+const vsync = args.includes('--vsync');
+const offscreen = args.includes('--offscreen');
 const outDir = path.resolve('test-results/perf');
 fs.mkdirSync(outDir, { recursive: true });
 const CHROME = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome'].find((p) => fs.existsSync(p));
@@ -31,8 +35,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await chromium.launch({
   executablePath: CHROME, headless: !args.includes('--headed'),
-  args: ['--ignore-gpu-blocklist', '--use-angle=d3d11', '--disable-gpu-vsync', '--disable-frame-rate-limit', '--force-gpu-mem-available-mb=4096',
-    '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', `--window-size=${W},${Hh}`],
+  args: ['--ignore-gpu-blocklist', '--use-angle=d3d11', ...(vsync ? [] : ['--disable-gpu-vsync', '--disable-frame-rate-limit']), '--force-gpu-mem-available-mb=4096',
+    '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', `--window-size=${W},${Hh}`,
+    ...(offscreen ? ['--window-position=-5000,0'] : [])],
 });
 
 const PLACES = {
@@ -50,11 +55,11 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto(`${base}?aircraft=${aircraft}&quality=${quality}&view=chase&record=0&dynres=0${extra ? `&${extra}` : ''}`, { waitUntil: 'load' });
   await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 90000 });
-  await page.click('#start-btn');
+  await page.evaluate(() => document.getElementById('start-btn').click());
   await page.waitForFunction(() => window.__helicoptea?.started);
   gpuName = await page.evaluate(() => {
     const gl = window.__helicoptea.renderer.getContext(); const e = gl.getExtension('WEBGL_debug_renderer_info');
-    return `${e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)} | timer queries ${window.__helicoptea.perf.ext ? 'yes' : 'no'}`;
+    return `${e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)} | timer queries ${window.__helicoptea.perf ? (window.__helicoptea.perf.ext ? 'yes' : 'no') : 'n/a (old build)'}`;
   });
   await page.evaluate(() => {
     const H = window.__helicoptea; H.doAction('skiphints');
@@ -122,7 +127,21 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
       if (throttle > 1) await cdp.send('Emulation.setCPUThrottlingRate', { rate: throttle });
       await sleep(settle);
       const r = await page.evaluate(async (ms) => {
-        const H = window.__helicoptea, P = H.perf;
+        const H = window.__helicoptea;
+        // Builds from before the in-game frame stats: time frames from our own rAF loop instead.
+        const P = H.perf || (() => {
+          const d = [], q = { phase: { sim: 0, update: 0, render: 0 }, gpuMs: -1, phaseMax: () => ({}) };
+          let last = 0;
+          const loop = (t) => { if (last) d.push(t - last); last = t; if (!q.stop) requestAnimationFrame(loop); };
+          requestAnimationFrame(loop);
+          q.summary = () => {
+            q.stop = true;
+            const a = d.slice().sort((x, y) => x - y), k = a.length, m = Math.max(1, Math.floor(k * 0.01));
+            const avg = a.reduce((x, y) => x + y, 0) / k, slow = a.slice(k - m).reduce((x, y) => x + y, 0) / m;
+            return { low1: 1000 / slow, p99Ms: a[Math.floor(k * 0.99)], worstMs: a[k - 1], cpuMs: -1, cpuP99: -1, cpuMax: -1 };
+          };
+          return q;
+        })();
         if (window.__gpuDetail) { window.__gpuDetail.ms = {}; window.__gpuDetail.calls = {}; window.__gpuDetail.frames = 0; }
         const f0 = H.frames, t0 = performance.now();
         await new Promise((res) => setTimeout(res, ms));
