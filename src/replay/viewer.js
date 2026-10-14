@@ -18,6 +18,7 @@ const WINDOWS = [5, 10, 30, 0];  // graph window in seconds (0: the whole flight
 const EVENT_STYLE = {
   crash: ['#ff5a3c', 1], touchdown: ['#9fd3a8', 0.7], bump: ['#f2b84b', 0.7], snatch: ['#c79bff', 0.7], scrape: ['#bcae9a', 0.35],
   attach: ['#7fc4ff', 0.6], release: ['#7fc4ff', 0.45], rotorTick: ['#ff9a6b', 0.5], splash: ['#d0a070', 0.5],
+  rotorShatter: ['#ff7a3c', 0.9], tailStrike: ['#ffb347', 0.8], teaStrike: ['#c08a50', 0.5],
 };
 const STRIPS = [
   { name: 'Sticks', lines: [['in.pitch', '#7fc4ff', 'pitch'], ['in.roll', '#f2b84b', 'roll'], ['in.yaw', '#c79bff', 'yaw'], ['in.coll', '#9fd3a8', 'coll']], range: [-1, 1] },

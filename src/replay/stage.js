@@ -8,6 +8,7 @@ import { cloneSkycranePart } from '../render/skycraneModel.js';
 import { milkyTea } from '../render/water.js';
 import { surfaceY } from '../sim/layout.js';
 import { CH, NCH, sampleEntity, ROPE_POINTS, HOSE_POINTS } from './format.js';
+import { applyDamageLook } from '../render/crashFx.js';
 
 // Poses the scene from a recorded flight. Nothing is re-simulated: every transform comes from the
 // snapshots, interpolated between samples. Live objects that the recording doesn't own are hidden while
@@ -19,6 +20,7 @@ const UP = new THREE.Vector3(0, 1, 0);
 const HUB = { micro: CFG.heli.rotorHubOffset, chinook: [0, 0.048, 0], skycrane: CFG.skycrane.hub };
 const SMOOTH = 28;
 const BAG_ANCHOR = CFG.cargo.bagHalf[1];
+const FX_EVENTS = new Set(['crash', 'rotorShatter', 'tailStrike', 'teaStrike', 'rotorTick']); // drawn by the crash effects
 
 // Angle interpolation the short way round (rotor phases wrap).
 function lerpAngle(a, b, f) { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return a + d * f; }
@@ -108,7 +110,7 @@ export class ReplayStage {
     const lerp = A[CH.alive] === B[CH.alive] ? t : 0;
     for (let k = 0; k < r.length; k++) r[k] = A[k] + (B[k] - A[k]) * lerp;
     for (const k of [CH.rotorPhase, CH.rotorPhase2, CH.tailPhase]) r[k] = lerpAngle(A[k], B[k], lerp);
-    for (const k of [CH.src, CH.assist, CH.alive, CH.grounded, CH.nCarried]) r[k] = lerp < 0.5 ? A[k] : B[k];
+    for (const k of [CH.src, CH.assist, CH.alive, CH.grounded, CH.nCarried, CH.shed]) r[k] = lerp < 0.5 ? A[k] : B[k];
     _q.set(A[CH.qx], A[CH.qy], A[CH.qz], A[CH.qw]);
     _iq.set(B[CH.qx], B[CH.qy], B[CH.qz], B[CH.qw]);
     _q.slerp(_iq, lerp);
@@ -126,6 +128,7 @@ export class ReplayStage {
     this.heliQuat.set(r[CH.qx], r[CH.qy], r[CH.qz], r[CH.qw]);
     const models = { micro: v.heliModel, chinook: v.chinookModel, skycrane: v.skycrane.model };
     for (const [k, m] of Object.entries(models)) m.visible = alive && k === type;
+    if (alive) applyDamageLook(models[type], type, r[CH.shed]);
     v.setFirstPerson(alive && firstPerson);
     const rs = r[CH.rotorSpeed];
     if (alive) {
@@ -355,43 +358,23 @@ export class ReplayStage {
     return m;
   }
 
-  // Effects replayed from events: the explosion as playback passes the crash, dust at touchdowns.
+  // Effects replayed from events: each crash's own effect as playback passes it, strikes, dust at touchdowns.
   fx(f, s, playDt) {
     const v = this.view;
     const prev = this.lastS;
     if (s > prev && s - prev < 30) {
       for (const e of f.events) {
         if (e.i <= prev || e.i > s) continue;
-        if (e.type === 'crash' && e.pos) this.explode(e, f);
+        if (FX_EVENTS.has(e.type)) v.crashFx.play({ ...e, aircraft: f.aircraft, scale: e.scale ?? (f.aircraft === 'micro' ? 1 : 1.5) });
         else if ((e.type === 'touchdown' || e.type === 'bump') && e.pos) v.dust(_p.set(...e.pos), Math.min(1, (e.speed || e.dv || 0.3) * 2));
       }
-    } else if (Math.abs(s - prev) > 1e-6) { v.fx.clear(); v.smoke.clear(); }
+    } else if (Math.abs(s - prev) > 1e-6) { v.fx.clear(); v.smoke.clear(); v.crashFx.clear(); }
     const floorFn = (x, z) => surfaceY(x, z) + 0.001;
     const calm = (x, y, z, o) => o.set(0, 0, 0);
     v.fx.update(playDt, floorFn, calm);
     v.smoke.update(playDt, floorFn, calm);
+    v.crashFx.update(playDt);
     v.flashT += playDt;
     v.flash.intensity = v.flashT < 0.6 ? 7 * Math.exp(-v.flashT * 9) : 0;
-  }
-
-  explode(e, f) {
-    const v = this.view, P = _p.set(...e.pos);
-    const k = f.aircraft === 'micro' ? 1 : 1.5;
-    const vel = e.vel ? { x: e.vel[0], y: e.vel[1], z: e.vel[2] } : { x: 0, y: 0, z: 0 };
-    const rand = (a, b) => a + Math.random() * (b - a);
-    v.flash.position.copy(P); v.flashT = 0;
-    v.fx.emit({ p: [P.x, P.y, P.z], v: [0, 0, 0], life: 0.14 * k, size0: 0.16 * k, size1: 0.26 * k, col0: [1, 0.75, 0.45], alpha: 0.75 });
-    for (let i = 0; i < 30; i++) {
-      const d = new THREE.Vector3(rand(-1, 1), rand(-0.3, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0.25, 0.85) * k);
-      v.fx.emit({ p: [P.x, P.y, P.z], v: [d.x + vel.x * 0.4, d.y + vel.y * 0.2, d.z + vel.z * 0.4], life: rand(0.35, 0.75) * k, size0: rand(0.02, 0.035) * k, size1: rand(0.05, 0.085) * k, col0: [1, rand(0.55, 0.7), 0.25], col1: [0.7, 0.14, 0.02], alpha: 0.45, grav: -0.6, drag: 5 });
-    }
-    for (let i = 0; i < 60; i++) {
-      const d = new THREE.Vector3(rand(-1, 1), rand(-0.2, 1.2), rand(-1, 1)).normalize().multiplyScalar(rand(0.8, 3.0));
-      v.fx.emit({ p: [P.x, P.y, P.z], v: [d.x + vel.x * 0.5, d.y, d.z + vel.z * 0.5], life: rand(0.5, 1.4), size0: rand(0.003, 0.006), size1: 0.0015, col0: [1, 0.95, 0.7], col1: [1, 0.35, 0.08], alpha: 1, grav: 9.81, drag: 0.8, kind: 1 });
-    }
-    for (let i = 0; i < 26; i++) {
-      const d = new THREE.Vector3(rand(-1, 1), rand(0, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0.08, 0.35));
-      v.smoke.emit({ p: [P.x, P.y, P.z], v: [d.x, d.y + rand(0.1, 0.3), d.z], life: rand(1.6, 3.4), size0: rand(0.03, 0.05), size1: rand(0.14, 0.24), col0: [0.18, 0.16, 0.15], col1: [0.55, 0.53, 0.5], alpha: 0.55, grav: -0.05, drag: 1.6 });
-    }
   }
 }

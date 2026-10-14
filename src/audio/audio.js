@@ -1,6 +1,8 @@
 // Procedural Web Audio: every sound is synthesised at runtime (no sample files, no licences needed).
 // The rotor bed responds to rotor speed and load, so the sound carries physical feedback.
 
+import { crashSound } from './crashAudio.js';
+
 export class Audio {
   constructor() {
     this.ctx = null;
@@ -89,7 +91,7 @@ export class Audio {
   updateRotor(state) {
     if (!this.ready) return;
     const t = this.ctx.currentTime;
-    const { alive, rotorSpeed, thrustFrac, load, pan, dist, heavy, crane, agility = 0, cushion = 0 } = state;
+    const { alive, rotorSpeed, thrustFrac, load, pan, dist, heavy, crane, agility = 0, cushion = 0, wear = 0, tailGone = false } = state;
     const rs = alive ? rotorSpeed : 0;
     // Blade-pass frequency (Hz): two blades on the toy rotor; three slower, broader blades per rotor
     // on the Chinook, whose second rotor (in place of a tail rotor) beats slightly against the first.
@@ -104,10 +106,10 @@ export class Audio {
     this.airF.frequency.setTargetAtTime(700 + 2200 * strain, t, 0.08);
     this.airG.gain.setTargetAtTime(0.05 + 0.18 * strain + 0.08 * cushion, t, 0.06);
     // Blade slap: hard manoeuvring loads the blades and the chop bites harder.
-    this.chopDepth.gain.setTargetAtTime(0.12 + 0.28 * Math.min(1, agility), t, 0.05);
+    this.chopDepth.gain.setTargetAtTime(0.12 + 0.28 * Math.min(1, agility) + 0.5 * wear, t, 0.05); // chipped blades thump
     this.tail.frequency.setTargetAtTime(Math.max(20, crane ? bpf * 3.4 : heavy ? bpf * 1.018 : bpf * 3.1), t, 0.05);
     this.tailF.frequency.setTargetAtTime(Math.max(50, crane ? bpf * 6 : heavy ? bpf * 2.4 : bpf * 6.2), t, 0.05);
-    this.tailG.gain.setTargetAtTime(crane ? 0.02 : heavy ? 0.03 : 0.012, t, 0.1);
+    this.tailG.gain.setTargetAtTime(tailGone && !heavy ? 0 : crane ? 0.02 : heavy ? 0.03 : 0.012, t, 0.1);
     this.rotorOut.gain.setTargetAtTime(alive ? (0.32 + 0.4 * strain) * near * (heavy || crane ? 1.25 : 1) : 0, t, alive ? 0.08 : 0.03);
     this.rotorPan.pan.setTargetAtTime(Math.max(-0.8, Math.min(0.8, pan)), t, 0.05);
   }
@@ -183,9 +185,11 @@ export class Audio {
     for (const e of events) {
       const pan = e.pos ? panOf(e.pos) : 0;
       switch (e.type) {
-        case 'crash': this.explosion(pan, Math.min(1.2, 0.7 + e.impact * 0.2)); break;
+        case 'crash': case 'rotorShatter': case 'tailStrike': case 'teaStrike': crashSound(this, e, pan); break;
         case 'bump': this.noiseBurst({ freq: 380, q: 1.4, gain: Math.min(0.5, 0.12 + e.dv * 0.35), decay: 0.12, pan }); this.tone({ freq: 140, to: 70, gain: 0.15 * Math.min(1, e.dv), decay: 0.12, pan }); break;
-        case 'rotorTick': this.noiseBurst({ freq: 3200, q: 3, gain: 0.12, decay: 0.03, pan }); break;
+        case 'rotorTick':
+          if (now - (this.lastTick || 0) > 0.03) { this.lastTick = now; crashSound(this, e, pan); }
+          break;
         case 'splash': {
           const s = Math.min(1.2, e.speed);
           this.tone({ freq: 620 + Math.random() * 120, to: 180, gain: 0.12 + 0.2 * s, attack: 0.004, decay: 0.16, pan });

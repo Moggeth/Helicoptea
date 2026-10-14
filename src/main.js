@@ -21,6 +21,8 @@ import { FlightRecorder } from './replay/recorder.js';
 import { FlightStore } from './replay/store.js';
 import { ReplayStage } from './replay/stage.js';
 import { ReplayViewer } from './replay/viewer.js';
+import { stageCrash, STAGES } from './sim/crashStage.js';
+import { CrashCinema, crashMessage, crashTitle } from './game/crashCinema.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -88,6 +90,8 @@ async function boot() {
   // Phones and the low tier get fewer loose props (they also sleep when still).
   quality.liteProps = IS_TOUCH || quality.name === 'low';
   const sim = new Sim({ aircraft: AIRCRAFT_IDS.includes(wantAircraft) ? wantAircraft : 'micro', lite: quality.liteProps });
+  // Rotor strikes break the blades (on by default; off, blades pass through scenery).
+  sim.damage.rotorStrikes = (params.get('rotorStrikes') || store.get('rotorStrikes', '1')) !== '0';
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(CFG.camera.fov, innerWidth / innerHeight, 0.01, 60);
@@ -154,6 +158,7 @@ async function boot() {
       if (k === 'fpFov' || k === 'fpMotion' || k === 'fpVibration') { fp[{ fpFov: 'fov', fpMotion: 'motion', fpVibration: 'vibration' }[k]] = v; store.set(k, String(v)); }
       if (k === 'loadCam') { fp.loadCam = v; store.set('loadCam', v); }
       if (k.startsWith('cue.')) { depth.set(k.slice(4), v); store.set(k, v ? '1' : '0'); }
+      if (k === 'rotorStrikes') { sim.damage.rotorStrikes = !!v; store.set(k, v ? '1' : '0'); }
     },
   });
   const flow = new Flow(sim, hud);
@@ -163,7 +168,7 @@ async function boot() {
   const flightStore = new FlightStore();
   const recorder = new FlightRecorder(sim, {
     getInput: () => ({ source: input.source, kb: input.kb, gp: input.gp, touch: input.touch, raw: input.pads.raw }),
-    settings: () => ({ view: fp.mode, quality: quality.name, weight, touchUi: IS_TOUCH }),
+    settings: () => ({ view: fp.mode, quality: quality.name, weight, touchUi: IS_TOUCH, rotorStrikes: sim.damage.rotorStrikes }),
     onFlightEnd: (f) => flightStore.save(f),
   });
   if (params.get('record') === '0') recorder.enabled = false;
@@ -209,7 +214,7 @@ async function boot() {
     } else hud.openPause(pauseOpts());
   }
 
-  function pauseOpts() { return { quality: quality.setting, debug: debug.enabled, aircraft: sim.aircraft, weight, view: fp.mode, fpFov: fp.fov, fpMotion: fp.motion, fpVibration: fp.vibration, loadCam: fp.loadCam, cues: { ...depth.settings } }; }
+  function pauseOpts() { return { quality: quality.setting, debug: debug.enabled, aircraft: sim.aircraft, weight, view: fp.mode, fpFov: fp.fov, fpMotion: fp.motion, fpVibration: fp.vibration, loadCam: fp.loadCam, cues: { ...depth.settings }, rotorStrikes: sim.damage.rotorStrikes }; }
 
   function setView(mode) {
     if (mode !== 'chase' && mode !== 'cockpit') return;
@@ -479,6 +484,11 @@ async function boot() {
   let lastRender = 0;
   let crashShown = false;
   let renderedFrames = 0;
+  // A crash plays out in a moment of slow motion (the replay keeps it). ?stage=tail (or rotor, wear, dunk,
+  // rollover, impact, fall) stages that crash shortly after each start, for trying them by hand.
+  const cinema = new CrashCinema();
+  const stageKind = STAGES.includes(params.get('stage')) ? params.get('stage') : null;
+  let stageT = stageKind ? 1.2 : -1;
   const camTarget = new THREE.Vector3();
   const tmp = new THREE.Vector3();
 
@@ -524,10 +534,16 @@ async function boot() {
 
     // Fixed-step simulation with capped catch-up.
     let steps = 0;
-    recorder.worldSpeed = worldSpeed;
+    if (started && !paused) cinema.update(frameDt);
+    const runSpeed = worldSpeed * cinema.scale;
+    recorder.worldSpeed = runSpeed;
+    if (stageT > 0 && started && !paused && sim.state === 'flying' && (stageT -= frameDt) <= 0) {
+      const what = stageCrash(sim, stageKind);
+      if (what) hud.toast(what, 3);
+    }
     const tPhys = performance.now();
     if (started && !paused) {
-      acc += frameDt * worldSpeed;
+      acc += frameDt * runSpeed;
       while (acc >= dt && steps < CFG.physics.maxStepsPerFrame) {
         sim.step(ctl);
         recorder.afterStep(ctl);
@@ -547,16 +563,16 @@ async function boot() {
     audio.handleEvents(events, (p) => THREE.MathUtils.clamp(tmp.copy(p).project(camera).x, -1, 1)); // in the cockpit, points can sit beside or behind the eye
     for (const e of events) {
       if (e.type === 'crash') {
-        const why = e.reason === 'impact' ? `Hit at ${(e.impact).toFixed(1)} m/s. The table won.`
-          : e.reason === 'rotor strike' ? 'Rotor strike. Blades and china do not mix.'
-            : e.reason === 'rollover' ? 'Tipped over. Keep it level near the surface.' : 'Down she goes.';
-        hud.showCrash(why);
+        hud.showCrash(crashMessage(e), crashTitle(e));
+        cinema.crash(e);
         crashShown = true;
         // From the cockpit: a moment of violent shake and flash in the seat, then out to the wreck.
         if (fp.wasLive) { fp.crashT = 0.42; fp.flash = 1; }
         if (input.source === 'gamepad') hud.focusFirst();
       }
-      if (e.type === 'restart') { crashShown = false; hud.hideCrash(); fp.crashT = 0; fpRig.reset(); fpRig.lookYaw = fpRig.lookPitch = 0; }
+      if (e.type === 'rotorShatter') cinema.strike(0.5);
+      if (e.type === 'tailStrike') { cinema.strike(0.3); hud.toast('Tail rotor gone: lower the collective to slow the spin', 3.5); }
+      if (e.type === 'restart') { if (stageKind) stageT = 1.2; cinema.reset(); crashShown = false; hud.hideCrash(); fp.crashT = 0; fpRig.reset(); fpRig.lookYaw = fpRig.lookPitch = 0; }
       if (e.type === 'autoFill') hud.toast({ pump: 'Intake in: pumping', up: e.full ? 'Tank full: reeling in' : 'Source dry: reeling in', done: 'Snorkel stowed' }[e.phase], 1.6);
     }
     // Rumble as physical feedback (only when flying with a controller).
@@ -567,7 +583,9 @@ async function boot() {
         else if (e.type === 'attach') input.pads.rumble(0, 0.35, 50);
         else if (e.type === 'release') input.pads.rumble(0, 0.25, 40);
         else if (e.type === 'splash' || e.type === 'bucketSplash') input.pads.rumble(0.1, Math.min(0.5, 0.15 + e.speed * 0.4), 90);
-        else if (e.type === 'rotorTick') input.pads.rumble(0.25, 0.4, 30);
+        else if (e.type === 'rotorTick') input.pads.rumble(e.harmless ? 0.05 : 0.25, e.harmless ? 0.1 : 0.4, 30);
+        else if (e.type === 'rotorShatter') input.pads.rumble(0.9, 1, 320);
+        else if (e.type === 'tailStrike') input.pads.rumble(0.4, 0.8, 200);
         else if (e.type === 'touchdown') input.pads.rumble(Math.min(0.7, e.speed * 0.9), 0.2, 80);
         else if (e.type === 'scrape') input.pads.rumble(0.05, Math.min(0.35, e.speed * 0.5), 60);
         else if (e.type === 'snatch') input.pads.rumble(Math.min(0.5, e.speed * 0.5), 0.3, 60);
@@ -576,7 +594,7 @@ async function boot() {
 
     // Camera.
     const rd = started && !paused ? frameDt : 0;
-    view.update(alpha, rd * worldSpeed, camera); // world effects share the world's clock
+    view.update(alpha, rd * runSpeed, camera); // world effects share the world's clock (slow motion too)
     const heading = sim.heli ? sim.heli.heading() : camRig.yaw;
     camRig.sizeScale += (({ chinook: 1.45, skycrane: 1.55 }[sim.aircraft] || 1) - camRig.sizeScale) * Math.min(1, rd * 3);
     const look = input.takeLook();
@@ -634,6 +652,8 @@ async function boot() {
       crane: sim.aircraft === 'skycrane',
       pan: h && !fpView ? tmp.copy(h.pos).project(camera).x : 0,
       dist: h ? camera.position.distanceTo(h.pos) : 1,
+      wear: h && h.dmg ? Math.max(...h.dmg.wear) : 0,
+      tailGone: !!(h && h.dmg && h.dmg.tail),
     });
 
     // The milk stream: a pour that you can hear land.
@@ -706,7 +726,7 @@ async function boot() {
   requestAnimationFrame(frame);
 
   // Expose a tiny handle for console debugging and automated checks.
-  window.__helicoptea = { cloth: kitchen.cloth, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
+  window.__helicoptea = { stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
 }
 
 boot().catch((err) => showError('Helicoptea failed to start. Please reload.', err));

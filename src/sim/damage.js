@@ -242,6 +242,7 @@ export class Damage {
     const sim = this.sim, D = heli.dmg;
     if (D.shed & (1 << i)) return;
     D.shed |= 1 << i;
+    D.struck = material;
     const R = rotorsOf(heli.type)[i];
     const body = heli.body;
     const av = body.angvel();
@@ -349,9 +350,10 @@ export class Damage {
     const over = heli.up.y < CFG.crash.rolloverUpY;
     // A hard hit after a long drop (onto the floor or the garden) is a fall; damage names its own cause.
     const why = D && D.tail ? 'tail strike' : D && D.shed ? 'rotor strike' : heli.predVel.y < -FALL_SPEED && heli.pos.y < FALL_BELOW ? 'fall' : 'impact';
-    if (impact > heli.def.impactDv) return { reason: why, impact, material };
-    if (D && D.hulk && ((anyContact && impact > CFG.crash.bumpDv) || D.shedT > DAMAGE.hulkTime)) return { reason: over && anyContact ? 'rollover' : 'rotor strike', impact: Math.max(impact, speed), material };
-    if (D && D.shed & 3 && !D.hulk && D.shedT > DAMAGE.oneRotorTime) return { reason: 'rotor strike', impact: speed, material };
+    const struck = D && D.struck ? D.struck : material; // a rotor strike is named for what the blades hit
+    if (impact > heli.def.impactDv) return { reason: why, impact, material: why === 'rotor strike' ? struck : material };
+    if (D && D.hulk && ((anyContact && impact > CFG.crash.bumpDv) || D.shedT > DAMAGE.hulkTime)) return { reason: over && anyContact ? 'rollover' : 'rotor strike', impact: Math.max(impact, speed), material: struck };
+    if (D && D.shed & 3 && !D.hulk && D.shedT > DAMAGE.oneRotorTime) return { reason: 'rotor strike', impact: speed, material: struck };
     if (heli.pos.y < -0.72 && heli.up.y < 0.5) return { reason: 'floor', impact: 1, material };
     if (anyContact && over) return { reason: D && D.tail ? 'tail strike' : 'rollover', impact: 1, material };
     return null;

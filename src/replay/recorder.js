@@ -184,6 +184,7 @@ export class FlightRecorder {
       if (h.tilt) { r[CH.tilt0] = h.tilt[0] || 0; r[CH.tilt1] = h.tilt[1] || 0; }
       r[CH.load] = h.load || 0;
       r[CH.impactAcc] = h.impactAcc || 0; r[CH.rotorContact] = h.rotorContact || 0;
+      if (h.dmg) { r[CH.wear] = Math.max(...h.dmg.wear); r[CH.shed] = h.dmg.shed; r[CH.spin] = h.dmg.tail ? h.dmg.spin * D : 0; }
       const tk = h.tank;
       if (tk) {
         r[CH.tankFill] = tk.vol / tk.capacity; r[CH.tankDoors] = tk.doors; r[CH.pumping] = tk.pumping ? 1 : 0;

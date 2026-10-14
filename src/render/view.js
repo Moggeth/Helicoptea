@@ -13,6 +13,7 @@ import { buildChinook, cloneChinookPart } from './chinookModel.js';
 import { MilkView } from './milkView.js';
 import { SkycraneView } from './skycraneView.js';
 import { cloneSkycranePart } from './skycraneModel.js';
+import { CrashFx } from './crashFx.js';
 
 const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _c = new THREE.Color();
 const _pinA = new THREE.Vector3(), _pinL = new THREE.Vector3(), _pinQ = new THREE.Quaternion();
@@ -123,6 +124,7 @@ export class View {
     this.birdbath = this.liquid.add(new TeaSurface({ x: B.x, z: B.z, rIn: B.r * 0.86, waterY: B.top - 0.02, topY: B.top, brew: 0, milk: 0, steep: 0 },
       kitchen.sun.position.clone().sub(kitchen.sun.target.position), { water: { color: 0x5d7a72, opacity: 0.82 }, wall: 0xb9b2a2, rim: 0xd0c9b8, fieldN: quality.name === 'high' ? 48 : 36 }));
     scene.add(this.birdbath.mesh);
+    this.crashFx = new CrashFx(this);
   }
 
   // In first person the cabin (and whatever around it the eye sits inside) only casts its shadow;
@@ -162,14 +164,15 @@ export class View {
         case 'splash': this.splash(e); break;
         case 'extract': this.extractDrops(e); break;
         case 'drip': this.dripLand(e); break;
-        case 'crash': this.explode(e); camRig.addShake(0.012); break;
+        case 'crash': this.crashFx.crash(e, camRig); break;
+        case 'rotorTick': case 'rotorShatter': case 'tailStrike': case 'teaStrike': this.crashFx.event(e, camRig); break;
         case 'bump': camRig.addShake(Math.min(0.004, e.dv * 0.004)); this.dust(e.pos, e.dv); break;
         case 'touchdown': camRig.addShake(Math.min(0.003, e.speed * 0.004)); this.dust(e.pos, Math.min(1, e.speed * 2)); break;
         case 'scrape': if (Math.random() < 0.5) this.dust(e.pos, Math.min(0.6, e.speed)); break;
         case 'snatch': camRig.addShake(Math.min(0.002, e.speed * 0.002)); break;
         case 'bagRemoved': this.retireBag(e.id); break;
         case 'debrisRemoved': this.retireDebris(e.id); break;
-        case 'reset': this.pendingFx.length = 0; this.fx.clear(); this.smoke.clear(); for (const s of this.scorches) { s.mesh.visible = false; s.age = 99; } for (const s of this.surfaces) s.displayBrew = 0; this.liquid.clear(); break;
+        case 'reset': this.pendingFx.length = 0; this.crashFx.clear(); this.fx.clear(); this.smoke.clear(); for (const s of this.scorches) { s.mesh.visible = false; s.age = 99; } for (const s of this.surfaces) s.displayBrew = 0; this.liquid.clear(); break;
         default: break;
       }
     }
@@ -215,39 +218,24 @@ export class View {
     }
   }
 
-  explode(e) {
+  // The crash: fireball (unless it went into the tea), scorch, and the aircraft handed over to its debris.
+  // opts: fire (default true), fireScale, cold (debris neither glows nor smokes).
+  explode(e, opts = {}) {
     const P = e.pos;
     const k = e.scale || 1;     // the Chinook makes a bigger, longer fire
-    const s = this.quality.particles / 500 * k;
-    // flash
-    this.flash.position.copy(P);
-    this.flashT = 0;
-    this.fx.emit({ p: [P.x, P.y, P.z], v: [0, 0, 0], life: 0.14 * k, size0: 0.16 * k, size1: 0.26 * k, col0: [1, 0.75, 0.45], alpha: 0.75 });
-    for (let i = 0; i < 26 * s + 8; i++) {
-      const d = new THREE.Vector3(rand(-1, 1), rand(-0.3, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0.25, 0.85) * k);
-      this.fx.emit({ p: [P.x, P.y, P.z], v: [d.x + e.vel.x * 0.4, d.y + e.vel.y * 0.2, d.z + e.vel.z * 0.4], life: rand(0.35, 0.75) * k, size0: rand(0.02, 0.035) * k, size1: rand(0.05, 0.085) * k,
-        col0: [1, rand(0.55, 0.7), 0.25], col1: [0.7, 0.14, 0.02], alpha: 0.45, grav: -0.6, drag: 5 });
-    }
-    for (let i = 0; i < 70 * s + 20; i++) {
-      const d = new THREE.Vector3(rand(-1, 1), rand(-0.2, 1.2), rand(-1, 1)).normalize().multiplyScalar(rand(0.8, 3.0));
-      this.fx.emit({ p: [P.x, P.y, P.z], v: [d.x + e.vel.x * 0.5, d.y, d.z + e.vel.z * 0.5], life: rand(0.5, 1.4), size0: rand(0.003, 0.006), size1: 0.0015,
-        col0: [1, 0.95, 0.7], col1: [1, 0.35, 0.08], alpha: 1, grav: 9.81, drag: 0.8, kind: 1 });
-    }
-    for (let i = 0; i < 30 * s + 10; i++) {
-      const d = new THREE.Vector3(rand(-1, 1), rand(0, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0.08, 0.35));
-      this.smoke.emit({ p: [P.x + rand(-0.01, 0.01), P.y, P.z + rand(-0.01, 0.01)], v: [d.x, d.y + rand(0.1, 0.3), d.z], life: rand(1.6, 3.4), size0: rand(0.03, 0.05), size1: rand(0.14, 0.24),
-        col0: [0.18, 0.16, 0.15], col1: [0.55, 0.53, 0.5], alpha: 0.55, grav: -0.05, drag: 1.6 });
-    }
-    // scorch where the blast happened (on the surface below)
-    const hit = this.sim.world.castRay(new RAPIER.Ray({ x: P.x, y: P.y + 0.02, z: P.z }, { x: 0, y: -1, z: 0 }), 0.5, true, undefined, GROUPS.queryWorld);
-    if (hit) {
-      const sc = this.scorches.reduce((a, b) => (a.age > b.age ? a : b));
-      sc.age = 0;
-      sc.mesh.visible = true;
-      sc.mesh.position.set(P.x, P.y + 0.02 - hit.timeOfImpact + 0.0006, P.z);
-      const size = rand(0.1, 0.15) * k;
-      sc.mesh.scale.set(size, size, 1);
-      sc.mesh.rotation.z = Math.random() * 6;
+    if (opts.fire !== false) {
+      this.fireball(P, e.vel, k * (opts.fireScale || 1));
+      // scorch where the blast happened (on the surface below)
+      const hit = this.sim.world.castRay(new RAPIER.Ray({ x: P.x, y: P.y + 0.02, z: P.z }, { x: 0, y: -1, z: 0 }), 0.5, true, undefined, GROUPS.queryWorld);
+      if (hit) {
+        const sc = this.scorches.reduce((a, b) => (a.age > b.age ? a : b));
+        sc.age = 0;
+        sc.mesh.visible = true;
+        sc.mesh.position.set(P.x, P.y + 0.02 - hit.timeOfImpact + 0.0006, P.z);
+        const size = rand(0.1, 0.15) * k;
+        sc.mesh.scale.set(size, size, 1);
+        sc.mesh.rotation.z = Math.random() * 6;
+      }
     }
     // Hand the heli's parts to debris meshes.
     this.setFirstPerson(false);
@@ -255,19 +243,66 @@ export class View {
     this.heliModel.visible = false;
     this.chinookModel.visible = false;
     this.skycrane.hide();
-    if (sky) for (const d of e.parts) if (d.part.name === 'engines') this.pendingFx.push({ t: rand(0.25, 0.5), d });
-    if (heavy) {
-      // Fuel cells in the sponsons go up a moment later, then the engines.
-      for (const d of e.parts) {
-        if (/^sponson|^engine/.test(d.part.name)) this.pendingFx.push({ t: rand(0.18, 0.5) + (d.part.name.startsWith('engine') ? 0.25 : 0), d });
+    if (!opts.cold) {
+      if (sky) for (const d of e.parts) if (d.part.name === 'engines') this.pendingFx.push({ t: rand(0.25, 0.5), d });
+      if (heavy) {
+        // Fuel cells in the sponsons go up a moment later, then the engines.
+        for (const d of e.parts) {
+          if (/^sponson|^engine/.test(d.part.name)) this.pendingFx.push({ t: rand(0.18, 0.5) + (d.part.name.startsWith('engine') ? 0.25 : 0), d });
+        }
       }
     }
-    for (const d of e.parts) {
-      const mesh = sky ? cloneSkycranePart(this.skycrane.model, d.part.name) : heavy ? cloneChinookPart(this.chinookModel, d.part.name) : cloneHeliPart(this.heliModel, d.part.name);
-      this.scene.add(mesh);
-      this.debris.set(d.id, { mesh, d, smoke: d.smoke });
-    }
+    this.adoptDebris(e.parts, e.aircraft, opts.cold);
     this.wreckFocus = P.clone();
+  }
+
+  fireball(P, vel, k) {
+    const s = this.quality.particles / 500 * k;
+    vel = vel || _v.set(0, 0, 0);
+    // flash
+    this.flash.position.copy(P);
+    this.flashT = 0;
+    this.fx.emit({ p: [P.x, P.y, P.z], v: [0, 0, 0], life: 0.14 * k, size0: 0.16 * k, size1: 0.26 * k, col0: [1, 0.75, 0.45], alpha: 0.75 });
+    for (let i = 0; i < 26 * s + 8; i++) {
+      const d = new THREE.Vector3(rand(-1, 1), rand(-0.3, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0.25, 0.85) * k);
+      this.fx.emit({ p: [P.x, P.y, P.z], v: [d.x + vel.x * 0.4, d.y + vel.y * 0.2, d.z + vel.z * 0.4], life: rand(0.35, 0.75) * k, size0: rand(0.02, 0.035) * k, size1: rand(0.05, 0.085) * k,
+        col0: [1, rand(0.55, 0.7), 0.25], col1: [0.7, 0.14, 0.02], alpha: 0.45, grav: -0.6, drag: 5 });
+    }
+    for (let i = 0; i < 70 * s + 20; i++) {
+      const d = new THREE.Vector3(rand(-1, 1), rand(-0.2, 1.2), rand(-1, 1)).normalize().multiplyScalar(rand(0.8, 3.0));
+      this.fx.emit({ p: [P.x, P.y, P.z], v: [d.x + vel.x * 0.5, d.y, d.z + vel.z * 0.5], life: rand(0.5, 1.4), size0: rand(0.003, 0.006), size1: 0.0015,
+        col0: [1, 0.95, 0.7], col1: [1, 0.35, 0.08], alpha: 1, grav: 9.81, drag: 0.8, kind: 1 });
+    }
+    for (let i = 0; i < 30 * s + 10; i++) {
+      const d = new THREE.Vector3(rand(-1, 1), rand(0, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0.08, 0.35));
+      this.smoke.emit({ p: [P.x + rand(-0.01, 0.01), P.y, P.z + rand(-0.01, 0.01)], v: [d.x, d.y + rand(0.1, 0.3), d.z], life: rand(1.6, 3.4), size0: rand(0.03, 0.05), size1: rand(0.14, 0.24),
+        col0: [0.18, 0.16, 0.15], col1: [0.55, 0.53, 0.5], alpha: 0.55, grav: -0.05, drag: 1.6 });
+    }
+  }
+
+  // Debris meshes for parts the sim has turned loose (the crash, or blades a rotor strike threw off).
+  adoptDebris(parts, aircraft, cold = false) {
+    const fp = this.firstPerson;
+    this.setFirstPerson(false);  // clone the real materials, never the first-person stand-ins
+    const heavy = aircraft === 'chinook', sky = aircraft === 'skycrane';
+    for (const d of parts) {
+      if (this.debris.has(d.id)) continue;
+      const mesh = sky ? cloneSkycranePart(this.skycrane.model, d.part.name) : heavy ? cloneChinookPart(this.chinookModel, d.part.name) : cloneHeliPart(this.heliModel, d.part.name);
+      mesh.visible = true;
+      this.scene.add(mesh);
+      this.debris.set(d.id, { mesh, d, smoke: cold ? 0 : d.smoke, age: cold ? 9 : 0 });
+    }
+    this.setFirstPerson(!!fp && !!this.sim.heli);
+  }
+
+  // A long dark gouge where blades chewed into a surface (a stretched scorch).
+  gouge(P, yaw, len) {
+    const sc = this.scorches.reduce((a, b) => (a.age > b.age ? a : b));
+    sc.age = 0;
+    sc.mesh.visible = true;
+    sc.mesh.position.set(P.x, P.y + 0.0007, P.z);
+    sc.mesh.scale.set(len * 0.18, len, 1);
+    sc.mesh.rotation.z = yaw;
   }
 
   // A smaller fireball where a debris piece is (Chinook fuel cells and engines cooking off).
@@ -548,6 +583,8 @@ export class View {
     this.fx.update(dt, floorFn, this.windFn);
     this.smoke.update(dt, floorFn, this.windFn);
     this.liquid.update(dt);
+    this.crashFx.updateLive(dt, sim, { micro: this.heliModel, chinook: this.chinookModel, skycrane: this.skycrane.model });
+    this.crashFx.update(dt);
   }
 
   // The string simulates at half the physics rate, so its interpolated ends can trail the bag and hook

@@ -86,6 +86,9 @@ export const CHANNELS = [
   ['intakeDepth', 'm', 'skycrane intake depth under a surface (0 when out)'],
   ['impactAcc', 'm/s', 'crash detector: accumulated unexplained velocity change'],
   ['rotorContact', 's', 'crash detector: rotor contact budget used'],
+  ['wear', '0..1', 'blade damage on the most worn rotor (rotor strikes)'],
+  ['shed', 'bits', 'rotors lost to strikes: 1 main (Chinook forward), 2 Chinook aft, 4 tail rotor'],
+  ['spin', 'deg/s', 'yaw rate about the rotor axis with the tail rotor gone'],
 ];
 export const NCH = CHANNELS.length;
 export const CH = Object.fromEntries(CHANNELS.map(([n], i) => [n, i]));
@@ -104,9 +107,10 @@ function pts(name, n) { const o = []; for (let i = 0; i < n; i++) o.push(`${name
 
 // Events kept in the log, and which of their fields (numbers rounded, positions as [x, y, z]).
 export const EVENT_FIELDS = {
-  crash: ['reason', 'impact', 'pos', 'vel'], bump: ['dv', 'pos'], touchdown: ['speed', 'pos'], scrape: ['speed', 'pos', 'hose'],
+  crash: ['reason', 'kind', 'impact', 'material', 'cup', 'spin', 'scale', 'pos', 'vel', 'up'], bump: ['dv', 'pos'], touchdown: ['speed', 'pos'], scrape: ['speed', 'pos', 'hose'],
   snatch: ['speed', 'mass', 'pos', 'hose'], attach: ['hook', 'fromPeg'], release: [], splash: ['speed', 'pos'], extract: ['speed'],
-  rotorTick: ['pos'], restart: [], reset: [], aircraft: ['id'], bucketSplash: ['speed'], autoFill: ['phase'], radio: ['on'],
+  rotorTick: ['material', 'harmless', 'wear', 'pos'], rotorShatter: ['rotor', 'material', 'dir', 'scale', 'pos', 'point', 'up'],
+  tailStrike: ['material', 'pos', 'point'], teaStrike: ['cupIndex', 'pos'], restart: [], reset: [], aircraft: ['id'], bucketSplash: ['speed'], autoFill: ['phase'], radio: ['on'],
 };
 
 // ---------------------------------------------------------------- chunked row storage

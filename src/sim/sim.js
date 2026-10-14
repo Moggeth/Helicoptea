@@ -321,6 +321,7 @@ export class Sim {
     const parts = [];
     const center = pos.clone().addScaledVector(up, -0.01);
     const heavy = def.scale > 1;
+    const kickScale = reason === 'dunk' ? 0.12 : 1; // drowned, not blown apart: the wreck stays in the cup
     let bladeN = 0;
     for (const part of def.parts) {
       const local = new THREE.Vector3(...part.pos);
@@ -346,8 +347,8 @@ export class Sim {
       if (out.lengthSq() < 1e-8) out.set(Math.random() - 0.5, 0.5, Math.random() - 0.5);
       out.normalize();
       const light = part.mass < (heavy ? 0.0055 : 0.002);
-      const kick = def.explosionImpulse * (0.65 + Math.random() * 0.7) * (light ? 1.35 : 0.85);
-      v.addScaledVector(out, kick).addScaledVector(up, 0.5 + Math.random() * 0.4);
+      const kick = def.explosionImpulse * (0.65 + Math.random() * 0.7) * (light ? 1.35 : 0.85) * kickScale;
+      v.addScaledVector(out, kick).addScaledVector(up, (0.5 + Math.random() * 0.4) * kickScale);
       // A shattered rotor keeps spinning (each rotor its own way); other parts tumble, big ones slower.
       const ang = part.blade
         ? up.clone().multiplyScalar(spin * rotorSpeed * (heavy ? 26 : 40) * (0.6 + Math.random() * 0.4))
