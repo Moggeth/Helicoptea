@@ -109,6 +109,9 @@ await sleep(800);
 s = await rp();
 check('saved flight loads back with its notes', s.id === savedId && s.n === j.nSamples && s.notes.some((n) => n.text === 'Static host note'), `${s.id} n ${s.n}`);
 
+// The first game stops here: two games rendering at once starve a software renderer (CI has no GPU).
+await ctx.close();
+
 // ---------------------------------------------------------------- browser storage refused: memory only
 {
   const c2 = await browser.newContext({ viewport: { width: 1280, height: 720 } });

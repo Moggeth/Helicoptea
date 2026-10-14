@@ -110,6 +110,8 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
     await H(page, () => window.__helicoptea.stageCrash('tail'));
     const lost = await waitFor(page, () => window.__helicoptea.sim.heli?.dmg.tail, 4000);
     await sleep(2200);
+    // The spin builds in simulated time; on a slow software renderer the world can lag the wall clock.
+    await waitFor(page, () => Math.abs(window.__helicoptea.sim.heli?.dmg.spin || 0) > 4, 6000);
     const s = await state(page);
     const toast = await H(page, () => document.querySelector('.toast').textContent);
     await page.screenshot({ path: `${outDir}/${aircraft}-tail-spin.png` });

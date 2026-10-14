@@ -14,6 +14,18 @@ import path from 'node:path';
 const ID = /^[0-9A-Za-z_-]{6,80}$/;
 const MAX_BODY = 160 * 1024 * 1024;
 
+// Rename over the old file. On Windows a sync client (OneDrive) or a reader can hold the target for a
+// moment, failing the rename with EPERM / EBUSY / EACCES: retry briefly, then fall back to a copy.
+async function replace(tmp, file) {
+  for (let i = 0; ; i++) {
+    try { fs.renameSync(tmp, file); return; } catch (err) {
+      if (!['EPERM', 'EBUSY', 'EACCES'].includes(err.code)) throw err;
+      if (i >= 8) { fs.copyFileSync(tmp, file); fs.rmSync(tmp, { force: true }); return; }
+      await new Promise((r) => setTimeout(r, 25 * (i + 1)));
+    }
+  }
+}
+
 export function flightLogPlugin(opts = {}) {
   let dir = null;
   const attach = (server, root) => {
@@ -66,7 +78,7 @@ export function flightLogPlugin(opts = {}) {
       // Write then rename, so a reader never sees half a file.
       const tmp = `${file}.${process.pid}-${Math.random().toString(36).slice(2)}.tmp`;  // unique: two tabs may save at once
       fs.writeFileSync(tmp, body);
-      fs.renameSync(tmp, file);
+      await replace(tmp, file);
       res.setHeader('Content-Type', 'application/json');
       return res.end(JSON.stringify({ ok: true, path: path.relative(path.resolve(dir, '..', '..'), file).replace(/\\/g, '/'), bytes: body.length }));
     }

@@ -77,7 +77,10 @@ const state = (page) => H(page, () => {
   check('mouse drag turns the head (left and down)', s.yaw > 0.4 && s.pitch < -0.15, `yaw ${s.yaw.toFixed(2)} pitch ${s.pitch.toFixed(2)}`);
   check('wheel zooms the cockpit field of view', s.fov > f0 + 2 || s.fov < f0 - 2, `${f0.toFixed(1)} -> ${s.fov.toFixed(1)}`);
   await page.keyboard.press('KeyU');
+  // The head eases back over about half a second of frame time; a software renderer below 10 fps (frames
+  // longer than the 0.1 s step cap) takes longer in wall time, so allow up to 5 s for it to arrive.
   await sleep(900);
+  await page.waitForFunction(() => { const r = window.__helicoptea.fpRig; return Math.abs(r.lookYaw) < 0.02 && Math.abs(r.lookPitch) < 0.02 && r.fovZoom === 0; }, null, { timeout: 4100 }).catch(() => {});
   s = await state(page);
   check('U looks ahead again', Math.abs(s.yaw) < 0.02 && Math.abs(s.pitch) < 0.02 && s.zoom === 0);
   // Fly a little: the cockpit view follows, no errors.
@@ -140,10 +143,21 @@ const state = (page) => H(page, () => {
   await sleep(400);
 
   // Crash from the cockpit: shake and flash in the seat, then out to the wreck; restart returns to the seat.
-  await H(page, () => { const s = window.__helicoptea.sim; s.heli.body.setTranslation({ x: s.heli.pos.x, y: 0.25, z: s.heli.pos.z }, true); s.heli.body.setLinvel({ x: 0, y: -3, z: 0 }, true); });
+  // Watch every frame from the crash on and keep the strongest flash and seat hold: a single sample 60 ms
+  // after the crash can fall past the flash on a slow software renderer (one frame there is ~100 ms).
+  await H(page, () => {
+    const g = window.__helicoptea, w = window.__crashWatch = { crashT: 0, flash: 0, frames: 0 };
+    const tick = () => {
+      if (g.sim.state === 'destroyed') { w.frames++; w.crashT = Math.max(w.crashT, g.fp.crashT); w.flash = Math.max(w.flash, parseFloat(document.querySelector('.fp-flash').style.opacity || '0')); }
+      if (w.frames < 8) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    const s = g.sim; s.heli.body.setTranslation({ x: s.heli.pos.x, y: 0.25, z: s.heli.pos.z }, true); s.heli.body.setLinvel({ x: 0, y: -3, z: 0 }, true);
+  });
   await page.waitForFunction(() => window.__helicoptea.sim.state === 'destroyed', null, { timeout: 5000 }).catch(() => {});
   await sleep(60);
-  const during = await H(page, () => ({ crashT: window.__helicoptea.fp.crashT, flash: parseFloat(document.querySelector('.fp-flash').style.opacity || '0') }));
+  await page.waitForFunction(() => window.__crashWatch.frames >= 3, null, { timeout: 5000 }).catch(() => {});
+  const during = await H(page, () => ({ crashT: +window.__crashWatch.crashT.toFixed(3), flash: +window.__crashWatch.flash.toFixed(3) }));
   await page.screenshot({ path: `${outDir}/e2e-crash-0.png` });
   await sleep(700);
   s = await state(page);

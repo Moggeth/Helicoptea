@@ -180,6 +180,18 @@ try {
     await installPilot(page);
     await fly(page, -0.56, 0.4, 0.24, 0.3, 2500);
     const btn = (i, v) => page.evaluate(([i, v]) => { window.__pad.buttons[i] = { pressed: v > 0.5, value: v }; }, [i, v]);
+    // A quick double tap that the game sees at any frame rate: the pad is polled once a frame, so press,
+    // release, press, release go in on successive frames, from inside the page (a round trip from the
+    // test per edge can take several frames on a slow renderer, and 90 ms holds slip between frames).
+    const doubleTap = (i) => page.evaluate((i) => new Promise((res) => {
+      const H = window.__helicoptea, seq = [1, 0, 1, 0];
+      let f = -1;
+      const tick = () => {
+        if (H.frames !== f) { f = H.frames; const v = seq.shift(); window.__pad.buttons[i] = { pressed: v > 0.5, value: v }; if (!seq.length) { res(); return; } }
+        requestAnimationFrame(tick);
+      };
+      tick();
+    }), i);
     // Default (Aim) layout: d-pad up / down reel, LB pumps (twice = auto-fill), RT doors, LT bolted camera.
     await btn(13, 1); await sleep(700); await btn(13, 0);
     let s = await st(page);
@@ -199,12 +211,12 @@ try {
     check('gamepad: RT is analog: a light squeeze cracks the doors, a full pull opens them', lightDoors > 0.05 && lightDoors < 0.5 && s.doors > 0.8, `${lightDoors.toFixed(2)} -> ${s.doors.toFixed(2)}`);
     await btn(7, 0); await sleep(250);
     check('gamepad: collective is not on the triggers in the skycrane', Math.abs(padColl) < 0.05, `pad collective with RT pulled ${padColl.toFixed(2)}`);
-    await btn(7, 1); await sleep(90); await btn(7, 0); await sleep(90); await btn(7, 1); await sleep(90); await btn(7, 0);
+    await doubleTap(7);
     await sleep(200);
     s = await st(page);
     check('gamepad: two quick full RT pulls fire a salvo', s.salvo || s.vol === 0, `salvo ${s.salvo}`);
     await sleep(1500);
-    await btn(4, 1); await sleep(90); await btn(4, 0); await sleep(90); await btn(4, 1); await sleep(90); await btn(4, 0);
+    await doubleTap(4);
     await sleep(200);
     s = await st(page);
     check('gamepad: LB tapped twice starts auto-fill', !!s.auto, `${s.auto}`);
@@ -246,6 +258,16 @@ try {
     await shot(page, '06-touch');
     const cdp = await ctx.newCDPSession(page);
     const tap = async (b, ms) => { const p = { x: b[0] + b[2] / 2, y: b[1] + b[3] / 2, id: 3 }; await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [p] }); await sleep(ms); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); };
+    // A finger double tap: two 60 ms taps 60 ms apart, stamped with when the finger touched. Each CDP
+    // event waits for a busy page to take it, so on a slow renderer the second tap would otherwise
+    // arrive seconds later; the game times double taps by the touch's own timestamp.
+    const doubleTapTouch = async (b) => {
+      const p = { x: b[0] + b[2] / 2, y: b[1] + b[3] / 2, id: 3 }, t0 = Date.now() / 1000;
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [p], timestamp: t0 });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [], timestamp: t0 + 0.06 });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [p], timestamp: t0 + 0.12 });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [], timestamp: t0 + 0.18 });
+    };
     const h0 = (await st(page)).hose;
     await tap(boxes['reel-out'], 700);
     const h1 = (await st(page)).hose;
@@ -259,12 +281,12 @@ try {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     check('touch: holding Doors opens them', s.doors > 0.3, `${s.doors.toFixed(2)}`);
     await sleep(300);
-    await tap(boxes.doors, 60); await sleep(60); await tap(boxes.doors, 60);
+    await doubleTapTouch(boxes.doors);
     await sleep(200);
     s = await st(page);
     check('touch: double-tap Doors fires a salvo', s.salvo || s.vol === 0, `salvo ${s.salvo}`);
     await sleep(1500);
-    await tap(boxes.pump, 60); await sleep(60); await tap(boxes.pump, 60);
+    await doubleTapTouch(boxes.pump);
     await sleep(200);
     s = await st(page);
     check('touch: double-tap Pump starts auto-fill', !!s.auto, `${s.auto}`);

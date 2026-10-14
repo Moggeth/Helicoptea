@@ -3,6 +3,8 @@
 //
 //   npm run build && npm run e2e                 every suite
 //   node tests/run-e2e.mjs replay static         only suites whose name contains one of these words
+//   node tests/run-e2e.mjs e2e.mjs               a word ending in .mjs picks exactly that file
+//   node tests/run-e2e.mjs --list                print the suites as a JSON array (CI builds its matrix from it)
 //   options: --port 4199          preview port
 //            --timeout 12         minutes before a suite is stopped and counted as failed
 //            --dir tests          where to look for e2e*.mjs
@@ -11,9 +13,11 @@
 //            --headed             passed through to the suites
 //
 // Each suite exits non-zero when any of its checks fail. With --perf-advisory, a suite whose only failures
-// are frame-rate checks (name mentions "frame rate" or "fps") counts as passed with a warning, because a
-// hosted CI runner renders WebGL in software and measures the runner, not the game. Those warnings are
-// listed in the summary (and as GitHub annotations); on a real machine they fail as usual.
+// are performance checks (the check's name mentions "frame rate", "fps" or a per-frame millisecond budget
+// such as "ms a frame") counts as passed with a warning, because a hosted CI runner renders WebGL in
+// software and measures the runner, not the game. Name performance checks that way, and keep behaviour
+// and performance in separate checks. Those warnings are listed in the summary (and as GitHub
+// annotations); on a real machine they fail as usual.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -26,11 +30,12 @@ const headed = args.includes('--headed');
 const words = args.filter((a, i) => !a.startsWith('--') && !(i > 0 && ['--port', '--timeout', '--dir', '--outDir'].includes(args[i - 1])));
 const SUITE_TIMEOUT = parseFloat(opt('timeout', '12')) * 60 * 1000;   // a stuck suite fails instead of hanging the run
 const dir = opt('dir', 'tests');
-const PERF = /frame rate|\bfps\b/i;
+const PERF = /frame rate|\bfps\b|ms (a|per) frame|ms\/frame/i;
 const gh = !!process.env.GITHUB_ACTIONS;
 
 const suites = fs.readdirSync(dir).filter((f) => /^e2e(-[\w-]+)?\.mjs$/.test(f)).sort()
-  .filter((f) => !words.length || words.some((w) => f.includes(w)));
+  .filter((f) => !words.length || words.some((w) => (w.endsWith('.mjs') ? f === w : f.includes(w))));
+if (args.includes('--list')) { console.log(JSON.stringify(suites)); process.exit(0); }
 if (!suites.length) { console.error(`No suites match ${words.join(' ')}`); process.exit(1); }
 const outDir = path.resolve(opt('outDir', 'dist'));
 if (!fs.existsSync(path.join(outDir, 'index.html'))) { console.error(`${outDir}/index.html missing: build this output directory first`); process.exit(1); }
