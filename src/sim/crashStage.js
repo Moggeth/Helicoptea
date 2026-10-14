@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ROOM, CUPS } from './layout.js';
+import { ROOM, CUPS, RANGE, FRIDGE } from './layout.js';
 import { rotorsOf, tailOf } from './damage.js';
 
 // Stages each kind of crash from a known start, for the tests and for trying them by hand
@@ -7,6 +7,8 @@ import { rotorsOf, tailOf } from './damage.js';
 // Staging only places the aircraft and gives it a push: everything after that is the real simulation.
 export const STAGES = ['rotor', 'wear', 'tail', 'dunk', 'rollover', 'impact', 'fall'];
 
+// A clear stretch of the kitchen's side wall: between the range cooker (and its flue) and the fridge.
+const WALL_Z = (RANGE.z1 + FRIDGE.z0) / 2;
 const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
 
 function place(sim, pos, quat, vel, angvel = { x: 0, y: 0, z: 0 }) {
@@ -44,14 +46,14 @@ export function stageCrash(sim, kind) {
   switch (kind) {
     case 'rotor': case 'wear': {
       // Hovering beside the kitchen's side wall, drifting into it: fast shatters, slow chips the blades.
-      place(sim, new THREE.Vector3(ROOM.minX + R + 0.02 - minHubZ, 0.25 - hubY, 0), yawLeft, new THREE.Vector3(-(kind === 'rotor' ? 0.7 : 0.18), 0, 0));
+      place(sim, new THREE.Vector3(ROOM.minX + R + 0.02 - minHubZ, 0.25 - hubY, WALL_Z), yawLeft, new THREE.Vector3(-(kind === 'rotor' ? 0.7 : 0.18), 0, 0));
       return kind === 'rotor' ? 'Rotor strike on the wall: the blades shatter and the airframe drops' : 'Blades chewing the wall: wear, shake, then they let go';
     }
     case 'tail': {
       const t = tailOf(h.type);
       if (!t) return stageCrash(sim, 'rotor');
       // Hovering with the tail towards the wall, backing into it.
-      place(sim, new THREE.Vector3(ROOM.minX + t.hub[2] + t.r + 0.006, 0.25 - t.hub[1], 0), yawRight, new THREE.Vector3(-0.08, 0, 0));
+      place(sim, new THREE.Vector3(ROOM.minX + t.hub[2] + t.r + 0.006, 0.25 - t.hub[1], WALL_Z), yawRight, new THREE.Vector3(-0.08, 0, 0));
       return 'Tail rotor into the wall: no anti-torque, it spins. Lower the collective to slow the spin';
     }
     case 'dunk': {
