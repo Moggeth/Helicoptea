@@ -135,6 +135,10 @@ node tests/e2e-camera.mjs http://localhost:4196/  # camera modes, GoPro, cargo c
 A new `tests/e2e-<name>.mjs` joins CI automatically if it takes the base URL as an argument, prints
 `PASS` / `FAIL  <check>` lines and exits non-zero on failure.
 
+To avoid changing another session's build, use `npm run build -- --outDir scratch/verify`, then
+`node tests/run-e2e.mjs --outDir scratch/verify --port 4239` on an unused port. The plain static-host
+suite receives the same output directory, so every suite tests the selected build.
+
 `tests/sim-checks.mjs` drives the real simulation with the same stick inputs a player produces (via a scripted autopilot) and asserts physical outcomes: hover, assist on/off behaviour, peg pickup, swing and load transfer, immersion, wetness and mass, per-cup brewing, extraction and draining, release onto the saucer, landing, crash thresholds, and bounded crash/restart cycles.
 
 `tests/e2e.mjs` uses your installed Chrome or Edge through `playwright-core` (no browser download). It flies the full loop with real keyboard events plus the in-page autopilot, then checks an emulated gamepad, emulated touch (multi-touch, cancel, portrait), a 30 fps render cap, focus loss and pause, 20 crash/restart cycles and sandbox reset. Screenshots and a JSON report go to `test-results/`.

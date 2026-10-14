@@ -6,6 +6,7 @@
 //   options: --port 4199          preview port
 //            --timeout 12         minutes before a suite is stopped and counted as failed
 //            --dir tests          where to look for e2e*.mjs
+//            --outDir dist        isolated Vite build to test (also passed to static-host checks)
 //            --perf-advisory      frame-rate checks report as warnings, not failures (CI: no GPU)
 //            --headed             passed through to the suites
 //
@@ -22,7 +23,7 @@ const opt = (k, d) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i
 const port = parseInt(opt('port', '4199'), 10);
 const perfAdvisory = args.includes('--perf-advisory');
 const headed = args.includes('--headed');
-const words = args.filter((a, i) => !a.startsWith('--') && !(i > 0 && ['--port', '--timeout', '--dir'].includes(args[i - 1])));
+const words = args.filter((a, i) => !a.startsWith('--') && !(i > 0 && ['--port', '--timeout', '--dir', '--outDir'].includes(args[i - 1])));
 const SUITE_TIMEOUT = parseFloat(opt('timeout', '12')) * 60 * 1000;   // a stuck suite fails instead of hanging the run
 const dir = opt('dir', 'tests');
 const PERF = /frame rate|\bfps\b/i;
@@ -31,11 +32,12 @@ const gh = !!process.env.GITHUB_ACTIONS;
 const suites = fs.readdirSync(dir).filter((f) => /^e2e(-[\w-]+)?\.mjs$/.test(f)).sort()
   .filter((f) => !words.length || words.some((w) => f.includes(w)));
 if (!suites.length) { console.error(`No suites match ${words.join(' ')}`); process.exit(1); }
-if (!fs.existsSync('dist/index.html')) { console.error('dist/index.html missing: run npm run build first'); process.exit(1); }
+const outDir = path.resolve(opt('outDir', 'dist'));
+if (!fs.existsSync(path.join(outDir, 'index.html'))) { console.error(`${outDir}/index.html missing: build this output directory first`); process.exit(1); }
 
 // ---------------------------------------------------------------- preview server
 const vite = path.resolve('node_modules/vite/bin/vite.js');
-const preview = spawn(process.execPath, [vite, 'preview', '--port', String(port), '--strictPort', '--host', '127.0.0.1'], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+const preview = spawn(process.execPath, [vite, 'preview', '--outDir', outDir, '--port', String(port), '--strictPort', '--host', '127.0.0.1'], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
 let previewLog = '';
 preview.stdout.on('data', (d) => { previewLog += d; });
 preview.stderr.on('data', (d) => { previewLog += d; });
@@ -74,7 +76,7 @@ console.log(`preview ${base} · ${suites.length} suites: ${suites.join(', ')}${p
 function run(file) {
   return new Promise((resolve) => {
     const t0 = Date.now();
-    const child = spawn(process.execPath, [path.join(dir, file), base, ...(headed ? ['--headed'] : [])], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    const child = spawn(process.execPath, [path.join(dir, file), base, '--outDir', outDir, ...(headed ? ['--headed'] : [])], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     let out = '';
     const tee = (stream) => (d) => { out += d; stream.write(d); };
     child.stdout.on('data', tee(process.stdout));

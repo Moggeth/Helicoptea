@@ -159,7 +159,17 @@ None produced a `blur` or visibility transition: the game still reported focus, 
 releasing on the other page does not prove the first page received button-free motion. No camera or
 flight input behaviour was changed on this evidence. Keep real OS tab/Alt-Tab/drag cancellation in
 hands-on acceptance; do not repeat this harness and claim physical focus testing. The three probes
-took 4.98, 4.47 and 4.46 seconds, with raw state saved in `logs/reviews/overnight-focus-probe.json`.
+took 4.98, 4.47 and 4.48 seconds, with raw state saved in `logs/reviews/overnight-focus-probe.json`.
+
+## Isolated integrated verification
+
+Preflight inspection found `e2e-static.mjs` ignores the passed server URL and always read shared
+`dist/`. The runner and static suite now accept `--outDir`, defaulting to `dist` for existing commands
+and CI. This ensures a full isolated sweep, including browser-storage/static-host checks, tests the
+intended candidate. The explicit-output static suite passed **11/11** through the runner in 19.15 s;
+its log confirms `scratch/overnight-editing` was served. Use
+`node tests/run-e2e.mjs --outDir <preserved-build> --port <unused-port>` for subsequent sweeps.
+This changes verification tooling only; it does not weaken any game acceptance gate.
 
 ## Remaining acceptance
 

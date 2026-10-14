@@ -9,10 +9,11 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 
-const dist = path.resolve('dist');
+const outArg = process.argv.indexOf('--outDir');
+const dist = path.resolve(outArg >= 0 ? process.argv[outArg + 1] : 'dist');
 const outDir = path.resolve('test-results/static');
 fs.mkdirSync(outDir, { recursive: true });
-if (!fs.existsSync(path.join(dist, 'index.html'))) { console.error('dist/index.html missing: run npm run build first'); process.exit(1); }
+if (!fs.existsSync(path.join(dist, 'index.html'))) { console.error(`${dist}/index.html missing: build this output directory first`); process.exit(1); }
 const CHROME = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome'].find((p) => fs.existsSync(p));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const results = [];
