@@ -1,4 +1,4 @@
-import { milkyTea } from '../render/water.js';
+import { milkyTea, brewName } from '../render/water.js';
 import { prettyName } from '../input/gamepad.js';
 import {
   ACTIONS, ACTION, AXIS_LABEL, AXIS_SOURCES, BTN, FLIGHT_AXES, MAX_PER_ACTION, PRESETS, PRESET_ORDER, SOURCE_LABEL,
@@ -19,8 +19,6 @@ const ICONS = {
   chase: '<svg viewBox="0 0 24 24"><path d="M4 13h9l3-3h4"/><path d="M8 13v3h6"/><path d="M2 8h12"/><path d="M8 8v5"/></svg>',
   camera: '<svg viewBox="0 0 24 24"><rect x="3" y="7" width="13" height="11" rx="2"/><path d="m16 11 5-3v9l-5-3"/><circle cx="9.5" cy="12.5" r="2.5"/></svg>',
 };
-
-const BREW_NAMES = [[0.08, 'Just water'], [0.22, 'Pale'], [0.42, 'Golden'], [0.62, 'Proper'], [0.82, 'Strong'], [2, "Builder's"]];
 
 export class Hud {
   constructor(root, handlers) {
@@ -293,7 +291,7 @@ export class Hud {
       const col = milkyTea(c.cup.brew, c.cup.milk || 0);
       el.querySelector('.dot').style.background = `rgb(${col.r * 255 | 0},${col.g * 255 | 0},${col.b * 255 | 0})`;
       const m = c.cup.milk || 0;
-      el.querySelector('.nm').textContent = BREW_NAMES.find(([t]) => c.cup.brew < t)[1] + (m > 0.2 ? ', very milky' : m > 0.07 ? ', milky' : m > 0.015 ? ', splash of milk' : '');
+      el.querySelector('.nm').textContent = brewName(c.cup.brew) + (m > 0.2 ? ', very milky' : m > 0.07 ? ', milky' : m > 0.015 ? ', splash of milk' : '');
     });
   }
 

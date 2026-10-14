@@ -105,3 +105,13 @@ Same machine, Chrome 155 headless.
 - On the same build after rebasing onto bee66ac (since rebased onto 716fb20 and re-run, below): e2e 52/52, e2e-chinook 17/17, e2e-cockpit 40/40, e2e-depth 21/21, e2e-milk 20/20, e2e-rotorwash 14/14, e2e-skycrane 33/33, e2e-static 11/11. e2e-replay stops at 43 checks with a timeout on the phone notes step (`page.fill('.rp-input')`): master bee66ac stops at the same step, so it predates this pass.
 - Touch: the Cam and GoPro buttons were checked for overlaps on 844×390, 390×844 and 1024×768. Portrait 390×844 has three overlaps (recenter × mark, doors × both hose buttons) that are identical on master.
 - Not verified: how the modes feel to a person in motion, a real controller (LT as the GoPro), a real phone, motion comfort of the cargo cam's swing over long sessions.
+
+### 2026-10-14: cockpit instruments
+
+Same machine, Chrome headless, 1920×1080 high unless stated. Staged with `node tests/shot-instruments.mjs` (autopilot holds each aircraft: drifting to the mug with bags hooked, bags steeping in the tea, the skycrane's snorkel in the milk crock pumping and its doors open over the table, then a climbing turn) and `node tests/perf-cockpit.mjs` (times the cockpit update, its draw and the hook camera, with GPU timer queries).
+
+- Every instrument read live and matched the sim in the staged moments: radar altitude named TEA / MILK / TABLE as the aircraft moved; the hover bug rose 49 → 59% as the bag soaked; steep clock counted while immersed and reset after; Chinook hook page tracked three hooks independently (one over the rim, two 9 ft deep); skycrane tank 0 → 55% pumping, doors 100% with a drop rate, intake depth 8 ft in the milk.
+- All three panels fit inside the default view at 1920×1080 and 2560×1440 (micro panel y 690–1044 px of 1080). Default look-down angles: micro −0.27 rad, skycrane −0.29, Chinook −0.36 with the eye 5 cm (full size) higher and a lower glare shield.
+- Cockpit GPU time per frame (mean): micro 0.36 ms (was 0.83), Chinook 0.25 ms (was 1.03), skycrane 0.19 ms. Cockpit CPU update 0.1–0.27 ms mean. Hook camera now renders every other frame at 120 Hz: 0.3–0.4 ms GPU mean (was 0.6–0.8). Canvas-texture pages had cost about 1.5 ms of GPU per upload; the glass is now vector + SDF text in one buffer.
+- `npm run check` all green. Browser suites: every suite passes except the known `e2e-cockpit` "touch: cockpit frame rate at 4x CPU throttle" (18–24 fps here, 16–25 fps on master cf8d54e in the same session).
+- Not verified: a real phone or headset, or how legible the dials are to a person at their own screen size and distance.

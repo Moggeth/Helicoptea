@@ -8,11 +8,11 @@ import * as THREE from 'three';
 export const SEATS = {
   // eye: pilot's eye; neck: pivot the head turns about; lean: extra offset at full look-down;
   // clamp: eye box that keeps the head inside the cabin; pitch0: resting look angle (slightly down).
-  micro: { eye: [0.0085, 0.0092, -0.0150], neck: [0.0085, 0.0040, -0.0112], lean: [0.0022, -0.0020, -0.0030], pitch0: -0.2,
+  micro: { eye: [0.0085, 0.0092, -0.0150], neck: [0.0085, 0.0040, -0.0112], lean: [0.0022, -0.0020, -0.0030], pitch0: -0.27,
     box: [[-0.006, 0.0150], [-0.002, 0.0135], [-0.0215, -0.006]], near: 0.005 },
-  chinook: { eye: [0.0072, 0.0094, -0.0702], neck: [0.0072, 0.0060, -0.0680], lean: [0.0020, -0.0016, -0.0024], pitch0: -0.22,
+  chinook: { eye: [0.0072, 0.0100, -0.0702], neck: [0.0072, 0.0066, -0.0680], lean: [0.0020, -0.0016, -0.0024], pitch0: -0.36,
     box: [[-0.003, 0.0160], [0.003, 0.0130], [-0.0760, -0.0665]], near: 0.005 },
-  skycrane: { eye: [0.0048, 0.0121, -0.0671], neck: [0.0048, 0.0090, -0.0646], lean: [0.0018, -0.0016, -0.0022], pitch0: -0.22,
+  skycrane: { eye: [0.0048, 0.0121, -0.0671], neck: [0.0048, 0.0090, -0.0646], lean: [0.0018, -0.0016, -0.0022], pitch0: -0.29,
     box: [[-0.004, 0.0090], [0.006, 0.0160], [-0.0740, -0.0620]], near: 0.005 },
 };
 
@@ -186,8 +186,14 @@ export class LoadCamera {
     this.rt = new THREE.WebGLRenderTarget(n, n, { type: THREE.HalfFloatType, samples: quality.antialias ? 2 : 0 });
     this.rt.texture.colorSpace = THREE.LinearSRGBColorSpace;
     this.camera = new THREE.PerspectiveCamera(72, 1, 0.003, 4);
+    // A small screen does not need the full frame rate: at most 60 pictures a second (fewer on lower
+    // quality), so a 120 Hz display does not pay for a second world render every frame.
+    // On slower tiers it also skips frames, as before, so a struggling device is not made to pay for
+    // it every frame.
+    this.period = quality.name === 'high' ? 1 / 60 : quality.name === 'medium' ? 1 / 40 : 1 / 25;
     this.every = quality.name === 'high' ? 1 : quality.name === 'medium' ? 2 : 3;
     this.frame = 0;
+    this.last = -1;
     this.active = false;
     this.rendered = false;
   }
@@ -201,7 +207,9 @@ export class LoadCamera {
   }
 
   render(scene, force = false) {
-    if (!force && (this.frame++ % this.every) !== 0 && this.rendered) return;
+    const now = performance.now() / 1000;
+    if (!force && this.rendered && ((this.frame++ % this.every) !== 0 || now - this.last < this.period * 0.9)) return;
+    this.last = now;
     const r = this.renderer;
     const au = r.shadowMap.autoUpdate;
     r.shadowMap.autoUpdate = false;     // re-use this frame's shadow maps

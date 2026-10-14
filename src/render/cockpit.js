@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { cabinShellGeometry, CABIN_SECS, sectionPoint } from './heliModel.js';
 import { noseShellGeometry } from './chinookModel.js';
-import { InstrumentPanel, consoleTexture, readFlight } from './instruments.js';
+import { InstrumentPanel, consoleTexture } from './instruments.js';
 
 // First-person cockpits. Each interior is modelled in the aircraft's body coordinates at model scale
 // and drawn as a separate layer over the world (its own scene and camera, with a near plane of 0.4 mm
@@ -66,13 +66,28 @@ const kneeboardTex = () => canvasTex(256, (g, s) => {
   lines.forEach((l, i) => g.fillText(l, 20, 92 + i * 26));
   g.fillStyle = '#7a7d82'; g.fillRect(s * 0.3, 0, s * 0.4, 22);
 }, [1, 1]);
-// Compass card.
-const compassTex = () => canvasTex(128, (g, s) => {
-  g.fillStyle = '#111'; g.fillRect(0, 0, s, s);
-  g.fillStyle = '#e9e3d0'; g.fillRect(8, 28, s - 16, s - 56);
-  g.fillStyle = '#111'; g.font = '700 26px Arial'; g.textAlign = 'center'; g.fillText('33   N   3', s / 2, s / 2 + 9);
-  g.fillStyle = '#d33'; g.fillRect(s / 2 - 1, 24, 2, s - 48);
-}, [1, 1]);
+// Standby compass card: a strip of the full 360 degrees that scrolls behind the lubber line.
+const COMPASS_SPAN = 70;   // degrees visible through the window
+function compassStrip() {
+  const w = 2048, h = 256;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.fillStyle = '#e9e3d0'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#16181a'; g.strokeStyle = '#16181a'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (let d = 0; d < 360; d += 5) {
+    const x = d / 360 * w;
+    g.lineWidth = d % 30 === 0 ? 6 : 3;
+    g.beginPath(); g.moveTo(x, h); g.lineTo(x, h - (d % 10 === 0 ? 70 : 40)); g.stroke();
+    if (d % 30 === 0) {
+      g.font = `700 ${d % 90 === 0 ? 96 : 76}px Arial, sans-serif`;
+      g.fillText({ 0: 'N', 90: 'E', 180: 'S', 270: 'W' }[d] ?? String(d / 10), x, h * 0.36);
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.anisotropy = 8;
+  t.repeat.set(COMPASS_SPAN / 360, 1);
+  return t;
+}
 
 function materials(kind) {
   const micro = kind === 'micro';
@@ -235,21 +250,10 @@ export class Cockpit {
   }
 
   // ---------------------------------------------------------------- shared pieces
+  // The instrument panel (render/instruments.js): its face, live instruments and the hook-camera display.
   panelGroup(kind, M, w, h) {
-    const panel = new InstrumentPanel(kind, this.quality);
-    const g = new THREE.Group();
-    const face = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: panel.texture, emissiveMap: panel.texture, emissive: 0xffffff, emissiveIntensity: 0.14, roughness: 0.5, metalness: 0.05 }));
-    face.userData.keep = true;
-    face.receiveShadow = true;
-    g.add(face);
-    g.add(box(M.panelBody, w * 1.03, h * 1.1, 0.009, 0, 0, -0.00462, 0, 0, 0, 0.0008));
-    // Live hook-camera picture on the panel.
-    const c = InstrumentPanel.camRect(kind);
-    const scr = new THREE.Mesh(new THREE.PlaneGeometry(w * c.w, h * c.h), new THREE.MeshBasicMaterial({ map: this.loadCam.rt.texture }));
-    scr.position.set((c.x + c.w / 2 - 0.5) * w, (0.5 - (c.y + c.h / 2)) * h, 0.00004);
-    scr.userData.keep = true;
-    g.add(scr);
-    return { group: g, panel, screen: scr };
+    const panel = new InstrumentPanel(kind, this.quality, this.loadCam.rt.texture, this.renderer.capabilities.getMaxAnisotropy());
+    return { group: panel.build(w, h, M.panelBody), panel };
   }
 
   // A seated pilot's body (legs, arms, gloves) and the controls they hold, in body-frame points.
@@ -414,14 +418,16 @@ export class Cockpit {
       root.add(box(M.metal, 0.00025, 0.0011, 0.00025, x, -0.0148, -0.0393, -0.6));
     }
     const ped = new THREE.Mesh(new THREE.PlaneGeometry(0.0066, 0.0128), new THREE.MeshStandardMaterial({ map: consoleTexture('pedestal'), roughness: 0.7 }));
-    ped.position.set(0, -0.0196, -0.0362); ped.rotation.x = -0.655;
+    ped.position.set(0, -0.0216, -0.0352); ped.rotation.x = -0.655;
     ped.userData.keep = true;
     root.add(ped);
-    root.add(box(M.panelBody, 0.0072, 0.0128, 0.0105, 0, -0.0199, -0.0399, -0.655, 0, 0, 0.0006));
+    root.add(box(M.panelBody, 0.0072, 0.0128, 0.0105, 0, -0.0219, -0.0389, -0.655, 0, 0, 0.0006));
     // Magnetic compass on the glare shield.
     root.add(box(M.glare, 0.0028, 0.0021, 0.0024, 0.0015, -0.0015, -0.0392, 0, 0, 0, 0.0005));
-    const card = new THREE.Mesh(new THREE.PlaneGeometry(0.0021, 0.0016), new THREE.MeshStandardMaterial({ map: compassTex(), roughness: 0.4, emissive: 0x111111 }));
+    const strip = compassStrip();
+    const card = new THREE.Mesh(new THREE.PlaneGeometry(0.0021, 0.0011), new THREE.MeshStandardMaterial({ map: strip, roughness: 0.4, emissive: 0xffffff, emissiveMap: strip, emissiveIntensity: 0.15 }));
     card.position.set(0.0015, -0.0015, -0.03798); root.add(card);
+    root.add(box(M.red, 0.00006, 0.0012, 0.00002, 0.0015, -0.0015, -0.03796));
     // Seats (pilot right, empty left with its harness laid on it), rear bench, extinguisher.
     for (const sx of [-1, 1]) {
       const x = sx * 0.0085;
@@ -449,7 +455,8 @@ export class Cockpit {
     for (const g of keep) mergeStatic(g, []);
     root.traverse((o) => { if (o.isMesh && !o.material.transparent) { o.castShadow = o.receiveShadow = true; } });
     glass.castShadow = false;
-    return { group: root, crew: [anim], panel: P.panel, shadow: { c: V(0.002, -0.008, -0.022), r: 0.038 } };
+    P.panel.fixShadows();
+    return { group: root, crew: [anim], panel: P.panel, compass: strip, shadow: { c: V(0.002, -0.008, -0.022), r: 0.038 } };
   }
 
   // ---------------------------------------------------------------- Chinook (CH-47F-style)
@@ -473,12 +480,13 @@ export class Cockpit {
     door.position.set(0, 0.0028, -0.0627); door.rotation.y = Math.PI; root.add(door);
     root.add(box(M.floor, 0.034, 0.0006, 0.0165, 0, -0.0046, -0.0705));
     // Glare shield, panel and centre/overhead consoles.
-    const hood = new THREE.Mesh(hoodGeometry(0.033, 0.0814, 0.0776, 0.0066, 0.0015, 0.00035), M.glare);
+    const hood = new THREE.Mesh(hoodGeometry(0.033, 0.0818, 0.0784, 0.0052, 0.0011, 0.00035), M.glare);
     hood.position.x = -0.0165;
     root.add(hood);
-    const P = this.panelGroup('chinook', M, 0.031, 0.0098);
-    P.group.position.set(0, 0.0014, -0.0789);
-    P.group.rotation.x = -0.12;
+    // A low, wide panel so the pilot sees over the glare shield to the load (real-size displays).
+    const P = this.panelGroup('chinook', M, 0.031, 0.0056);
+    P.group.position.set(0, 0.0019, -0.0800);
+    P.group.rotation.x = -0.18;
     root.add(P.group);
     root.add(box(M.panelBody, 0.0058, 0.0050, 0.0112, 0, -0.0020, -0.0722, 0, 0, 0, 0.0004));
     const cTop = new THREE.Mesh(new THREE.PlaneGeometry(0.0056, 0.0108), new THREE.MeshStandardMaterial({ map: consoleTexture('pedestal'), roughness: 0.7 }));
@@ -513,6 +521,7 @@ export class Cockpit {
     for (const g of keep) mergeStatic(g, []);
     root.traverse((o) => { if (o.isMesh && !o.material.transparent) { o.castShadow = o.receiveShadow = true; } });
     glass.castShadow = false;
+    P.panel.fixShadows();
     return { group: root, crew, panel: P.panel, shadow: { c: V(0, 0.004, -0.072), r: 0.017 } };
   }
 
@@ -545,11 +554,12 @@ export class Cockpit {
     root.add(back);
     root.add(box(M.floor, 0.02, 0.0005, 0.016, 0, -0.0018, -0.069));
     // Glare shield, panel (analogue), centre console.
-    const hood = new THREE.Mesh(hoodGeometry(0.019, 0.0812, 0.0784, 0.0058, 0.0012, 0.0003), M.glare);
-    hood.position.x = -0.0095;
+    const hood = new THREE.Mesh(hoodGeometry(0.0168, 0.0812, 0.0784, 0.0064, 0.0012, 0.0003), M.glare);
+    hood.position.x = -0.0073;
     root.add(hood);
-    const P = this.panelGroup('micro', M, 0.0185, 0.0066);
-    P.group.position.set(0, 0.0023, -0.0790);
+    // Offset toward the pilot (right seat) and small enough to sit under the sightline.
+    const P = this.panelGroup('skycrane', M, 0.0157, 0.0056);
+    P.group.position.set(0.0012, 0.0035, -0.0790);
     P.group.rotation.x = -0.2;
     root.add(P.group);
     root.add(box(M.panelBody, 0.0042, 0.0045, 0.0085, 0, -0.0005, -0.0725, -0.4, 0, 0, 0.0004));
@@ -577,6 +587,7 @@ export class Cockpit {
     for (const g of keep) mergeStatic(g, []);
     root.traverse((o) => { if (o.isMesh && !o.material.transparent) { o.castShadow = o.receiveShadow = true; } });
     glass.castShadow = false;
+    P.panel.fixShadows();
     return { group: root, crew, panel: P.panel, shadow: { c: V(0, 0.004, -0.068), r: 0.02 } };
   }
 
@@ -630,7 +641,8 @@ export class Cockpit {
   update(dt, h, sim, quat, gearDrop, active) {
     const kind = h ? h.type : this.kind;
     if (kind !== this.kind) {
-      for (const [k, it] of Object.entries(this.interiors)) it.group.visible = k === kind;
+      // Only the aircraft in use keeps its big panel texture.
+      for (const [k, it] of Object.entries(this.interiors)) { it.group.visible = k === kind; if (k !== kind) it.panel.release(); }
       this.kind = kind;
     }
     const it = this.interiors[this.kind];
@@ -646,8 +658,8 @@ export class Cockpit {
     if (h) {
       const c = h.ctlEcho || { pitch: 0, roll: 0, yaw: 0 };
       for (const A of it.crew) this.animatePilot(A, c, h.collective);
-      const L = { chinook: 90, skycrane: 94 }[h.type] || 32;
-      it.panel.update(dt, readFlight(h, sim, L, gearDrop));
+      it.panel.update(dt, h, sim, gearDrop);
+      if (it.compass) it.compass.offset.x = (it.panel.F.hdg - COMPASS_SPAN / 2) / 360;
     }
   }
 

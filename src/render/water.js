@@ -34,6 +34,9 @@ export function milkyTea(brew, milk, out = new THREE.Color()) {
   _t.setRGB(MILK.r * Math.pow(out.r, e), MILK.g * Math.pow(out.g, e), MILK.b * Math.pow(out.b, e));
   return out.lerp(_t, k);
 }
+// What a cup of this strength is called (the HUD's brew chip and the cockpit's load page).
+export const BREW_NAMES = [[0.08, 'Just water'], [0.22, 'Pale'], [0.42, 'Golden'], [0.62, 'Proper'], [0.82, 'Strong'], [2, "Builder's"]];
+export const brewName = (brew) => BREW_NAMES.find(([t]) => brew < t)[1];
 // Opacity of a cup's surface: brew darkens it, milk clouds it.
 export function teaOpacity(brew, milk) {
   const base = THREE.MathUtils.lerp(0.42, 0.97, Math.pow(THREE.MathUtils.clamp(brew, 0, 1), 0.55));
