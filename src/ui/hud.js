@@ -320,7 +320,6 @@ export class Hud {
               ${['auto', 'ultra', 'high', 'medium', 'low'].map((q) => `<option value="${q}" ${opts.quality === q ? 'selected' : ''}>${q[0].toUpperCase() + q.slice(1)}</option>`).join('')}
             </select></label>
           <label class="opt">World weight <span class="weight-row"><small>light</small><input type="range" min="0" max="1" step="0.05" value="${opts.weight ?? 0.75}" data-setting="weight" aria-label="World weight" /><small>heavy</small></span></label>
-          <label class="opt">Frame rate readout <kbd>F2</kbd> <input type="checkbox" data-setting="fpsMeter" ${opts.fpsMeter ? 'checked' : ''}/></label>
           <label class="opt">Debug overlay <input type="checkbox" data-setting="debug" ${opts.debug ? 'checked' : ''}/></label>
           <label class="opt">Controller <button class="secondary" style="padding:6px 12px" data-act="controller">Settings</button></label>
           <label class="opt">Flight tuning <button class="secondary" style="padding:6px 12px" data-act="tuning">Open board</button></label>
@@ -339,6 +338,7 @@ export class Hud {
             </select></label>
           ${[['shadows', 'Load shadows'], ['plumb', 'Plumb line and height'], ['cupHint', 'Glint when over a cup'], ['dipCam', 'Close-in camera over a cup']].map(([k, nm]) => `<label class="opt">${nm} <input type="checkbox" data-cue="${k}" ${opts.cues && opts.cues[k] ? 'checked' : ''}/></label>`).join('')}
           <label class="opt">Rotor strikes break the blades <input type="checkbox" data-setting="rotorStrikes" ${opts.rotorStrikes !== false ? 'checked' : ''}/></label>
+          <label class="opt">Frame rate readout <kbd>F2</kbd> <input type="checkbox" data-setting="fpsMeter" ${opts.fpsMeter ? 'checked' : ''}/></label>
           <div class="opt aircraft-row" role="radiogroup" aria-label="Aircraft">Aircraft
             <span>${[['micro', 'Micro heli'], ['chinook', 'Chinook'], ['skycrane', 'Skycrane']].map(([id, nm]) => `<button class="secondary${opts.aircraft === id ? ' on' : ''}" style="padding:6px 12px" role="radio" aria-checked="${opts.aircraft === id}" data-act="aircraft" data-id="${id}">${nm}</button>`).join(' ')}</span></div>
         </div>
