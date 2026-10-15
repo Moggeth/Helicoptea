@@ -80,7 +80,7 @@ telemetry around each one. See [docs/FLIGHT-LOGS.md](docs/FLIGHT-LOGS.md).
 **Pause → Flight tuning → Open board** shows every feel setting as a slider, grouped as *Moving a dot*
 (world speed, gravity, coasting, top-speed cap, climb damping, thrust-to-weight, collective trim speed),
 *Becoming a helicopter* (rotation rate, rotational weight, settling, yaw authority, Chinook pitch response),
-*Stick mapping* (deadzone, expo, rates), *Rotor wash* (how hard it blows things about) and *Flight Assist*
+*Lift stick* (full-up climb, centred settle, full-down drop, load in the centre), *Stick mapping* (deadzone, expo, rates), *Rotor wash* (how hard it blows things about) and *Flight Assist*
 (max tilt, follow, drift catch, climb rate). Hover over (or select) any setting and a short clip plays on the right: the same scripted
 flight, side by side, at the low and high ends of that slider, or **Default vs yours**. The **All aircraft**
 tab sets the world; the **Micro heli**, **Chinook** and **Skycrane** tabs set each aircraft relative to it
@@ -203,7 +203,7 @@ Yaw stays on a proportional stick in every preset, never on a bumper or trigger.
 
 **Steam Controller and other gamepads**: any controller the browser exposes works. Standard layouts (Xbox, PlayStation, Switch Pro, and the Steam Controller through Steam Input) need no setup; anything else can be taught where its sticks and buttons are in **Pause → Controller → Teach it an odd pad…** (the layout then decides what they do). The same screen has a live stick test, dead zone, response curve, per-axis sensitivity and rumble. Menus, pause, help and the crash screen are fully driven from the pad. For the Steam Controller specifically, see [docs/STEAM-CONTROLLER.md](docs/STEAM-CONTROLLER.md).
 
-**Collective is a rate on every device**: push to add lift, pull to reduce it, let go to hold. With Flight Assist off this trims the collective setting directly (shown by the bar on the left, with a hover mark). With Flight Assist on it commands a climb or sink speed. Because the stick never maps to an absolute throttle position, switching between keyboard, gamepad and touch never makes the throttle jump.
+**The lift stick springs back on every device.** With Flight Assist on it commands a climb or sink speed, and centred holds your height. With Flight Assist off it is a sprung collective lever: hold it up to climb (harder the further you push), let go and you settle gently (centre is 5% short of hover, measured against your weight with whatever you carry), pull it down to come down faster. Landed with the stick centred, the collective drops to idle. The bar on the left shows the collective with a hover mark. Full up asks for 35% more than you weigh, never more than the rotor has, so a heavy load eats the climb margin. If you prefer the old collective that stays where you leave it, pick **Lift stick, Assist off → Stays put** in Pause or Controller settings. Every source rests at zero, so switching between keyboard, gamepad and touch never makes the throttle jump.
 
 ## Debugging and tuning
 

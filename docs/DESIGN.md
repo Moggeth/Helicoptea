@@ -30,7 +30,7 @@ the bags, tea, cloth and props, but never pushes the aircraft.
 - Yaw only moves when you press the pedals.
 - The cargo hook sits directly below the centre of mass, so the string's pull produces real pendulum torques and drags the helicopter around when the bag swings.
 
-**Assist off**: cyclic and yaw are torques; collective is trimmed by the player and held. Releasing cyclic leaves the helicopter tilted (only aerodynamic damping slows rotation).
+**Assist off**: cyclic and yaw are torques. The lift stick is a sprung collective lever (sim/collective.js): centre is 0.95 of the all-up weight (a gentle settle), full up 1.35 (capped at full collective), full down 0.6, and landed at centre it idles. The old trim-and-hold collective is the *Stays put* option. Releasing cyclic leaves the helicopter tilted (only aerodynamic damping slows rotation). Thrust-to-weight is 2.0 / 1.8 / 1.9 (micro / Chinook / skycrane): every load still lifts with 20% or more to spare, without leaping into the sky.
 
 **Assist on**: stabilising torques only. Neutral cyclic commands level; deflection commands up to ~22° of tilt in the heading frame; a small counter-tilt against drift applies only near neutral stick. Yaw becomes a rate command. Collective becomes a climb-rate command whose integrator learns the extra load slowly, so picking up a wet bag still makes the helicopter sag first. Torque is capped at 1.6× the manual cyclic authority. Nothing teleports or bypasses the cargo forces.
 

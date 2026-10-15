@@ -5,6 +5,7 @@ import { initPhysics } from '../src/sim/physics.js';
 import { Sim } from '../src/sim/sim.js';
 import { Autopilot } from '../src/sim/autopilot.js';
 import { CFG } from '../src/config.js';
+import { springCollective, springStick } from '../src/sim/collective.js';
 
 await initPhysics();
 const results = [];
@@ -44,12 +45,13 @@ const f = (x, d = 3) => Number(x).toFixed(d);
 
 // 3. Assist off: a pulse of cyclic leaves the heli tilted (no auto-level) -> drifting.
 {
+  CFG.collective.mode = 'hold'; // these checks trim the collective by hand, as the hold lever does
   const sim = new Sim();
   sim.assist = false;
   let c = 0;
-  sim.heli.collective = 0.62; // climb away from the pad...
+  sim.heli.collective = 1.43 / CFG.heli.thrustToWeight; // climb away from the pad...
   run(sim, 0.7);
-  sim.heli.collective = 0.46; // ...then trim to roughly hover, as a player would
+  sim.heli.collective = 1.06 / CFG.heli.thrustToWeight; // ...then trim to roughly hover, as a player would
   run(sim, 0.5);
   run(sim, 0.15, () => ({ ...zero(), pitch: 1 }));
   const tilt0 = Math.acos(sim.heli.up.y);
@@ -57,6 +59,7 @@ const f = (x, d = 3) => Number(x).toFixed(d);
   const tilt1 = Math.acos(sim.heli.up.y);
   check('assist off: attitude persists after releasing cyclic', tilt1 > tilt0 * 0.6 && tilt1 > 0.08, `tilt ${f(tilt0)} -> ${f(tilt1)} rad`);
   check('assist off: helicopter drifts without correction', sim.heli ? sim.heli.vel.length() > 0.2 : true, `v=${f(sim.heli ? sim.heli.vel.length() : 0)}`);
+  CFG.collective.mode = 'spring';
 }
 
 // 4. Full loop: attach at the stand, carry, dip into the mug, brew, extract, discard, land.
@@ -161,6 +164,7 @@ const f = (x, d = 3) => Number(x).toFixed(d);
   const trial = (withBag) => {
     const sim = pickUp(withBag);
     sim.assist = false;                                   // the bag's pull on the airframe, unmasked by assist
+    CFG.collective.mode = 'hold';                         // keep the hover collective the assist left
     const p0 = sim.heli.pos.clone();
     run(sim, 0.2, () => ({ ...zero(), roll: 1 }));       // hard sideways acceleration
     run(sim, 0.2, () => ({ ...zero(), roll: -1 }));
@@ -177,6 +181,7 @@ const f = (x, d = 3) => Number(x).toFixed(d);
       maxHeliRoll = Math.max(maxHeliRoll, Math.abs(Math.asin(Math.max(-1, Math.min(1, sim.heli.up.x)))));
       return zero();
     });
+    CFG.collective.mode = 'spring';
     return { sim, maxAngle, dx: sim.heli.pos.x - p0.x, xs };
   };
   // Hook a bag (string slack at the peg) and climb away hard: the string should snatch taut.
@@ -205,8 +210,10 @@ const f = (x, d = 3) => Number(x).toFixed(d);
   const sim = new Sim();
   run(sim, 1.5, () => ({ ...zero(), collective: 1 }));
   sim.assist = false;
+  CFG.collective.mode = 'hold';
   sim.heli.collective = 0.2;
   run(sim, 2.5);
+  CFG.collective.mode = 'spring';
   check('hard drop onto the table explodes', sim.state === 'destroyed', `reason ${sim.crashInfo?.reason} impact ${f(sim.crashInfo?.impact ?? 0)}`);
   const debrisN = sim.debris.length;
   check('crash spawns recognisable debris parts', debrisN === 8, `${debrisN} parts`);
@@ -229,6 +236,51 @@ const f = (x, d = 3) => Number(x).toFixed(d);
   run(sim2, 1.0, () => ({ ...zero(), collective: 1 }));
   run(sim2, 4, () => ({ ...zero(), collective: -1 }));
   check('gentle assisted landing survives', sim2.state === 'flying', `state ${sim2.state}`);
+}
+
+// 5b. Assist off, sprung lift stick (the default): centred settles gently, held up climbs, nothing sticks.
+{
+  for (const aircraft of ['micro', 'chinook', 'skycrane']) {
+    const sim = new Sim({ aircraft });
+    sim.assist = false;
+    const tw = sim.heli.def.thrustToWeight;
+    // Keep the cyclic level as a pilot would, so only the lift stick is under test. (This simple leveller
+    // can't hold the skycrane's lagged disc, so it only takes off; the levels are shared code, checked below.)
+    const level = (c) => () => {
+      const h = sim.heli; if (!h) return zero();
+      const q = h.quat.clone().invert(), w = h.body.angvel(), wb = new THREE.Vector3(w.x, w.y, w.z).applyQuaternion(q);
+      const up = h.up.clone().applyQuaternion(q);
+      return { pitch: Math.max(-1, Math.min(1, up.z * 8 + wb.x * 1.2)), roll: Math.max(-1, Math.min(1, -up.x * 8 + wb.z * 1.2)), yaw: 0, collective: c };
+    };
+    run(sim, 0.6, level(0));
+    check(`${aircraft} spring: centred stick on the pad stays down at idle`, sim.heli.grounded && sim.heli.collective < 0.2, `collective ${f(sim.heli.collective)}`);
+    const y0 = sim.heli.pos.y;
+    let vMax = 0;
+    run(sim, 0.7, (t) => { vMax = Math.max(vMax, sim.heli ? sim.heli.vel.y : 0); return level(1)(); });
+    const climbed = sim.heli.pos.y - y0;
+    check(`${aircraft} spring: holding lift up climbs, firmly not wildly`, climbed > 0.12 && vMax < 1.3, `+${f(climbed)} m, peak ${f(vMax)} m/s`);
+    if (aircraft === 'skycrane') continue;
+    run(sim, 2.5, level(0));
+    const vy = sim.heli ? sim.heli.vel.y : NaN;
+    check(`${aircraft} spring: letting go settles gently`, sim.state === 'flying' && vy < -0.05 && vy > -0.45, `vy ${f(vy)} m/s`);
+    run(sim, 6, level(0));
+    check(`${aircraft} spring: hands-off settle lands safely and idles`, sim.state === 'flying' && sim.heli.grounded && sim.heli.collective < 0.2, `${sim.state}, collective ${f(sim.heli?.collective ?? 0)}`);
+  }
+  // The levels: centre is measured against the all-up weight, full up is capped by the rotor.
+  const tw = CFG.heli.thrustToWeight;
+  const hoverWith = (load) => springCollective(0, tw, load) * tw / load;
+  check('spring: centre stick sits just under hover, empty or loaded', Math.abs(hoverWith(1) - CFG.collective.neutral) < 1e-9 && Math.abs(hoverWith(1.5) - CFG.collective.neutral) < 1e-9);
+  check('spring: full up is never more than full collective', springCollective(1, tw, 1.9) === 1 && springCollective(1, tw, 1) < 1);
+  check('spring: the stick inverse round-trips', [-1, -0.4, 0, 0.3, 1].every((s) => Math.abs(springStick(springCollective(s, tw), tw) - s) < 1e-9));
+  // Hold mode is still there: the collective stays where the stick left it.
+  CFG.collective.mode = 'hold';
+  const sim = new Sim();
+  sim.assist = false;
+  run(sim, 1.0, () => ({ ...zero(), collective: 1 }));
+  const c1 = sim.heli.collective;
+  run(sim, 0.3);
+  check('hold mode: collective stays where you leave it', c1 > 0.3 && Math.abs(sim.heli.collective - c1) < 1e-9, `${f(c1)} -> ${f(sim.heli.collective)}`);
+  CFG.collective.mode = 'spring';
 }
 
 // 6. Repeated crash/restart cycles stay bounded.

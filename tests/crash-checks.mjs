@@ -4,6 +4,7 @@
 // stay in the cup, the rotor-strike toggle makes blades pass through, and the flight log keeps it all.
 import { initPhysics } from '../src/sim/physics.js';
 import { Sim } from '../src/sim/sim.js';
+import { CFG } from '../src/config.js';
 import { stageCrash } from '../src/sim/crashStage.js';
 import { FlightRecorder } from '../src/replay/recorder.js';
 import { CH } from '../src/replay/format.js';
@@ -64,9 +65,11 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
   const climb = (wear) => {
     const sim = new Sim();
     sim.assist = false;
+    CFG.collective.mode = 'hold'; // a fixed collective
     sim.heli.collective = 0.7;
     if (wear) sim.heli.dmg.wear[0] = wear;
     for (let i = 0; i < 240; i++) sim.step(zero());
+    CFG.collective.mode = 'spring';
     return sim.heli.pos.y;
   };
   const a = climb(0), b = climb(1);

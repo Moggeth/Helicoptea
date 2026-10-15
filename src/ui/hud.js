@@ -5,6 +5,14 @@ import {
   activeAxes, activeButtons, buttonName, defaultLayout, describe, mappingOf, presetName,
 } from '../input/layouts.js';
 import { CAM_MODES, CAM_NAME } from '../render/cameraModes.js';
+import { CFG } from '../config.js';
+
+// The assist-off lift stick: a sprung lever, or the old trim-and-hold collective (sim/collective.js).
+const LIFT_MODES = [['spring', 'Springs back: hold up to climb'], ['hold', 'Stays put: trim and leave it']];
+const liftSelect = (mode) => `<label class="opt">Lift stick, Assist off
+            <select data-setting="collectiveMode" aria-label="Lift stick with Flight Assist off">
+              ${LIFT_MODES.map(([v, nm]) => `<option value="${v}" ${mode === v ? 'selected' : ''}>${nm}</option>`).join('')}
+            </select></label>`;
 
 const ICONS = {
   restart: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/></svg>',
@@ -325,6 +333,7 @@ export class Hud {
           <label class="opt">World weight <span class="weight-row"><small>light</small><input type="range" min="0" max="1" step="0.05" value="${opts.weight ?? 0.75}" data-setting="weight" aria-label="World weight" /><small>heavy</small></span></label>
           <label class="opt">Debug overlay <input type="checkbox" data-setting="debug" ${opts.debug ? 'checked' : ''}/></label>
           <label class="opt">Controller <button class="secondary" style="padding:6px 12px" data-act="controller">Settings</button></label>
+          ${liftSelect(opts.collectiveMode)}
           <label class="opt">Flight tuning <button class="secondary" style="padding:6px 12px" data-act="tuning">Open board</button></label>
           <label class="opt">Show tips again <button class="secondary" style="padding:6px 12px" data-act="resethints">Replay</button></label>
           <div class="opt aircraft-row cam-row" role="radiogroup" aria-label="Camera">Camera
@@ -360,6 +369,7 @@ export class Hud {
       });
     }
     this.modal.querySelector('[data-setting=loadCam]').addEventListener('change', (e) => this.h.setting('loadCam', e.target.value));
+    this.modal.querySelector('[data-setting=collectiveMode]').addEventListener('change', (e) => this.h.setting('collectiveMode', e.target.value));
     for (const el of this.modal.querySelectorAll('[data-cue]')) el.addEventListener('change', () => this.h.setting(`cue.${el.dataset.cue}`, el.checked));
     this.modal.classList.add('show');
     this.focusFirst();
@@ -375,9 +385,10 @@ export class Hud {
           ${['keyboard', 'gamepad', 'touch'].map((t) => `<button data-act="helptab" data-tab="${t}" class="${t === tab ? 'on' : ''}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}
         </div>
         <dl class="help-grid">${this.helpRows(tab)}</dl>
-        <p class="help-note"><b>Collective</b> works the same on every device: push up to add lift, down to reduce it, and let go to hold.
-        With Flight Assist on it sets a climb or sink speed and the heli levels itself when you centre the cyclic.
-        With Assist off you trim the collective yourself (the bar on the left shows it) and the heli stays tilted until you correct it.</p>
+        <p class="help-note"><b>Collective</b> works the same on every device. With Flight Assist on it sets a climb or sink speed: let go to hold
+        your height, and the heli levels itself when you centre the cyclic. With Assist off the lift stick is a sprung lever: hold it up to climb,
+        let go and you settle gently, pull it down to come down faster (the bar on the left shows the collective, with a hover mark). The heli stays
+        tilted until you correct it. Prefer a collective that stays where you leave it? Pick <b>Stays put</b> under Lift stick in Pause or Controller settings.</p>
         <div class="row"><button class="primary" style="margin-top:0" data-act="closehelp">Got it</button><button class="secondary" data-act="controller">Controller settings</button></div>
       </div>`;
     this.modal.classList.add('show');
@@ -451,6 +462,7 @@ export class Hud {
           ${slider('yaw', 'Turn sensitivity', 0.3, 1.5, 0.05)}
           ${check('triggers', 'Free triggers add lift')}
           ${check('rumble', 'Rumble')}
+          ${liftSelect(CFG.collective.mode)}
         </div>
         <div class="row pad-actions">
           <button class="primary" style="margin-top:0" data-act="closecontroller">Done</button>
@@ -466,6 +478,7 @@ export class Hud {
         pads.saveSettings();
       });
     });
+    this.modal.querySelector('.pad-settings [data-setting=collectiveMode]').addEventListener('change', (e) => this.h.setting('collectiveMode', e.target.value));
     this.modal.querySelector('.pad-capture [data-lay=capcancel]').addEventListener('click', () => pads.cancelCapture());
     this.renderLayout();
     this.modal.classList.add('show');

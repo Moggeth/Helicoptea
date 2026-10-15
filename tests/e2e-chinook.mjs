@@ -97,12 +97,14 @@ try {
     // Breakup through the real loop: assist off, collective chopped from height.
     await page.keyboard.down('KeyW'); await sleep(1500); await page.keyboard.up('KeyW');
     await sleep(1000);
-    await page.evaluate(() => { const H = window.__helicoptea; H.sim.assist = false; H.sim.heli.collective = 0.05; });
+    // The Stays put lift mode keeps a collective set by hand (the default sprung stick would set it from the stick).
+    await page.evaluate(() => { const H = window.__helicoptea; H.CFG.collective.mode = 'hold'; H.sim.assist = false; H.sim.heli.collective = 0.05; });
     for (let i = 0; i < 60 && (await st(page)).state === 'flying'; i++) await sleep(50);
     await sleep(300);
     s = await st(page);
     await page.screenshot({ path: path.join(outDir, 'chinook-02-breakup.png') });
     check('breaks up into 19 pieces in the browser', s.state === 'destroyed' && s.debris === 19, `state ${s.state} debris ${s.debris}`);
+    await page.evaluate(() => { window.__helicoptea.CFG.collective.mode = 'spring'; });
     const fps = await page.evaluate(() => new Promise((res) => { let n = 0; const t0 = performance.now(); const f = (t) => { n++; if (t - t0 < 2000) requestAnimationFrame(f); else res(n / ((t - t0) / 1000)); }; requestAnimationFrame(f); }));
     check('frame rate holds during the Chinook explosion', fps > 50, `${fps.toFixed(0)} fps`);
     check('no console errors (keyboard run)', errorsIn(logs).length === 0, errorsIn(logs).slice(0, 3).join(' | '));
