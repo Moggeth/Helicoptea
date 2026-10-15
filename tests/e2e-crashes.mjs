@@ -94,8 +94,10 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
     }
     const ended = await waitFor(page, () => window.__helicoptea.sim.state !== 'flying');
     await sleep(kind === 'impact' ? 120 : 250);
-    if (kind === 'impact' && aircraft === 'micro') report.perf.microCrash = await frameStats(page, 1500);
+    // Read the aftermath before the 1.5 s frame-rate sample below, not after it: on a slow software
+    // renderer the sparks would burn out while it measures.
     const s = await state(page);
+    if (kind === 'impact' && aircraft === 'micro') report.perf.microCrash = await frameStats(page, 1500);
     await page.screenshot({ path: `${outDir}/${aircraft}-${kind}.png` });
     check(`${aircraft} ${kind}: ${reason} (${crashKind}) with its own heading and line`, ended && s.reason === reason && s.kind === crashKind && s.crashShown && s.title === TITLES[crashKind] && s.why.length > 10,
       `${s.reason}/${s.kind} "${s.title}" ${s.why}`);

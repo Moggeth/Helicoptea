@@ -153,6 +153,8 @@ const hold = async (page, keys, ms) => { for (const k of keys) await page.keyboa
   await markInput.fill('This is where the yaw kicked');
   await markInput.press('Enter');
   await sleep(1200);
+  // Saves are queued (binary, then header) behind the notes debounce; on a slow machine allow them to land.
+  await page.waitForFunction(() => { const f = window.__helicoptea.replay.flight; return f && f.saved && !f.dirty && window.__helicoptea.flightStore.saving === 0; }, null, { timeout: 10000 }).catch(() => {});
   s = await rp(page);
   const tags = s.notes.map((n) => n.tag).sort().join(',');
   check('notes typed and tagged in the viewer', tags === 'bad,good,mark' && s.notes.some((n) => n.text === 'Nice settle into the hover' && n.tag === 'good') && s.notes.some((n) => n.tag === 'mark' && n.text === 'This is where the yaw kicked'), tags);
@@ -207,7 +209,22 @@ const hold = async (page, keys, ms) => { for (const k of keys) await page.keyboa
   await page.waitForFunction(() => window.__helicoptea?.started, null, { timeout: 5000 }).catch(() => {});
   if (!(await H(page, () => window.__helicoptea.started))) await start(page);
   await H(page, () => window.__helicoptea.doAction('skiphints'));
-  const press = async (i, ms = 120) => { await page.evaluate((i) => { window.__pad.buttons[i] = { pressed: true, value: 1 }; }, i); await sleep(ms); await page.evaluate((i) => { window.__pad.buttons[i] = { pressed: false, value: 0 }; }, i); await sleep(120); };
+  // A tap the game sees exactly once at any frame rate: the pad is polled once a frame, so the button is
+  // down for one frame, set and cleared from inside the page (a wall-clock hold can span several slow
+  // frames and step twice, or fall between two).
+  const press = async (i) => {
+    await page.evaluate((i) => new Promise((res) => {
+      const g = window.__helicoptea, w0 = performance.now();
+      window.__pad.buttons[i] = { pressed: true, value: 1 };
+      const f0 = g.frames;
+      const tick = () => {
+        if (g.frames > f0 || performance.now() - w0 > 3000) { window.__pad.buttons[i] = { pressed: false, value: 0 }; const f1 = g.frames; const done = () => (g.frames > f1 || performance.now() - w0 > 3000 ? res() : requestAnimationFrame(done)); requestAnimationFrame(done); return; }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }), i);
+    await sleep(120);
+  };
   await page.evaluate(() => { window.__pad.axes[1] = -0.9; });
   await sleep(1500);
   await page.evaluate(() => { window.__pad.axes[1] = 0; window.__pad.axes[3] = -0.6; });

@@ -221,7 +221,22 @@ const state = (page) => H(page, () => {
 {
   const { ctx, page, logs } = await open('?aircraft=micro&view=chase', { width: 1280, height: 720 }, { gamepad: true });
   await start(page);
-  const press = async (i, ms = 120) => { await H(page, (i) => { window.__pad.buttons[i] = { pressed: true, value: 1 }; }, i); await sleep(ms); await H(page, (i) => { window.__pad.buttons[i] = { pressed: false, value: 0 }; }, i); await sleep(80); };
+  // A tap the game sees at any frame rate: the pad is polled once a frame, so the button is down for exactly
+  // one frame, set and cleared from inside the page. A wall-clock hold can fall between two slow frames,
+  // or span three and count as a hold (L3 held 0.3 s looks around instead of changing camera).
+  const press = async (i) => {
+    await H(page, (i) => new Promise((res) => {
+      const g = window.__helicoptea, w0 = performance.now();
+      window.__pad.buttons[i] = { pressed: true, value: 1 };
+      const f0 = g.frames;
+      const tick = () => {
+        if (g.frames > f0 || performance.now() - w0 > 3000) { window.__pad.buttons[i] = { pressed: false, value: 0 }; const f1 = g.frames; const done = () => (g.frames > f1 || performance.now() - w0 > 3000 ? res() : requestAnimationFrame(done)); requestAnimationFrame(done); return; }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }), i);
+    await sleep(80);
+  };
   await press(10);
   let s = await state(page);
   check('pad: L3 switches to the cockpit', s.mode === 'cockpit', s.mode);

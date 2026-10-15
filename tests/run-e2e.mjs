@@ -14,7 +14,7 @@
 //
 // Each suite exits non-zero when any of its checks fail. With --perf-advisory, a suite whose only failures
 // are performance checks (the check's name mentions "frame rate", "fps" or a per-frame millisecond budget
-// such as "ms a frame") counts as passed with a warning, because a hosted CI runner renders WebGL in
+// such as "ms a frame", or a CPU "overhead") counts as passed with a warning, because a hosted CI runner renders WebGL in
 // software and measures the runner, not the game. Name performance checks that way, and keep behaviour
 // and performance in separate checks. Those warnings are listed in the summary (and as GitHub
 // annotations); on a real machine they fail as usual.
@@ -30,7 +30,7 @@ const headed = args.includes('--headed');
 const words = args.filter((a, i) => !a.startsWith('--') && !(i > 0 && ['--port', '--timeout', '--dir', '--outDir'].includes(args[i - 1])));
 const SUITE_TIMEOUT = parseFloat(opt('timeout', '12')) * 60 * 1000;   // a stuck suite fails instead of hanging the run
 const dir = opt('dir', 'tests');
-const PERF = /frame rate|\bfps\b|ms (a|per) frame|ms\/frame/i;
+const PERF = /frame rate|\bfps\b|ms (a|per) frame|ms\/frame|\boverhead\b/i;
 const gh = !!process.env.GITHUB_ACTIONS;
 
 const suites = fs.readdirSync(dir).filter((f) => /^e2e(-[\w-]+)?\.mjs$/.test(f)).sort()

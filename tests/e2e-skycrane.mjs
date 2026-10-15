@@ -37,6 +37,16 @@ async function open(viewport, opts = {}) {
 }
 const start = async (page) => { await page.click('#start-btn'); await page.waitForFunction(() => window.__helicoptea?.started); await sleep(600); };
 const shot = (page, name) => page.screenshot({ path: path.join(outDir, `sky-${name}.png`) });
+// A keyboard double tap: two 40 ms presses 90 ms apart, stamped with when the keys went down. Each CDP
+// event waits for a busy page to take it, so on a slow renderer the second press would otherwise arrive
+// much later; the game times double taps by the key event's own timestamp.
+async function doubleTapKey(page, code) {
+  const cdp = await page.context().newCDPSession(page), key = code.slice(3).toLowerCase(), vk = code.charCodeAt(3), t0 = Date.now() / 1000;
+  for (const [type, dt] of [['keyDown', 0], ['keyUp', 0.04], ['keyDown', 0.09], ['keyUp', 0.13]]) {
+    await cdp.send('Input.dispatchKeyEvent', { type, code, key, text: type === 'keyDown' ? key : undefined, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, timestamp: t0 + dt });
+  }
+  await cdp.detach();
+}
 const errors = (logs) => logs.filter((l) => l.includes('pageerror') || l.startsWith('[error]'));
 async function installPilot(page) {
   await page.evaluate(() => {
@@ -97,7 +107,7 @@ try {
     s = await st(page);
     check('prompt suggests pumping over the crock', /pump/i.test(s.prompt), s.prompt);
     // double-tap T: auto-fill
-    await page.keyboard.press('KeyT'); await sleep(90); await page.keyboard.press('KeyT');
+    await doubleTapKey(page, 'KeyT');
     await sleep(500);
     s = await st(page);
     check('double-tap T starts auto-fill', !!s.auto, `${s.auto}`);
@@ -151,7 +161,7 @@ try {
     report.pourAudio = await page.evaluate(() => ({ ...window.__pourProbe }));
     check('tank discharge feeds the milk-stream sound channel', report.pourAudio.flow > 0 && report.pourAudio.rate > 0 && report.pourAudio.gain > 0.001 && report.pourAudio.rms > 0.00001, JSON.stringify(report.pourAudio));
     // double-tap G: salvo
-    await page.keyboard.press('KeyG'); await sleep(80); await page.keyboard.press('KeyG');
+    await doubleTapKey(page, 'KeyG');
     await sleep(250);
     s = await st(page);
     check('double-tap G fires a salvo', s.salvo || s.vol < v0 * 0.3, `salvo ${s.salvo}, ${(s.vol * 1e6).toFixed(1)} ml`);
