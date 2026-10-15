@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { cabinShellGeometry, CABIN_SECS, sectionPoint } from './heliModel.js';
-import { noseShellGeometry } from './chinookModel.js';
+import { noseShellGeometry, noseShellPoint, NOSE_PILLAR_Z } from './chinookModel.js';
 import { InstrumentPanel, consoleTexture } from './instruments.js';
 
 // First-person cockpits. Each interior is modelled in the aircraft's body coordinates at model scale
@@ -89,18 +89,33 @@ function compassStrip() {
   return t;
 }
 
+// Two-tone cabin: a light headliner above, a darker, harder-wearing trim colour below (vertex colours
+// multiplying the fabric). lower(x, y, z) returns 0 (headliner) to 1 (trim).
+function twoTone(geo, lower, trim = [0.5, 0.49, 0.47]) {
+  const p = geo.attributes.position, c = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) {
+    const t = THREE.MathUtils.clamp(lower(p.getX(i), p.getY(i), p.getZ(i)), 0, 1);
+    for (let k = 0; k < 3; k++) c[i * 3 + k] = 1 + (trim[k] - 1) * t;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(c, 3));
+  return geo;
+}
+
 function materials(kind) {
   const micro = kind === 'micro';
+  const liningMap = fabric(micro ? '#8d8a82' : '#4a4f42', [34, 20]);
   return {
-    lining: new THREE.MeshStandardMaterial({ map: fabric(micro ? '#8d8a82' : '#4a4f42', [34, 20]), roughness: 0.95, side: THREE.BackSide }),
+    lining: new THREE.MeshStandardMaterial({ map: liningMap, bumpMap: liningMap, bumpScale: 0.6, roughness: 0.95, side: THREE.BackSide }),
+    shellLining: new THREE.MeshStandardMaterial({ map: liningMap, bumpMap: liningMap, bumpScale: 0.6, roughness: 0.95, side: THREE.BackSide, vertexColors: true }),
     frame: new THREE.MeshStandardMaterial({ color: micro ? 0x2b2c2e : 0x1a1b18, roughness: 0.8, side: THREE.BackSide }),
-    post: new THREE.MeshStandardMaterial({ color: micro ? 0x2a2b2d : 0x23251f, roughness: 0.6, metalness: 0.2 }),
-    seal: new THREE.MeshStandardMaterial({ color: 0x101010, roughness: 0.75 }),
+    // Window frames: satin paint with a little sheen, so their roundness reads against the light.
+    post: new THREE.MeshPhysicalMaterial({ color: micro ? 0x2c2e31 : 0x2a2d27, roughness: 0.38, metalness: 0.15, clearcoat: 0.5, clearcoatRoughness: 0.3 }),
+    seal: new THREE.MeshStandardMaterial({ color: 0x0e0e0f, roughness: 0.85 }),
     glass: new THREE.MeshPhysicalMaterial({ color: micro ? 0xd2e2de : 0xbccac6, roughness: 0.22, metalness: 0, transparent: true, opacity: 0.08, envMapIntensity: 0.55, side: THREE.DoubleSide, depthWrite: false }),
     hidden: new THREE.MeshBasicMaterial({ visible: false }),
     floor: new THREE.MeshStandardMaterial({ map: tread([5, 7]), roughness: 0.92 }),
-    panelBody: new THREE.MeshStandardMaterial({ map: crinkle(micro ? '#2a2c2f' : '#24261f', [3, 3]), roughness: 0.78, metalness: 0.1 }),
-    glare: new THREE.MeshStandardMaterial({ map: crinkle('#141516', [6, 2]), roughness: 0.98 }),
+    panelBody: (() => { const t = crinkle(micro ? '#2a2c2f' : '#24261f', [3, 3]); return new THREE.MeshStandardMaterial({ map: t, bumpMap: t, bumpScale: 0.5, roughness: 0.78, metalness: 0.1 }); })(),
+    glare: (() => { const t = crinkle('#141516', [6, 2]); return new THREE.MeshStandardMaterial({ map: t, bumpMap: t, bumpScale: 0.6, roughness: 0.98 }); })(),
     trim: new THREE.MeshStandardMaterial({ map: fabric(micro ? '#4c4a46' : '#3a3e33', [6, 6]), roughness: 0.9 }),
     seat: new THREE.MeshStandardMaterial({ map: micro ? leather('#6c4f37', [1, 1]) : fabric('#40463a', [4, 4]), roughness: micro ? 0.58 : 0.9 }),
     seatFrame: new THREE.MeshStandardMaterial({ color: 0x3a3c3f, roughness: 0.45, metalness: 0.7 }),
@@ -205,6 +220,30 @@ function windowFrame(z0, z1, a0, a1, sx, r, mat) {
   for (let i = 1; i < n; i++) pts.push(onShell(z0, a1 - (a1 - a0) * i / n));
   for (const p of pts) p.x *= sx;
   return tubeThrough(pts, r, mat, true);
+}
+// The coaming: a crowned deck from the glare shield forward to the nose, its edges on the windscreen's
+// sills, so the frame tubes sit on something instead of floating over the nose lining.
+function coamingGeometry(z0, z1, crown, nz = 18, nx = 14) {
+  const pos = [], uv = [], idx = [];
+  for (let j = 0; j <= nz; j++) {
+    const z = z0 + (z1 - z0) * j / nz;
+    const e = onShell(z, 0.02, 0.975);
+    for (let i = 0; i <= nx; i++) {
+      const u = i / nx * 2 - 1;
+      pos.push(u * e.x, e.y - 0.00018 + crown * (1 - u * u) * Math.min(1, j / 3 + 0.4), z);
+      uv.push(i / nx, j / nz);
+    }
+  }
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+    const a = j * (nx + 1) + i, b = a + 1, c = a + nx + 1, d = c + 1;
+    idx.push(a, b, c, b, d, c);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
 }
 // Glare-shield hood: a curved lip profile extruded across the cabin (x from x0, width w).
 function hoodGeometry(w, back, front, top, lipDrop, thick) {
@@ -374,7 +413,8 @@ export class Cockpit {
     const root = new THREE.Group();
     // From inside, the windscreen runs right down to the nose (the opaque nose cap is below the sill).
     const shell = cabinShellGeometry(true, (a, z, outside) => (z < -0.022 && z > -0.0628 && Math.sin(a) > 0.02 ? 1 : outside(a, z)));
-    const lining = new THREE.Mesh(shell, [M.lining, M.hidden]);
+    twoTone(shell, (x, y, z) => { const s = microSection(z); return ((s.yt + s.yb) / 2 - 0.001 - y) / 0.0025; });
+    const lining = new THREE.Mesh(shell, [M.shellLining, M.hidden]);
     lining.castShadow = lining.receiveShadow = true;
     lining.userData.keep = true;
     const glass = new THREE.Mesh(shell, [M.hidden, M.glass]);
@@ -382,16 +422,20 @@ export class Cockpit {
     root.add(lining, glass);
     // Window frames: windscreen centre post, the roof bow where the overhead glass ends, the sills,
     // rubber seals round the chin and door windows.
-    const post = [];
-    for (let z = -0.0626; z <= -0.0218; z += 0.0034) post.push(onShell(z, Math.PI / 2, 0.97));
-    root.add(tubeThrough(post, 0.0007, M.post));
+    // The centre post runs from the roof bow down the nose and plants on the coaming.
+    const post = [V(0, onShell(-0.0612, 0.02, 0.975).y + 0.0002, -0.0612)];
+    for (let z = -0.0622; z <= -0.0218; z += 0.0017) post.push(onShell(z, Math.PI / 2, 0.97));
+    post.splice(1, 1);
+    root.add(tubeThrough(post, 0.0006, M.post));
+    const deck = new THREE.Mesh(coamingGeometry(-0.0445, -0.0612, 0.0007), M.glare);
+    root.add(deck);
     const bow = [];
     for (let a = -0.02; a <= Math.PI + 0.02 + 1e-6; a += Math.PI / 16) bow.push(onShell(-0.0222, a, 0.97));
-    root.add(tubeThrough(bow, 0.0009, M.post));
+    root.add(tubeThrough(bow, 0.00065, M.post));
     for (const sx of [-1, 1]) {
       const sill = [];
-      for (let z = -0.0626; z <= -0.0222; z += 0.003) { const p = onShell(z, 0.02, 0.975); p.x *= sx; sill.push(p); }
-      root.add(tubeThrough(sill, 0.0005, M.seal));
+      for (let z = -0.0612; z <= -0.0222; z += 0.0015) { const p = onShell(z, 0.02, 0.975); p.x *= sx; sill.push(p); }
+      root.add(tubeThrough(sill, 0.00042, M.seal));
       root.add(windowFrame(-0.0585, -0.044, -0.80, -0.23, sx, 0.00028, M.seal));
       root.add(windowFrame(-0.017, -0.001, 0.13, 1.0, sx, 0.00028, M.seal));
       root.add(windowFrame(0.002, 0.020, 0.13, 1.0, sx, 0.00028, M.seal));
@@ -464,8 +508,16 @@ export class Cockpit {
     const M = materials('chinook');
     const s = 0.36;
     const root = new THREE.Group();
-    const shell = noseShellGeometry();
-    const lining = new THREE.Mesh(shell, [M.lining, M.hidden, M.frame]);
+    // Inside, the windscreen posts are glazed over and drawn as clean round tubes instead (a strip of the
+    // shell a quad wide reads as a flat, stepped ribbon this close to the eye).
+    const shell = noseShellGeometry((a, z, outside) => {
+      const r = a > Math.PI / 2 ? Math.PI - a : a;
+      if (z < -0.0745 && r > 0.08) return 1;
+      if (z < -0.0835 && r > -0.2) return 1;
+      return outside(a, z);
+    });
+    twoTone(shell, (x, y) => (0.0035 - y) / 0.003, [0.62, 0.62, 0.6]);
+    const lining = new THREE.Mesh(shell, [M.shellLining, M.hidden, M.frame]);
     lining.castShadow = lining.receiveShadow = true;
     lining.userData.keep = true;
     lining.scale.setScalar(0.99);
@@ -473,6 +525,25 @@ export class Cockpit {
     glass.scale.setScalar(0.99);
     glass.userData.keep = true; glass.renderOrder = 5;
     root.add(lining, glass);
+    // Window frames: slim painted posts and sills along the glazing's edges (the shell's own edges are
+    // stepped where the loft's quads change material).
+    {
+      const at = (a, z, k = 0.982) => { const [x, y] = noseShellPoint(a, z); return V(x * k, y * k, z * k); };
+      const run = (a0, a1, z0, z1, n = 16) => { const pts = []; for (let i = 0; i <= n; i++) { const t = i / n; pts.push(at(a0 + (a1 - a0) * t, z0 + (z1 - z0) * t)); } return pts; };
+      const fr = (pts, r) => root.add(tubeThrough(pts, r, M.post));
+      for (const sx of [1, -1]) {
+        const A = (r) => (sx > 0 ? r : Math.PI - r);
+        fr(run(A(0.08), A(0.08), -0.0835, -0.0745), 0.0002);                 // windscreen sill
+        { const pts = []; for (let i = 0; i <= 20; i++) { const r = 0.08 + (1.12 - 0.08) * i / 20; pts.push(at(A(r), NOSE_PILLAR_Z(r))); } fr(pts, 0.00022); }   // A-pillar
+        fr(run(A(1.12), A(1.12), -0.0846, -0.0745), 0.00016);                  // eyebrow post
+        fr(run(A(0.05), A(0.05), -0.0745, -0.0655, 8), 0.00024);              // side window
+        fr(run(A(0.95), A(0.95), -0.0745, -0.0655, 8), 0.00024);
+        fr(run(A(0.05), A(0.95), -0.0702, -0.0702, 10), 0.00022);
+        fr(run(A(0.05), A(0.95), -0.0655, -0.0655, 10), 0.00026);
+      }
+      fr(run(0.08, Math.PI - 0.08, -0.0745, -0.0745, 32), 0.00024);            // the frame behind the windscreen
+      fr(run(Math.PI / 2, Math.PI / 2, -0.0862, -0.0745), 0.00017);              // centre post
+    }
     // Bulkhead behind the seats with the companionway to the cabin.
     const bh = new THREE.Mesh(new THREE.PlaneGeometry(0.042, 0.04), new THREE.MeshStandardMaterial({ map: crinkle('#3a3f33', [4, 4]), roughness: 0.9 }));
     bh.position.set(0, 0.002, -0.0626); bh.rotation.y = Math.PI; root.add(bh);
@@ -542,14 +613,20 @@ export class Cockpit {
     const tub = new THREE.Mesh(tubGeo, M.lining); tub.userData.keep = true; tub.castShadow = tub.receiveShadow = true;
     root.add(glass, tub);
     // Ribs over the bubble, the sill ring, and an opaque back wall into the spine.
-    for (const a of [-0.55, 0, 0.55]) {
-      const rib = new THREE.TorusGeometry(1, 0.03, 6, 40, Math.PI);
-      rib.rotateY(Math.PI / 2 + a);
-      rib.scale(R.x * 0.975, R.y * 0.975, R.z * 0.975).translate(C.x, C.y, C.z);
-      root.add(new THREE.Mesh(rib, M.post));
+    // Two slim canopy frames well out to the sides, so the view ahead through the bubble is clear.
+    for (const a of [-0.95, 0.95]) {
+      const th = Math.PI / 2 + a, pts = [];
+      for (let i = 0; i <= 40; i++) {
+        const t = i / 40 * Math.PI;
+        pts.push(V(Math.cos(t) * Math.cos(th) * R.x * 0.972 + C.x, Math.sin(t) * R.y * 0.972 + C.y, -Math.cos(t) * Math.sin(th) * R.z * 0.972 + C.z));
+      }
+      root.add(tubeThrough(pts, 0.0001, M.post));
     }
-    const sill = new THREE.TorusGeometry(1, 0.028, 6, 56).rotateX(Math.PI / 2).scale(0.0118 * 0.98, 0.0118, 0.0172 * 0.98).translate(C.x, C.y - 0.0055, C.z);
-    root.add(new THREE.Mesh(sill, M.post));
+    {
+      const pts = [];
+      for (let i = 0; i <= 64; i++) { const t = i / 64 * Math.PI * 2; pts.push(V(Math.cos(t) * 0.0118 * 0.975, C.y - 0.0055, Math.sin(t) * 0.0172 * 0.975 + C.z)); }
+      root.add(tubeThrough(pts, 0.0002, M.post, true));
+    }
     const back = new THREE.Mesh(new THREE.CircleGeometry(1, 40).scale(R.x * 0.9, R.y * 0.75, 1).translate(0, C.y, -0.0545), M.lining);
     root.add(back);
     root.add(box(M.floor, 0.02, 0.0005, 0.016, 0, -0.0018, -0.069));

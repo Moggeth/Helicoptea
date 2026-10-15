@@ -279,6 +279,26 @@ class AircraftFx {
         g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(Y, b.clone().sub(a).normalize()));
         g.translate(a.x, a.y, a.z);
         push(M[d.mat || 'dark'], g);
+      } else if (d.mirror) {
+        // Rear-view mirror: a cranked round arm with ball joints, an oval housing and the glass facing aft.
+        const { arm, pos, rot = [0, 0, 0], w, h, depth } = d.mirror;
+        const pts = arm.map((v) => new THREE.Vector3(...v));
+        for (let i = 1; i < pts.length; i++) {
+          const a = pts[i - 1], b = pts[i], len = a.distanceTo(b);
+          const g = new THREE.CylinderGeometry(d.r, d.r, len, 10);
+          g.translate(0, len / 2, 0);
+          g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(Y, b.clone().sub(a).normalize()));
+          g.translate(a.x, a.y, a.z);
+          push(M.dark, g);
+        }
+        for (const p of pts) push(M.dark, new THREE.SphereGeometry(d.r * 1.5, 10, 8).translate(p.x, p.y, p.z));
+        const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot));
+        const shell = new THREE.CylinderGeometry(0.5, 0.5, 1, 32, 1).rotateX(Math.PI / 2).scale(w, h, depth);
+        shell.applyQuaternion(q); shell.translate(...pos);
+        push(M.black, shell);
+        const glass = new THREE.CircleGeometry(0.5, 32).scale(w * 0.86, h * 0.86, 1).translate(0, 0, depth * 0.52);
+        glass.applyQuaternion(q); glass.translate(...pos);
+        push(M.mirror, glass);
       } else if (d.box) {
         const g = new THREE.BoxGeometry(...d.box);
         if (d.rot) g.applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(...d.rot)));
@@ -336,6 +356,12 @@ class AircraftFx {
         B.g.position.set(ca * B.r0 * Math.cos(c), B.y0 + B.r0 * Math.sin(c), -sa * B.r0 * Math.cos(c));
         _k.set(sa, 0, ca);
         B.g.quaternion.setFromAxisAngle(_k, c).multiply(B.q0);
+      }
+      // From the cockpit a turning rotor is a blur, not blades: at speed the solid blades (which strobe
+      // across the windscreen at display frame rates, reading as posts) give way to the blur disc.
+      const hideSolid = this.view.firstPerson && rs > 0.55;
+      for (const B of R.blades) {
+        if (hideSolid && B.g.visible) { B.g.visible = false; B.fpHid = true; } else if (!hideSolid && B.fpHid) { B.g.visible = true; B.fpHid = false; }
       }
       if (R.disc) {
         R.disc.material.uniforms.uCone.value = Math.tan(R.cone);
@@ -482,8 +508,7 @@ export const FX_SPECS = {
         { box: [0.0004, 0.0022, 0.012], pos: [sx * 0.0209, 0.015, 0.03], mat: 'slime' },
         { box: [0.0004, 0.0022, 0.01], pos: [sx * 0.0121, 0.04, 0.072], mat: 'slime' },
         // rear-view mirrors on arms ahead of the cockpit
-        { rod: [[sx * 0.0175, 0.003, -0.08], [sx * 0.0225, 0.007, -0.083]], r: 0.00035 },
-        { box: [0.0004, 0.003, 0.0045], pos: [sx * 0.0228, 0.0075, -0.0832], rot: [0, sx * 0.4, 0], mat: 'mirror' },
+        { mirror: { arm: [[sx * 0.0175, 0.003, -0.08], [sx * 0.0206, 0.0042, -0.0818], [sx * 0.0226, 0.0062, -0.0828]], pos: [sx * 0.0228, 0.0075, -0.0832], rot: [0.05, sx * 0.35, 0], w: 0.0036, h: 0.0028, depth: 0.0008 }, r: 0.0003 },
       ]),
       // blade antennas on the spine and belly
       { box: [0.0007, 0.0045, 0.005], pos: [0, 0.0295, -0.015], rot: [-0.3, 0, 0], mat: 'black' },
@@ -519,8 +544,7 @@ export const FX_SPECS = {
     landing: { pos: [0, -0.0115, -0.074], dir: [0, -1, -0.3] },
     details: [
       ...[-1, 1].flatMap((sx) => [
-        { rod: [[sx * 0.012, 0.004, -0.076], [sx * 0.0165, 0.008, -0.079]], r: 0.0003 },
-        { box: [0.0004, 0.0028, 0.004], pos: [sx * 0.0168, 0.0085, -0.0792], rot: [0, sx * 0.4, 0], mat: 'mirror' },
+        { mirror: { arm: [[sx * 0.0116, 0.0032, -0.0772], [sx * 0.0136, 0.0040, -0.0786], [sx * 0.0146, 0.0052, -0.0796]], pos: [sx * 0.0149, 0.0064, -0.0802], rot: [0.05, sx * 0.35, 0], w: 0.0024, h: 0.0019, depth: 0.00055 }, r: 0.0002 },
       ]),
       { rod: [[0, 0.03, 0.055], [0, 0.05, 0.066]], r: 0.00025, r1: 0.0004, mat: 'black' },
       { box: [0.0007, 0.0045, 0.005], pos: [0, 0.0235, -0.03], rot: [-0.3, 0, 0], mat: 'black' },
@@ -559,6 +583,10 @@ export class AircraftFxSet {
     // ?fx=0 leaves the models exactly as built (for comparisons and frame-cost measurements).
     if (typeof location !== 'undefined' && new URLSearchParams(location.search).get('fx') === '0') return;
     for (const [id, model] of Object.entries(models)) this.sets[id] = new AircraftFx(view, model, FX_SPECS[id], quality);
+  }
+  // Give back any blades hidden for the cockpit view (before a crash decides which ones are gone).
+  restoreBlades() {
+    for (const fx of Object.values(this.sets)) for (const R of fx.rotors) for (const B of R.blades) if (B.fpHid) { B.g.visible = true; B.fpHid = false; }
   }
   kick(h, dv) {
     const fx = h && this.sets[h.type];
