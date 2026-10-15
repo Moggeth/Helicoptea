@@ -19,11 +19,26 @@ export class StringMesh {
     geo.setIndex(idx);
     geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
     geo.setAttribute('normal', new THREE.BufferAttribute(this.nrm, 3).setUsage(THREE.DynamicDrawUsage));
+    // Per-ring colour (white unless stained), for materials with vertexColors on.
+    this.col = new Float32Array(verts * 3).fill(1);
+    geo.setAttribute('color', new THREE.BufferAttribute(this.col, 3).setUsage(THREE.DynamicDrawUsage));
     this.mesh = new THREE.Mesh(geo, material);
     this.mesh.userData.disposeGeo = true;
     this.mesh.frustumCulled = false;
     this.mesh.castShadow = true;
     this.t = new THREE.Vector3(); this.nA = new THREE.Vector3(); this.bA = new THREE.Vector3(); this.tmp = new THREE.Vector3();
+  }
+
+  // stain[i] 0..1 for each point: tints that ring towards the tea colour.
+  setStain(stain, r = 0.55, g = 0.36, b = 0.2) {
+    for (let i = 0; i < this.n; i++) {
+      const s = stain[i] || 0;
+      for (let k = 0; k < RADIAL; k++) {
+        const j = (i * RADIAL + k) * 3;
+        this.col[j] = 1 + (r - 1) * s; this.col[j + 1] = 1 + (g - 1) * s; this.col[j + 2] = 1 + (b - 1) * s;
+      }
+    }
+    this.mesh.geometry.attributes.color.needsUpdate = true;
   }
 
   update(pts) {

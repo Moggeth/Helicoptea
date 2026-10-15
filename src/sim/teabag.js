@@ -7,6 +7,23 @@ const _q = new THREE.Quaternion();
 const _p = new THREE.Vector3(), _v = new THREE.Vector3(), _w = new THREE.Vector3();
 const _n = new THREE.Vector3(), _r = new THREE.Vector3(), _f = new THREE.Vector3(), _vn = new THREE.Vector3(), _vt = new THREE.Vector3();
 const STRING_COLLIDERS = stringColliders();
+const _iq = new THREE.Quaternion();
+const STRING_ITERS = 10;
+const TWIST = { period: 2.4, damping: 0.18, max: Math.PI * 8 };   // s, damping ratio, wind-up limit (rad)
+
+// One distance constraint of the string: resists stretch, never compression. Pinned ends don't move.
+function solveSegment(s, i, N, seg, pinnedEnd) {
+  const a = i * 3, b = a + 3;
+  const dx = s[b] - s[a], dy = s[b + 1] - s[a + 1], dz = s[b + 2] - s[a + 2];
+  const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6;
+  if (d <= seg) return;
+  const diff = (d - seg) / d;
+  const lastPinned = pinnedEnd && i + 1 === N;
+  const wa = i === 0 ? 0 : (lastPinned ? 1 : 0.5);
+  const wb = lastPinned ? 0 : (i === 0 ? 1 : 0.5);
+  s[a] += dx * diff * wa; s[a + 1] += dy * diff * wa; s[a + 2] += dz * diff * wa;
+  s[b] -= dx * diff * wb; s[b + 1] -= dy * diff * wb; s[b + 2] -= dz * diff * wb;
+}
 
 // Sample points across the bag's mid-plane (local). Immersion, buoyancy and drag are evaluated per point,
 // so a bag half in the tea feels half in the tea and drag produces natural torques.
@@ -156,6 +173,7 @@ export class TeaBag {
     const sp0 = this.vel.length();
     const windy = this.sim.air.near(this.pos);
     this.cup = sub > 0.01 ? cup : null;
+    this.twistTorque(dt, mass);
 
     if (sub < 0.95 && !windy && sp0 > 1e-4) {
       const k = C.airDrag * (0.3 + sp0);
@@ -259,28 +277,64 @@ export class TeaBag {
       s[k + 2] += (z - p[k + 2]) * damp + az;
       p[k] = x; p[k + 1] = y; p[k + 2] = z;
     }
-    for (let it = 0; it < 6; it++) {
+    // Gauss-Seidel sweeps in alternating directions: a pull at either pinned end reaches the far end
+    // within one iteration. (One-way sweeps left the bag end lagging: the string folded down past the
+    // tie point and hung over the bag's face, and the drawn string ran 15-40% longer than the rope.)
+    this.ownBox = this.stringBox();
+    if (this.ownBox) _iq.copy(this.quat).invert();
+    for (let it = 0; it < STRING_ITERS; it++) {
       s[0] = this.anchorWorld.x; s[1] = this.anchorWorld.y; s[2] = this.anchorWorld.z;
       if (end) { s[N * 3] = end.x; s[N * 3 + 1] = end.y; s[N * 3 + 2] = end.z; }
-      for (let i = 0; i < N; i++) {
-        const a = i * 3, b = a + 3;
-        const dx = s[b] - s[a], dy = s[b + 1] - s[a + 1], dz = s[b + 2] - s[a + 2];
-        const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6;
-        if (d <= seg) continue; // a string resists stretch, never compression
-        const diff = (d - seg) / d;
-        const wa = i === 0 ? 0 : (end && i + 1 === N ? 1 : 0.5);
-        const wb = (end && i + 1 === N) ? 0 : (i === 0 ? 1 : 0.5);
-        s[a] += dx * diff * wa; s[a + 1] += dy * diff * wa; s[a + 2] += dz * diff * wa;
-        s[b] -= dx * diff * wb; s[b + 1] -= dy * diff * wb; s[b + 2] -= dz * diff * wb;
-      }
-      this.collideString();
+      if (it & 1) for (let i = N - 1; i >= 0; i--) solveSegment(s, i, N, seg, !!end);
+      else for (let i = 0; i < N; i++) solveSegment(s, i, N, seg, !!end);
+      if (it & 1) this.collideString();
     }
     s[0] = this.anchorWorld.x; s[1] = this.anchorWorld.y; s[2] = this.anchorWorld.z;
-    if (end) { s[N * 3] = end.x; s[N * 3 + 1] = end.y; s[N * 3 + 2] = end.z; }
+    if (end) {
+      s[N * 3] = end.x; s[N * 3 + 1] = end.y; s[N * 3 + 2] = end.z;
+      // A string pulled to its full length is a straight line, whatever the solver still owes.
+      const dx = end.x - s[0], dy = end.y - s[1], dz = end.z - s[2];
+      if (Math.sqrt(dx * dx + dy * dy + dz * dz) >= seg * N * 0.998) {
+        for (let i = 1; i < N; i++) {
+          const t = i / N, k = i * 3;
+          s[k] = s[0] + dx * t; s[k + 1] = s[1] + dy * t; s[k + 2] = s[2] + dz * t;
+        }
+      }
+    }
     this.strRender0.set(this.strRender1);
     this.strRender1.set(s);
     this.strMotion = motion;
   }
+
+  // String twist: a hanging bag that gets spun winds its string up, which turns it back, so it swings to
+  // and fro about the string and settles instead of spinning on freely (the rope joint itself has no
+  // torsion). Tuned as a slow, lightly damped twist pendulum, scaled with the bag's (wet) inertia.
+  twistTorque(dt, mass) {
+    const a = this.attach;
+    if (!a) { this.twist = 0; this.twistOf = null; return; }
+    if (this.twistOf !== a) { this.twist = 0; this.twistOf = a; }
+    const e = a.endWorld();
+    _r.copy(e).sub(this.anchorWorld);
+    const len = _r.length();
+    if (len < 1e-4) return;
+    _r.multiplyScalar(1 / len);
+    const w = this.body.angvel();
+    let wRel = w.x * _r.x + w.y * _r.y + w.z * _r.z;
+    if (a.kind === 'heli' && a.heli && a.heli.body) {
+      const hw = a.heli.body.angvel();
+      wRel -= hw.x * _r.x + hw.y * _r.y + hw.z * _r.z;
+    }
+    this.twist = THREE.MathUtils.clamp((this.twist || 0) + wRel * dt, -TWIST.max, TWIST.max);
+    // Only while the string carries the bag's weight: a slack string can't twist anything.
+    const taut = len > a.length * 0.985 ? 1 : 0;
+    const I = mass * (4 * C.bagHalf[0] * C.bagHalf[0] + 4 * C.bagHalf[2] * C.bagHalf[2]) / 12;
+    const w0 = (2 * Math.PI) / TWIST.period;
+    const tq = -I * (w0 * w0 * this.twist + 2 * TWIST.damping * w0 * wRel) * taut;
+    this.body.addTorque({ x: _r.x * tq, y: _r.y * tq, z: _r.z * tq }, true);
+  }
+
+  // The bag's own body, as half extents, for keeping its string from passing through it (null: none).
+  stringBox() { return C.bagHalf; }
 
   inWater(x, y, z, cups = this.sim.cups) {
     for (const c of cups) {
@@ -309,6 +363,19 @@ export class TeaBag {
           if (c.topY - y < Math.min(toIn, toOut)) y = c.topY + r;
           else if (d > 1e-6) { x = c.x + dx / d * nd; z = c.z + dz / d * nd; }
         } else if (d < c.rIn && y < c.floorY + r && y > c.baseY - 0.01) y = c.floorY + r;
+      }
+      // Its own bag: a string can lie across the bag but not pass through it.
+      const bx = this.ownBox;
+      if (bx) {
+        _r.set(x - this.pos.x, y - this.pos.y, z - this.pos.z).applyQuaternion(_iq);
+        const ox = bx[0] + r - Math.abs(_r.x), oy = bx[1] + r - Math.abs(_r.y), oz = bx[2] + r - Math.abs(_r.z);
+        if (ox > 0 && oy > 0 && oz > 0) {
+          if (oz <= ox && oz <= oy) _r.z = Math.sign(_r.z || 1) * (bx[2] + r);
+          else if (oy <= ox) _r.y = Math.sign(_r.y || 1) * (bx[1] + r);
+          else _r.x = Math.sign(_r.x) * (bx[0] + r);
+          _r.applyQuaternion(this.quat);
+          x = this.pos.x + _r.x; y = this.pos.y + _r.y; z = this.pos.z + _r.z;
+        }
       }
       for (const [cx, cz, cr, top] of this.nearCols || STRING_COLLIDERS) {
         const dx = x - cx, dz = z - cz;

@@ -154,3 +154,11 @@ Phone check (`e2e-cockpit` "touch: cockpit frame rate at 4x CPU throttle", targe
 
 - `npm run check` all green. Browser suites on the final rebase: all pass (camera 82, chinook 17, crashes 58, depth 21, milk 20, replay 47, rotorwash 14, skycrane 33, static 11, tuning 33, e2e 52) except that cockpit 4x check (40/41).
 - Not measured: Mitch's real play at 120 Hz in his own browser (the benchmark window is real Chrome on his display, but automated), a real phone, a headset, or the GPU-less CI runner, where the frame-rate checks stay advisory.
+
+### 2026-10-15: tea bag and string pass
+
+- `node tests/bag-checks.mjs` 27/27 (now in `npm run check`), on the micro heli, Chinook and skycrane: a bag lifted straight off its peg comes away (master: the micro's bag wedged under the peg and the Chinook was dragged over and destroyed); the carried string keeps the rope's length (master: 1.29×), never folds below the bag's tie point (master: 21-25 mm), never passes through the bag, is tied on at both ends, is straight when taut and sags when slack; a bag spun at 12 rad/s winds its string 3.4 rad, swings back five times and is under 0.6 rad/s after 7 s (master: no twist, still 3.5 rad/s). Master fails 20 of the 27.
+- `node tests/e2e-teabag.mjs` 18/18: on all three aircraft the drawn string runs knot to hook at the rope's length (sag 0.00 mm, ends within 0.2 mm), the tag hangs beside the string and swings 0.14-0.23 rad on a jink then settles; a half dip soaks the paper 10 mm above centre (of ±30 mm), a full dip to the top and stains the string; no shader errors.
+- Frame time (desktop 1920×1080 high, uncapped, micro in the house): 264-281 fps vs master 238-338 fps across runs (noisy), same 574 draw calls, 488k vs 469k triangles. Sim cost per 240 Hz step in Node 0.227 vs 0.224 ms.
+- `npm run check` all green; `npm run e2e` 21 suites: 20 pass, e2e-cockpit 40/41 (the touch cockpit ×4 CPU frame-rate check at 22 fps, which also fails on master; the performance thread owns it).
+- Not verified: how the twist and tag swing feel to a person, a real phone GPU, the replay viewer's tag (drawn still there, no swing).
