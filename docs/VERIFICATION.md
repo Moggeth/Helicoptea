@@ -163,3 +163,13 @@ Phone check (`e2e-cockpit` "touch: cockpit frame rate at 4x CPU throttle", targe
 - Measured at 1x on a phone-sized view (844×390 at DPR 2, medium tier, cockpit, on the pad, 30 fps cap): sim 1.72 → 1.25 ms a frame, the whole frame 5.94 → 5.50 ms (median of 4 runs each). A Rapier step on the pad went from 145 to 95 µs (micro heli).
 - The `e2e-cockpit` 4x-throttle check is still borderline. Run interleaved: master scored 31, 28 and 29 fps; this branch scored 27, 28 and 33. This machine was also running other sessions' suites, and the check's own run-to-run spread (±3 fps) is bigger than the gain. With the whole simulation removed, the same check reached 33 fps, so what is left is rendering.
 - 4K at 120 Hz is unchanged: 120 fps with a 1% low of 117 in the six scenes checked. `npm run check` is all green. Every browser suite passes except that check. One run of e2e-skycrane failed 11 hose checks while other suites were loading the machine; it passed 35/35 on both master and this branch when re-run. The branch also applies cleanly on `teabag` (4635406), with all checks green on the combined tree.
+
+### 2026-10-15: rendering on touch devices and the low tier (branch `phone-render` on `sleep`)
+
+- Only `quality.lite` changes: touch devices and the low tier, the same flag that already gives them fewer loose props. Desktop high, medium and Ultra draw exactly as before.
+  - The sun's and the cabin's shadow maps are redrawn every other frame. Shadows of still scenery are cached either way; moving things' shadows trail by at most one frame.
+  - The table runner uses the low tier's cloth (40×7 points instead of 56×10).
+  - The hook camera renders at most 15 times a second.
+- Phone-sized cockpit on the pad at 1x, capped at 30 fps: the whole frame takes 5.60 ms on master and 4.72 ms here (median of 4 runs each).
+- The `e2e-cockpit` 4x check now waits 1.5 s after the throttle starts, then takes the median of three 2 s windows timed by the page's clock. The bar is unchanged (above 30). The old version counted frames for 3 s straight after switching the throttle on, which included the catch-up frames, and it swung ±3 fps from run to run. With the new measurement: this branch 41–47 fps over 5 runs, master 34–39 over 2 runs. Under the old measurement in the same session: this branch 33, 41 and 42, master 32, 29 and 31.
+- All 20 browser suites pass, as does `npm run check`. 4K at 120 Hz is unchanged in the six scenes checked: 120 fps, with one 89 fps 1% low from a single long frame in the micro garden chase. The branch applies cleanly on `cockpit-art` (c53c383), where node checks are green and the 4x check passes at 41 fps.
