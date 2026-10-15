@@ -53,9 +53,24 @@ async function open(query, viewport = { width: 1600, height: 900 }, opts = {}) {
   await sleep(400);
   return { ctx, page, logs };
 }
+// Wait for as much simulated time as `ms` of real flying (at the World weight's clock), however slowly the
+// page runs: on a GPU-less CI runner the world can fall behind the wall clock. Gives up after 4x as long.
+const waitSim = (page, ms) => page.evaluate((ms) => new Promise((res) => {
+  const H = window.__helicoptea, t0 = H.sim.time, need = (ms / 1000) * H.worldSpeed, w0 = performance.now();
+  const tick = () => (H.sim.time - t0 >= need || performance.now() - w0 > ms * 4 ? res() : setTimeout(tick, 50));
+  tick();
+}), ms);
+// The ripple field runs on its own clock, capped at six 240 Hz substeps a frame to bound its cost, so at
+// 10 fps (a GPU-less CI runner) it runs at a quarter speed: wait until it has had `ms` of its own time at
+// the world's clock (it stops counting once settled and switched off). Gives up after 6x as long.
+const waitField = (page, ms, which = 0) => page.evaluate(([ms, which]) => new Promise((res) => {
+  const H = window.__helicoptea, f = H.view.surfaces[which].field, t0 = f.t, need = (ms / 1000) * H.worldSpeed, w0 = performance.now();
+  const tick = () => ((f.t - t0 >= need) || (f.on === 0 && performance.now() - w0 > 500) || performance.now() - w0 > ms * 6 ? res() : setTimeout(tick, 50));
+  tick();
+}), [ms, which]);
 const fly = (page, x, y, z, speed, ms) => page.evaluate(([x, y, z, speed]) => {
   const P = window.__pilot; P.on = true; P.ap.target.set(x, y, z); P.ap.maxSpeed = speed;
-}, [x, y, z, speed]).then(() => sleep(ms));
+}, [x, y, z, speed]).then(() => waitSim(page, ms));
 const surf = (page, which) => page.evaluate((which) => {
   const H = window.__helicoptea, L = H.view.liquid;
   const s = which === 'bowl' ? H.view.milkView.bowlSurface : which === 'bath' ? H.view.birdbath : H.view.surfaces[which];
@@ -82,6 +97,7 @@ try {
   await fly(page, -0.56, 0.35, 0.24, 0.3, 1500);
   await fly(page, mug.x, 0.35, mug.z, 0.3, 3500);
   await fly(page, mug.x, mug.top + 0.075, mug.z, 0.12, 7000);
+  await waitField(page, 3000);
   const hov = await surf(page, 0);
   check('hovering over the mug couples the wake to the tea', hov.forcing >= 1 && hov.I > 0.3, `I=${hov.I}, v_g=${hov.vg} m/s`);
   check('the wash presses a dimple and rings into the tea (height field running)', hov.on === 1 && hov.fieldOn === 1 && hov.depthMm > 0.15 && hov.depthMm < 4, `deepest ${hov.depthMm} mm`);
@@ -97,7 +113,9 @@ try {
   await page.evaluate(() => window.__helicoptea.setView('chase'));
 
   // Climb away: the wash stops and the tea settles back to a still surface.
-  await fly(page, mug.x + 0.35, 0.45, mug.z + 0.1, 0.4, 9000);
+  await fly(page, mug.x + 0.35, 0.45, mug.z + 0.1, 0.4, 0);
+  await waitSim(page, 9000);
+  await waitField(page, 9000);
   const away = await surf(page, 0);
   check('climbing away releases the tea and it settles flat', away.forcing === 0 && away.on === 0 && away.washS < 0.05, JSON.stringify({ on: away.on, washS: away.washS }));
 
@@ -128,6 +146,7 @@ try {
   const mugP = await ph.page.evaluate(() => { const c = window.__helicoptea.sim.cups[0]; return { x: c.x, z: c.z, top: c.topY }; });
   await fly(ph.page, mugP.x, 0.35, mugP.z, 0.3, 5000);
   await fly(ph.page, mugP.x, mugP.top + 0.075, mugP.z, 0.12, 3500);
+  await waitField(ph.page, 2000);
   const phs = await surf(ph.page, 0);
   const perfPh1 = await measure(ph.page, 3000);
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });

@@ -1,12 +1,14 @@
 name: CI
 
-# Every push and pull request: install, build, the Node checks, then every browser suite (tests/e2e*.mjs,
-# found by tests/run-e2e.mjs, so new suites run without editing this file) in headless Chrome.
+# Every push and pull request: install, build and the Node checks, then every browser suite (tests/e2e*.mjs,
+# listed by tests/run-e2e.mjs --list, so new suites run without editing this file) in headless Chrome, one
+# suite per parallel job so each gets a whole runner and a slow one cannot starve the rest.
 # Windows matches the machine the suites were written on (Chrome path, ANGLE on D3D11). Hosted runners
-# have no GPU: Chrome falls back to WARP (Basic Render Driver), which the game detects and answers with its
-# software-renderer tier (low quality, ~100k rendered pixels, longer physics catch-up), so the world runs
-# at real speed. Frame-rate checks are reported as warnings here rather than failures; every other check
-# must pass. A suite stuck for 12 minutes fails, and the whole job stops at 45.
+# have no GPU: Chrome falls back to WARP (Basic Render Driver, roughly 10-20 fps here), which the game
+# detects and answers with its software-renderer tier (low quality, ~100k rendered pixels, longer physics
+# catch-up), so the world runs at real speed. Performance checks (frame rate, ms-per-frame budgets) are
+# reported as warnings here rather than failures; every behaviour check must pass. A suite stuck for 20
+# minutes fails, and each job stops at 30.
 # Vercel builds and deploys on its own from the same pushes.
 on:
   push:
@@ -18,9 +20,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  check:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
+    outputs:
+      suites: ${{ steps.list.outputs.suites }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,14 +34,34 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run check
-      - name: Browser suites
-        run: node tests/run-e2e.mjs --perf-advisory --timeout 12
-        timeout-minutes: 35
+      - id: list
+        shell: bash
+        run: echo "suites=$(node tests/run-e2e.mjs --list)" >> "$GITHUB_OUTPUT"
+
+  browser:
+    needs: check
+    name: ${{ matrix.suite }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: ${{ fromJSON(needs.check.outputs.suites) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Run ${{ matrix.suite }}
+        run: node tests/run-e2e.mjs ${{ matrix.suite }} --perf-advisory --timeout 20
       - name: Upload screenshots and reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: test-results-${{ matrix.suite }}
           path: |
             test-results/
             logs/flights/

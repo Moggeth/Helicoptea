@@ -70,7 +70,9 @@ export class Input {
       // Combos: Shift or a double-tap. G: salvo (dump everything). T: skycrane auto-fill.
       const combo = { KeyG: 'salvo', KeyT: 'autofill' }[e.code];
       if (combo) {
-        const now = performance.now();
+        // When the key went down, not when a busy page got round to the event: on a slow machine the two
+        // can be a frame apart, which would make a quick double-tap look slow.
+        const now = e.timeStamp || performance.now();
         if (e.shiftKey || now - (this.lastTap[e.code] || 0) < DOUBLE_TAP) { this.actions.push(combo); this.lastTap[e.code] = 0; } else this.lastTap[e.code] = now;
       }
     }, { passive: false });
@@ -215,7 +217,7 @@ export class Input {
       let last = 0;
       b.addEventListener('pointerdown', (e) => {
         e.preventDefault(); e.stopPropagation(); this.source = 'touch'; set(true); b.classList.add('pressed'); b.setPointerCapture?.(e.pointerId);
-        const now = performance.now();
+        const now = e.timeStamp || performance.now();   // when the finger landed (see the keyboard combos)
         if (combo && now - last < DOUBLE_TAP) { this.actions.push(combo); last = 0; } else last = now;
       });
       const up = () => { set(false); b.classList.remove('pressed'); };

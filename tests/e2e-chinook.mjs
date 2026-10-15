@@ -44,6 +44,20 @@ const st = (page) => page.evaluate(() => {
   const s = window.__helicoptea.sim, h = s.heli;
   return { aircraft: s.aircraft, type: h?.type, state: s.state, y: h?.pos.y, tilt: h ? Math.acos(Math.min(1, h.up.y)) : 0, hdg: h?.heading(), debris: s.debris.length, carried: s.carriedBags().length };
 });
+// Hold a key for `hold` seconds of simulated time, then return the state `after` more simulated seconds
+// later, all inside the page and read on the frame that time is reached. Wall-clock holds and waits (and
+// each event's trip from the test to a busy page) would give a slow renderer a longer burst of collective
+// and ask about a later moment of the flight; with Assist off the Chinook keeps climbing, so both matter.
+const holdSim = (page, code, hold, after = 0) => page.evaluate(([code, hold, after]) => new Promise((res) => {
+  const H = window.__helicoptea, s = H.sim, w0 = performance.now();
+  const at = (t, then) => { const tick = () => (s.time < t && performance.now() - w0 < (hold + after) * 4000 + 2000 ? requestAnimationFrame(tick) : then()); requestAnimationFrame(tick); };
+  const read = () => { const h = s.heli; res({ aircraft: s.aircraft, type: h?.type, state: s.state, y: h?.pos.y, tilt: h ? Math.acos(Math.min(1, h.up.y)) : 0, hdg: h?.heading(), debris: s.debris.length, carried: s.carriedBags().length }); };
+  if (code) window.dispatchEvent(new KeyboardEvent('keydown', { code, key: code, bubbles: true }));
+  at(s.time + hold, () => {
+    if (code) window.dispatchEvent(new KeyboardEvent('keyup', { code, key: code, bubbles: true }));
+    at(s.time + after, read);
+  });
+}), [code, hold, after]);
 const errorsIn = (logs) => logs.filter((l) => /\[(error|pageerror)\]/.test(l));
 
 try {
@@ -58,9 +72,9 @@ try {
     await page.click('#start-btn');
     await page.waitForFunction(() => window.__helicoptea?.started);
     await sleep(500);
-    await page.keyboard.down('KeyW'); await sleep(1600); await page.keyboard.up('KeyW');
-    await sleep(800);
-    s = await st(page);
+    // Sim-timed, so the hover height (and so the room left below the ceiling for the Assist-off climb
+    // further down) is the same however fast the page renders.
+    s = await holdSim(page, 'KeyW', 1.6, 0.8);
     check('keyboard: W lifts the Chinook', s.y > 0.15 && s.state === 'flying', `y=${s.y?.toFixed(3)}`);
     await page.keyboard.down('ArrowRight'); await sleep(500);
     s = await st(page);
@@ -71,13 +85,11 @@ try {
     await page.keyboard.down('KeyD'); await sleep(1200); await page.keyboard.up('KeyD');
     const dh = (await st(page)).hdg - h0;
     check('keyboard: D yaws through differential cyclic', Math.abs(dh) > 0.4, `heading change ${dh.toFixed(2)} rad`);
-    await sleep(1500);
+    await holdSim(page, null, 0, 1.5);   // let the assist settle the hover (Assist off keeps whatever collective it holds)
     await page.keyboard.press('KeyF');
     await sleep(300);
     const assist = await page.evaluate(() => window.__helicoptea.sim.assist);
-    await page.keyboard.down('KeyW'); await sleep(300); await page.keyboard.up('KeyW');
-    await sleep(1500);
-    s = await st(page);
+    s = await holdSim(page, 'KeyW', 0.3, 1.5);
     check('assist off: still flying a second later', !assist && s.state === 'flying', `assist=${assist} y=${s.y?.toFixed(3)}`);
     await page.keyboard.press('KeyF');
     await page.screenshot({ path: path.join(outDir, 'chinook-01-keyboard.png') });
@@ -111,15 +123,31 @@ try {
   // ---------------------------------------------------------------- gamepad
   {
     const { ctx, page, logs } = await open({ width: 1280, height: 800 }, { gamepad: true, query: '?aircraft=chinook' });
-    const press = async (i) => { await page.evaluate((i) => { window.__pad.buttons[i] = { pressed: true, value: 1 }; }, i); await sleep(100); await page.evaluate((i) => { window.__pad.buttons[i] = { pressed: false, value: 0 }; }, i); await sleep(120); };
-    await press(0); await sleep(600);
-    await page.evaluate(() => { window.__pad.axes[1] = -1; }); await sleep(1500);
-    await page.evaluate(() => { window.__pad.axes[1] = 0; }); await sleep(700);
-    let s = await st(page);
+    // The pad is polled once a frame: hold the button until two frames have run, so a slow renderer sees it.
+    const press = (i) => page.evaluate((i) => new Promise((res) => {
+      const H = window.__helicoptea, f0 = H.frames, w0 = performance.now();
+      window.__pad.buttons[i] = { pressed: true, value: 1 };
+      const tick = () => { if ((H.frames < f0 + 2 || performance.now() - w0 < 100) && performance.now() - w0 < 3000) { requestAnimationFrame(tick); return; } window.__pad.buttons[i] = { pressed: false, value: 0 }; res(); };
+      requestAnimationFrame(tick);
+    }), i);
+    // Hold a stick for `hold` simulated seconds, then read the state `after` more (as holdSim does for keys).
+    const stick = (axis, hold, after) => page.evaluate(([axis, hold, after]) => new Promise((res) => {
+      const s = window.__helicoptea.sim, w0 = performance.now();
+      const at = (t, then) => { const tick = () => (s.time < t && performance.now() - w0 < (hold + after) * 4000 + 2000 ? requestAnimationFrame(tick) : then()); requestAnimationFrame(tick); };
+      window.__pad.axes[axis] = -1;
+      at(s.time + hold, () => {
+        const h = s.heli, tilt = h ? Math.acos(Math.min(1, h.up.y)) : 0;
+        if (after === 0) window.__pad.axes[axis] = 0;
+        const read = () => { const h = s.heli; window.__pad.axes[axis] = 0; res({ type: h?.type, state: s.state, y: h?.pos.y, tilt: after === 0 ? tilt : (h ? Math.acos(Math.min(1, h.up.y)) : 0) }); };
+        if (after === 0) read(); else { window.__pad.axes[axis] = 0; at(s.time + after, read); }
+      });
+    }), [axis, hold, after]);
+    await press(0);
+    await page.waitForFunction(() => window.__helicoptea.started, null, { timeout: 15000 }).catch(() => {});
+    await sleep(600);
+    let s = await stick(1, 1.5, 0.7);
     check('gamepad: left stick lifts the Chinook', s.type === 'chinook' && s.y > 0.15, `y=${s.y?.toFixed(3)}`);
-    await page.evaluate(() => { window.__pad.axes[3] = -1; }); await sleep(500);
-    s = await st(page);
-    await page.evaluate(() => { window.__pad.axes[3] = 0; });
+    s = await stick(3, 0.5, 0);
     check('gamepad: right stick tilts it', s.tilt > 0.05, `tilt=${s.tilt.toFixed(3)}`);
     check('no console errors (gamepad run)', errorsIn(logs).length === 0, errorsIn(logs).slice(0, 3).join(' | '));
     await ctx.close();

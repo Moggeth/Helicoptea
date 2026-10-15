@@ -88,7 +88,9 @@ check('↺ resets one knob', await H(() => window.__helicoptea.tuning.getGlobal(
 
 // ---------------------------------------------------------------- mouse-over clip
 await page.hover('.tune-row[data-knob=coasting]');
-await sleep(1500);
+// The clip runs on its own clock (at most 50 ms per frame), so wait on clip time rather than wall time:
+// a software renderer at 10 fps plays it at half speed.
+await page.waitForFunction(() => { const r = window.__helicoptea.tuningPanel.rig; return r && r.running && Math.min(r.sides[0].t, r.sides[1].t) > 0.35; }, null, { timeout: 15000 }).catch(() => {});
 const clip = await H(() => {
   const P = window.__helicoptea.tuningPanel, r = P.rig;
   return {

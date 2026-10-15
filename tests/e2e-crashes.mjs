@@ -94,8 +94,10 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
     }
     const ended = await waitFor(page, () => window.__helicoptea.sim.state !== 'flying');
     await sleep(kind === 'impact' ? 120 : 250);
-    if (kind === 'impact' && aircraft === 'micro') report.perf.microCrash = await frameStats(page, 1500);
+    // Read the aftermath before the 1.5 s frame-rate sample below, not after it: on a slow software
+    // renderer the sparks would burn out while it measures.
     const s = await state(page);
+    if (kind === 'impact' && aircraft === 'micro') report.perf.microCrash = await frameStats(page, 1500);
     await page.screenshot({ path: `${outDir}/${aircraft}-${kind}.png` });
     check(`${aircraft} ${kind}: ${reason} (${crashKind}) with its own heading and line`, ended && s.reason === reason && s.kind === crashKind && s.crashShown && s.title === TITLES[crashKind] && s.why.length > 10,
       `${s.reason}/${s.kind} "${s.title}" ${s.why}`);
@@ -110,6 +112,8 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
     await H(page, () => window.__helicoptea.stageCrash('tail'));
     const lost = await waitFor(page, () => window.__helicoptea.sim.heli?.dmg.tail, 4000);
     await sleep(2200);
+    // The spin builds in simulated time; on a slow software renderer the world can lag the wall clock.
+    await waitFor(page, () => Math.abs(window.__helicoptea.sim.heli?.dmg.spin || 0) > 4, 6000);
     const s = await state(page);
     const toast = await H(page, () => document.querySelector('.toast').textContent);
     await page.screenshot({ path: `${outDir}/${aircraft}-tail-spin.png` });

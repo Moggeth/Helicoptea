@@ -25,6 +25,10 @@ async function open(query, opts = {}) {
     navigator.getGamepads = () => [pad(), null, null, null];
   });
   const page = await ctx.newPage();
+  // Loads, screenshots and clicks wait for a rendered frame; on a GPU-less CI runner (software WebGL at
+  // a few fps in the heavier camera modes) those can take longer than Playwright's 30 s default.
+  page.setDefaultTimeout(90000);
+  page.setDefaultNavigationTimeout(90000);
   const logs = [];
   page.on('console', (m) => { if (m.type() === 'error') logs.push(`[error] ${m.text()}`); });
   page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
