@@ -46,6 +46,7 @@ async function open(viewport, opts = {}) {
     navigator.getGamepads = () => (window.__pad.present ? [pad(), null, null, null] : [null, null, null, null]);
   }, opts.gamepad);
   const page = await ctx.newPage();
+  page.setDefaultTimeout(60000); // a software renderer can take over 30 s to load and to screenshot
   const logs = [];
   page.on('console', (m) => logs.push(`[${m.type()}] ${m.text()}`));
   page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
