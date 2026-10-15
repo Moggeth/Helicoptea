@@ -65,7 +65,9 @@ export class TeaBag {
     const desc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(pos.x, pos.y, pos.z)
       .setRotation({ x: quat.x, y: quat.y, z: quat.z, w: quat.w })
-      .setCanSleep(false)
+      // Sleep is ours to decide (see rest()): applyForces wakes the body every step it is awake, so Rapier's
+      // own sleep timer never runs out while the bag is moving.
+      .setCanSleep(true)
       .setCcdEnabled(true)
       .setLinearDamping(0.02)
       .setAngularDamping(0.25);
@@ -100,6 +102,13 @@ export class TeaBag {
   }
 
   applyForces(dt) {
+    // Asleep at rest: nothing to integrate until something wakes it. Rapier wakes it for a touch, a new or
+    // removed joint (hooking, unhooking) or a teleport; moving air near it wakes it here.
+    if (this.resting) {
+      if (this.body.isSleeping() && !this.sim.air.near(this.pos)) return;
+      this.resting = false;
+      this.restT = 0;
+    }
     this.updateCached();
     const body = this.body;
     body.resetForces(true);
@@ -213,6 +222,23 @@ export class TeaBag {
       this.cup.bagPos.copy(this.pos);
       this.potency = Math.max(0, this.potency - this.immersion * dt / C.potencyLife);
     }
+    this.rest(dt, sub, windy);
+  }
+
+  // A bag that has come completely to rest (hanging on its peg or lying somewhere, out of the tea and the
+  // wash, done draining, still to a tenth of a millimetre per second for half a second) goes to sleep, so
+  // it costs the physics nothing. Below these speeds nothing visible moves.
+  rest(dt, sub, windy) {
+    const av = this.body.angvel();
+    const still = (!this.attach || this.attach.kind === 'peg') && sub === 0 && this.cling <= 0 && !windy
+      && this.vel.lengthSq() < 1e-8 && av.x * av.x + av.y * av.y + av.z * av.z < 1e-6
+      && this.wetness - this.peakWet * C.dampFloor < 1e-5;
+    this.restT = still ? (this.restT || 0) + dt : 0;
+    if (this.restT < 0.5) return;
+    this.body.resetForces(false);
+    this.body.resetTorques(false);
+    this.body.sleep();
+    this.resting = true;
   }
 
   afterStep(dt) {

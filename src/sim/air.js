@@ -38,6 +38,24 @@ export class AirField {
     this.energy = 0;
     this.calm = true;
     this.markSolids();
+    this.buildStencil();
+  }
+
+  // The pressure solve visits the interior cells that are not solid, in row order, and for each takes its
+  // four neighbours or, where a neighbour is solid, the cell itself. Worked out once (the solids never
+  // change) so the inner loops are straight array reads.
+  buildStencil() {
+    const fluid = [], all = [];
+    for (let j = 1; j < NZ - 1; j++) for (let i = 1; i < NX - 1; i++) { const k = j * NX + i; all.push(k); if (!this.solid[k]) fluid.push(k); }
+    this.interior = Int32Array.from(all);
+    this.fluid = Int32Array.from(fluid);
+    const n = fluid.length, S = this.solid;
+    this.nL = new Int32Array(n); this.nR = new Int32Array(n); this.nD = new Int32Array(n); this.nU = new Int32Array(n);
+    for (let q = 0; q < n; q++) {
+      const k = fluid[q];
+      this.nL[q] = S[k - 1] ? k : k - 1; this.nR[q] = S[k + 1] ? k : k + 1;
+      this.nD[q] = S[k - NX] ? k : k - NX; this.nU[q] = S[k + NX] ? k : k + NX;
+    }
   }
 
   markSolids() {
@@ -154,13 +172,18 @@ export class AirField {
 
   advect(dt) {
     const { u, w, u2, w2 } = this;
-    for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
-      const k = j * NX + i;
-      const x = i - u[k] * dt / H, z = j - w[k] * dt / H;
-      u2[k] = this.bilerp(u, x, z);
-      w2[k] = this.bilerp(w, x, z);
+    const xMax = NX - 1.001, zMax = NZ - 1.001;
+    for (let j = 0, k = 0; j < NZ; j++) for (let i = 0; i < NX; i++, k++) {
+      // Semi-Lagrangian: bilinear sample of both components at the back-traced point (bilerp, inlined).
+      let x = i - u[k] * dt / H, z = j - w[k] * dt / H;
+      x = x < 0 ? 0 : x > xMax ? xMax : x; z = z < 0 ? 0 : z > zMax ? zMax : z;
+      const ii = Math.floor(x), jj = Math.floor(z), fx = x - ii, fz = z - jj;
+      const q = jj * NX + ii, gx = 1 - fx, gz = 1 - fz;
+      u2[k] = (u[q] * gx + u[q + 1] * fx) * gz + (u[q + NX] * gx + u[q + NX + 1] * fx) * fz;
+      w2[k] = (w[q] * gx + w[q + 1] * fx) * gz + (w[q + NX] * gx + w[q + NX + 1] * fx) * fz;
     }
-    this.u.set(u2); this.w.set(w2);
+    // Swap rather than copy (everything reads this.u / this.w).
+    this.u = u2; this.w = w2; this.u2 = u; this.w2 = w;
   }
 
   bilerp(f, x, z) {
@@ -171,30 +194,24 @@ export class AirField {
   }
 
   project() {
-    const { u, w, p, div, src, solid } = this;
-    for (let j = 1; j < NZ - 1; j++) for (let i = 1; i < NX - 1; i++) {
-      const k = j * NX + i;
+    const { u, w, p, div, src, interior, fluid, nL, nR, nD, nU } = this;
+    for (let q = 0; q < interior.length; q++) {
+      const k = interior[q];
       div[k] = ((u[k + 1] - u[k - 1]) + (w[k + NX] - w[k - NX])) / (2 * H) - src[k];
     }
     // Warm start from last frame's pressure: the flow changes slowly, so few iterations suffice.
+    // (Gauss-Seidel in row order, as before: a neighbour that is solid counts as the cell itself.)
+    const n = fluid.length;
     for (let it = 0; it < CFG.air.iterations; it++) {
-      for (let j = 1; j < NZ - 1; j++) for (let i = 1; i < NX - 1; i++) {
-        const k = j * NX + i;
-        if (solid[k]) continue;
-        const pc = p[k];
-        const pl = solid[k - 1] ? pc : p[k - 1], pr = solid[k + 1] ? pc : p[k + 1];
-        const pd = solid[k - NX] ? pc : p[k - NX], pu = solid[k + NX] ? pc : p[k + NX];
-        p[k] = (pl + pr + pd + pu - div[k] * H * H) * 0.25;
+      for (let q = 0; q < n; q++) {
+        const k = fluid[q];
+        p[k] = (p[nL[q]] + p[nR[q]] + p[nD[q]] + p[nU[q]] - div[k] * H * H) * 0.25;
       }
     }
-    for (let j = 1; j < NZ - 1; j++) for (let i = 1; i < NX - 1; i++) {
-      const k = j * NX + i;
-      if (solid[k]) continue;
-      const pc = p[k];
-      const pl = solid[k - 1] ? pc : p[k - 1], pr = solid[k + 1] ? pc : p[k + 1];
-      const pd = solid[k - NX] ? pc : p[k - NX], pu = solid[k + NX] ? pc : p[k + NX];
-      u[k] -= (pr - pl) / (2 * H);
-      w[k] -= (pu - pd) / (2 * H);
+    for (let q = 0; q < n; q++) {
+      const k = fluid[q];
+      u[k] -= (p[nR[q]] - p[nL[q]]) / (2 * H);
+      w[k] -= (p[nU[q]] - p[nD[q]]) / (2 * H);
     }
   }
 

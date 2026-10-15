@@ -6,6 +6,7 @@ import { buildStaticWorld } from './staticWorld.js';
 import { createAircraft, gearDrop, AIRCRAFT_IDS } from './aircraft.js';
 import { TeaBag } from './teabag.js';
 import { AirField } from './air.js';
+import { lazySceneQueries } from './sceneQueries.js';
 import { Props } from './props.js';
 import { MilkSystem } from './milk.js';
 import { Damage, CRASH_KINDS } from './damage.js';
@@ -65,7 +66,7 @@ Debris.next = 1;
 export class Sim {
   constructor(opts = {}) {
     this.aircraft = AIRCRAFT_IDS.includes(opts.aircraft) ? opts.aircraft : 'micro';
-    this.world = new RAPIER.World({ x: 0, y: -CFG.physics.gravity, z: 0 });
+    this.world = lazySceneQueries(new RAPIER.World({ x: 0, y: -CFG.physics.gravity, z: 0 }));
     this.dt = 1 / CFG.physics.hz;
     this.world.timestep = this.dt;
     const ip = this.world.integrationParameters;
