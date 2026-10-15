@@ -57,6 +57,10 @@ The model ([src/render/chinookModel.js](../src/render/chinookModel.js)) is lofte
 - Effective displaced volume shrinks as the bag soaks, so a dry bag floats for a moment and then sinks.
 - Wetness rises while immersed (2.4 s time constant), then drains towards 32% of peak (11 s time constant), emitting drips that ripple the tea or spot the table. Mass is updated via `setAdditionalMass` in small increments.
 - Brewing: each cup integrates `immersion × bag potency`; bags slowly lose potency. A bag left in a cup keeps brewing. The colour ramp runs hot water → straw → amber → mahogany → builder's.
+- The drawn string is a verlet line solved with Gauss-Seidel sweeps in alternating directions, so a pull at either end reaches the other within one iteration; a string pulled to its full length is drawn as a straight line. It is pinned to the knot on the bag and to the hook, keeps out of its own bag as well as cups and props, and sags only when the rope is actually slack. (One-way sweeps used to leave it 15-40% longer than the rope, folded down over the bag's face.)
+- String twist: the rope joint has no torsion, so a twist spring-damper about the string (2.4 s period, damping ratio 0.18, scaled with the wet bag's inertia, only while the string carries the bag) makes a spun bag wind its string up, turn back and settle instead of spinning on.
+- The stand's pegs don't collide with bags: a bag lifted straight up passes its thin peg instead of wedging under it (which could drag a Chinook over).
+- Look ([src/render/models.js](../src/render/models.js), [src/render/bagLook.js](../src/render/bagLook.js)): a soft pillow of leaves slumped to the bottom, serrated heat-sealed bands, leaf flakes behind the filter paper. The paper soaks dark and glossy exactly as far up as it went into the tea, then wicks slowly higher; the string that went under the tea stays stained. The tag hangs beside the string from its loop (printed both sides) and swings as a short damped pendulum when the aircraft jinks.
 
 ## Milk ([src/sim/milk.js](../src/sim/milk.js))
 

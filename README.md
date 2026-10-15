@@ -240,7 +240,7 @@ Simulation, rendering, input, game flow and UI are separate: the sim runs headle
 
 - **Not verified on a physical phone or a physical gamepad (including your Steam Controller).** Touch was verified with Chrome's touch emulation and real CDP touch events; gamepad with an emulated standard-mapping pad. See [docs/VERIFICATION.md](docs/VERIFICATION.md).
 - Audio is procedural and was checked for errors and wiring only, not listened to by a person.
-- The string's physics is a Rapier rope joint (max-distance constraint, so it can go slack). The visible string is a verlet line pinned to both real attachment points; it avoids the table, cups and main props but does not wrap around arbitrary objects or collide with itself.
+- The string's physics is a Rapier rope joint (max-distance constraint, so it can go slack) plus a twist spring about the string. The visible string is a verlet line pinned to both real attachment points, straight whenever the rope is taut; it avoids the table, cups, main props and its own bag but does not wrap around arbitrary objects or collide with itself.
 - Tea is a shaded surface with ripples, a plume around the bag and splash droplets, not a fluid simulation. Cups do not spill.
 - Brewing is accelerated (about 15 seconds for a strong colour change).
 - Crash severity is judged from contact impulse (velocity change not explained by flight forces), rotor contact and rollover. It is tuned for fun, not certified physics.

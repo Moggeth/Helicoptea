@@ -9,6 +9,7 @@ import { TeaSurface, teaColor, setLiquidEnvironment } from './water.js';
 import { LiquidWash } from './rotorwash.js';
 import { ParticlePool } from './particles.js';
 import { StringMesh } from './strings.js';
+import { newBagLook, updateWetLine, updateStringStain, placeTag } from './bagLook.js';
 import { radialTexture } from './textures.js';
 import { buildChinook, cloneChinookPart } from './chinookModel.js';
 import { MilkView } from './milkView.js';
@@ -46,7 +47,7 @@ export class View {
     this.bags = new Map();
     this.debris = new Map();
     this.fading = [];
-    this.stringMat = new THREE.MeshStandardMaterial({ color: 0xf5efe2, roughness: 0.8, emissive: 0x3a3428, emissiveIntensity: 0.25 });
+    this.stringMat = new THREE.MeshStandardMaterial({ color: 0xf5efe2, roughness: 0.8, emissive: 0x3a3428, emissiveIntensity: 0.25, vertexColors: true });
     setLiquidEnvironment(scene.environment, quality);
     this.surfaces = sim.cups.map((c) => {
       const s = new TeaSurface(c, kitchen.sun.position.clone().sub(kitchen.sun.target.position));
@@ -456,7 +457,7 @@ export class View {
         string.pts = new Float32Array((b.N + 1) * 3);
         string.mesh.userData.noAO = true;
         this.scene.add(group, tag, string.mesh);
-        v = { group, tag, string, rippleAcc: 0 };
+        v = { group, tag, string, rippleAcc: 0, look: newBagLook(b.N + 1, b.wetness) };
         this.bags.set(b.id, v);
       }
       b.track.sample(alpha, _p, _q);
@@ -465,31 +466,15 @@ export class View {
       if (b.attach && b.attach.kind === 'heli') {
         if (this.bagPosCarried) this.bagPosCarried.lerp(_p, 0.5); else this.bagPosCarried = _p.clone();
       }
-      // wet look: darker, warmer, glossier; stained as it gives up its tea
-      const mat = v.group.userData.mat;
-      const w = b.wetness, stain = 1 - b.potency;
-      mat.color.setRGB(1 - 0.38 * w - 0.15 * stain, 1 - 0.52 * w - 0.25 * stain, 1 - 0.66 * w - 0.35 * stain);
-      mat.roughness = 0.92 - 0.45 * w;
-      mat.sheen = 0.6 * (1 - w);
+      // Wet look: soaked as far up as it went in (then wicking higher), stained as it gives up its tea.
+      v.group.userData.setWet(b.wetness, updateWetLine(v.look, b.immersion, b.wetness, dt), 1 - b.potency);
       // string
       b.sampleString(alpha, v.string.pts);
       this.pinString(b, v.string.pts, _p, _q);
       v.string.update(v.string.pts);
-      // tag hangs from the loop end of the string
-      const N = b.N;
-      const ex = v.string.pts[N * 3], ey = v.string.pts[N * 3 + 1], ez = v.string.pts[N * 3 + 2];
-      v.tag.position.set(ex, ey, ez);
-      const px = v.string.pts[(N - 1) * 3], pz = v.string.pts[(N - 1) * 3 + 2];
-      const yaw = Math.atan2(ex - px, ez - pz);
-      if (b.attach) v.tag.rotation.set(0, yaw + Math.PI / 2, 0);
-      else {
-        // free: lie along the string direction, resting on whatever is below
-        const py = v.string.pts[(N - 1) * 3 + 1];
-        const pitch = Math.atan2(ey - py, Math.hypot(ex - px, ez - pz));
-        v.tag.rotation.set(0, 0, 0);
-        v.tag.rotateY(yaw);
-        v.tag.rotateX(-Math.PI / 2 + Math.min(0, pitch));
-      }
+      if (updateStringStain(v.look, v.string.pts, b.N + 1, (x, y, z) => b.inWater(x, y, z), dt)) v.string.setStain(v.look.stain);
+      // The tag hangs (and swings) beside the string from its loop.
+      placeTag(v.tag, v.string.pts, b.N, !!b.attach, _q, v.look, dt);
       // ripples from motion in tea
       if (b.immersion > 0.15 && b.cup) {
         v.rippleAcc += dt;

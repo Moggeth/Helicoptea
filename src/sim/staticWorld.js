@@ -49,7 +49,7 @@ export function buildStaticWorld(sim, { bare = false } = {}) {
     }
     box(S.postX + S.postHalf, S.barHalf, S.barHalf, S.x, S.y + S.barY, S.z, 'station', 'wood');
     for (const px of S.pegXs) {
-      box(0.0022, 0.0022, S.pegReach / 2, S.x + px, S.y + S.pegY, S.z + S.pegReach / 2, 'station', 'wood');
+      box(0.0022, 0.0022, S.pegReach / 2, S.x + px, S.y + S.pegY, S.z + S.pegReach / 2, 'station', 'wood').setCollisionGroups(GROUPS.peg);
     }
   }
 

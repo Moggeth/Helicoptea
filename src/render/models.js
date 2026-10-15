@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { HELI_PARTS } from '../sim/helicopter.js';
 import { CFG } from '../config.js';
 import * as TX from './textures.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const V2 = (x, y) => new THREE.Vector2(x, y);
 
@@ -245,19 +246,17 @@ export function cloneHeliPart(heliModel, name) {
 export function teabagAssets() {
   const paperTex = TX.teabagTexture();
   const tagTex = TX.tagTexture();
+  const geo = teabagGeometry(CFG.cargo.bagHalf);
   const h = CFG.cargo.bagHalf;
-  const geo = new THREE.BoxGeometry(h[0] * 2, h[1] * 2, h[2] * 2, 10, 12, 2);
-  const pos = geo.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i) / h[0], y = pos.getY(i) / h[1], z = pos.getZ(i);
-    const crimp = Math.abs(y) > 0.8 ? 0.15 : 1;
-    const bulge = (1 - Math.pow(Math.abs(x), 3)) * (1 - Math.pow(Math.abs(y), 4)) * crimp;
-    pos.setZ(i, z * (0.25 + 0.75 * bulge));
-  }
-  geo.computeVertexNormals();
-  const tagGeo = new THREE.PlaneGeometry(0.016, 0.02);
-  tagGeo.translate(0, -0.012, 0);
-  const tagMat = new THREE.MeshStandardMaterial({ map: tagTex, roughness: 0.85, side: THREE.DoubleSide });
+  // The tag hangs beside the string from the loop, not threaded on it.
+  const tagGeo = new THREE.PlaneGeometry(TAG.w, TAG.h);
+  tagGeo.translate(TAG.w / 2 + TAG.gap, -TAG.h / 2 - 0.0016, 0);
+  const tagBackGeo = new THREE.PlaneGeometry(TAG.w, TAG.h);
+  tagBackGeo.rotateY(Math.PI);
+  tagBackGeo.translate(TAG.w / 2 + TAG.gap, -TAG.h / 2 - 0.0016, -0.00005);
+  // Printed both sides (so it never reads mirrored), as one mesh.
+  const tagBoth = mergeGeometries([tagGeo, tagBackGeo]);
+  const tagMat = new THREE.MeshStandardMaterial({ map: tagTex, roughness: 0.85 });
   const loopGeo = new THREE.TorusGeometry(0.0028, 0.0005, 6, 14);
   const stapleGeo = new THREE.BoxGeometry(0.006, 0.0012, 0.0004);
   const knotGeo = new THREE.SphereGeometry(0.0016, 10, 8);
@@ -267,10 +266,11 @@ export function teabagAssets() {
     makeBag() {
       const mat = new THREE.MeshPhysicalMaterial({ map: paperTex, roughness: 0.92, sheen: 0.6, sheenColor: new THREE.Color(0xffffff), sheenRoughness: 0.8 });
       mat.userData.disposeOwned = true;
+      const wet = wetPaper(mat);
       const m = new THREE.Mesh(geo, mat);
       m.castShadow = true; m.receiveShadow = true;
       const st = new THREE.Mesh(stapleGeo, staple);
-      st.position.set(0, h[1] - 0.004, h[2] * 0.4);
+      st.position.set(0, h[1] - 0.0035, h[2] * 0.2);
       m.add(st);
       // Knot where the string is stitched to the bag, so the join reads as tied on.
       const knot = new THREE.Mesh(knotGeo, knotMat);
@@ -281,19 +281,103 @@ export function teabagAssets() {
       const g = new THREE.Group();
       g.add(m);
       g.userData.mat = mat;
+      // wetness 0..1, wetLine: how far up the bag (local y, m) the tea has reached, stain: spent 0..1.
+      g.userData.setWet = (wetness, wetLine, stain) => {
+        wet.uWet.value = THREE.MathUtils.clamp(0.35 + wetness, 0, 1) * (wetness > 0.01 ? 1 : 0);
+        wet.uWetLine.value = wetLine;
+        wet.uStain.value = stain;
+        mat.roughness = 0.92 - 0.3 * wetness;
+        mat.sheen = 0.6 * (1 - Math.min(1, wetness * 1.5));
+      };
       return g;
     },
     makeTag() {
       const g = new THREE.Group();
-      const t = new THREE.Mesh(tagGeo, tagMat);
+      // Swing pivot: the tag hangs and sways from here, beside the string.
+      const pivot = new THREE.Group();
+      const t = new THREE.Mesh(tagBoth, tagMat);
       t.castShadow = true;
+      pivot.add(t);
       const l = new THREE.Mesh(loopGeo, staple);
       l.position.y = 0.001;
-      g.add(t, l);
+      g.add(pivot, l);
       g.userData.loop = l;
+      g.userData.pivot = pivot;
       return g;
     },
   };
+}
+
+// Tag size and how far its inner edge hangs from the string.
+export const TAG = { w: 0.016, h: 0.02, gap: 0.0011 };
+
+// A real tea bag rather than a card: a soft pillow of leaves that sag to the bottom, thin heat-sealed
+// bands top and bottom with serrated edges, folded thin sides and a few creases. Same footprint as the
+// physics box (it never pokes outside it).
+function teabagGeometry(h) {
+  const SX = 24, SY = 26;
+  const geo = new THREE.BoxGeometry(h[0] * 2, h[1] * 2, h[2] * 2, SX, SY, 1);
+  const pos = geo.attributes.position;
+  const seal = 0.0052, side = 0.0022, segW = (h[0] * 2) / SX;
+  const hash = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  for (let i = 0; i < pos.count; i++) {
+    let x = pos.getX(i), y = pos.getY(i);
+    const z = pos.getZ(i);
+    const ax = Math.abs(x), ay = Math.abs(y);
+    // Pillow: leaves fill the compartment between the seals, slumped towards the bottom.
+    const inX = THREE.MathUtils.smoothstep(h[0] - ax, side * 0.4, side * 2.6);
+    const inY = THREE.MathUtils.smoothstep(h[1] - ay, seal * 0.85, seal * 1.9);
+    const slump = 0.72 + 0.28 * Math.max(0, Math.min(1, (-(y / h[1]) + 0.6) / 1.2));
+    const fill = Math.pow(Math.max(0, 1 - Math.pow(ax / h[0], 4)), 0.8) * Math.pow(Math.max(0, 1 - Math.pow((y + 0.2 * h[1]) / (1.2 * h[1]), 2)), 0.6);
+    let t = 0.1 + 0.9 * inX * inY * fill * slump;
+    // Creases across the pillow.
+    t += 0.06 * inX * inY * (hash(Math.round(x * 900), Math.round(y * 700)) - 0.5);
+    pos.setZ(i, Math.sign(z) * h[2] * Math.max(0.08, Math.min(1, t)));
+    // Serrated seal edges: every other column steps in a little.
+    if (ay > h[1] - 1e-6) {
+      const col = Math.round((x + h[0]) / segW);
+      if (col % 2 === 1) pos.setY(i, Math.sign(y) * (h[1] - 0.0009));
+    }
+    // Soften the corners.
+    if (ax > h[0] - segW * 1.5 && ay > h[1] - segW * 1.5) pos.setX(i, Math.sign(x) * (h[0] - segW * 0.6));
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// Wet-paper look: below the wet line the paper turns dark, warm and glossy and the leaves show through,
+// with a ragged capillary edge and a faint tide mark; a spent bag is stained all over.
+function wetPaper(mat) {
+  const u = { uWet: { value: 0 }, uWetLine: { value: -1 }, uStain: { value: 0 } };
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, u);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vBagP;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBagP = position;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying vec3 vBagP;
+uniform float uWet, uWetLine, uStain;
+float bagHash(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
+float bagNoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+  return mix(mix(bagHash(i), bagHash(i+vec2(1,0)), f.x), mix(bagHash(i+vec2(0,1)), bagHash(i+vec2(1,1)), f.x), f.y); }
+float wetMask;`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+{
+  float edge = uWetLine + (bagNoise(vec2(vBagP.x * 600.0, vBagP.z * 80.0)) - 0.5) * 0.004 + (bagNoise(vec2(vBagP.x * 150.0, 3.0)) - 0.5) * 0.003;
+  wetMask = smoothstep(edge + 0.0012, edge - 0.0012, vBagP.y) * uWet;
+  vec3 c = diffuseColor.rgb;
+  // Soaked filter paper: darker, warmer, and the leaves behind it show through more.
+  vec3 soaked = mix(c * c, c, 0.45) * vec3(0.8, 0.6, 0.42);
+  diffuseColor.rgb = mix(c, soaked, wetMask);
+  float tide = exp(-pow((vBagP.y - edge) / 0.0011, 2.0)) * uWet * 0.22;
+  diffuseColor.rgb *= 1.0 - tide;
+  diffuseColor.rgb *= mix(vec3(1.0), vec3(0.86, 0.74, 0.6), uStain);
+}`)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.32, wetMask);');
+  };
+  mat.customProgramCacheKey = () => 'teabag-wet-paper';
+  return u;
 }
 
 // ---------------------------------------------------------------- ceramics

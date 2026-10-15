@@ -19,6 +19,8 @@ export const GROUPS = {
   bag: grp(G.BAG, G.WORLD | G.HELI | G.BAG | G.DEBRIS | G.HOSE),
   hose: grp(G.HOSE, G.WORLD | G.BAG), // the skycrane's snorkel: never the airframe or its own segments
   debris: grp(G.DEBRIS, G.WORLD | G.HELI | G.BAG | G.DEBRIS),
+  // The stand's pegs: a bag lifted off its peg passes the thin rod instead of snagging under it.
+  peg: grp(G.WORLD, G.HELI | G.DEBRIS | G.ROTOR | G.HOSE),
   queryWorld: grp(0xffff, G.WORLD),
 };
 

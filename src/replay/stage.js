@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CFG } from '../config.js';
 import { BUCKET } from '../sim/milk.js';
 import { StringMesh } from '../render/strings.js';
+import { newBagLook, placeTag } from '../render/bagLook.js';
 import { cloneHeliPart } from '../render/models.js';
 import { cloneChinookPart } from '../render/chinookModel.js';
 import { cloneSkycranePart } from '../render/skycraneModel.js';
@@ -243,35 +244,23 @@ export class ReplayStage {
       string.pts = new Float32Array(ROPE_POINTS * 3);
       string.mesh.userData.noAO = true;
       this.scene.add(group, tag, string.mesh);
-      m = { group, tag, string };
+      m = { group, tag, string, look: newBagLook(ROPE_POINTS) };
       this.bags.set(e.id, m);
     }
     m.group.visible = m.tag.visible = m.string.mesh.visible = true;
     m.group.position.set(b[0], b[1], b[2]);
     m.group.quaternion.set(b[3], b[4], b[5], b[6]);
     const w = b[7], stain = b[8];
-    const mat = m.group.userData.mat;
-    mat.color.setRGB(1 - 0.38 * w - 0.15 * stain, 1 - 0.52 * w - 0.25 * stain, 1 - 0.66 * w - 0.35 * stain);
-    mat.roughness = 0.92 - 0.45 * w;
-    mat.sheen = 0.6 * (1 - w);
+    // The replay records wetness, not how far up it soaked: a wet bag is drawn soaked through.
+    m.group.userData.setWet(w, w > 0.05 ? CFG.cargo.bagHalf[1] + 0.002 : -1, stain);
     const pts = m.string.pts;
     pts.set(b.subarray(9 + 1, 9 + 1 + ROPE_POINTS * 3));
     const att = Math.round(b[9]);
     if (att > 0 && alive) this.carriedPos = (this.carriedPos || new THREE.Vector3()).copy(m.group.position);
     this.pinRope(pts, ROPE_POINTS, m.group.position, m.group.quaternion, BAG_ANCHOR, Math.max(0, att), f, alive);
     m.string.update(pts);
-    // Tag at the loop end.
-    const N = ROPE_POINTS - 1;
-    const ex = pts[N * 3], ey = pts[N * 3 + 1], ez = pts[N * 3 + 2];
-    const px = pts[(N - 1) * 3], py = pts[(N - 1) * 3 + 1], pz = pts[(N - 1) * 3 + 2];
-    m.tag.position.set(ex, ey, ez);
-    const yaw = Math.atan2(ex - px, ez - pz);
-    if (att) m.tag.rotation.set(0, yaw + Math.PI / 2, 0);
-    else {
-      // Free: lie along the string, resting on whatever is below.
-      const pitch = Math.atan2(ey - py, Math.hypot(ex - px, ez - pz));
-      m.tag.rotation.set(0, 0, 0); m.tag.rotateY(yaw); m.tag.rotateX(-Math.PI / 2 + Math.min(0, pitch));
-    }
+    // Tag beside the string at the loop end (held still: replay frames are not a steady clock).
+    placeTag(m.tag, pts, ROPE_POINTS - 1, att > 0, m.group.quaternion, m.look, 0);
   }
 
   poseBucket(e, b, f, alive) {

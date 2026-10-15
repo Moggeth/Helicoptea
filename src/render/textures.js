@@ -131,33 +131,43 @@ export function corkTexture() {
 
 // Paper tea bag: fibrous filter paper, crimped edges, leaves visible through the middle.
 export function teabagTexture() {
-  const [c, ctx] = canvas(256, 320);
+  const W = 512, Hh = 640;
+  const [c, ctx] = canvas(W, Hh);
   ctx.fillStyle = '#f1e9d6';
-  ctx.fillRect(0, 0, 256, 320);
+  ctx.fillRect(0, 0, W, Hh);
   const r = rng(23);
-  // leaves showing through
-  for (let i = 0; i < 1500; i++) {
-    const x = 34 + r() * 188, y = 50 + r() * 230;
-    ctx.fillStyle = `rgba(${90 + r() * 40},${60 + r() * 25},${30 + r() * 15},${0.07 + r() * 0.11})`;
-    ctx.fillRect(x, y, 2 + r() * 7, 1 + r() * 3);
+  // Leaves showing through the paper: torn flakes and dust, denser towards the bottom where they settle,
+  // soft-edged because they sit behind the filter paper.
+  ctx.filter = 'blur(0.8px)';
+  for (let i = 0; i < 2600; i++) {
+    const y = 100 + Math.pow(r(), 0.75) * 460, x = 70 + r() * 372;
+    const s = 2 + r() * 9, a = r() * Math.PI;
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(a);
+    ctx.fillStyle = `rgba(${78 + r() * 50},${48 + r() * 30},${22 + r() * 18},${0.05 + r() * 0.12})`;
+    ctx.beginPath();
+    ctx.moveTo(-s, 0); ctx.lineTo(-s * 0.2, -s * (0.25 + r() * 0.3)); ctx.lineTo(s, -s * 0.1 * r()); ctx.lineTo(s * 0.3, s * (0.2 + r() * 0.3));
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
   }
-  // fibres
-  for (let i = 0; i < 900; i++) {
-    ctx.strokeStyle = `rgba(255,255,255,${0.1 + r() * 0.2})`;
-    ctx.lineWidth = 0.6;
-    const x = r() * 256, y = r() * 320, a = r() * Math.PI;
-    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * 8, y + Math.sin(a) * 8); ctx.stroke();
+  ctx.filter = 'none';
+  // Paper fibres.
+  for (let i = 0; i < 1800; i++) {
+    ctx.strokeStyle = `rgba(255,255,255,${0.08 + r() * 0.18})`;
+    ctx.lineWidth = 0.7;
+    const x = r() * W, y = r() * Hh, a = r() * Math.PI;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + Math.cos(a + 0.5) * 7, y + Math.sin(a + 0.5) * 7, x + Math.cos(a) * 14, y + Math.sin(a) * 14); ctx.stroke();
   }
-  // crimped seams top and bottom
-  for (const y0 of [6, 284]) {
-    ctx.fillStyle = 'rgba(225,212,186,1)';
-    ctx.fillRect(0, y0, 256, 30);
-    ctx.fillStyle = 'rgba(150,130,100,0.35)';
-    for (let x = 4; x < 256; x += 8) ctx.fillRect(x, y0 + 3, 3, 24);
+  // Crimped seams top and bottom.
+  for (const y0 of [12, 568]) {
+    ctx.fillStyle = 'rgba(226,213,188,1)';
+    ctx.fillRect(0, y0, W, 60);
+    ctx.fillStyle = 'rgba(150,130,100,0.3)';
+    for (let x = 6; x < W; x += 12) ctx.fillRect(x, y0 + 6, 4, 48);
   }
-  // side folds
-  ctx.fillStyle = 'rgba(160,140,110,0.18)';
-  ctx.fillRect(0, 0, 10, 320); ctx.fillRect(246, 0, 10, 320);
+  // Side folds.
+  ctx.fillStyle = 'rgba(160,140,110,0.16)';
+  ctx.fillRect(0, 0, 20, Hh); ctx.fillRect(W - 20, 0, 20, Hh);
   return toTexture(c);
 }
 
