@@ -38,7 +38,7 @@ try {
   await page.keyboard.press('h');
   await page.locator('.overlay .help-grid').waitFor({ timeout: 2000 });
   const sheet = await page.locator('.overlay .help-grid').innerText();
-  check('the help sheet is written from the scheme', /Custom/.test(sheet) && /Mouse/.test(sheet) && /bOb/.test(sheet), { custom: /Custom/.test(sheet), mouse: /Mouse/.test(sheet), o: /bOb/.test(sheet), tail: sheet.slice(200, 700) });
+  check('the help sheet is written from the scheme', /Custom/.test(sheet) && /Mouse/.test(sheet) && sheet.split(String.fromCharCode(10)).some((l) => l.split(' ').includes('O')), { custom: /Custom/.test(sheet), mouse: /Mouse/.test(sheet), o: sheet.split(String.fromCharCode(10)).some((l) => l.split(' ').includes('O')), tail: sheet.slice(200, 700) });
   await page.click('.overlay [data-act=closehelp]');
   await sleep(200);
   if (await page.locator('.overlay [data-act=resume]').isVisible()) await page.click('.overlay [data-act=resume]');

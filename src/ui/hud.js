@@ -542,7 +542,7 @@ export class Hud {
           ${[['keyboard', 'Keyboard and mouse'], ['gamepad', 'Gamepad']].map(([t, nm]) => `<button data-act="ctltab" data-tab="${t}" class="${t === tab ? 'on' : ''}">${nm}</button>`).join('')}
         </div>
         <div class="kb-tab ${tab === 'keyboard' ? '' : 'hidden'}">
-          <div class="kb-capture hidden" role="status"><p class="wz-prompt"></p><div class="row"><button class="secondary" data-kb="capcancel">Cancel</button></div></div>
+          <div class="kb-capture hidden" role="status"><p class="kb-prompt"></p><div class="row"><button class="secondary" data-kb="capcancel">Cancel</button></div></div>
           <div class="kb-layout kb-settings"></div>
           <div class="row stack kb-settings">${liftSelect(CFG.collective.mode)}</div>
           <div class="row kb-settings"><button class="primary" style="margin-top:0" data-act="closecontroller">Done</button></div>
@@ -665,7 +665,7 @@ export class Hud {
     if (!c) return;
     c.classList.toggle('hidden', !html);
     this.modal.querySelectorAll('.kb-settings').forEach((e) => e.classList.toggle('hidden', !!html));
-    if (html) c.querySelector('.wz-prompt').innerHTML = `${html}<br><small><kbd>Esc</kbd> or wait a few seconds to cancel</small>`;
+    if (html) c.querySelector(".kb-prompt").innerHTML = `${html}<br><small><kbd>Esc</kbd> or wait a few seconds to cancel</small>`;
   }
 
   // ---------------------------------------------------------------- layout: presets, sticks, buttons
@@ -753,6 +753,7 @@ export class Hud {
       this.focusFirst();
       return;
     }
+    if (this.ctlTab !== 'gamepad') this.setCtlTab('gamepad');
     wz.classList.remove('hidden');
     others.forEach((e) => e.classList.add('hidden'));
     wz.querySelector('.wz-step').textContent = `Step ${view.step} of ${view.total}`;

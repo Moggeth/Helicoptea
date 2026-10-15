@@ -375,8 +375,9 @@ body.pip-top .hint:not(.show), body.pip-top .prompt:not(.show) { pointer-events:
 .lay-btn .chip button { padding: 4px 9px; font-size: 12.5px; border-radius: 8px 0 0 8px; margin: 0; }
 .lay-btn .chip button.x { border-radius: 0 8px 8px 0; padding: 4px 7px; opacity: 0.75; border-left: 0; }
 .lay-btn button.add { padding: 4px 9px; font-size: 12.5px; border-radius: 8px; margin: 0; }
-.pad-capture { margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: rgba(242,184,75,0.18); }
+.pad-capture, .kb-capture { margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: rgba(242,184,75,0.18); }
 .pad-capture .wz-prompt { margin: 0; font-size: 17px; color: var(--ink); }
+.kb-capture .kb-prompt { margin: 0; font-size: 17px; color: var(--ink); }
 .pad-capture small { font-size: 12px; color: var(--ink-soft); }
 @media (max-width: 520px) { .lay-axis select { max-width: 150px; } }
 
