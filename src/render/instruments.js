@@ -500,8 +500,18 @@ export class InstrumentPanel {
     const bugMat = new THREE.MeshBasicMaterial({ color: 0xffb648, toneMapped: false });
     const trackMat = new THREE.MeshBasicMaterial({ color: 0xff74d9, toneMapped: false });
     this.dials = [];
+    // Raised bezels and cover glasses give each dial depth; the glass catches the cockpit's reflections.
+    const bezelMat = new THREE.MeshPhysicalMaterial({ color: 0x1b1c1e, roughness: 0.35, metalness: 0.4, clearcoat: 0.6, clearcoatRoughness: 0.2 });
+    const coverMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.07, envMapIntensity: 1.4, depthWrite: false });
     for (const d of LY.dials) {
       const r = d.r * h, c = P(d.x, d.y);
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(r * 1.075, r * 0.07, 10, 56).scale(1, 1, 0.6), bezelMat);
+      rim.position.copy(c).setZ(0.004 * h);
+      group.add(rim);
+      const cover = new THREE.Mesh(new THREE.CircleGeometry(r * 1.03, 48), coverMat);
+      cover.position.copy(c).setZ(0.0062 * h);
+      cover.renderOrder = 3; cover.userData.keep = true;
+      group.add(cover);
       const D = { type: d.type, val: null, parts: {} };
       if (d.type === 'adi') {
         const mat = adiMaterial(false, 1);

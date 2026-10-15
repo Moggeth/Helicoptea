@@ -139,12 +139,15 @@ function loft(prof, za, zb, { steps = 24, segs = 40, classify = null, groups = 1
 const sym = (a) => (a > Math.PI / 2 ? Math.PI - a : a);
 
 const GLASS = 1, BLACK = 2;
+// The A-pillar between the front and side windscreen panes: rises from the sill and rakes aft.
+export const NOSE_PILLAR_Z = (r) => -0.0812 + (r - 0.08) * 0.0028;
 const noseClass = (a, z) => {
   const r = sym(a);
-  if (z < -0.0835) return r > -0.2 ? GLASS : 0;                              // chin and centre panes
+  if (z < -0.0835) return r > -0.2 && Math.abs(r - Math.PI / 2) > 0.03 ? GLASS : 0;   // chin and centre panes, centre post
   if (z < -0.0745) {
-    if (Math.abs(r - 0.62) < 0.06 || Math.abs(r - 1.12) < 0.05) return 0;    // window posts
-    if (r > 0.25) return GLASS;                                             // windscreen and eyebrows
+    if (r > 0.08 && r < 1.14 && Math.abs(z - NOSE_PILLAR_Z(r)) < 0.0004) return 0;  // A-pillars
+    if (Math.abs(r - 1.12) < 0.029 || Math.abs(r - Math.PI / 2) < 0.03) return 0;    // eyebrow and centre posts
+    if (r > 0.08) return GLASS;                                             // windscreen (down to the sill) and eyebrows
     if (r < -0.35 && r > -1.15 && z < -0.079) return GLASS;                 // chin bubbles
     return 0;
   }
@@ -154,9 +157,13 @@ const noseClass = (a, z) => {
 
 // The nose section with its glazing (group 1) and black frames (group 2). Shared with the first-person
 // cockpit so the windows line up with the outside.
-export function noseShellGeometry() {
-  return loft(FUSELAGE, -0.087, -0.045, { steps: 40, segs: 56, classify: noseClass, groups: 3, capA: true });
+// classify(a, z, outside) may override the glazing (the cockpit glazes the posts and draws them as tubes).
+export function noseShellGeometry(classify = null) {
+  return loft(FUSELAGE, -0.087, -0.045, { steps: 72, segs: 112, classify: classify ? (a, z) => classify(a, z, noseClass) : noseClass, groups: 3, capA: true });
 }
+// A point on the nose shell at section angle a (0 = right side, pi/2 = top) and station z, for the
+// cockpit's window frames.
+export function noseShellPoint(a, z) { return sectionPoint(FUSELAGE(z), a); }
 
 
 // ---------------------------------------------------------------- textures

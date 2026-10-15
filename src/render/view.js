@@ -140,6 +140,7 @@ export class View {
   setFirstPerson(on) {
     if (this.firstPerson === on) return;
     this.firstPerson = on;
+    if (!on && this.aircraftFx) this.aircraftFx.restoreBlades();
     const models = { micro: this.heliModel, chinook: this.chinookModel, skycrane: this.skycrane.model };
     for (const [key, names] of Object.entries(FP_HIDE)) {
       const root = models[key], U = root.userData;

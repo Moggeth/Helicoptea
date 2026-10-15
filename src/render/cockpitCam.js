@@ -51,7 +51,7 @@ export class CockpitRig {
   // Physical feedback from sim events, felt through the seat. Sized for comfort: about a millimetre
   // of head travel (3 cm full size) and a degree or so of nod at most, scaled by Head motion.
   kick(e, motion) {
-    const m = motion * 2;
+    const m = motion * 1.2;
     if (m <= 0) return;
     switch (e.type) {
       case 'touchdown': {
@@ -106,11 +106,12 @@ export class CockpitRig {
       this.prevVel.copy(h.vel); this.hasPrev = true;
       _qi.copy(quat).invert();
       const fB = _w.copy(this.accF).add(G).applyQuaternion(_qi).sub(G);
-      // Head: a damped spring pushed opposite the felt acceleration (about 0.5 mm, ~1.5 cm full size, per g).
-      const k = 0.000055 * motion;
-      const tgt = _v.set(-fB.x * k, -fB.y * k * 0.7, -fB.z * k);
-      tgt.clampLength(0, 0.0016);
-      const om = 11, ze = 0.5;
+      // Head: a well-damped spring pushed opposite the felt acceleration (about 0.35 mm, ~1 cm full
+      // size, per g). Damped enough that it settles without bobbing.
+      const k = 0.000035 * motion;
+      const tgt = _v.set(-fB.x * k, -fB.y * k * 0.6, -fB.z * k);
+      tgt.clampLength(0, 0.001);
+      const om = 9, ze = 0.8;
       const a = _r.subVectors(tgt, this.headOff).multiplyScalar(om * om).addScaledVector(this.headVel, -2 * ze * om);
       this.headVel.addScaledVector(a, Math.min(dt, 0.033));
       this.headOff.addScaledVector(this.headVel, Math.min(dt, 0.033));
@@ -119,26 +120,26 @@ export class CockpitRig {
       const wB = _w.set(av.x, av.y, av.z).applyQuaternion(_qi);
       _up.set(1, 0, 0).applyQuaternion(quat);
       const bank = Math.asin(clamp(_up.y, -1, 1));
-      const lagT = _r.set(-wB.x * 0.028, -wB.y * 0.022, -wB.z * 0.03 + bank * 0.1).multiplyScalar(motion);
-      lagT.set(clamp(lagT.x, -0.06, 0.06), clamp(lagT.y, -0.06, 0.06), clamp(lagT.z, -0.08, 0.08));
+      const lagT = _r.set(-wB.x * 0.016, -wB.y * 0.012, -wB.z * 0.018 + bank * 0.07).multiplyScalar(motion);
+      lagT.set(clamp(lagT.x, -0.035, 0.035), clamp(lagT.y, -0.035, 0.035), clamp(lagT.z, -0.05, 0.05));
       this.lag.lerp(lagT, 1 - Math.exp(-dt * 9));
     }
-    // Rotor vibration: blade-passage buzz, worse with collective, and a shudder through translational lift.
+    // Airframe tremor: a faint, smooth rumble that grows with collective. Kept well under a tenth of a
+    // degree and below 15 Hz, so it reads as a running machine rather than a shaking camera (a fast buzz
+    // aliases into jitter at display frame rates).
     this.vibT += dt;
     let vp = 0, vy = 0, vh = 0;
     this.rattle *= Math.exp(-dt * 7);
     if (this.rattle > 0.002) {
       const r = this.rattle * (0.3 + set.motion);
-      vp += r * 0.006 * Math.sin(this.vibT * 97.3); vy += r * 0.004 * Math.sin(this.vibT * 113.9 + 1); vh += r * 0.00012 * Math.sin(this.vibT * 89.1);
+      vp += r * 0.0025 * Math.sin(this.vibT * 61.3); vy += r * 0.0015 * Math.sin(this.vibT * 73.9 + 1); vh += r * 0.00005 * Math.sin(this.vibT * 55.1);
     }
     if (h && set.vibration > 0) {
-      const hs = Math.hypot(h.vel.x, h.vel.z);
-      const etl = Math.exp(-(((hs - 0.42) / 0.18) ** 2)) * 0.9;
-      const amp = set.vibration * 2 * h.rotorSpeed * (0.25 + 0.75 * Math.min(1, h.thrustFrac) + etl) * (h.grounded ? 0.5 : 1);
+      const amp = set.vibration * 2 * h.rotorSpeed * (0.3 + 0.7 * Math.min(1, h.thrustFrac)) * (h.grounded ? 0.5 : 1);
       const t = this.vibT;
-      vp += amp * 0.0016 * (Math.sin(t * 131.9) + 0.55 * Math.sin(t * 217.3 + 1.1) + 0.35 * (Math.random() - 0.5));
-      vy += amp * 0.0009 * (Math.sin(t * 157.1 + 0.4) + 0.5 * Math.sin(t * 241.7 + 2.3));
-      vh += amp * 0.000025 * Math.sin(t * 183.4 + 0.7);
+      vp += amp * 0.00022 * (Math.sin(t * 71.6) + 0.5 * Math.sin(t * 88.3 + 1.1));
+      vy += amp * 0.00012 * (Math.sin(t * 79.1 + 0.4) + 0.5 * Math.sin(t * 59.7 + 2.3));
+      vh += amp * 0.000006 * Math.sin(t * 66.4 + 0.7);
     }
     const sh = shake * 5 * (0.35 + 1.3 * set.motion);
     const st = this.vibT;
