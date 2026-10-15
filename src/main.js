@@ -11,6 +11,7 @@ import { View, SHADOW_ONLY } from './render/view.js';
 import { FollowCamera } from './render/camera.js';
 import { Input } from './input/input.js';
 import { Audio } from './audio/audio.js';
+import { bindUi } from './audio/ui.js';
 import { Hud } from './ui/hud.js';
 import { Flow } from './game/flow.js';
 import { Debug } from './debug.js';
@@ -230,6 +231,8 @@ async function boot() {
     },
   });
   const flow = new Flow(sim, hud);
+  bindUi(audio, [$('hud'), hud.modal, $('loading')]);
+  { const toast = hud.toast.bind(hud); hud.toast = (text, secs) => { if (text !== hud.toastEl.textContent || !hud.toastEl.classList.contains('show')) audio.ui('toast'); toast(text, secs); }; }
   tuning.worldSpeedHooks = {
     get: () => worldSpeed,
     set: (v) => { hud.h.setting('weight', Math.min(1, Math.max(0, (1 - v) / 0.6))); },
@@ -315,6 +318,7 @@ async function boot() {
     fp.mode = mode;
     if (mode !== 'cockpit') cam.last = mode;
     store.set('view', mode);
+    if (!quiet) audio.ui('view');
     input.viewMode = mode;
     hud.setViewMode(mode);
     if (mode === 'cockpit') {
@@ -605,6 +609,7 @@ async function boot() {
     if (started) return;
     started = true;
     audio.unlock();
+    audio.ui('start');
     // A gamepad press doesn't count as a user gesture for audio in every browser: offer a one-tap fix.
     setTimeout(() => {
       if (!paused && !document.hidden && audio.ctx && audio.ctx.state !== 'running') {
@@ -801,7 +806,8 @@ async function boot() {
     view.handleEvents(events, camera, camRig);
     if (fp.wasLive) for (const e of events) fpRig.kick(e, fp.motion);
     flow.handleEvents(events);
-    audio.handleEvents(events, (p) => THREE.MathUtils.clamp(tmp.copy(p).project(camera).x, -1, 1)); // in the cockpit, points can sit beside or behind the eye
+    audio.setListener(camera); // last frame's camera: events are placed (pan, distance) relative to it
+    audio.handleEvents(events);
     for (const e of events) {
       if (e.type === 'crash') {
         hud.showCrash(crashMessage(e), crashTitle(e));
@@ -939,9 +945,15 @@ async function boot() {
     fp.flash = Math.max(0, fp.flash - frameDt * 1.6);
     hud.flash(fp.flash * fp.flash);
 
-    // Audio bed follows the rotor.
+    // Audio bed follows the rotor, heard from wherever the camera is.
     const h = sim.heli;
+    audio.setListener(camera);
     audio.updateRotor({
+      type: sim.aircraft,
+      pos: view.heliPos, quat: view.heliQuat, vel: h ? h.vel : null,
+      yaw: h && h.ctlEcho ? h.ctlEcho.yaw : 0,
+      view: fpLive ? 'cockpit' : cam.eff,
+      overLiquid: !!h && sim.cups.some((c) => Math.hypot(h.pos.x - c.x, h.pos.z - c.z) < c.rIn + 0.03 && h.pos.y - c.waterY < 0.18 && h.pos.y > c.waterY),
       alive: !!h && started && !paused,
       rotorSpeed: h ? h.rotorSpeed : 0,
       thrustFrac: h ? h.thrustFrac / 0.9 : 0,
@@ -963,7 +975,9 @@ async function boot() {
     const pourRate = bucketRate + tankRate;
     const bucketPan = bucketRate > 0 ? tmp.copy(bk.pos).project(camera).x : 0;
     const tankPan = tankRate > 0 ? tmp.copy(h.pos).project(camera).x : 0;
+    audio.updateTea(started && !paused ? sim.bags : null);
     audio.updatePour({
+      pos: pourRate > 0 ? (bucketRate >= tankRate ? bk.pos : h.pos) : null,
       rate: started && !paused ? pourRate : 0,
       intoLiquid: events.some((e) => e.type === 'milkLand'),
       pan: pourRate > 0 ? (bucketPan * bucketRate + tankPan * tankRate) / pourRate : 0,

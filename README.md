@@ -226,7 +226,7 @@ src/sim/               physics and game state (no rendering): helicopter, tea ba
 src/render/            Three.js: kitchen, procedural models/textures, tea surface shader, particles,
                        string tubes, follow camera, view (mirrors sim state, turns events into effects)
 src/input/input.js     keyboard, gamepad, touch merged into one control state
-src/audio/audio.js     procedural Web Audio
+src/audio/             procedural Web Audio: rotor and engine voices, tea, crashes, places, menus
 src/ui/hud.js, src/game/flow.js   HUD, menus, contextual onboarding
 src/replay/            flight recorder, log format, replay stage and viewer, disk store
 tools/flight-log-plugin.js, tools/flight-notes.mjs   logs/flights endpoint; notes + telemetry summary
@@ -239,7 +239,7 @@ Simulation, rendering, input, game flow and UI are separate: the sim runs headle
 ## Known limitations
 
 - **Not verified on a physical phone or a physical gamepad (including your Steam Controller).** Touch was verified with Chrome's touch emulation and real CDP touch events; gamepad with an emulated standard-mapping pad. See [docs/VERIFICATION.md](docs/VERIFICATION.md).
-- Audio is procedural and was checked for errors and wiring only, not listened to by a person.
+- Audio is procedural. It is checked for errors, levels and clipping, and rendered to listening clips (`tools/render-sounds.mjs`), but its quality still has to be judged by ear.
 - The string's physics is a Rapier rope joint (max-distance constraint, so it can go slack) plus a twist spring about the string. The visible string is a verlet line pinned to both real attachment points, straight whenever the rope is taut; it avoids the table, cups, main props and its own bag but does not wrap around arbitrary objects or collide with itself.
 - Tea is a shaded surface with ripples, a plume around the bag and splash droplets, not a fluid simulation. Cups do not spill.
 - Brewing is accelerated (about 15 seconds for a strong colour change).
