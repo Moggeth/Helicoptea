@@ -230,6 +230,45 @@ hard to hold steady with the assist off, so its clips fly with Flight Assist on 
 knobs show an animated response curve instead of a flight. Live clips cost about 1-2 ms of simulation per
 frame while the board is open and nothing when it is closed (the preview renderer is disposed).
 
+## Sound ([src/audio/](../src/audio/))
+
+Everything is synthesised in Web Audio at runtime; no sample files. The aircraft are models, but they are
+heard as full-size helicopters (that is the joke), while cups, tea and the rooms are heard life-size.
+
+- **Rotors** ([aircraftVoice.js](../src/audio/aircraftVoice.js), [synth.js](../src/audio/synth.js)): each rotor
+  plays looping beds an exact number of revolutions long, generated from a seed: *thump* (the blade's pressure
+  pulse: a broad dip with a sharp core and a low body tone), *slap* (blade-vortex crack), *swish* (broadband,
+  swelling as each blade advances) and *wobble* (once per revolution, for chipped blades). Their rate is the
+  rate the rotors are drawn turning (micro 2 blades at 52 rad/s, 16.6 Hz blade pass; Chinook two interleaved
+  3-blade rotors at 30 rad/s, 14.3 Hz, panned fore and aft; skycrane 6 blades at 26 rad/s, 24.8 Hz), so sound
+  and blades agree. Rotor speed is governed, as on a real helicopter, so load is heard as blade bite and engine
+  note: slap rises in a powered descent, a hard turn or a flare; the turboshaft whine and exhaust roar follow
+  torque, which lags the collective. Tail rotor (micro, skycrane) gets louder with pedal and stops with a tail
+  strike; the gearbox whine is a fixed multiple of rotor speed; wash roars near a surface and hisses over tea.
+  After a crash the rotor spins down and the engines run down (quickly when drowned).
+- **Where you hear it from**: the camera is the listener. Distance lowers the level and the highs (air
+  absorption), a source behind is darker, and cameras that watch the aircraft go past hear a scaled Doppler.
+  The cockpit muffles the exterior through the canopy and a headset, adds the airframe's felt thump, the
+  gearbox, intercom hiss and a warning horn (low rotor speed, lost tail rotor, chipped blades); the nose and
+  GoPro mounts are loud and windy, chopped at blade-pass rate; the cargo camera sits in the downwash.
+- **Places** ([ambience.js](../src/audio/ambience.js)): the kitchen has a short boxy reverb, room tone, the
+  fridge cycling and the wall clock ticking; the garden is dry and open, with a breeze, leaves and a robin who
+  goes quiet while a helicopter is close. The mix follows where the camera and aircraft are.
+- **Tea** ([tea.js](../src/audio/tea.js)): bubbles ring at their Minnaert pitch and rise as they close; a
+  dunk is a surface slap, a deep plunk and a scatter of small bubbles; a fresh bag fizzes as its air escapes and
+  sloshes when dragged; a china knock has four inharmonic partials and each cup its own note, lower when full.
+- **Crashes** ([crashAudio.js](../src/audio/crashAudio.js)): layered per kind: the hit, the airframe
+  crumpling, blades thrashing as they slow (most of a rollover), the turbine running down with a stall bang,
+  fire and crackle, then whatever was hit (china and glass shatter and tinkle). Larger aircraft sound lower.
+- **Menus** ([ui.js](../src/audio/ui.js)): teaspoon-on-china clinks for focus, select, back, toggles and
+  sliders, a stir for toasts. The pause menu is silent because sound is suspended while paused.
+- **Listening clips**: `node tools/render-sounds.mjs http://127.0.0.1:PORT/` (with a Vite dev server for the
+  checkout) renders scripted flights, perspectives, places, tea, crashes and menus through the real engine in an
+  OfflineAudioContext to `test-results/sound-clips/`, with peak, RMS, clipping and error checks.
+- **Cost**: about 0.05 ms of main-thread time per frame (parameter updates are capped at 75 Hz; the audio
+  thread smooths them). Building the graph and the first aircraft's beds takes about 40 ms at the start
+  click; the other aircraft are generated in idle time.
+
 ## Presentation
 
 Procedural textures (oak planks with roughness, linen runner, cork pad, filter paper with visible leaves, printed tag, plaster, tiles, blurred garden), lathe-built ceramics with clearcoat glaze, a RoomEnvironment reflection probe, a soft-shadowed window sun, and a warm pendant. Readability aids: contact-shadow blobs under the helicopter and carried bag, a bright string, a rotor blur disc with tip ring, and tea downwash ripples when hovering over a cup.

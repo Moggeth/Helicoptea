@@ -349,7 +349,7 @@ export function buildCharm(scene, quality, kitchen, sim) {
       const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1200; bp.Q.value = 0.6;
       const hs = ctx.createBiquadFilter(); hs.type = 'lowpass'; hs.frequency.value = 3200;
       music.pan = ctx.createStereoPanner();
-      music.out.connect(bp).connect(hs).connect(music.pan).connect(A.master);
+      music.out.connect(bp).connect(hs).connect(music.pan).connect(A.worldIn || A.master);
       // A whisper of crackle.
       const n = ctx.createBufferSource(); n.buffer = A.noise; n.loop = true;
       const ng = ctx.createGain(); ng.gain.value = 0.012;
