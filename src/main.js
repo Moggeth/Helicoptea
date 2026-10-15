@@ -121,6 +121,9 @@ async function boot() {
   const wantAircraft = params.get('aircraft') || store.get('aircraft', 'micro');
   // Phones and the low tier get fewer loose props (they also sleep when still).
   quality.liteProps = IS_TOUCH || quality.name === 'low';
+  // Touch devices and the low tier also get the lighter rendering paths (shadows of moving things redrawn
+  // every other frame, a coarser table runner, a slower hook camera). Desktop high/ultra/medium are untouched.
+  quality.lite = quality.liteProps;
   // Flight tuning board: written into CFG before the sim is built (gravity, drag, power, ...).
   const tuning = new Tuning();
   const sim = new Sim({ aircraft: AIRCRAFT_IDS.includes(wantAircraft) ? wantAircraft : 'micro', lite: quality.liteProps });
@@ -983,7 +986,9 @@ async function boot() {
     perf.phaseMs('update', tR - cpu0 - physMs);
     renderer.info.reset();
     perf.gpuBegin();
-    renderer.shadowMap.needsUpdate = true;
+    // (On the lite tier the sun's shadow map is redrawn every other frame: still scenery is cached anyway,
+    // and the moving things' shadows trail by one frame at most.)
+    renderer.shadowMap.needsUpdate = !quality.lite || (renderedFrames & 1) === 0;
     // World matrices once per frame: every renderer.render() of the scene (hook camera, main view, AO
     // normals) would otherwise walk and update the whole scene graph again.
     scene.updateMatrixWorld();

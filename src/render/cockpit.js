@@ -678,7 +678,8 @@ export class Cockpit {
     const ac = r.autoClear;
     r.autoClear = false;
     r.clearDepth();
-    r.shadowMap.needsUpdate = true;
+    // The cabin's own shadows: every frame, or every other one on the lite tier.
+    r.shadowMap.needsUpdate = !this.quality.lite || (this.frameN = (this.frameN || 0) + 1) % 2 === 0;
     r.render(this.scene, this.camera);
     r.autoClear = ac;
   }

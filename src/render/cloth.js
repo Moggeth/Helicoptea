@@ -14,7 +14,8 @@ const LIFT = 0.0012;    // cloth thickness above the table top
 
 export class TableCloth {
   constructor(scene, quality, map) {
-    const tier = quality.name === 'ultra' ? 'high' : quality.name; // ultra builds the world as high does
+    // Ultra builds the world as high does; touch devices get the low tier's runner (a quarter fewer points).
+    const tier = quality.name === 'ultra' ? 'high' : quality.lite ? 'low' : quality.name;
     // Resolution, steps per second and constraint rounds scale with the quality tier.
     const NX = tier === 'high' ? 96 : tier === 'medium' ? 56 : 40;
     const NZ = tier === 'high' ? 17 : tier === 'medium' ? 10 : 7;
