@@ -245,8 +245,10 @@ const hookWhenInReach = (sim, ap, peg, hook, secs) => {
   const sim = make();
   run(sim, 1.5, () => ({ ...zero(), collective: 1 }));
   sim.assist = false;
+  CFG.collective.mode = 'hold';
   sim.heli.collective = 0.15;
   for (let i = 0; i < 2.5 / sim.dt && sim.state === 'flying'; i++) sim.step(zero());
+  CFG.collective.mode = 'spring';
   run(sim, 0.03);
   const spin = (re) => sim.debris.filter((d) => re.test(d.part.name)).map((d) => d.body.angvel());
     const fwd = spin(/^bladeF/).map((w) => w.y), aft = spin(/^bladeA/).map((w) => w.y);

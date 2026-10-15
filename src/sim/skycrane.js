@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RAPIER, GROUPS, Track } from './physics.js';
 import { CFG } from '../config.js';
+import { stepCollective, hookedMass } from './collective.js';
 
 // Skycrane tanker (S-64 Air-Crane style). Body frame as the other aircraft: nose towards -Z, right +X,
 // up +Y, origin at the dry centre of mass. One six-blade main rotor whose thrust vector tilts with the
@@ -419,7 +420,7 @@ export class Skycrane {
       else this.yawInteg = clamp(this.yawInteg + (rateCmd - wb.y) * dt, -0.4, 0.4);
       yawTorque = C.inertia[1] * (A.yawKp * (rateCmd - wb.y) + A.yawKi * this.yawInteg) + C.angDamp[1] * rateCmd;
     } else {
-      this.collective = clamp(this.collective + ctl.collective * C.collectiveRate * dt, 0, 1);
+      this.collective = stepCollective(this.collective, ctl.collective, C, dt, { grounded: this.grounded, load: 1 + (this.tankMass + hookedMass(this.sim)) / SKYCRANE_MASS, settle: 0.35 });
       pCmd = ctl.pitch; rCmd = ctl.roll;
       yawTorque = -ctl.yaw * C.tailMax * tailArm;
     }

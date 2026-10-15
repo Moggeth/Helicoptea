@@ -7,6 +7,7 @@ import { buildChinook } from '../render/chinookModel.js';
 import { buildSkycrane } from '../render/skycraneModel.js';
 import { KNOB, knobDefault } from './knobs.js';
 import { aircraftRange } from './tuning.js';
+import { collectiveMode, springStick } from '../sim/collective.js';
 import { disposeTree } from '../render/dispose.js';
 
 // Live side-by-side preview clips. Two lightweight simulations of the real flight model fly the same
@@ -28,8 +29,11 @@ const SCENARIOS = {
   dashHold: { y: 0.42, assist: false, cam: 'wide', ctl: (t, p) => p.fly(-0.2, 0, { alt: true }) },
   cutPower: { y: 0.3, assist: false, cam: 'side', ctl: (t, p) => p.fly(0, 0, { collective: t < 0.2 ? 0 : -1 }) },
   punchUp: { y: 0.25, assist: false, cam: 'side', ctl: (t, p) => (t < 1.2 ? p.fly(0, 0, { collective: t < 0.6 ? 1 : -1, freeYaw: true }) : p.holdHere({ freeYaw: true })) },
-  fullClimb: { y: 0.22, assist: false, cam: 'side', ctl: (t, p) => p.fly(0, 0, { collective: t < 2.2 ? 1 : 0 }) },
-  collTap: { y: 0.3, assist: false, cam: 'side', ctl: (t, p) => p.fly(0, 0, { collective: t > 0.3 && t < 1.3 ? 1 : 0 }) },
+  fullClimb: { y: 0.22, assist: false, cam: 'side', mode: 'hold', ctl: (t, p) => p.fly(0, 0, { collective: t < 2.2 ? 1 : 0 }) },
+  collTap: { y: 0.3, assist: false, cam: 'side', mode: 'hold', ctl: (t, p) => p.fly(0, 0, { collective: t > 0.3 && t < 1.3 ? 1 : 0 }) },
+  liftRelease: { y: 0.25, assist: false, cam: 'side', mode: 'spring', ctl: (t, p) => p.fly(0, 0, { collective: t > 0.3 && t < 1.1 ? 1 : 0 }) },
+  liftSettle: { y: 0.6, assist: false, cam: 'side', mode: 'spring', ctl: (t, p) => p.fly(0, 0, { collective: 0 }) },
+  liftDrop: { y: 0.7, assist: false, cam: 'side', mode: 'spring', ctl: (t, p) => p.fly(0, 0, { collective: t > 0.3 && t < 0.8 ? -1 : 0 }) },
   rollFlick: { y: 0.42, assist: false, cam: 'behind', ctl: (t, p) => (t < 0.75 ? p.raw({ roll: t > 0.3 && t < 0.38 ? 1 : 0 }, { alt: true }) : p.hold()) },
   pitchFlick: { y: 0.42, assist: false, cam: 'side', ctl: (t, p) => (t < 0.8 ? p.raw({ pitch: t > 0.3 && t < 0.4 ? 1 : 0 }, { alt: true }) : p.hold()) },
   pedal: { y: 0.4, assist: false, cam: 'above', ctl: (t, p) => p.fly(0, 0, { alt: true, yaw: t > 0.3 && t < 1.8 ? 1 : 0 }) },
@@ -62,8 +66,8 @@ class Pilot {
     const a = this.sim.aircraft;
     return a === 'chinook' ? CFG.chinook : a === 'skycrane' ? CFG.skycrane : CFG.heli;
   }
-  // With the assist off the collective stick moves the collective at a limited rate, so the
-  // altitude hold picks the collective it wants (hover plus a climb or sink) and steers toward it.
+  // With the assist off the altitude hold picks the collective it wants (hover plus a climb or sink). The
+  // sprung lift stick sets it directly; in hold mode the stick moves it at a limited rate, so it steers toward it.
   collectiveFor(opts) {
     const h = this.sim.heli;
     if (opts.collective !== undefined) return opts.collective;
@@ -72,11 +76,13 @@ class Pilot {
     const D = this.def();
     const hover = 1 / D.thrustToWeight;
     const want = hover * (1 + clamp((this.y0 - h.pos.y) * 2 - h.vel.y * 2, -0.25, 0.4));
+    if (collectiveMode() === 'spring') return springStick(want, D.thrustToWeight);
     return clamp((want - h.collective) / (D.collectiveRate * 0.12), -1, 1);
   }
   // Seconds of travel before the collective could be back at hover, plus a margin.
   stopTime(dir = 1) {
     const D = this.def();
+    if (collectiveMode() === 'spring') return 0.6;
     return 0.6 + Math.max(0, dir * (this.sim.heli.collective - 1 / D.thrustToWeight)) / D.collectiveRate;
   }
   fly(pitchTgt, rollTgt, opts = {}) {
@@ -343,9 +349,14 @@ export class PreviewRig {
 
   resetSides() {
     const sc = this.spec.scenario;
+    const mode = this.useMode(sc);
     this.sides.forEach((s, i) => { this.applySide(i); s.reset(sc); });
     this.tuning.apply();
+    CFG.collective.mode = mode;
   }
+
+  // A clip about one lift mode flies in that mode whatever the player picked; returns the player's mode.
+  useMode(sc) { const mode = CFG.collective.mode; if (sc.mode) CFG.collective.mode = sc.mode; return mode; }
 
   stop() { this.running = false; if (this.raf != null) cancelAnimationFrame(this.raf); this.raf = null; }
 
@@ -356,8 +367,10 @@ export class PreviewRig {
     this.last = now;
     const sc = this.spec.scenario;
     const t0 = performance.now();
+    const mode = this.useMode(sc);
     this.sides.forEach((s, i) => { const speed = this.applySide(i); s.advance(dt, speed, sc); });
     this.tuning.apply();
+    CFG.collective.mode = mode;
     this.simMs = performance.now() - t0;
     if (this.sides[0].t > CYCLE && this.sides[1].t > CYCLE) this.resetSides();
     this.render();

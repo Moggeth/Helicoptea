@@ -196,6 +196,8 @@ async function boot() {
   const requestedSpeed = Number(params.get('worldSpeed'));
   let worldSpeed = params.has('worldSpeed') && Number.isFinite(requestedSpeed) && requestedSpeed >= 0.4 && requestedSpeed <= 1 ? requestedSpeed : speedOf(weight);
   sim.assist = state.assist;
+  // Assist-off lift stick: a sprung lever (default) or the old trim-and-hold collective.
+  CFG.collective.mode = store.get('collectiveMode', 'spring') === 'hold' ? 'hold' : 'spring';
   const numSetting = (k, d, lo, hi) => { const v = parseFloat(store.get(k, String(d))); return v >= lo && v <= hi ? v : d; };
   const wantView = params.get('view') || store.get('view', 'chase');
   const fp = {
@@ -227,6 +229,7 @@ async function boot() {
       if (k === 'loadCam') { fp.loadCam = v; store.set('loadCam', v); }
       if (k === 'camFeel') { cam.feel = v; store.set('camFeel', String(v)); }
       if (k.startsWith('cue.')) { depth.set(k.slice(4), v); store.set(k, v ? '1' : '0'); }
+      if (k === 'collectiveMode') { CFG.collective.mode = v === 'hold' ? 'hold' : 'spring'; store.set(k, CFG.collective.mode); }
       if (k === 'rotorStrikes') { sim.damage.rotorStrikes = !!v; store.set(k, v ? '1' : '0'); }
     },
   });
@@ -298,7 +301,7 @@ async function boot() {
     } else hud.openPause(pauseOpts());
   }
 
-  function pauseOpts() { return { quality: quality.setting, debug: debug.enabled, fpsMeter: fpsMeter.shown, aircraft: sim.aircraft, weight, view: fp.mode, camCycle: cam.cycle, camFeel: cam.feel, fpFov: fp.fov, fpMotion: fp.motion, fpVibration: fp.vibration, loadCam: fp.loadCam, cues: { ...depth.settings }, rotorStrikes: sim.damage.rotorStrikes }; }
+  function pauseOpts() { return { quality: quality.setting, debug: debug.enabled, fpsMeter: fpsMeter.shown, aircraft: sim.aircraft, weight, view: fp.mode, camCycle: cam.cycle, camFeel: cam.feel, fpFov: fp.fov, fpMotion: fp.motion, fpVibration: fp.vibration, loadCam: fp.loadCam, cues: { ...depth.settings }, rotorStrikes: sim.damage.rotorStrikes, collectiveMode: CFG.collective.mode }; }
 
   // Something to ride for the cargo cam: a load on a hook, or the skycrane's snorkel paid out.
   function cargoReady() {
@@ -1070,7 +1073,7 @@ async function boot() {
   requestAnimationFrame(frame);
 
   // Expose a tiny handle for console debugging and automated checks.
-  window.__helicoptea = { perf, get fpsMeter() { return fpsMeter; }, shadowCache, cam, cycleView, get camMode() { return cam.eff; }, tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
+  window.__helicoptea = { CFG, perf, get fpsMeter() { return fpsMeter; }, shadowCache, cam, cycleView, get camMode() { return cam.eff; }, tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
 }
 
 boot().catch((err) => showError('Helicoptea failed to start. Please reload.', err));

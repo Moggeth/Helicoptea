@@ -16,6 +16,7 @@ export const AIRCRAFT_LABEL = { micro: 'Micro heli', chinook: 'Chinook', skycran
 export const GROUPS = [
   { id: 'dot', label: 'Moving a dot', blurb: 'Momentum, drag and power: how the aircraft carries speed and climbs.' },
   { id: 'heli', label: 'Becoming a helicopter', blurb: 'How fast it tilts and turns, and how much rotational momentum it has.' },
+  { id: 'lift', label: 'Lift stick (Assist off)', blurb: 'The sprung lift stick: what full up, centre and full down ask of the rotor. Ignored in the Stays put lift mode.' },
   { id: 'sticks', label: 'Stick mapping', blurb: 'How your stick movement becomes control input. Applies to keyboard, pad and touch.' },
   { id: 'flavour', label: 'Rotor wash', blurb: 'How hard the wash blows things about. It never pushes the aircraft itself.' },
   { id: 'assist', label: 'Flight Assist', blurb: 'Only matters with Flight Assist on.' },
@@ -48,11 +49,11 @@ export const KNOBS = [
     clip: { scenario: 'punchUp', low: 'Rockets up', high: 'Eases up', watch: 'Same collective push.' } },
   { id: 'thrustToWeight', group: 'dot', label: 'Thrust-to-weight', kind: 'mult', min: 0.7, max: 1.5, global: true, perAircraft: true,
     targets: all({ micro: ['heli.thrustToWeight'], chinook: ['chinook.thrustToWeight'], skycrane: ['skycrane.thrustToWeight'] }),
-    hint: 'Spare power. Low struggles with a wet bag; high leaps off the table.',
+    hint: 'Spare power. Low struggles with a wet bag; high leaps off the table. With the sprung lift stick it is the ceiling on full up, which a heavy load reaches.',
     clip: { scenario: 'fullClimb', low: 'Sluggish', high: 'Explosive', watch: 'Full collective from a hover.' } },
   { id: 'collectiveRate', group: 'dot', label: 'Collective trim speed', kind: 'mult', min: 0.5, max: 2.5, global: true, perAircraft: true,
     targets: all({ micro: ['heli.collectiveRate'], chinook: ['chinook.collectiveRate'], skycrane: ['skycrane.collectiveRate'] }),
-    hint: 'Flight Assist off: how fast holding lift up/down changes the collective. Low is finer.',
+    hint: 'Flight Assist off, Stays put lift mode only: how fast holding lift up/down changes the collective. Low is finer.',
     clip: { scenario: 'collTap', low: 'Small change', high: 'Large change', watch: 'Lift held up for one second, then released.' } },
 
   // ---------------------------------------------------------------- becoming a helicopter
@@ -76,6 +77,25 @@ export const KNOBS = [
     targets: all({ chinook: ['chinook.diffCollective'] }),
     hint: 'Chinook only: how strongly differential collective pitches the long airframe.',
     clip: { scenario: 'pitchFlick', low: 'Lazy pitch', high: 'Sharp pitch', watch: 'Full forward stick for half a second.' } },
+
+  // ---------------------------------------------------------------- lift stick (assist off, spring mode)
+  // 'excess' on levels measured from hover: ×0 is exactly hover, ×2 is twice as far from it.
+  { id: 'liftTop', group: 'lift', label: 'Full-up climb', kind: 'excess', min: 0.3, max: 2.5, global: true, perAircraft: false,
+    targets: { global: ['collective.up'] }, lowLabel: 'gentle', highLabel: 'punchy',
+    hint: 'Lift held fully up asks for this much more than you weigh (×1 is 35% extra). Never more than the rotor has.',
+    clip: { scenario: 'liftRelease', low: 'Eases up', high: 'Shoots up', watch: 'Lift held fully up for under a second, then let go.' } },
+  { id: 'liftCentre', group: 'lift', label: 'Centred settle', kind: 'excess', min: 0, max: 3, global: true, perAircraft: false, linear: true,
+    targets: { global: ['collective.neutral'] }, lowLabel: 'hover', highLabel: 'sink',
+    hint: 'How far short of hover the centred stick is (×1 is 5% short). ×0 hovers hands-off; higher settles faster.',
+    clip: { scenario: 'liftSettle', low: 'Hangs there', high: 'Settles quickly', watch: 'Hands off the lift stick at 60 cm.' } },
+  { id: 'liftBottom', group: 'lift', label: 'Full-down drop', kind: 'excess', min: 0.25, max: 2, global: true, perAircraft: false,
+    targets: { global: ['collective.down'] }, lowLabel: 'gentle', highLabel: 'plummet',
+    hint: 'How far below hover full down goes (×1 is 40% short of your weight). High comes down fast, so let go early.',
+    clip: { scenario: 'liftDrop', low: 'Sinks', high: 'Drops', watch: 'Lift pulled fully down for half a second, then let go.' } },
+  { id: 'liftLoadComp', group: 'lift', label: 'Load in the centre', kind: 'mult', min: 0, max: 1, global: true, perAircraft: false, linear: true,
+    targets: { global: ['collective.loadComp'] }, lowLabel: 'empty', highLabel: 'loaded',
+    hint: 'With a load on: 1 sets centre stick against your weight with the load, so letting go always settles gently. 0 sets it for the empty aircraft, so a heavy load sinks unless you hold lift up.',
+    clip: { scenario: 'liftSettle', low: 'Set for empty', high: 'Counts the load', watch: 'The preview flies empty, so both sides match: try it with a bag on the hook.' } },
 
   // ---------------------------------------------------------------- stick mapping
   { id: 'deadzone', group: 'sticks', label: 'Deadzone', kind: 'abs', min: 0, max: 0.2, step: 0.01, def: 0, global: true, perAircraft: false,

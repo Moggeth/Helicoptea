@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RAPIER, GROUPS, Track } from './physics.js';
 import { CFG } from '../config.js';
+import { stepCollective, hookedMass } from './collective.js';
 
 // Tandem-rotor heavy lifter. Body frame as the micro heli: nose towards -Z, right +X, up +Y, origin at
 // the centre of mass. Each rotor is a separate thrust vector applied at its own hub, so every moment
@@ -264,7 +265,7 @@ export class Chinook {
       const ty = C.inertia[1] * (A.yawKp * (rateCmd - wb.y) + A.yawKi * this.yawInteg) + C.angDamp[1] * rateCmd;
       yCmd = clamp(-ty / yawPower, -1, 1);
     } else {
-      this.collective = clamp(this.collective + ctl.collective * C.collectiveRate * dt, 0, 1);
+      this.collective = stepCollective(this.collective, ctl.collective, C, dt, { grounded: this.grounded, load: 1 + hookedMass(this.sim) / CHINOOK_MASS, settle: 0.35 });
       pCmd = ctl.pitch; rCmd = ctl.roll; yCmd = ctl.yaw;
     }
     this.mix.pitch = pCmd; this.mix.roll = rCmd; this.mix.yaw = yCmd;

@@ -4,8 +4,9 @@ import { CAM_KEYS, LOOK_MODES } from '../render/cameraModes.js';
 
 // Merges keyboard, gamepad and touch into one control state.
 // Axes (all -1..1): pitch (+ forward), roll (+ right), yaw (+ right), collective (+ up).
-// Collective is a *rate* everywhere: with assist off it trims the collective up/down and holds it when
-// released; with assist on it commands climb/sink speed. So switching devices never jumps the throttle.
+// Collective with assist on commands climb/sink speed. With assist off it is a sprung lever by default
+// (up climbs, centred settles gently, down sinks faster; sim/collective.js) or, in hold mode, a rate that
+// trims the collective and leaves it. Every source rests at 0, so switching devices never jumps the throttle.
 const KEYMAP = {
   pitchUp: ['ArrowUp', 'KeyI'], pitchDown: ['ArrowDown', 'KeyK'],
   rollLeft: ['ArrowLeft', 'KeyJ'], rollRight: ['ArrowRight', 'KeyL'],

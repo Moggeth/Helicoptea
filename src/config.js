@@ -20,7 +20,7 @@ export const CFG = {
     hookOffset: [0, -0.046, 0],         // cargo hook, directly below the centre of mass
     rotorHubOffset: [0, 0.053, 0],
     skidDrop: 0.047,                   // centre of mass to skid bottom
-    thrustToWeight: 2.3,               // full collective, heli alone
+    thrustToWeight: 2.0,               // full collective, heli alone (still lifts a full milk bucket at ~1.2)
     thrustLag: 0.03,                   // thrust follows collective almost at once (F = ma from the moment you push)
     spoolTime: 0.2,                    // rotor spin-up (s)
     dragPlane: 0.006,                  // rotor H-force, N per m/s in the rotor plane (low: momentum carries)
@@ -29,7 +29,7 @@ export const CFG = {
     angDamp: [4.0e-4, 2.2e-4, 3.0e-4], // rotor aerodynamic damping, N m per rad/s
     cyclicTorque: 1.2e-3,              // N m at full cyclic deflection
     yawTorque: 1.0e-3,                 // pedal authority: enough to swing the nose round at the top of a J-turn
-    collectiveRate: 0.25,              // assist off: collective change per second at full stick (fine: little drag to hide mistakes)
+    collectiveRate: 0.25,              // assist off, hold mode: collective change per second at full stick
     idleCollective: 0.12,
   },
 
@@ -138,6 +138,18 @@ export const CFG = {
     fov: 50,
   },
 
+  // Flight Assist off: what the lift stick does (sim/collective.js). 'spring' is a sprung lever: centred
+  // settles gently, held up climbs, full up is full collective. 'hold' trims the collective and leaves it.
+  // up / neutral / down are thrust at full-up, centre and full-down stick, in units of the all-up weight.
+  // Full up never asks for more than the rotor has (thrustToWeight), so a heavy load still eats the margin.
+  collective: {
+    mode: 'spring',
+    up: 1.35,               // full up: a firm climb, not a launch (full collective only if the load needs it)
+    neutral: 0.95,          // centre stick: 5% short of hover, a gentle settle
+    down: 0.6,              // full down: comes down briskly; hold it to the ground and you will land hard
+    loadComp: 1,            // 1: centre and down are measured against weight with cargo; 0: the empty airframe
+  },
+
   input: {
     deadZone: 0.14,
     expo: 0.45,
@@ -154,7 +166,7 @@ export const CFG = {
     hubs: [[0, 0.043, -0.067], [0, 0.053, 0.067]], // forward (turns CCW from above), aft (CW)
     hooks: [[0, -0.029, -0.03], [0, -0.029, 0], [0, -0.029, 0.03]], // forward, centre, aft cargo hooks
     gearDrop: 0.031,                   // centre of mass to wheel bottoms
-    thrustToWeight: 2.0,               // both rotors at full collective, empty
+    thrustToWeight: 1.8,               // both rotors at full collective, empty
     thrustLag: 0.06,                   // collective: thrust follows almost at once; heaviness comes from mass
     diffLag: 0.14,                     // differential collective (pitch control) (s)
     cyclicLag: 0.05,
@@ -204,7 +216,7 @@ export const CFG = {
     tailRadius: 0.021,
     hooks: [[0, -0.031, 0.04]],        // it is a crane: one cargo hook behind the tank
     gearDrop: 0.041,
-    thrustToWeight: 2.1,               // empty; about 1.5 with a full tank
+    thrustToWeight: 1.9,               // empty; about 1.45 with a full tank
     thrustLag: 0.07,
     cyclicLag: 0.06,
     tailLag: 0.05,

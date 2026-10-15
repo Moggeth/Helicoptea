@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RAPIER, GROUPS, Track } from './physics.js';
 import { CFG } from '../config.js';
+import { stepCollective, hookedMass } from './collective.js';
 
 // Body frame: nose towards -Z, right +X, up +Y. Origin is the centre of mass.
 // Parts are shared with the render model and the destruction system so wreckage is recognisable.
@@ -156,7 +157,7 @@ export class Helicopter {
         this.collective = THREE.MathUtils.clamp(Tneed / TmaxNow, 0, 1);
       }
     } else {
-      this.collective = THREE.MathUtils.clamp(this.collective + ctl.collective * H.collectiveRate * dt, 0, 1);
+      this.collective = stepCollective(this.collective, ctl.collective, H, dt, { grounded: this.grounded, load: 1 + hookedMass(this.sim) / H.mass });
     }
 
     // Thrust along the rotor axis: what the collective asks for, wherever you are (no ground effect,
