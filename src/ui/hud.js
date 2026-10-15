@@ -144,6 +144,9 @@ export class Hud {
     return {
       lift: k('collUp'), attach: k('attach'), assist: k('assist'), restart: k('restart'), pour: k('pour'), doors: k('pour'), salvo: `double-tap ${k('pour')}`,
       pump: k('pump'), autofill: `double-tap ${k('pump')}`, reel: `${k('reelIn')} ${k('reelOut')}`,
+      steer: m.mouse.x !== 'none' || m.mouse.y !== 'none'
+        ? `Click the scene and the mouse flies (${['x', 'y'].filter((d) => m.mouse[d] !== 'none').map((d) => m.mouse[d]).join(' and ')}); ${k('yawLeft')} ${k('yawRight')} turn.`
+        : `${k('pitchFwd')} ${k('pitchBack')} ${k('rollLeft')} ${k('rollRight')} tilt, ${k('yawLeft')} ${k('yawRight')} turn.`,
     };
   }
 
