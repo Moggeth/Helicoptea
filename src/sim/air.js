@@ -56,6 +56,10 @@ export class AirField {
       this.nL[q] = S[k - 1] ? k : k - 1; this.nR[q] = S[k + 1] ? k : k + 1;
       this.nD[q] = S[k - NX] ? k : k - NX; this.nU[q] = S[k + NX] ? k : k + NX;
     }
+    // Cells with no solid neighbour (most of them) read their neighbours directly.
+    this.plain = new Uint8Array(n);
+    for (let q = 0; q < n; q++) { const k = fluid[q]; this.plain[q] = !S[k - 1] && !S[k + 1] && !S[k - NX] && !S[k + NX] ? 1 : 0; }
+    this.rhs = new Float64Array(n);
   }
 
   markSolids() {
@@ -201,11 +205,13 @@ export class AirField {
     }
     // Warm start from last frame's pressure: the flow changes slowly, so few iterations suffice.
     // (Gauss-Seidel in row order, as before: a neighbour that is solid counts as the cell itself.)
-    const n = fluid.length;
+    const n = fluid.length, rhs = this.rhs, plain = this.plain;
+    for (let q = 0; q < n; q++) { const k = fluid[q]; rhs[q] = div[k] * H * H; }
     for (let it = 0; it < CFG.air.iterations; it++) {
       for (let q = 0; q < n; q++) {
         const k = fluid[q];
-        p[k] = (p[nL[q]] + p[nR[q]] + p[nD[q]] + p[nU[q]] - div[k] * H * H) * 0.25;
+        if (plain[q]) p[k] = (p[k - 1] + p[k + 1] + p[k - NX] + p[k + NX] - rhs[q]) * 0.25;
+        else p[k] = (p[nL[q]] + p[nR[q]] + p[nD[q]] + p[nU[q]] - rhs[q]) * 0.25;
       }
     }
     for (let q = 0; q < n; q++) {
