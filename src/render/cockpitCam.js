@@ -190,7 +190,7 @@ export class LoadCamera {
     // quality), so a 120 Hz display does not pay for a second world render every frame.
     // On slower tiers it also skips frames, as before, so a struggling device is not made to pay for
     // it every frame.
-    this.period = (quality.name === 'high' || quality.name === 'ultra') ? 1 / 60 : quality.name === 'medium' ? 1 / 40 : 1 / 25;
+    this.period = (quality.name === 'high' || quality.name === 'ultra') ? 1 / 60 : quality.lite ? 1 / 15 : quality.name === 'medium' ? 1 / 40 : 1 / 25;
     this.every = (quality.name === 'high' || quality.name === 'ultra') ? 1 : quality.name === 'medium' ? 2 : 3;
     this.frame = 0;
     this.last = -1;

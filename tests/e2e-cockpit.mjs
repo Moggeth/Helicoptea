@@ -269,10 +269,18 @@ const state = (page) => H(page, () => {
   check('touch: hook camera inset clear of the sticks and buttons', overlaps.length === 0, overlaps.join(', '));
   await page.screenshot({ path: `${outDir}/e2e-touch-cockpit.png` });
   // Throttled phone-class CPU: frame rate in the cockpit.
+  // Settle for a moment after the throttle starts (the first throttled frames catch up the simulation), then
+  // take the median of three 2 s windows timed by the page's own clock, so one busy moment on the machine
+  // running the test doesn't decide it.
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
-  const f0 = (await state(page)).frames; await sleep(3000); const f1 = (await state(page)).frames;
+  await sleep(1500);
+  const windows = [];
+  for (let w = 0; w < 3; w++) {
+    windows.push(await H(page, async () => { const g = window.__helicoptea, f0 = g.frames, t0 = performance.now(); await new Promise((r) => setTimeout(r, 2000)); return (g.frames - f0) / ((performance.now() - t0) / 1000); }));
+  }
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
-  check('touch: cockpit frame rate at 4x CPU throttle (medium tier)', (f1 - f0) / 3 > 30, `${((f1 - f0) / 3).toFixed(0)} fps`);
+  const fps4x = windows.slice().sort((a, b) => a - b)[1];
+  check('touch: cockpit frame rate at 4x CPU throttle (medium tier)', fps4x > 30, `${fps4x.toFixed(0)} fps (median of ${windows.map((x) => x.toFixed(0)).join(', ')})`);
   check('no console errors (touch)', logs.length === 0, logs.slice(0, 4).join(' | '));
   await ctx.close();
 }
