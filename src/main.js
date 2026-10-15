@@ -271,6 +271,7 @@ async function boot() {
   const fmtWall = (w) => `${Math.floor(w / 60)}:${String(Math.floor(w % 60)).padStart(2, '0')}`;
   hud.pads = input.pads;
   hud.touchLayoutOf = () => input.touchLayout;
+  hud.input = input;
   hud.setAssist(sim.assist);
   hud.setVolume(audio.volume, audio.muted);
   hud.setDevice(IS_TOUCH ? 'touch' : 'keyboard');
@@ -451,6 +452,7 @@ async function boot() {
       case 'help': if (hud.modalKind === 'help') hud.closeModal(); else { hud.openHelp(); } break;
       case 'closehelp': hud.closeModal(); if (paused) hud.openPause(pauseOpts()); break;
       case 'helptab': hud.setHelpTab(el.dataset.tab); break;
+      case 'ctltab': hud.setCtlTab(el.dataset.tab); break;
       case 'mute': audio.setMuted(!audio.muted); hud.setVolume(audio.volume, audio.muted); break;
       case 'debug': debug.enabled = !debug.enabled; store.set('debug', debug.enabled ? '1' : '0'); break;
       case 'fpsmeter': fpsMeter.shown = !fpsMeter.shown; store.set('fpsMeter', fpsMeter.shown ? '1' : '0'); break;
@@ -458,6 +460,7 @@ async function boot() {
       case 'resethints': flow.replay(); setPaused(false); break;
       case 'controller': hud.openController(input.pads); break;
       case 'closecontroller':
+        input.cancelKbCapture();
         input.pads.cancelWizard();
         if (input.pads.capture) input.pads.cancelCapture();
         hud.closeModal();
@@ -478,6 +481,7 @@ async function boot() {
 
   // Back button in menus: close the innermost panel.
   function back() {
+    if (input.kbCapture) { input.cancelKbCapture(); return; }
     if (input.pads.capture) { input.pads.cancelCapture(); return; }
     if (input.pads.wizard) { doAction('wizcancel'); return; }
     if (hud.modalKind === 'tuning') tuningPanel.close();
@@ -776,6 +780,7 @@ async function boot() {
     // The gamepad drives menus whenever one is showing (start screen, pause, help, settings, crash).
     input.menuMode = !started || hud.modalKind !== null || crashShown || replay.active;
     input.aircraft = sim.aircraft;
+    input.assist = sim.assist;
     input.pads.triggerMode = sim.aircraft === 'skycrane' ? 'tank' : 'collective';
     const ctl = tuning.shapeCtl(input.update(frameDt)); // board deadzone/expo/rates, after the bindings
     for (const a of input.takeActions()) {
@@ -794,6 +799,7 @@ async function boot() {
     hud.setDevice(input.source);
     document.body.classList.toggle('pad-nav', input.source === 'gamepad');
     hud.updateController();
+    hud.setMouse(input.mouseView(), started && !paused && !input.menuMode);
     if (input.attachBtn) {
       const cand = sim.attachCandidate();
       if (!!cand !== input.attachBtn.classList.contains('ready') && cand) buzz(12);   // a loop just came in reach

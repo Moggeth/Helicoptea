@@ -5,6 +5,10 @@ import {
   activeAxes, activeButtons, buttonName, defaultLayout, describe, mappingOf, presetName,
 } from '../input/layouts.js';
 import { CAM_MODES, CAM_NAME } from '../render/cameraModes.js';
+import {
+  KB_ACTIONS, KB_FLIGHT, KB_PRESETS, KB_PRESET_ORDER, MAX_KEYS, MOUSE_MODES, MOUSE_MODE_LABEL, MOUSE_TARGETS, MOUSE_TARGET_LABEL,
+  defaultKbLayout, describeKb, kbMappingOf, kbPresetName, keyName,
+} from '../input/kbLayouts.js';
 import { CFG } from '../config.js';
 import { TOUCH_LAYOUTS, TOUCH_SIZES } from '../input/input.js';
 
@@ -65,6 +69,8 @@ export class Hud {
       <div class="loadcam hidden" aria-hidden="true"><span class="lc-name">HOOK CAM</span><span class="lc-read"></span></div>
       <div class="boltcam hidden" aria-hidden="true"><span class="bc-rec">REC <b>0:00</b></span><span class="bc-mount"></span><span class="bc-corner tl"></span><span class="bc-corner tr"></span><span class="bc-corner bl"></span><span class="bc-corner br"></span><span class="bc-ring"></span><span class="bc-read"></span></div>
       <div class="underwater hidden" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="mstick hidden" aria-hidden="true"><i></i></div>
+      <div class="mouse-cta hidden">Click to fly with the mouse</div>
       <div class="fp-flash"></div>
       <div class="debug hidden"></div>
     `;
@@ -118,7 +124,7 @@ export class Hud {
   key(action) {
     const d = this.device;
     const K = {
-      keyboard: { lift: '<kbd>W</kbd>', attach: '<kbd>Space</kbd>', assist: '<kbd>F</kbd>', restart: '<kbd>R</kbd>', pour: '<kbd>G</kbd>', doors: '<kbd>G</kbd>', salvo: 'double-tap <kbd>G</kbd>', pump: '<kbd>T</kbd>', autofill: 'double-tap <kbd>T</kbd>', reel: '<kbd>Z</kbd> <kbd>X</kbd>' },
+      keyboard: this.kbKeys(),
       gamepad: this.padKeys(),
       touch: { lift: `the ${this.touchStick('collective')} stick up`, attach: '<kbd>Hook</kbd>', assist: 'the <b>Assist</b> switch (top left)', restart: '↻', pour: '<kbd>Pour</kbd>', doors: '<kbd>Doors</kbd>', salvo: 'double-tap <kbd>Doors</kbd>', pump: '<kbd>Pump</kbd>', autofill: 'double-tap <kbd>Pump</kbd>', reel: '<kbd>Hose ▲▼</kbd>' },
     };
@@ -129,6 +135,28 @@ export class Hud {
   touchStick(axis) {
     const L = TOUCH_LAYOUTS[this.touchLayoutOf ? this.touchLayoutOf() : 'classic'] || TOUCH_LAYOUTS.classic;
     return L.left.x === axis || L.left.y === axis ? 'left' : 'right';
+  }
+
+  // Keyboard prompts follow the player's keyboard layout (hud.input, set by the game).
+  kbKeys() {
+    const m = kbMappingOf(this.input ? this.input.kbLayout : defaultKbLayout());
+    const k = (id) => (m.keys[id].length ? `<kbd>${keyName(m.keys[id][0])}</kbd>` : '<kbd>unbound</kbd>');
+    return {
+      lift: k('collUp'), attach: k('attach'), assist: k('assist'), restart: k('restart'), pour: k('pour'), doors: k('pour'), salvo: `double-tap ${k('pour')}`,
+      pump: k('pump'), autofill: `double-tap ${k('pump')}`, reel: `${k('reelIn')} ${k('reelOut')}`,
+    };
+  }
+
+  // The mouse stick: a dot in a ring while the pointer is captured, or a nudge to click in.
+  setMouse(v, flying) {
+    if (!this.mstick) { this.mstick = this.q('.mstick'); this.mdot = this.mstick.querySelector('i'); this.mcta = this.q('.mouse-cta'); this.mlast = ''; }
+    const show = !!v && flying && v.locked && !v.looking;
+    this.mstick.classList.toggle('hidden', !show);
+    this.mcta.classList.toggle('hidden', !(v && flying && !v.locked && this.device === 'keyboard'));
+    if (!show) return;
+    this.mstick.classList.toggle('stick', v.mode === 'stick');
+    const t = `translate(${(v.x * 26).toFixed(1)}px, ${(-v.y * 26).toFixed(1)}px)`;
+    if (t !== this.mlast) { this.mlast = t; this.mdot.style.transform = t; }
   }
 
   // Gamepad prompts follow the player's layout (set via hud.pads by the game).
@@ -149,6 +177,11 @@ export class Hud {
   }
 
   refreshKeys() {
+    const m = kbMappingOf(this.input ? this.input.kbLayout : defaultKbLayout());
+    for (const [sel, id] of [['[data-act=assist] .kb', 'assist'], ['[data-act=restart] .kb', 'restart'], ['[data-act=view] .kb', 'camNext'], ['[data-act=mark] .kb', 'mark']]) {
+      const el = this.q(sel);
+      if (el) el.textContent = m.keys[id].length ? keyName(m.keys[id][0]) : '';
+    }
     const kb = this.q('.crash .kb-inline');
     kb.innerHTML = this.device === 'touch' ? '' : this.key('restart');
   }
@@ -356,7 +389,11 @@ export class Hud {
             </select></label>
           <label class="opt">World weight <span class="weight-row"><small>light</small><input type="range" min="0" max="1" step="0.05" value="${opts.weight ?? 0.75}" data-setting="weight" aria-label="World weight" /><small>heavy</small></span></label>
           <label class="opt">Debug overlay <input type="checkbox" data-setting="debug" ${opts.debug ? 'checked' : ''}/></label>
-          <label class="opt">Controller <button class="secondary" style="padding:6px 12px" data-act="controller">Settings</button></label>
+          <label class="opt">Controls and remapping <button class="secondary" style="padding:6px 12px" data-act="controller">Settings</button></label>
+          ${opts.touch ? '' : `<label class="opt">Keyboard and mouse
+            <select data-setting="kbPreset" aria-label="Keyboard and mouse scheme">
+              ${[...KB_PRESET_ORDER.map((id) => [id, KB_PRESETS[id].name]), ...(this.input?.kbLayout.custom ? [['custom', 'Custom (yours)']] : [])].map(([id, nm]) => `<option value="${id}" ${this.input?.kbLayout.preset === id ? 'selected' : ''}>${nm}</option>`).join('')}
+            </select></label>`}
           ${opts.touch ? '' : liftSelect(opts.collectiveMode)}
           <label class="opt">Flight tuning <button class="secondary" style="padding:6px 12px" data-act="tuning">Open board</button></label>
           <label class="opt">Show tips again <button class="secondary" style="padding:6px 12px" data-act="resethints">Replay</button></label>
@@ -395,6 +432,7 @@ export class Hud {
     }
     this.modal.querySelector('[data-setting=loadCam]').addEventListener('change', (e) => this.h.setting('loadCam', e.target.value));
     this.modal.querySelector('[data-setting=collectiveMode]').addEventListener('change', (e) => this.h.setting('collectiveMode', e.target.value));
+    this.modal.querySelector('[data-setting=kbPreset]')?.addEventListener('change', (e) => { this.input?.chooseKbPreset(e.target.value); this.refreshKeys(); });
     for (const el of this.modal.querySelectorAll('[data-cue]')) el.addEventListener('change', () => this.h.setting(`cue.${el.dataset.cue}`, el.checked));
     for (const k of ['touchLayout', 'touchSize']) this.modal.querySelector(`[data-setting=${k}]`)?.addEventListener('change', (e) => this.h.setting(k, e.target.value));
     this.modal.querySelector('[data-setting=fullscreen]')?.addEventListener('change', (e) => this.h.setting('fullscreen', e.target.checked));
@@ -425,9 +463,7 @@ export class Hud {
 
   helpRows(tab) {
     const R = {
-      keyboard: [['<kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd>', 'Cyclic: tilt forward, back and sideways (or I J K L)'], ['<kbd>W</kbd><kbd>S</kbd>', 'Collective: more / less lift'], ['<kbd>A</kbd><kbd>D</kbd>', 'Yaw: turn left / right'],
-        ['<kbd>Space</kbd>', 'Hook a bag or the milk bucket / release it (the Chinook has three hooks: Space drops them all)'], ['<kbd>G</kbd> (hold)', 'Pour milk: the bucket\'s valve, or the skycrane\'s belly doors (they open wider the longer you hold)'], ['Double-tap <kbd>G</kbd> or <kbd>Shift</kbd>+<kbd>G</kbd>', 'Salvo: dump the lot (latches the doors or the bucket valve open; again to close)'], ['<kbd>T</kbd> (hold)', 'Skycrane: pump milk up the snorkel (only with the intake under the surface)'], ['Double-tap <kbd>T</kbd> or <kbd>Shift</kbd>+<kbd>T</kbd>', 'Skycrane auto-fill: reel down, pump until full, reel up (any hose or pump key takes over)'], ['<kbd>Z</kbd> / <kbd>X</kbd> (hold)', 'Skycrane: reel the snorkel in / out'], ['<kbd>V</kbd>', 'Switch aircraft: micro heli / Chinook / skycrane'], ['<kbd>F</kbd>', 'Flight Assist on / off'], ['<kbd>R</kbd>', 'Restart flight'], ['<kbd>Shift</kbd>+<kbd>R</kbd>', 'Reset sandbox'],
-        ['<kbd>C</kbd> / <kbd>Shift</kbd>+<kbd>C</kbd>', 'Next / previous camera: chase, cockpit, locked chase, nose cam, tripod, cargo cam (pick which in Pause)'], ['<kbd>1</kbd>', 'Cockpit and back. In the cockpit, drag the mouse to look around, wheel to zoom'], ['<kbd>2</kbd>–<kbd>7</kbd>', 'Chase, locked chase, nose cam, orbit, tripod, cargo cam'], ['<kbd>B</kbd> or right mouse (hold)', 'GoPro: bolted under the side, straight down, with a ring where the load will land'], ['<kbd>U</kbd> / <kbd>Home</kbd>', 'Recenter camera or look ahead (drag to orbit, wheel to zoom)'], ['<kbd>N</kbd>', 'Mark this moment for a flight note (describe it later in Pause → Flight replay)'], ['<kbd>M</kbd>', 'Mute'], ['<kbd>Esc</kbd>', 'Pause'], ['<kbd>F2</kbd>', 'Frame rate readout'], ['<kbd>`</kbd>', 'Debug overlay']],
+      keyboard: this.kbHelpRows(),
       gamepad: this.padHelpRows(),
       touch: this.touchHelpRows(),
     };
@@ -446,6 +482,19 @@ export class Hud {
       ['', 'Put a thumb down anywhere in its half of the screen: that spot is the centre. Slide past the rim and the centre follows you. Pick another layout or stick size in Pause.'],
       ['<kbd>Hook</kbd>', 'Hook / release (glows when a loop is in reach)'], ['<kbd>Pour</kbd> (hold)', 'Pour milk (appears while you carry the bucket); double-tap latches it open'], ['<kbd>Doors</kbd> (hold)', 'Skycrane belly doors, opening wider as you hold; double-tap = salvo'], ['<kbd>Pump</kbd> (hold)', 'Skycrane pump; double-tap = auto-fill'], ['<kbd>Hose ▲</kbd> <kbd>Hose ▼</kbd>', 'Reel the snorkel in / out'],
       ['<kbd>GoPro</kbd> (hold)', 'Bolted camera looking straight down'], ['Assist switch (top left)', 'Flight Assist on / off'], ['Camera icon (top right)', 'Next camera'], ['Drag the open screen', 'Look around in the cockpit, or orbit the chase camera'], ['Double-tap the open screen', 'Look ahead again'], ['↻ (top right)', 'Restart flight'], ['‖ (top right)', 'Pause: sticks, sound, aircraft, cameras, mark a moment']];
+  }
+
+  // The keyboard sheet, like the gamepad's, is written from the layout in force.
+  kbHelpRows() {
+    const layout = this.input ? this.input.kbLayout : defaultKbLayout();
+    const keys = (l) => l.map((k) => `<kbd>${k}</kbd>`).join(' ');
+    return [
+      ['Scheme', `${kbPresetName(layout)} (change it in Pause or Controls and remapping)`],
+      ...describeKb(layout).map((r) => [keys(r.keys), r.label]),
+      ['<kbd>Shift</kbd>+restart', 'Reset sandbox'],
+      ['<kbd>1</kbd>', 'Cockpit and back. Drag the mouse to look around, wheel to zoom'], ['<kbd>2</kbd>–<kbd>7</kbd>', 'Chase, locked chase, nose cam, orbit, tripod, cargo cam'],
+      ['<kbd>Home</kbd>', 'Recenter camera or look ahead'], ['<kbd>M</kbd>', 'Mute'], ['<kbd>Esc</kbd> / <kbd>P</kbd>', 'Pause (Esc also lets go of the mouse)'], ['<kbd>H</kbd>', 'This sheet'], ['<kbd>F2</kbd>', 'Frame rate readout'], ['<kbd>`</kbd>', 'Debug overlay'],
+    ];
   }
 
   // The gamepad sheet is written from the layout in force, so it is always true to the player's setup.
@@ -476,15 +525,26 @@ export class Hud {
   closeModal() { this.modal.classList.remove('show'); this.modalKind = null; document.activeElement?.blur?.(); }
 
   // ---------------------------------------------------------------- controller settings
-  openController(pads) {
+  openController(pads, tab = this.device === 'gamepad' ? 'gamepad' : 'keyboard') {
     this.modalKind = 'controller';
     this.pads = pads;
+    this.ctlTab = tab;
     const S = pads.settings;
     const slider = (key, label, min, max, step) => `<label class="opt">${label}<input type="range" data-pad="${key}" min="${min}" max="${max}" step="${step}" value="${S[key]}" /></label>`;
     const check = (key, label) => `<label class="opt">${label}<input type="checkbox" data-pad="${key}" ${S[key] ? 'checked' : ''} /></label>`;
     this.modal.innerHTML = `
-      <div class="panel menu pad-panel" role="dialog" aria-label="Controller settings">
-        <h2>Controller</h2>
+      <div class="panel menu pad-panel" role="dialog" aria-label="Controls and remapping">
+        <h2>Controls</h2>
+        <div class="help-tabs ctl-tabs">
+          ${[['keyboard', 'Keyboard and mouse'], ['gamepad', 'Gamepad']].map(([t, nm]) => `<button data-act="ctltab" data-tab="${t}" class="${t === tab ? 'on' : ''}">${nm}</button>`).join('')}
+        </div>
+        <div class="kb-tab ${tab === 'keyboard' ? '' : 'hidden'}">
+          <div class="kb-capture hidden" role="status"><p class="wz-prompt"></p><div class="row"><button class="secondary" data-kb="capcancel">Cancel</button></div></div>
+          <div class="kb-layout kb-settings"></div>
+          <div class="row stack kb-settings">${liftSelect(CFG.collective.mode)}</div>
+          <div class="row kb-settings"><button class="primary" style="margin-top:0" data-act="closecontroller">Done</button></div>
+        </div>
+        <div class="pad-tab ${tab === 'gamepad' ? '' : 'hidden'}">
         <div class="pad-list"></div>
         <div class="pad-test" aria-hidden="true">
           <div class="pad-stick"><div class="dot l"></div><span class="lbl-l"></span></div>
@@ -511,7 +571,8 @@ export class Hud {
           <button class="secondary" data-act="padreset">Forget pad wiring</button>
           <button class="secondary" data-act="padrumble">Test rumble</button>
         </div>
-        <p class="help-note">Using a <b>Steam Controller</b>? Browsers only see it as a gamepad through Steam Input: add your browser to Steam as a Non-Steam Game with the <b>Gamepad</b> layout and open Helicoptea from there (steps in the README). If it appears above as a standard layout it just works; otherwise use <b>Teach it an odd pad…</b>, which only tells the game where each stick and button is; the layout above decides what they do.</p>
+        <p class="help-note pad-note">Using a <b>Steam Controller</b>? Browsers only see it as a gamepad through Steam Input: add your browser to Steam as a Non-Steam Game with the <b>Gamepad</b> layout and open Helicoptea from there (steps in the README). If it appears above as a standard layout it just works; otherwise use <b>Teach it an odd pad…</b>, which only tells the game where each stick and button is; the layout above decides what they do.</p>
+        </div>
       </div>`;
     this.modal.querySelectorAll('[data-pad]').forEach((el) => {
       el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', () => {
@@ -519,12 +580,89 @@ export class Hud {
         pads.saveSettings();
       });
     });
-    this.modal.querySelector('.pad-settings [data-setting=collectiveMode]').addEventListener('change', (e) => this.h.setting('collectiveMode', e.target.value));
+    for (const el of this.modal.querySelectorAll('[data-setting=collectiveMode]')) {
+      el.addEventListener('change', (e) => { this.h.setting('collectiveMode', e.target.value); for (const o of this.modal.querySelectorAll('[data-setting=collectiveMode]')) o.value = e.target.value; });
+    }
     this.modal.querySelector('.pad-capture [data-lay=capcancel]').addEventListener('click', () => pads.cancelCapture());
+    this.modal.querySelector('.kb-capture [data-kb=capcancel]').addEventListener('click', () => this.input?.cancelKbCapture());
     this.renderLayout();
+    this.renderKb();
     this.modal.classList.add('show');
     this.updateController();
     this.focusFirst();
+  }
+
+  setCtlTab(tab) {
+    if (this.modalKind !== 'controller') return;
+    this.input?.cancelKbCapture();
+    if (this.pads?.capture) this.pads.cancelCapture();
+    this.ctlTab = tab;
+    this.modal.querySelectorAll('.ctl-tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+    this.modal.querySelector('.kb-tab').classList.toggle('hidden', tab !== 'keyboard');
+    this.modal.querySelector('.pad-tab').classList.toggle('hidden', tab !== 'gamepad');
+  }
+
+  // ---------------------------------------------------------------- keyboard and mouse: schemes, mouse, keys
+  renderKb(focusKey) {
+    const inp = this.input;
+    const box = this.modal.querySelector('.kb-layout');
+    if (!box || !inp) return;
+    const L = inp.kbLayout, m = kbMappingOf(L);
+    const opts = [...KB_PRESET_ORDER.map((id) => [id, KB_PRESETS[id].name]), ...(L.custom ? [['custom', 'Custom (yours)']] : [])];
+    const blurb = L.preset === 'custom' ? 'Your own scheme. Pick a preset to start again from it; yours stays in this list.' : KB_PRESETS[L.preset].blurb;
+    const sel = (key, attrs, list, cur, labels) => `<select ${attrs} data-key="${key}">${list.map((v) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${labels[v]}</option>`).join('')}</select>`;
+    const chips = (B) => {
+      const list = m.keys[B.id];
+      const c = list.map((k, i) => `<span class="chip"><button class="secondary" data-kb="rebind" data-id="${B.id}" data-slot="${i}" data-key="k-${B.id}-${i}" title="Change">${keyName(k)}</button><button class="secondary x" data-kb="unbind" data-id="${B.id}" data-code="${k}" data-key="kx-${B.id}-${i}" aria-label="Remove ${keyName(k)} from ${B.label}">×</button></span>`);
+      if (list.length < MAX_KEYS) c.push(`<button class="secondary add" data-kb="rebind" data-id="${B.id}" data-key="kadd-${B.id}" aria-label="Add a key for ${B.label}">+</button>`);
+      return c.join('');
+    };
+    const group = (title, list) => `<h3 class="pad-h">${title}</h3>${list.map((B) => `<div class="opt lay-btn"><span>${B.label}</span><span class="chips">${chips(B)}</span></div>`).join('')}`;
+    const flies = m.mouse.x !== 'none' || m.mouse.y !== 'none';
+    box.innerHTML = `
+      <h3 class="pad-h">Scheme</h3>
+      <label class="opt">Preset <select data-kb="preset" data-key="kpreset" aria-label="Keyboard and mouse scheme">${opts.map(([id, nm]) => `<option value="${id}" ${L.preset === id ? 'selected' : ''}>${nm}</option>`).join('')}</select></label>
+      <p class="help-note lay-blurb">${blurb}</p>
+      <h3 class="pad-h">Mouse</h3>
+      <label class="opt">Mouse ↔ ${sel('mx', 'data-kb="maxis" data-dir="x" aria-label="Mouse left and right"', MOUSE_TARGETS, m.mouse.x, MOUSE_TARGET_LABEL)}</label>
+      <label class="opt">Mouse ↕ ${sel('my', 'data-kb="maxis" data-dir="y" aria-label="Mouse forward and back"', MOUSE_TARGETS, m.mouse.y, MOUSE_TARGET_LABEL)}</label>
+      <label class="opt">Mouse feel ${sel('mmode', 'data-kb="mmode" aria-label="Mouse feel"', MOUSE_MODES, m.mouse.mode, MOUSE_MODE_LABEL)}</label>
+      <label class="opt">Mouse sensitivity <span class="weight-row"><small>fine</small><input type="range" min="0.2" max="3" step="0.05" value="${L.mouseSens}" data-kb="sens" data-key="ksens" aria-label="Mouse sensitivity" /><small>quick</small></span></label>
+      <label class="opt">Invert mouse ↕ (pull back to dip the nose) <input type="checkbox" data-kb="inv" data-key="kinv" ${L.invertMouse ? 'checked' : ''} /></label>
+      <p class="help-note">${flies ? 'Click the scene to start flying with the mouse; <kbd>Esc</kbd> lets it go and pauses. <b>Moves the nose</b>: each movement is a push that springs back, so how far you move is how far it rotates, and with Assist off the rotation carries on until you stop it. With Assist on, mouse tilt stays where you leave it. <b>Virtual stick</b>: the mouse position is the stick, drawn as a dot in a ring.' : 'The mouse does not fly in this scheme: drag to orbit the camera.'}</p>
+      ${group('Flying', KB_FLIGHT)}
+      ${group('Actions', KB_ACTIONS)}
+      <p class="help-note">Choosing a key that already does something else moves it: the other job takes your old key if it would be left with none. Mouse buttons work too. <kbd>Esc</kbd>, <kbd>P</kbd>, <kbd>H</kbd>, <kbd>M</kbd>, <kbd>Shift</kbd>, the F keys and the camera digits <kbd>1</kbd>–<kbd>7</kbd> stay as they are.</p>`;
+    const after = (notes, key) => { if (notes && notes.length) this.toast(notes.join('. '), 3.5); this.renderKb(key); this.refreshKeys(); };
+    box.querySelector('[data-kb=preset]').addEventListener('change', (e) => { inp.chooseKbPreset(e.target.value); after([], 'kpreset'); });
+    for (const el of box.querySelectorAll('[data-kb=maxis]')) el.addEventListener('change', () => after(inp.setMouseAxis(el.dataset.dir, el.value), el.dataset.key));
+    box.querySelector('[data-kb=mmode]').addEventListener('change', (e) => after(inp.setMouseMode(e.target.value), 'mmode'));
+    box.querySelector('[data-kb=sens]').addEventListener('change', (e) => inp.setMouseFeel('mouseSens', parseFloat(e.target.value)));
+    box.querySelector('[data-kb=inv]').addEventListener('change', (e) => inp.setMouseFeel('invertMouse', e.target.checked));
+    for (const el of box.querySelectorAll('[data-kb=unbind]')) el.addEventListener('click', () => after(inp.unbindKey(el.dataset.id, el.dataset.code), `kadd-${el.dataset.id}`));
+    for (const el of box.querySelectorAll('[data-kb=rebind]')) {
+      el.addEventListener('click', () => {
+        const id = el.dataset.id, slot = el.dataset.slot !== undefined ? +el.dataset.slot : null;
+        // Wait a beat so this click is not taken as the new binding.
+        setTimeout(() => {
+          inp.startKbCapture((res) => {
+            this.showKbCapture(null);
+            if (res) after(inp.bindKey(id, res.code, slot), el.dataset.key);
+            else this.focusKey(el.dataset.key);
+          });
+          this.showKbCapture(`Press the key or mouse button for <b>${[...KB_FLIGHT, ...KB_ACTIONS].find((b) => b.id === id).label}</b>`);
+        }, 120);
+      });
+    }
+    if (focusKey) this.focusKey(focusKey);
+  }
+
+  showKbCapture(html) {
+    const c = this.modal.querySelector('.kb-capture');
+    if (!c) return;
+    c.classList.toggle('hidden', !html);
+    this.modal.querySelectorAll('.kb-settings').forEach((e) => e.classList.toggle('hidden', !!html));
+    if (html) c.querySelector('.wz-prompt').innerHTML = `${html}<br><small><kbd>Esc</kbd> or wait a few seconds to cancel</small>`;
   }
 
   // ---------------------------------------------------------------- layout: presets, sticks, buttons

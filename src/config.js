@@ -155,6 +155,12 @@ export const CFG = {
     expo: 0.45,             // touch sticks: fine control near the centre, full authority at the rim
     keyRise: 7.5,           // keyboard axis slew (1/s) so taps are proportional
     keyFall: 11,
+    // Mouse flying (input/kbLayouts.js). Nose mode: each pixel of movement is a brief cyclic push that springs
+    // back in `spring` seconds, so mouse distance becomes rotation, heavier aircraft turning less for the same
+    // flick. nosePx / noseYawPx: pixels for a full push. stickPx: pixels from centre to full deflection when
+    // the mouse is a stick that stays put (virtual stick mode, and nose-mode tilt with Flight Assist on).
+    // All three scale with the player's mouse sensitivity.
+    mouse: { spring: 0.08, nosePx: 250, noseYawPx: 120, stickPx: 400 },
   },
 
   // Tandem-rotor heavy lifter (CH-47 style), about 1:90 scale: 17 cm fuselage, two 20 cm rotors.

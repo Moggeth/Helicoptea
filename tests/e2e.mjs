@@ -315,7 +315,7 @@ try {
     check('pad: d-pad moves menu focus', /Settings/.test(u.focus), `focus "${u.focus}"`);
     await press(0);
     u = await ui();
-    check('pad: A opens Controller settings', u.modal === 'Controller', JSON.stringify(u));
+    check('pad: A opens Controller settings', u.modal === 'Controls', JSON.stringify(u));
     const listed = await page.evaluate(() => document.querySelector('.pad-item b')?.textContent + ' | ' + document.querySelector('.pad-item span')?.textContent);
     check('controller panel lists the pad and its layout', /standard layout/.test(listed), listed);
     await page.screenshot({ path: path.join(outDir, '15-controller-settings.png') });
