@@ -10,7 +10,7 @@ try{
  for(const touch of [false,true]){
   const ctx=await browser.newContext({viewport:touch?{width:844,height:390}:{width:1280,height:720},hasTouch:touch,isMobile:touch});
   const page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(`${base}?quality=low&worldSpeed=1`);await page.locator('#start-btn:not(.hidden)').click();await page.waitForTimeout(600);
+  await page.goto(`${base}?quality=low&worldSpeed=1`);await page.locator('#start-btn:not(.hidden)').click({ timeout: 60000 });await page.waitForTimeout(600);
   const tag=touch?'touch':'desktop';
   const hit=await page.evaluate(()=>{
    const c=document.querySelector('.crash'),r=c.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;

@@ -85,7 +85,14 @@ async function perf(page) {
   const a = await H(page, () => window.__helicoptea.frames);
   const t0 = Date.now();
   await sleep(1500);
-  return H(page, ([a, ms]) => { const r = window.__helicoptea.renderer.info.render; return { fps: Math.round((window.__helicoptea.frames - a) * 1000 / ms), calls: r.calls, tris: r.triangles }; }, [a, Date.now() - t0]);
+  // The busiest of four frames: on the lite tier (touch, low, and CI's software renderer) shadow maps are
+  // redrawn every other frame, so a single frame's count depends on which frame it lands on.
+  return H(page, ([a, ms]) => new Promise((res) => {
+    const g = window.__helicoptea, fps = Math.round((g.frames - a) * 1000 / ms);
+    let calls = 0, tris = 0, n = 0;
+    const tick = () => { const r = g.renderer.info.render; if (r.calls > calls) { calls = r.calls; tris = r.triangles; } if (++n < 4) requestAnimationFrame(tick); else res({ fps, calls, tris }); };
+    tick();
+  }), [a, Date.now() - t0]);
 }
 async function hookBag(page, ac) {
   const peg = await H(page, () => { const p = window.__helicoptea.sim.pegs[1].tip; return [p.x, p.y, p.z]; });

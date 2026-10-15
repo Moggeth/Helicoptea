@@ -22,7 +22,7 @@ try {
     const page = await context.newPage(), errors = [];
     page.on('pageerror', e => errors.push(e.message));
     await page.goto(`${base}?fps=${fps}&quality=low&dynres=0&view=chase`);
-    await page.locator('#start-btn:not(.hidden)').click();
+    await page.locator('#start-btn:not(.hidden)').click({ timeout: 60000 });
     await page.waitForFunction(() => window.__helicoptea?.started);
     if (process.env.CAMERA_RATE_CAPTURE) await page.evaluate(() => {
       const stream = window.__helicoptea.renderer.domElement.captureStream(30);

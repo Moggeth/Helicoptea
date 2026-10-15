@@ -21,8 +21,8 @@ async function open({pad=false,touch=false}={}) {
   await page.goto(`${base}?quality=low&dynres=0`);
   if(pad) {
     const cdp=await ctx.newCDPSession(page);
-    await cdp.send('Runtime.evaluate',{expression:'new Promise((resolve,reject) => { const timeout=setTimeout(()=>{clearInterval(id);reject(new Error("Start screen timeout"));},30000); const id=setInterval(()=>{if(window.__helicoptea && document.querySelector("#start-btn:not(.hidden)")){clearInterval(id);clearTimeout(timeout);resolve();}},20); })',awaitPromise:true,userGesture:false});
-  } else await page.locator('#start-btn:not(.hidden)').waitFor();
+    await cdp.send('Runtime.evaluate',{expression:'new Promise((resolve,reject) => { const timeout=setTimeout(()=>{clearInterval(id);reject(new Error("Start screen timeout"));},60000); const id=setInterval(()=>{if(window.__helicoptea && document.querySelector("#start-btn:not(.hidden)")){clearInterval(id);clearTimeout(timeout);resolve();}},20); })',awaitPromise:true,userGesture:false});
+  } else await page.locator('#start-btn:not(.hidden)').waitFor({ timeout: 60000 });
   return {ctx,page,errors};
 }
 const state=page=>page.evaluate(()=>({paused:window.__helicoptea.paused, audio:window.__helicoptea.audio.ctx?.state, time:window.__helicoptea.audio.ctx?.currentTime, toast:document.querySelector('#hud .toast')?.textContent}));

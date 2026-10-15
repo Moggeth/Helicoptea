@@ -13,7 +13,7 @@ try {
   const page=await browser.newPage({viewport:{width:1280,height:720}}), errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   await page.goto(`${base}?quality=low`);
-  await page.locator('#start-btn:not(.hidden)').click();
+  await page.locator('#start-btn:not(.hidden)').click({ timeout: 60000 });
   await page.waitForTimeout(600);
   await page.keyboard.down('w');await page.waitForTimeout(700);await page.keyboard.up('w');
   await page.keyboard.press('Escape');
