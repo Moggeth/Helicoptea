@@ -292,7 +292,7 @@ const f = (x, d = 3) => Number(x).toFixed(d);
     run(sim, 1.0, () => ({ ...zero(), collective: 1, pitch: 0.4 }));
     if (sim.state === 'flying') sim.crash('test');
     run(sim, 0.5);
-    maxBodies = Math.max(maxBodies, sim.world.bodies.len());
+    maxBodies = Math.max(maxBodies, sim.world.bodies.len() - sim.extras.recorded().length); // the set pieces' own bodies are fixed in number
   }
   check('25 crash/restart cycles keep body count bounded', maxBodies < 60 && sim.debris.length <= CFG.crash.maxDebris && sim.bags.length <= CFG.cargo.maxBags, `max bodies ${maxBodies}, debris ${sim.debris.length}, bags ${sim.bags.length}`);
   const t0 = performance.now();

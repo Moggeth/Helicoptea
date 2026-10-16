@@ -282,7 +282,7 @@ const hookWhenInReach = (sim, ap, peg, hook, secs) => {
     run(sim, 1.0, () => ({ ...zero(), collective: 1, pitch: 0.4 }));
     if (sim.state === 'flying') sim.crash('test');
     run(sim, 0.4);
-    maxBodies = Math.max(maxBodies, sim.world.bodies.len());
+    maxBodies = Math.max(maxBodies, sim.world.bodies.len() - sim.extras.recorded().length); // the set pieces' own bodies are fixed in number
   }
   check('20 crash/restart cycles stay bounded', maxBodies < 70 && sim.debris.length <= CFG.crash.maxDebris, `max bodies ${maxBodies}, debris ${sim.debris.length}`);
   const t0 = performance.now();

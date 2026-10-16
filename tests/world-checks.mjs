@@ -185,7 +185,7 @@ function pilot(sim) {
   run(sim, 0.1);
   const n2 = napkin.body.translation();
   check('reset sandbox puts the props back', Math.hypot(n2.x - n0.x, n2.z - n0.z) < 0.005 && sim.props.apples.length === 0 && !sim.props.radio.on);
-  check('dynamic bodies stay bounded', sim.world.bodies.len() < 40, `${sim.world.bodies.len()} bodies`);
+  check('dynamic bodies stay bounded', sim.world.bodies.len() - sim.extras.recorded().length < 40, `${sim.world.bodies.len()} bodies, ${sim.extras.recorded().length} of them set pieces`);
 }
 
 const failed = results.filter((r) => !r.ok);

@@ -60,7 +60,7 @@ const start = async (page) => { await page.click('#start-btn'); await page.waitF
 const st = (page) => page.evaluate(() => {
   const s = window.__helicoptea.sim, h = s.heli, b = s.carriedBag();
   return { state: s.state, y: h?.pos.y, x: h?.pos.x, z: h?.pos.z, vy: h?.vel.y, tilt: h ? Math.acos(Math.min(1, h.up.y)) : 0, coll: h?.collective, assist: s.assist,
-    carried: !!b, wet: b?.wetness, imm: b?.immersion, bags: s.bags.length, debris: s.debris.length, bodies: s.world.bodies.len(), brew: s.cups.map((c) => c.brew), paused: window.__helicoptea.paused };
+    carried: !!b, wet: b?.wetness, imm: b?.immersion, bags: s.bags.length, debris: s.debris.length, bodies: s.world.bodies.len() - (s.extras ? s.extras.recorded().length : 0), brew: s.cups.map((c) => c.brew), paused: window.__helicoptea.paused };
 });
 async function fps(page, ms = 4000) {
   return page.evaluate((ms) => new Promise((resolve) => {
