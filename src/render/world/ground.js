@@ -290,6 +290,6 @@ export function buildGround(g, quality) {
   mesh.castShadow = false;
   mesh.matrixAutoUpdate = false;
   mesh.userData.noAO = true;
-  mesh.renderOrder = -2;
+  mesh.renderOrder = 9; // after what stands on it (fewer pixels shaded twice)
   return mesh;
 }

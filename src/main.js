@@ -1257,7 +1257,10 @@ async function boot() {
       // The skycrane's camera sits under the front of the tank, between the snorkel and the doors.
       const mount = h.type === 'skycrane' ? [0.004, -0.0335, -0.012] : hooks[hooks.length === 3 ? 1 : 0];
       loadCam.update(view.heliPos, view.heliQuat, mount, heading);
+      const world = kitchen.garden.world;
+      if (world) world.inset(loadCam.camera, loadCam.camera.far);
       loadCam.render(scene);
+      if (world) world.restore();
     }
     const rect = showPip ? pipRect() : null;
     cockpit.setPipRect(rect, vw, vh);

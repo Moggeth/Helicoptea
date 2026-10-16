@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RAPIER, GROUPS } from './physics.js';
 import { buildHouseColliders } from './house.js';
-import { ColliderStreamer, WORLD_CUPS } from './world/index.js';
+import { ColliderStreamer, WORLD_CUPS, prepDesc } from './world/index.js';
 import { TABLE, PAD, STATIONS, CUPS, DISCARD, TEAPOT, SUGAR, VASE, JUG, PLATE, BOOKS } from './layout.js';
 
 // Builds every fixed collider. Thin ceramic walls are rings of overlapping boxes so cups stay
@@ -60,12 +60,12 @@ export function buildStaticWorld(sim, { bare = false } = {}) {
   const home = CUPS.length - WORLD_CUPS.length;
   CUPS.forEach((C, i) => {
     if (i < home) { buildCupColliders(C, add, box, cyl); return; }
-    const rec = (desc, x, y, z, kind, material, rot) => { const c = add(desc, x, y, z, kind, material, rot); sim.streamer.list.push([c, C.x, C.z, (C.saucer || C.rOut) + C.height, desc, null, null, C.baseY]); return c; };
+    const rec = (desc, x, y, z, kind, material, rot) => { sim.streamer.list.push([null, C.x, C.z, (C.saucer || C.rOut) + C.height, prepDesc(desc, x, y, z, rot), { kind, material }, null, C.baseY]); return null; };
     const rbox = (hx, hy, hz, x, y, z, kind, material, yaw = 0) => rec(RAPIER.ColliderDesc.cuboid(hx, hy, hz), x, y, z, kind, material, yaw ? q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw).clone() : null);
     const rcyl = (r, hh, x, y, z, kind, material) => rec(RAPIER.ColliderDesc.cylinder(hh, r), x, y, z, kind, material);
     buildCupColliders(C, rec, rbox, rcyl);
   });
-  sim.streamer.on = new Uint8Array(sim.streamer.list.length).fill(1);
+  sim.streamer.on = new Uint8Array(sim.streamer.list.length);
 
   // Discard saucer: plate + low rim ring so bags tend to stay on it.
   cyl(DISCARD.radius, DISCARD.thickness / 2, DISCARD.x, DISCARD.thickness / 2, DISCARD.z, 'saucer', 'ceramic');

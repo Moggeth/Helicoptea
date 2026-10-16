@@ -26,9 +26,11 @@ import * as horizon from './areas/horizon.js';
 // ctx.update(fn) runs fn(dt, sim, camera) each frame while the camera is within DIST.update of the area.
 // Chunk size per level of detail: structure in big chunks (few draw calls). Phones draw fewer, bigger chunks:
 // they are held back by draw calls far more than by triangles the frustum could have culled.
-const CHUNK = [40, 24, 12], CHUNK_LITE = [80, 36, 12];
-const AO_DIST = 14;
-function freeArray() { this.array = null; } // chunk size per level of detail: structure in big chunks (few draw calls)
+const CHUNK = [40, 24, 12], CHUNK_LITE = [40, 16, 12];
+const AO_DIST = 8, SHADOW_DIST = 6;
+function freeArray() { this.array = null; }
+// Distance across the ground from a point to an area's box.
+function areaDist(A, p) { return Math.hypot(Math.max(A.x0 - p.x, 0, p.x - A.x1), Math.max(A.z0 - p.z, 0, p.z - A.z1)); } // chunk size per level of detail: structure in big chunks (few draw calls)
 const AREA_MODULES = { house, left, right, street, allotments, park };
 
 const _c = new THREE.Vector3(), _p = new THREE.Vector3(), _box = new THREE.Box3();
@@ -63,10 +65,10 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
   const lite = !!quality.lite;
   const hi = quality.name === 'high' || quality.name === 'ultra';
   // Draw distances (metres from the camera to a chunk's box).
-  const DIST = lite ? { lod0: 56, lod1: 13, lod2: 0, update: 20 } : { lod0: 170, lod1: 40, lod2: 18, update: 40 };
+  const DIST = lite ? { lod0: 56, lod1: 13, lod2: 0, update: 12 } : { lod0: 170, lod1: 40, lod2: 18, update: 20 };
   // Indoors (the kitchen and the house) the world outside is only seen through windows and doors: its detail
   // closes in.
-  const IN = lite ? { lod1: 8, lod2: 0 } : { lod1: 16, lod2: 9 };
+  const IN = lite ? { lod0: 16, lod1: 6, lod2: 0 } : { lod0: 24, lod1: 7, lod2: 5 };
   const kit = kitMaterials();
   const wk = worldKit(quality);
   const shared = sharedMaterials(kit);
@@ -76,14 +78,16 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
   scene.add(root);
 
   const chunks = new Map();
+  // Chunks are per area too, so the house's insides and the outside can be told apart (see update()).
   const chunkAt = (x, z, lod) => {
-    const S = (lite ? CHUNK_LITE : CHUNK)[lod], ix = Math.floor(x / S), iz = Math.floor(z / S), key = `${lod}:${ix},${iz}`;
+    const area = current ? current.name : 'misc';
+    const S = (lite ? CHUNK_LITE : CHUNK)[lod], ix = Math.floor(x / S), iz = Math.floor(z / S), key = `${area}:${lod}:${ix},${iz}`;
     let c = chunks.get(key);
     if (!c) {
       const group = new THREE.Group();
       group.name = `world-${key}`;
       root.add(group);
-      c = { key, lod, batch: new Batcher(), group, box: new THREE.Box3(new THREE.Vector3(ix * S, BOUNDS.top, iz * S), new THREE.Vector3(ix * S + S, -1, iz * S + S)), dist: 0,
+      c = { key, lod, area, areaBox: AREAS[area] || null, batch: new Batcher(), group, box: new THREE.Box3(new THREE.Vector3(ix * S, BOUNDS.top, iz * S), new THREE.Vector3(ix * S + S, -1, iz * S + S)), dist: 0,
         cell: new THREE.Box3(new THREE.Vector3(ix * S - 4, -10, iz * S - 4), new THREE.Vector3(ix * S + S + 4, 60, iz * S + S + 4)) };
       chunks.set(key, c);
     }
@@ -182,6 +186,7 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
   const far = skip === 'all' || skip.split(',').includes('horizon') ? null : horizon.build(ctx, root);
 
   const list = [...chunks.values()];
+  const extrasInRoot = root.children.filter((o) => o !== groundMesh && !list.some((c) => c.group === o));
   let frame = 0;
   return {
     root, chunks, built, ground: groundMesh, far, DIST,
@@ -190,20 +195,42 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
       root.traverseVisible((o) => { if (o.isMesh) { draws++; tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3 * (o.isInstancedMesh ? o.count : 1); } });
       return { chunks: list.length, draws, tris: Math.round(tris) };
     },
+    // Around a short-sighted extra render (the hook camera, looking down a few metres): only the chunks within
+    // reach of it draw; restore() puts back what the main view had.
+    inset(cam, reach) {
+      this.saved = this.saved || [];
+      this.saved.length = 0;
+      for (const c of list) { this.saved.push(c.group.visible); if (c.group.visible && c.box.distanceToPoint(cam.position) > reach) c.group.visible = false; }
+      // The far hills and the like are far out of its reach.
+      for (const o of extrasInRoot) { this.saved.push(o.visible); o.visible = false; }
+    },
+    restore() {
+      if (!this.saved) return;
+      let i = 0;
+      for (const c of list) c.group.visible = this.saved[i++];
+      for (const o of extrasInRoot) o.visible = this.saved[i++];
+    },
     update(dt, simNow, camera) {
       // Chunks by distance (every other frame is plenty: the camera moves centimetres per frame).
       if ((frame++ & 1) === 0 || dt === 0) {
         const cp = camera.position;
         const inside = (cp.x > ROOM.minX && cp.x < ROOM.maxX && cp.z > ROOM.minZ && cp.z < ROOM.maxZ && cp.y < ROOM.ceilingY)
           || (cp.x > MAIN.x0 && cp.x < MAIN.x1 && cp.z > MAIN.z0 && cp.z < MAIN.z1 && cp.y < MAIN.eave);
-        const lim = [DIST.lod0, inside ? IN.lod1 : DIST.lod1, inside ? IN.lod2 : DIST.lod2];
+        const lim = inside ? [IN.lod0, IN.lod1, IN.lod2] : [DIST.lod0, DIST.lod1, DIST.lod2];
         for (const c of list) {
           const d = c.box.distanceToPoint(cp);
           c.dist = d;
-          c.group.visible = d < lim[c.lod];
+          // Indoors, the outside is seen through a window or two: only the structure of the areas close by.
+          let vis = d < lim[c.lod];
+          if (inside && c.area !== 'house') vis = vis && c.lod === 0 && (!c.areaBox || areaDist(c.areaBox, cp) < IN.lod0);
+          c.group.visible = vis;
           // Ambient occlusion only matters close up: far chunks skip the AO pass (it draws them all again).
           const far = d > AO_DIST;
           if (c.group.visible && c.aoFar !== far) { c.aoFar = far; for (const m of c.group.children) if (!m.userData.alwaysNoAO) m.userData.noAO = far || !!m.userData.foliage; }
+          // The sun's shadow map covers a few metres round the aircraft: far chunks needn't be offered to it
+          // (the shadow cache sorts every caster it is given, every frame).
+          const casts = d < SHADOW_DIST;
+          if (c.group.visible && c.casts !== casts) { c.casts = casts; c.group.traverse((m) => { if (m.isMesh && m.userData.casts !== false) { if (m.userData.casts === undefined) m.userData.casts = m.castShadow; m.castShadow = casts && m.userData.casts; } }); }
         }
       }
       const cp = camera.position;

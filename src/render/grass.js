@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { GARDEN } from '../sim/layout.js';
+import { GARDEN, ROOM } from '../sim/layout.js';
+import { MAIN } from '../sim/world/plan.js';
 
 // Wind shared by the grass, leaves and border plants: an ambient breeze with travelling gusts, plus the
 // rotor's outwash where a wake meets the lawn (radial wall jet from the impingement point, with a
@@ -214,6 +215,10 @@ export class Grass {
     this.worldCell = w.cell; this.worldN = w.n;
     this.blades += w.n * w.n;
     this.world.name = 'world-grass';
+    // Culled like any mesh (by a sphere round its window, moved each frame), so a render that looks the
+    // other way, or the hook camera's few metres, skips it.
+    this.world.frustumCulled = true;
+    this.world.geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), w.n * w.cell * 0.72);
   }
 
   // centre: where the dense layer should be (around the camera and what it looks at).
@@ -222,6 +227,11 @@ export class Grass {
       const n = this.worldN, c = this.worldCell;
       const bx = Math.floor(camera.position.x / c) - n / 2, bz = Math.floor(camera.position.z / c) - n / 2;
       this.world.material.userData.u.uWin.value.set(bx, bz, c, 0);
+      this.world.geometry.boundingSphere.center.set((bx + n / 2) * c, GARDEN.groundY + 0.5, (bz + n / 2) * c);
+      // Indoors (the kitchen and the house) the lawns are only seen through a window or two: no blades.
+      const p = camera.position;
+      this.world.visible = !((p.x > ROOM.minX && p.x < ROOM.maxX && p.z > ROOM.minZ && p.z < ROOM.maxZ && p.y < ROOM.ceilingY)
+        || (p.x > MAIN.x0 && p.x < MAIN.x1 && p.z > MAIN.z0 && p.z < MAIN.z1 && p.y < MAIN.eave));
     }
     const n = this.nearN, c = this.nearCell;
     const nu = this.near.material.userData.u;

@@ -638,7 +638,7 @@ export function build(ctx, root) {
   const tMesh = new THREE.Mesh(terrain.geometry(), terrainMat);
   const oMesh = new THREE.Mesh(obj.geometry(), objMat);
   for (const m of [tMesh, oMesh]) { m.userData.noAO = true; m.castShadow = m.receiveShadow = false; m.matrixAutoUpdate = false; m.name = 'horizon'; root.add(m); }
-  tMesh.renderOrder = -3;
+  tMesh.renderOrder = 10; // after the near world: hidden pixels fail the depth test instead of being shaded
 
   // ------------------------------------------------------------------ birds
   const flocks = [

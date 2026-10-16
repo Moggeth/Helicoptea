@@ -82,3 +82,28 @@ Every area is judged against the same bar.
    materials, no new shader programs), low-poly shapes (cylinders 6 to 12 sides), level of detail on
    everything, instancing for repeated small things, no textures over 512² (and few), cheap `update`s that
    early-out, few dynamic bodies (fewer still with `lite`).
+
+## Cost, and how it is kept down
+
+- **Physics**: Rapier's step grows with every collider in the world, so the areas' colliders (about 3,900,
+  cups included) stream: each exists only within reach of the aircraft (1.6 m for the micro heli, 2.6 m
+  for the heavy ones, more with speed, at most 4 m, in 3D) or of a bag, a piece of wreckage or a hanging load
+  (1.5 m). The rest are removed and rebuilt from their descriptions when something comes near
+  (`ColliderStreamer` in src/sim/world/index.js). The world's ground slabs keep off the kitchen and garden's
+  own floor so loose things there don't touch two grounds.
+- **Draw calls**: chunks are 40 m for structure, 24 m for detail and 12 m for fine pieces (80 / 36 / 12 m on
+  phones); in the chunks, the kit's materials that differ only in roughness and metalness share one material
+  per texture and read those from the vertices. Indoors the outside detail closes in; far chunks skip the
+  AO pass; cups beyond 16 m (12 m on phones) stop drawing and rippling, and only cups near the aircraft
+  steam. Merged geometry stays indexed with byte normals and 16-bit tints, and its arrays are released once
+  on the GPU.
+- **Phones**: no fine level, half the small leaves and petals, coarser foliage lumps, still foliage, detail
+  within 13 m, structure to 56 m under a closer haze.
+
+Measured on the development PC (RTX 3080 Ti), 1080p high, micro heli, flying (`tests/perf-bench.mjs`), with
+master before the neighbourhood in brackets: kitchen chase 143 fps (177), kitchen cockpit 124 (157),
+garden chase 172 (270), garden cockpit 148 (239). Emulated Galaxy S24 Ultra (`tests/e2e-phone-memory.mjs`):
+GPU memory 113 MB of the 160 MB budget (78 before), retained script memory 120 MB of 150 (102 before; the
+test now collects garbage before reading it: building the world leaves short-lived garbage that the next
+collection takes). On the 4× CPU-throttled phone emulation the frame rate is about 60 to 70% of the old
+one; real-phone numbers are still to be measured.

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RAPIER } from '../physics.js';
+import { RAPIER, GROUPS } from '../physics.js';
 import { FY, BOUNDS, PARK, groundHeight } from './plan.js';
 import * as house from './house.js';
 import * as left from './left.js';
@@ -30,12 +30,21 @@ const _q = new THREE.Quaternion(), _up = new THREE.Vector3(0, 1, 0), _d = new TH
 //   w.rail([x,y,z], [x,y,z], r, kind, material)               capsule between two points (posts, poles, wires)
 //   w.hull(points, kind, material)                            convex hull of [x,y,z,...] in world space
 //   w.groundY(x, z)                                           the ground's height there
-// out (optional) collects every collider made with its footprint, [collider, x, z, radius], for streaming.
+// A fixed collider's description, set up as the static world's are (staticWorld.js), ready to make later.
+export function prepDesc(desc, x, y, z, rot = null) {
+  desc.setTranslation(x, y, z).setCollisionGroups(GROUPS.world).setFriction(0.7).setRestitution(0.12);
+  if (rot) desc.setRotation({ x: rot.x, y: rot.y, z: rot.z, w: rot.w });
+  return desc;
+}
+
+// out (optional): streamed instead of made now. Each collider's description goes into out with its centre
+// and size, [collider (null until made), x, z, radius, desc, info, unused, y], for the ColliderStreamer.
 export function worldHelpers(addRaw, out = null) {
   let size = 0; // the next collider's footprint radius (helpers set it; a bare add guesses)
   const add = (desc, x, y, z, kind, material, rot) => {
-    const c = addRaw(desc, x, y, z, kind, material, rot);
-    if (out) out.push([c, x, z, size || 2.5, desc, null, null, y]);
+    let c = null;
+    if (out) out.push([null, x, z, size || 2.5, prepDesc(desc, x, y, z, rot), { kind, material }, null, y]);
+    else c = addRaw(desc, x, y, z, kind, material, rot);
     size = 0;
     return c;
   };
@@ -63,9 +72,8 @@ export function worldHelpers(addRaw, out = null) {
       let r = 0;
       for (let i = 0; i < pts.length; i += 3) r = Math.max(r, Math.hypot(pts[i] - cx, pts[i + 1] - cy, pts[i + 2] - cz));
       const desc = RAPIER.ColliderDesc.convexHull(new Float32Array(pts));
-      const c = addRaw(desc, 0, 0, 0, kind, material);
-      if (out) out.push([c, cx, cz, r, desc, null, null, cy]);
-      return c;
+      if (out) { out.push([null, cx, cz, r, prepDesc(desc, 0, 0, 0), { kind, material }, null, cy]); return null; }
+      return addRaw(desc, 0, 0, 0, kind, material);
     },
     groundY: groundHeight,
   };
@@ -112,7 +120,8 @@ export function buildWorldColliders(add) {
 // something that can touch them: the aircraft (STREAM_R metres plus the collider's own size, in 3D, so the
 // floors of the house above or below stay out) and every bag,
 // piece of wreckage and hanging load (a metre and a half). The rest are taken out of the world and made again
-// from their descriptions when something comes near. Checked a dozen times a second; flight covers well
+// from their descriptions when something comes near (and none is made before then: making thousands and
+// taking them out again woke every loose thing near them). Checked a dozen times a second; flight covers well
 // under a metre in that time. sim.streamColliders = false keeps them all (the headless route checks sweep the
 // whole world).
 const STREAM_R = 4;
@@ -120,7 +129,7 @@ export class ColliderStreamer {
   constructor(sim, list) {
     this.sim = sim;
     this.list = list;
-    this.on = new Uint8Array(list.length).fill(1);
+    this.on = new Uint8Array(list.length); // none made yet: the first update makes those within reach
     this.t = 0;
     this.foci = [];
   }
@@ -147,12 +156,10 @@ export class ColliderStreamer {
       if (want === !!on[i]) continue;
       on[i] = want ? 1 : 0;
       if (want) {
-        e[0] = sim.world.createCollider(e[4], e[6]);
+        e[0] = sim.world.createCollider(e[4]);
         sim.register(e[0], e[5]);
       } else {
         const c = e[0];
-        e[5] = sim.colliderInfo.get(c.handle);
-        e[6] = c.parent();
         sim.unregister(c);
         sim.world.removeCollider(c, false);
         e[0] = null;
