@@ -42,6 +42,9 @@ export const KITCHEN_HALL_DOOR = { x0: -1.85, x1: -1.05, top: FY + 2.0 };
 // The front door (closed, with a big dog flap) on the front wall, and the path to it.
 export const FRONT_DOOR = { x0: -1.95, x1: -1.05, top: FY + 2.05, flap: { x0: -1.66, x1: -1.34, y0: FY + 0.03, y1: FY + 0.31 } };
 
+// The centre of each house's front door on the building line (the street area runs a path to each).
+export const FRONT_DOORS = { 'p-2': -14.6, 'p-1': -7.4, p0: (FRONT_DOOR.x0 + FRONT_DOOR.x1) / 2, 'p+1': 7.0, 'p+2': 14.2 };
+
 // In front of the houses: front gardens, then the street.
 export const STREET = {
   gardenZ0: FRONT_LINE, wallZ: 12.9, wallT: 0.12,      // low front garden walls at z 12.9..13.02
