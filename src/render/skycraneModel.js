@@ -3,6 +3,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { SKYCRANE_PARTS } from '../sim/skycrane.js';
 import { CFG } from '../config.js';
+import { loft, sectionPoint } from './heliModel.js';
+import { exteriorCabin } from './exteriorCabin.js';
 
 // A scale-model S-64-style skycrane tanker, built procedurally: a bulbous glazed cockpit pod with a dark
 // green stripe edged in white, a narrow crane spine, twin exposed turbines with chrome intakes behind an
@@ -112,6 +114,94 @@ function rod(a, b, r0, r1 = r0, seg = 8) {
   return g;
 }
 
+
+// ---------------------------------------------------------------- cab shell
+// The cockpit cab, lofted like the real one's: a rounded nose with a two-pane windscreen and chin
+// windows, crew doors with big windows, roof windows over the crew, and the aft-facing pilot's window
+// low in the tail of the cab, looking back at the load. Shared with the first-person cockpit so the
+// windows line up inside and out.
+export const SKY_CAB_SECS = [
+  { z: -0.0880, hw: 0.0018, yb: -0.0030, yt: 0.0020, nTop: 2.2, nBot: 2.2 },
+  { z: -0.0862, hw: 0.0068, yb: -0.0078, yt: 0.0072, nTop: 2.3, nBot: 2.2 },
+  { z: -0.0825, hw: 0.0104, yb: -0.0100, yt: 0.0132, nTop: 2.5, nBot: 2.3 },
+  { z: -0.0775, hw: 0.0123, yb: -0.0106, yt: 0.0170, nTop: 2.7, nBot: 2.4 },
+  { z: -0.0700, hw: 0.0130, yb: -0.0106, yt: 0.0188, nTop: 2.8, nBot: 2.5 },
+  { z: -0.0620, hw: 0.0128, yb: -0.0102, yt: 0.0190, nTop: 2.8, nBot: 2.5 },
+  { z: -0.0560, hw: 0.0118, yb: -0.0095, yt: 0.0185, nTop: 2.7, nBot: 2.4 },
+  { z: -0.0520, hw: 0.0103, yb: -0.0085, yt: 0.0172, nTop: 2.6, nBot: 2.3 },
+  { z: -0.0490, hw: 0.0080, yb: -0.0068, yt: 0.0150, nTop: 2.4, nBot: 2.2 },
+  { z: -0.0470, hw: 0.0045, yb: -0.0040, yt: 0.0120, nTop: 2.2, nBot: 2.2 },
+  { z: -0.0462, hw: 0.0012, yb: -0.0012, yt: 0.0092, nTop: 2.2, nBot: 2.2 },
+];
+export const SKY_GLASS = 1, SKY_FRAME = 2;
+export function skyCabClass(a, z) {
+  const s = Math.sin(a), c = Math.cos(a);
+  if (z < -0.0746 && s > -0.07) return Math.abs(c) < 0.03 && z > -0.0862 ? SKY_FRAME : SKY_GLASS;   // windscreen to the nose, centre post
+  if (z < -0.0758 && z > -0.0832 && s < -0.26 && s > -0.78 && Math.abs(c) > 0.32) return SKY_GLASS;   // chin windows
+  if (z > -0.0728 && z < -0.0618 && s > 0.82) return SKY_GLASS;                   // roof windows
+  if (z > -0.0726 && z < -0.0606 && s > -0.05 && s < 0.74 && Math.abs(c) > 0.55) return SKY_GLASS;   // crew door windows
+  if (z > -0.0535 && z < -0.0472 && s < -0.12 && s > -0.92) return SKY_GLASS;     // aft-facing pilot's window
+  return 0;
+}
+// classify(a, z, outside) may override (the cockpit glazes the posts and draws them as tubes).
+export function skyCabShellGeometry(hi = true, classify = null) {
+  return loft(SKY_CAB_SECS, hi ? 72 : 44, hi ? 60 : 34, classify ? (a, z) => classify(a, z, skyCabClass) : skyCabClass, 3);
+}
+// Section at z (linear between keyframes; close enough for frames and fittings).
+export function skyCabSection(z) {
+  const S = SKY_CAB_SECS;
+  let i = 0;
+  while (i < S.length - 2 && S[i + 1].z < z) i++;
+  const A = S[i], B = S[i + 1], t = Math.min(1, Math.max(0, (z - A.z) / (B.z - A.z)));
+  const L = (k) => A[k] + (B[k] - A[k]) * t;
+  return { hw: L('hw'), yb: L('yb'), yt: L('yt'), nTop: L('nTop'), nBot: L('nBot') };
+}
+export function skyCabPoint(z, a, inset = 1) {
+  const sec = skyCabSection(z);
+  const [x, y] = sectionPoint(sec, a);
+  const mid = (sec.yt + sec.yb) / 2;
+  return new THREE.Vector3(x * inset, mid + (y - mid) * inset, z);
+}
+
+// Cab livery: orange, a green band edged in white round the nose under the windows, door seams,
+// panel lines and rivets. u runs round the section (0.5 = right side, 0.75 = top), v nose to tail.
+function cabTexture() {
+  const W = 1024, H = 512;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  const img = g.createImageData(W, H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const a = (x / W - 0.5) * Math.PI * 2, s = Math.sin(a);
+    let col = [236, 106, 28];
+    if (s < -0.215 && s > -0.25) col = [242, 239, 232];
+    else if (s <= -0.25 && s > -0.4) col = [29, 106, 58];
+    else if (s <= -0.4 && s > -0.43) col = [242, 239, 232];
+    const n = (Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1;
+    const k = 1 + (n - 0.5) * 0.03;
+    const i = (y * W + x) * 4;
+    img.data[i] = col[0] * k; img.data[i + 1] = col[1] * k; img.data[i + 2] = col[2] * k; img.data[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const vOf = (z) => (z - SKY_CAB_SECS[0].z) / (SKY_CAB_SECS[SKY_CAB_SECS.length - 1].z - SKY_CAB_SECS[0].z) * H;
+  const uOf = (a) => (a / (Math.PI * 2) + 0.5) * W;
+  const line = (x0, y0, x1, y1, w = 1.6) => { g.strokeStyle = 'rgba(70,25,5,0.55)'; g.lineWidth = w; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); };
+  // Crew door outlines (both sides) with a flush handle.
+  for (const side of [1, -1]) {
+    const a0 = side > 0 ? -0.62 : Math.PI + 0.62, a1 = side > 0 ? 0.86 : Math.PI - 0.86;
+    const u0 = uOf(side > 0 ? a0 : a0 - Math.PI * 2), u1 = uOf(side > 0 ? a1 : a1 - Math.PI * 2);
+    const ua = Math.min(u0, u1), ub = Math.max(u0, u1), v0 = vOf(-0.0732), v1 = vOf(-0.0598);
+    line(ua, v0, ub, v0); line(ua, v1, ub, v1); line(ua, v0, ua, v1); line(ub, v0, ub, v1);
+    g.fillStyle = 'rgba(220,220,225,0.9)'; g.fillRect((ua + ub) / 2 + (side > 0 ? -30 : 10), v1 - 14, 22, 5);
+  }
+  // Frames and rivet rows round the cab.
+  for (const z of [-0.0838, -0.0746, -0.0606, -0.054]) {
+    const v = vOf(z); line(0, v, W, v, 1.2);
+    for (let x = 4; x < W; x += 9) { g.fillStyle = 'rgba(255,230,200,0.25)'; g.fillRect(x, v + 4, 2, 2); }
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  return t;
+}
+
 // ---------------------------------------------------------------- build
 export function buildSkycrane(M = skycraneMaterials()) {
   const root = new THREE.Group();
@@ -135,44 +225,45 @@ export function buildSkycrane(M = skycraneMaterials()) {
   };
   const cyl = (r0, r1, h, seg = 16) => new THREE.CylinderGeometry(r0, r1, h, seg);
 
-  // --- Cockpit pod: glass bubble over an orange tub, the green stripe edged in white around the nose.
+  // --- Cockpit cab: lofted shell with its windows (render/cockpit.js shares the shell).
   {
     const cz = -0.068, cy = 0.004;
-    const glass = new THREE.SphereGeometry(1, 40, 24, 0, Math.PI * 2, 0, Math.PI * 0.62);
-    glass.scale(0.0128, 0.0148, 0.0185);
-    add('cockpit', glass, M.glass, 0, cy, cz);
-    const tub = new THREE.SphereGeometry(1, 40, 20, 0, Math.PI * 2, Math.PI * 0.52, Math.PI * 0.48);
-    tub.scale(0.0132, 0.0152, 0.019);
-    add('cockpit', tub, M.paint, 0, cy, cz);
-    // Stripe: a band of the ellipsoid just below the glazing (white, green, white).
-    const band = (t0, t1, mat, s = 1.012) => {
-      const b = new THREE.SphereGeometry(1, 48, 4, Math.PI * 0.08, Math.PI * 1.84, Math.PI * t0, Math.PI * (t1 - t0));
-      b.scale(0.0132 * s, 0.0152 * s, 0.019 * s);
-      b.rotateY(Math.PI);
-      add('cockpit', b, mat, 0, cy, cz);
-    };
-    band(0.585, 0.6, M.white);
-    band(0.6, 0.665, M.green);
-    band(0.665, 0.68, M.white);
-    // Window frames: a few dark ribs over the glass.
-    for (const a of [-0.55, 0, 0.55]) {
-      // a meridian arc over the top, from the nose glazing back over the roof
-      const rib = new THREE.TorusGeometry(1, 0.035, 5, 32, Math.PI);
-      rib.rotateY(Math.PI / 2 + a);
-      rib.scale(0.0129, 0.0149, 0.0186);
-      add('cockpit', rib, M.frame, 0, cy, cz);
+    const cabGeo = skyCabShellGeometry(true);
+    const cabMat = new THREE.MeshPhysicalMaterial({ map: cabTexture(), roughness: 0.42, metalness: 0.05, clearcoat: 0.5, clearcoatRoughness: 0.3 });
+    const skip = new THREE.MeshBasicMaterial({ visible: false });
+    add('cockpit', new THREE.Mesh(cabGeo, [cabMat, skip, M.frame]));
+    const lining = new THREE.Mesh(cabGeo, [new THREE.MeshStandardMaterial({ color: 0x2c2d2e, roughness: 0.9, side: THREE.BackSide }), skip, skip]);
+    lining.scale.setScalar(0.985);
+    lining.userData.noShadow = true;
+    add('cockpit', lining);
+    const glazing = new THREE.Mesh(cabGeo, [skip, M.glass, skip]);
+    glazing.renderOrder = 2;
+    glazing.userData.noShadow = true;
+    add('cockpit', glazing);
+    add('cockpit', exteriorCabin('skycrane'));
+    // Black rubber seals round every window and the windscreen centre post, outside.
+    {
+      const loop = (z0, z1, a0, a1, sx, k = 1.004, n = 6) => {
+        const pts = [];
+        const P = (z, a) => { const p = skyCabPoint(z, a, k); p.x *= sx; return p; };
+        for (let i = 0; i < n; i++) pts.push(P(z0 + (z1 - z0) * i / n, a0));
+        for (let i = 0; i < n; i++) pts.push(P(z1, a0 + (a1 - a0) * i / n));
+        for (let i = 0; i < n; i++) pts.push(P(z1 - (z1 - z0) * i / n, a1));
+        for (let i = 0; i < n; i++) pts.push(P(z0, a1 - (a1 - a0) * i / n));
+        add('cockpit', new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), n * 16, 0.00022, 5, true), M.frame);
+      };
+      for (const sx of [-1, 1]) {
+        loop(-0.0727, -0.0605, -0.06, 0.835, sx);
+        loop(-0.0832, -0.0758, -0.9, -0.262, sx);
+        loop(-0.0536, -0.0472, -1.18, -0.12, sx);
+      }
+      loop(-0.0729, -0.0617, 0.96, Math.PI - 0.96, 1);
+      const bow = [], post = [];
+      for (let a = -0.12; a <= Math.PI + 0.12 + 1e-6; a += Math.PI / 24) bow.push(skyCabPoint(-0.0746, a, 1.004));
+      for (let z = -0.0866; z <= -0.0745; z += 0.0008) post.push(skyCabPoint(z, Math.PI / 2, 1.004));
+      add('cockpit', new THREE.TubeGeometry(new THREE.CatmullRomCurve3(bow), 60, 0.00028, 5, false), M.frame);
+      add('cockpit', new THREE.TubeGeometry(new THREE.CatmullRomCurve3(post), 30, 0.00022, 5, false), M.frame);
     }
-    const sill = new THREE.TorusGeometry(1, 0.03, 5, 48);
-    sill.rotateX(Math.PI / 2);
-    sill.scale(0.0118, 0.0118, 0.0172);
-    add('cockpit', sill, M.frame, 0, cy - 0.0055, cz);
-    // Crew: two seats side by side, helmets visible through the glass.
-    for (const sx of [-0.0048, 0.0048]) {
-      add('cockpit', new RoundedBoxGeometry(0.0055, 0.008, 0.005, 2, 0.001), M.interior, sx, cy - 0.001, cz + 0.006);
-      add('cockpit', new RoundedBoxGeometry(0.0048, 0.006, 0.004, 2, 0.0012), M.suit, sx, cy + 0.003, cz + 0.002);
-      add('cockpit', new THREE.SphereGeometry(0.0024, 14, 10), M.helmet, sx, cy + 0.0078, cz + 0.0015);
-    }
-    add('cockpit', new RoundedBoxGeometry(0.018, 0.0035, 0.004, 2, 0.001), M.interior, 0, cy - 0.002, cz - 0.012);
     // Nose step and pitot.
     add('cockpit', rod(V3(0, cy - 0.006, cz - 0.0185), V3(0, cy - 0.006, cz - 0.0235), 0.0004), M.alu);
   }
@@ -416,7 +507,7 @@ export function buildSkycrane(M = skycraneMaterials()) {
   for (const p of SKYCRANE_PARTS) if (!p.blade) mergeStatic(parts[p.name], keep);
   for (const gh of rotor.userData.ghosts) mergeStatic(gh, []);
   for (const p of SKYCRANE_PARTS) if (!p.blade) root.add(parts[p.name]);
-  root.traverse((o) => { if (o.isMesh && !o.material.transparent && !o.material.isShaderMaterial) { o.castShadow = true; o.receiveShadow = true; } });
+  root.traverse((o) => { if (o.isMesh && !o.material.transparent && !o.material.isShaderMaterial && !o.userData.noShadow) { o.castShadow = true; o.receiveShadow = true; } });
   root.userData = { parts, rotors: [rotor], rotor, tailRotor, doors, beacon: parts.tailBoom.userData.beacon, materials: M };
   return root;
 }
@@ -428,6 +519,7 @@ function mergeStatic(part, keep) {
   const victims = [];
   part.traverse((o) => {
     if (!o.isMesh || Array.isArray(o.material) || keep.includes(o)) return;
+    if (o.userData.keep) return;
     for (let a = o.parent; a && a !== part; a = a.parent) if (keep.includes(a)) return;
     const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
     for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
@@ -458,16 +550,20 @@ export function cloneSkycranePart(model, name) {
   g.traverse((o) => {
     if (!o.isMesh || !o.material) return;
     o.castShadow = true;
+    const scorch = (m0) => {
+      const m = m0.clone();
+      m.userData.disposeOwned = true;
+      if (m.color) m.color.multiplyScalar(0.45);
+      if ('emissive' in m) { m.emissive = new THREE.Color(0xff5a1a); m.emissiveIntensity = 0; }
+      if (m.transparent) m.opacity *= 0.6;
+      return m;
+    };
+    if (Array.isArray(o.material)) { o.material = o.material.map(scorch); return; }
     if (o.material.transparent || o.material.isShaderMaterial) { o.visible = false; return; }
-    const m = o.material.clone();
-    m.userData.disposeOwned = true;
-    if (m.color) m.color.multiplyScalar(0.45);
-    if (m.map) m.map = m.map;
-    if ('emissive' in m) { m.emissive = new THREE.Color(0xff5a1a); m.emissiveIntensity = 0; }
-    o.material = m;
+    o.material = scorch(o.material);
   });
   g.userData.embers = [];
   g.userData.emberScale = 0.6;
-  g.traverse((o) => { if (o.isMesh && o.material.emissive) g.userData.embers.push(o.material); });
+  g.traverse((o) => { if (!o.isMesh) return; for (const m of (Array.isArray(o.material) ? o.material : [o.material])) if (m.emissive) g.userData.embers.push(m); });
   return g;
 }

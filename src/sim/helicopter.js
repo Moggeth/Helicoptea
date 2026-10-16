@@ -157,7 +157,7 @@ export class Helicopter {
         this.collective = THREE.MathUtils.clamp(Tneed / TmaxNow, 0, 1);
       }
     } else {
-      this.collective = stepCollective(this.collective, ctl.collective, H, dt, { grounded: this.grounded, load: 1 + hookedMass(this.sim) / H.mass });
+      this.collective = stepCollective(this.collective, ctl.collective, H, dt, { grounded: this.grounded, load: 1 + hookedMass(this.sim) / H.mass, lever: ctl.lever });
     }
 
     // Thrust along the rotor axis: what the collective asks for, wherever you are (no ground effect,

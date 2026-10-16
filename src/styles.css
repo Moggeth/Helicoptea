@@ -22,7 +22,7 @@ html, body {
   margin: 0; height: 100%; overflow: hidden; background: #2a1d16; color: var(--ink);
   font-family: var(--sans); -webkit-font-smoothing: antialiased;
   overscroll-behavior: none; touch-action: none; user-select: none; -webkit-user-select: none;
-  -webkit-tap-highlight-color: transparent;
+  -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; -webkit-text-size-adjust: 100%;
 }
 canvas#game { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; display: block; outline: none; }
 .hidden { display: none !important; }
@@ -204,6 +204,8 @@ kbd {
 body.touch-ui:not(.pad-nav) .panel button:focus-visible, body.touch-ui:not(.pad-nav) #start-btn:focus-visible { outline: none; }
 .touch-opts .aircraft-row button, .touch-links button { padding: 8px 14px; font-size: 14px; }
 .touch-links { justify-content: flex-start !important; flex-wrap: wrap; }
+.opt-note { margin-left: auto; color: var(--ink-soft); font-size: 12px; }
+.home-tip small { color: var(--ink-soft); font-size: 12.5px; text-align: right; }
 /* Phones: a pause menu that fits a short landscape screen and a narrow portrait one. */
 @media (max-height: 500px), (max-width: 500px) {
   .panel { padding: 16px 18px; border-radius: 16px; }
@@ -234,7 +236,8 @@ body.touch-ui:not(.pad-nav) .panel button:focus-visible, body.touch-ui:not(.pad-
 /* Twin floating sticks, one per half of the screen; a thumb's landing spot becomes the centre. The few
    buttons sit in an arc above the right stick (Hook nearest the thumb), and only the ones that fit the
    aircraft and cargo show. Everything else lives in the top bar or the pause menu. */
-#touch { position: fixed; inset: 0; z-index: 9; pointer-events: none; --stick-r: 64px; --zone-h: 58vh; --zone-w: 47vw; }
+/* dvh after vh: iPhone Safari's vh includes the toolbar, which would push the sticks under it. */
+#touch { position: fixed; inset: 0; z-index: 9; pointer-events: none; --stick-r: 64px; --zone-h: 58vh; --zone-h: 58dvh; --zone-w: 47vw; }
 #touch > * { pointer-events: auto; touch-action: none; }
 .stick-zone { position: absolute; bottom: 0; width: var(--zone-w); height: var(--zone-h); }
 .stick-zone.left { left: 0; }
@@ -286,7 +289,7 @@ body.touch-ui .toast { bottom: calc(112px + var(--safe-b)); }
 body.touch-ui .toast { max-width: min(460px, calc(100vw - 32px)); text-align: center; }
 /* Portrait phones: sticks along the bottom, buttons in one row above; a gentle nudge to rotate. */
 @media (orientation: portrait) {
-  #touch { --zone-h: 42vh; --zone-w: 50vw; --cell: min(72px, calc((100vw - var(--safe-l) - var(--safe-r) - 24px) / 5)); --row: calc(var(--zone-h) + 10px); }
+  #touch { --zone-h: 42vh; --zone-h: 42dvh; --zone-w: 50vw; --cell: min(72px, calc((100vw - var(--safe-l) - var(--safe-r) - 24px) / 5)); --row: calc(var(--zone-h) + 10px); }
   .touch-btn.attach { right: calc(12px + var(--safe-r)); bottom: var(--row); width: calc(var(--cell) - 2px); height: calc(var(--cell) - 2px); }
   .touch-btn.bolt { right: calc(12px + var(--safe-r) + var(--cell) + 6px); bottom: calc(var(--row) + 8px); }
   .touch-btn.pour, .touch-btn.doors { right: calc(12px + var(--safe-r) + 2 * var(--cell) + 4px); bottom: calc(var(--row) + 4px); width: calc(var(--cell) - 8px); height: calc(var(--cell) - 8px); }
@@ -298,7 +301,7 @@ body.touch-ui .toast { max-width: min(460px, calc(100vw - 32px)); text-align: ce
   .stick-zone.right .stick-base { left: 60%; }
   .hint { max-width: calc(100vw - 32px); top: calc(104px + var(--safe-t)); font-size: 13.5px; }
   .rotate-nudge { display: block !important; }
-  body.touch-ui .prompt { top: auto; bottom: calc(42vh + 84px); max-width: calc(100vw - 32px); }
+  body.touch-ui .prompt { top: auto; bottom: calc(42vh + 84px); bottom: calc(42dvh + 84px); max-width: calc(100vw - 32px); }
   body.touch-ui .toast { bottom: auto; top: calc(64px + var(--safe-t)); }
   body.touch-ui .tank-gauge.tank-gauge { top: 24%; }
   .assist-invite { display: none; }
@@ -375,8 +378,9 @@ body.pip-top .hint:not(.show), body.pip-top .prompt:not(.show) { pointer-events:
 .lay-btn .chip button { padding: 4px 9px; font-size: 12.5px; border-radius: 8px 0 0 8px; margin: 0; }
 .lay-btn .chip button.x { border-radius: 0 8px 8px 0; padding: 4px 7px; opacity: 0.75; border-left: 0; }
 .lay-btn button.add { padding: 4px 9px; font-size: 12.5px; border-radius: 8px; margin: 0; }
-.pad-capture { margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: rgba(242,184,75,0.18); }
+.pad-capture, .kb-capture { margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: rgba(242,184,75,0.18); }
 .pad-capture .wz-prompt { margin: 0; font-size: 17px; color: var(--ink); }
+.kb-capture .kb-prompt { margin: 0; font-size: 17px; color: var(--ink); }
 .pad-capture small { font-size: 12px; color: var(--ink-soft); }
 @media (max-width: 520px) { .lay-axis select { max-width: 150px; } }
 
@@ -486,3 +490,22 @@ body.bolt .plumb-read, body.bolt .hint { display: none; }
 @keyframes bubble { 0% { transform: translate(0, 0); opacity: 0; } 10% { opacity: 1; } 100% { transform: translate(14px, -110vh); opacity: 0.2; } }
 @keyframes uwobble { from { transform: scale(1.02) rotate(-0.4deg); } to { transform: scale(1.05) rotate(0.5deg); } }
 @media (prefers-reduced-motion: reduce) { .underwater, .underwater i, .boltcam .bc-rec::before { animation: none; } }
+
+/* Mouse flying: the mouse stick as a dot in a ring, low and centred, and a nudge to click in. */
+.mstick { position: absolute; left: 50%; bottom: calc(96px + var(--safe-b, 0px)); width: 60px; height: 60px; margin-left: -30px; border-radius: 50%;
+  border: 1.5px solid rgba(248, 241, 228, 0.45); box-shadow: 0 0 0 1px rgba(0,0,0,0.25) inset; pointer-events: none !important; opacity: 0.8; }
+.mstick::before, .mstick::after { content: ''; position: absolute; background: rgba(248, 241, 228, 0.3); }
+.mstick::before { left: 50%; top: 8px; bottom: 8px; width: 1px; }
+.mstick::after { top: 50%; left: 8px; right: 8px; height: 1px; }
+.mstick i { position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--cream); box-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+.mstick.stick { opacity: 0.95; border-color: rgba(248, 241, 228, 0.7); }
+.mouse-cta { position: absolute; left: 50%; bottom: calc(110px + var(--safe-b, 0px)); transform: translateX(-50%); pointer-events: none !important; font-size: 13px; color: var(--cream);
+  background: rgba(42, 29, 22, 0.55); padding: 6px 12px; border-radius: 999px; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+body.fp .mstick { bottom: calc(150px + var(--safe-b, 0px)); }
+
+/* Flight stick tab: a live meter per axis, and the teach prompt. */
+.ho-axis .ho-src { display: block; font-size: 11.5px; opacity: 0.65; }
+.ho-meter { position: relative; width: 70px; height: 6px; border-radius: 3px; background: rgba(42,29,22,0.12); overflow: hidden; flex: none; margin: 0 8px; }
+.ho-meter i { position: absolute; left: calc(50% - 3px); top: 0; width: 6px; height: 6px; border-radius: 3px; background: var(--ink); }
+.ho-teach { margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: rgba(242,184,75,0.18); }
+.ho-teach .ho-prompt { margin: 4px 0 0; font-size: 17px; color: var(--ink); }

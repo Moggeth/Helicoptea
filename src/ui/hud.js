@@ -5,6 +5,11 @@ import {
   activeAxes, activeButtons, buttonName, defaultLayout, describe, mappingOf, presetName,
 } from '../input/layouts.js';
 import { CAM_MODES, CAM_NAME } from '../render/cameraModes.js';
+import { HOTAS_ACTIONS, HOTAS_AXES, HOTAS_AXIS_LABEL, MAX_HOTAS_BUTTONS } from '../input/hotas.js';
+import {
+  KB_ACTIONS, KB_FLIGHT, KB_PRESETS, KB_PRESET_ORDER, MAX_KEYS, MOUSE_MODES, MOUSE_MODE_LABEL, MOUSE_TARGETS, MOUSE_TARGET_LABEL,
+  defaultKbLayout, describeKb, kbMappingOf, kbPresetName, keyName,
+} from '../input/kbLayouts.js';
 import { CFG } from '../config.js';
 import { TOUCH_LAYOUTS, TOUCH_SIZES } from '../input/input.js';
 
@@ -65,6 +70,8 @@ export class Hud {
       <div class="loadcam hidden" aria-hidden="true"><span class="lc-name">HOOK CAM</span><span class="lc-read"></span></div>
       <div class="boltcam hidden" aria-hidden="true"><span class="bc-rec">REC <b>0:00</b></span><span class="bc-mount"></span><span class="bc-corner tl"></span><span class="bc-corner tr"></span><span class="bc-corner bl"></span><span class="bc-corner br"></span><span class="bc-ring"></span><span class="bc-read"></span></div>
       <div class="underwater hidden" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="mstick hidden" aria-hidden="true"><i></i></div>
+      <div class="mouse-cta hidden">Click to fly with the mouse</div>
       <div class="fp-flash"></div>
       <div class="debug hidden"></div>
     `;
@@ -118,8 +125,9 @@ export class Hud {
   key(action) {
     const d = this.device;
     const K = {
-      keyboard: { lift: '<kbd>W</kbd>', attach: '<kbd>Space</kbd>', assist: '<kbd>F</kbd>', restart: '<kbd>R</kbd>', pour: '<kbd>G</kbd>', doors: '<kbd>G</kbd>', salvo: 'double-tap <kbd>G</kbd>', pump: '<kbd>T</kbd>', autofill: 'double-tap <kbd>T</kbd>', reel: '<kbd>Z</kbd> <kbd>X</kbd>' },
+      keyboard: this.kbKeys(),
       gamepad: this.padKeys(),
+      hotas: this.hotasKeys(),
       touch: { lift: `the ${this.touchStick('collective')} stick up`, attach: '<kbd>Hook</kbd>', assist: 'the <b>Assist</b> switch (top left)', restart: '↻', pour: '<kbd>Pour</kbd>', doors: '<kbd>Doors</kbd>', salvo: 'double-tap <kbd>Doors</kbd>', pump: '<kbd>Pump</kbd>', autofill: 'double-tap <kbd>Pump</kbd>', reel: '<kbd>Hose ▲▼</kbd>' },
     };
     return K[d][action];
@@ -129,6 +137,41 @@ export class Hud {
   touchStick(axis) {
     const L = TOUCH_LAYOUTS[this.touchLayoutOf ? this.touchLayoutOf() : 'classic'] || TOUCH_LAYOUTS.classic;
     return L.left.x === axis || L.left.y === axis ? 'left' : 'right';
+  }
+
+  // Keyboard prompts follow the player's keyboard layout (hud.input, set by the game).
+  kbKeys() {
+    const m = kbMappingOf(this.input ? this.input.kbLayout : defaultKbLayout());
+    const k = (id) => (m.keys[id].length ? `<kbd>${keyName(m.keys[id][0])}</kbd>` : '<kbd>unbound</kbd>');
+    return {
+      lift: k('collUp'), attach: k('attach'), assist: k('assist'), restart: k('restart'), pour: k('pour'), doors: k('pour'), salvo: `double-tap ${k('pour')}`,
+      pump: k('pump'), autofill: `double-tap ${k('pump')}`, reel: `${k('reelIn')} ${k('reelOut')}`,
+      steer: m.mouse.x !== 'none' || m.mouse.y !== 'none'
+        ? `Click the scene and the mouse flies (${['x', 'y'].filter((d) => m.mouse[d] !== 'none').map((d) => m.mouse[d]).join(' and ')}); ${k('yawLeft')} ${k('yawRight')} turn.`
+        : `${k('pitchFwd')} ${k('pitchBack')} ${k('rollLeft')} ${k('rollRight')} tilt, ${k('yawLeft')} ${k('yawRight')} turn.`,
+    };
+  }
+
+  // The mouse stick: a dot in a ring while the pointer is captured, or a nudge to click in.
+  setMouse(v, flying) {
+    if (!this.mstick) { this.mstick = this.q('.mstick'); this.mdot = this.mstick.querySelector('i'); this.mcta = this.q('.mouse-cta'); this.mlast = ''; }
+    const show = !!v && flying && v.locked && !v.looking;
+    this.mstick.classList.toggle('hidden', !show);
+    this.mcta.classList.toggle('hidden', !(v && flying && !v.locked && this.device === 'keyboard'));
+    if (!show) return;
+    this.mstick.classList.toggle('stick', v.mode === 'stick');
+    const t = `translate(${(v.x * 26).toFixed(1)}px, ${(-v.y * 26).toFixed(1)}px)`;
+    if (t !== this.mlast) { this.mlast = t; this.mdot.style.transform = t; }
+  }
+
+  // Flight-stick prompts follow the HOTAS profile.
+  hotasKeys() {
+    const H = this.input?.hotas;
+    const k = (id) => { const r = H?.profile.buttons[id]?.[0]; return r ? `<kbd>${H.refName(r)}</kbd>` : '<kbd>unbound</kbd>'; };
+    return {
+      lift: H?.profile.lift === 'lever' ? 'the throttle forward' : 'the throttle past half way', attach: k('attach'), assist: k('assist'), restart: k('restart'),
+      pour: k('pour'), doors: k('pour'), salvo: `twice ${k('pour')}`, pump: k('pump'), autofill: '<kbd>unbound</kbd>', reel: `${k('reelIn')} ${k('reelOut')}`,
+    };
   }
 
   // Gamepad prompts follow the player's layout (set via hud.pads by the game).
@@ -149,6 +192,11 @@ export class Hud {
   }
 
   refreshKeys() {
+    const m = kbMappingOf(this.input ? this.input.kbLayout : defaultKbLayout());
+    for (const [sel, id] of [['[data-act=assist] .kb', 'assist'], ['[data-act=restart] .kb', 'restart'], ['[data-act=view] .kb', 'camNext'], ['[data-act=mark] .kb', 'mark']]) {
+      const el = this.q(sel);
+      if (el) el.textContent = m.keys[id].length ? keyName(m.keys[id][0]) : '';
+    }
     const kb = this.q('.crash .kb-inline');
     kb.innerHTML = this.device === 'touch' ? '' : this.key('restart');
   }
@@ -343,6 +391,9 @@ export class Hud {
             </select></label>
           ${liftSelect(opts.collectiveMode)}
           ${opts.fullscreen === null || opts.fullscreen === undefined ? '' : `<label class="opt">Full screen <input type="checkbox" data-setting="fullscreen" ${opts.fullscreen ? 'checked' : ''}/></label>`}
+          ${opts.homeScreenTip ? '<div class="opt home-tip">Full screen <small>Share → Add to Home Screen, then open it from there</small></div>' : ''}
+          ${opts.haptics === null || opts.haptics === undefined ? '' : `<label class="opt">Vibration <input type="checkbox" data-setting="haptics" ${opts.haptics ? 'checked' : ''}/></label>`}
+          <label class="opt">Battery saver <small class="opt-note">30 fps</small><input type="checkbox" data-setting="batterySaver" ${opts.batterySaver ? 'checked' : ''}/></label>
           <label class="opt">Sound <span class="weight-row"><input type="range" min="0" max="1" step="0.01" value="${opts.muted ? 0 : opts.volume}" data-setting="volume" aria-label="Volume" /></span></label>
           <div class="opt aircraft-row" role="radiogroup" aria-label="Aircraft">Aircraft
             <span>${[['micro', 'Micro'], ['chinook', 'Chinook'], ['skycrane', 'Skycrane']].map(([id, nm]) => `<button class="secondary${opts.aircraft === id ? ' on' : ''}" role="radio" aria-checked="${opts.aircraft === id}" data-act="aircraft" data-id="${id}">${nm}</button>`).join(' ')}</span></div>
@@ -356,7 +407,11 @@ export class Hud {
             </select></label>
           <label class="opt">World weight <span class="weight-row"><small>light</small><input type="range" min="0" max="1" step="0.05" value="${opts.weight ?? 0.75}" data-setting="weight" aria-label="World weight" /><small>heavy</small></span></label>
           <label class="opt">Debug overlay <input type="checkbox" data-setting="debug" ${opts.debug ? 'checked' : ''}/></label>
-          <label class="opt">Controller <button class="secondary" style="padding:6px 12px" data-act="controller">Settings</button></label>
+          <label class="opt">Controls and remapping <button class="secondary" style="padding:6px 12px" data-act="controller">Settings</button></label>
+          ${opts.touch ? '' : `<label class="opt">Keyboard and mouse
+            <select data-setting="kbPreset" aria-label="Keyboard and mouse scheme">
+              ${[...KB_PRESET_ORDER.map((id) => [id, KB_PRESETS[id].name]), ...(this.input?.kbLayout.custom ? [['custom', 'Custom (yours)']] : [])].map(([id, nm]) => `<option value="${id}" ${this.input?.kbLayout.preset === id ? 'selected' : ''}>${nm}</option>`).join('')}
+            </select></label>`}
           ${opts.touch ? '' : liftSelect(opts.collectiveMode)}
           <label class="opt">Flight tuning <button class="secondary" style="padding:6px 12px" data-act="tuning">Open board</button></label>
           <label class="opt">Show tips again <button class="secondary" style="padding:6px 12px" data-act="resethints">Replay</button></label>
@@ -395,8 +450,11 @@ export class Hud {
     }
     this.modal.querySelector('[data-setting=loadCam]').addEventListener('change', (e) => this.h.setting('loadCam', e.target.value));
     this.modal.querySelector('[data-setting=collectiveMode]').addEventListener('change', (e) => this.h.setting('collectiveMode', e.target.value));
+    this.modal.querySelector('[data-setting=kbPreset]')?.addEventListener('change', (e) => { this.input?.chooseKbPreset(e.target.value); this.refreshKeys(); });
     for (const el of this.modal.querySelectorAll('[data-cue]')) el.addEventListener('change', () => this.h.setting(`cue.${el.dataset.cue}`, el.checked));
     for (const k of ['touchLayout', 'touchSize']) this.modal.querySelector(`[data-setting=${k}]`)?.addEventListener('change', (e) => this.h.setting(k, e.target.value));
+    this.modal.querySelector('[data-setting=batterySaver]')?.addEventListener('change', (e) => this.h.setting('batterySaver', e.target.checked));
+    this.modal.querySelector('[data-setting=haptics]')?.addEventListener('change', (e) => this.h.setting('haptics', e.target.checked));
     this.modal.querySelector('[data-setting=fullscreen]')?.addEventListener('change', (e) => this.h.setting('fullscreen', e.target.checked));
     this.modal.querySelector('[data-setting=volume]')?.addEventListener('input', (e) => this.h.volume(parseFloat(e.target.value)));
     this.modal.classList.add('show');
@@ -410,7 +468,7 @@ export class Hud {
       <div class="panel menu" role="dialog" aria-label="Controls">
         <h2>Controls</h2>
         <div class="help-tabs">
-          ${['keyboard', 'gamepad', 'touch'].map((t) => `<button data-act="helptab" data-tab="${t}" class="${t === tab ? 'on' : ''}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}
+          ${[['keyboard', 'Keyboard'], ['gamepad', 'Gamepad'], ['hotas', 'Flight stick'], ['touch', 'Touch']].map(([t, nm]) => `<button data-act="helptab" data-tab="${t}" class="${t === tab ? 'on' : ''}">${nm}</button>`).join('')}
         </div>
         <dl class="help-grid">${this.helpRows(tab)}</dl>
         <p class="help-note"><b>Collective</b> works the same on every device. With Flight Assist on it sets a climb or sink speed: let go to hold
@@ -425,10 +483,9 @@ export class Hud {
 
   helpRows(tab) {
     const R = {
-      keyboard: [['<kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd>', 'Cyclic: tilt forward, back and sideways (or I J K L)'], ['<kbd>W</kbd><kbd>S</kbd>', 'Collective: more / less lift'], ['<kbd>A</kbd><kbd>D</kbd>', 'Yaw: turn left / right'],
-        ['<kbd>Space</kbd>', 'Hook a bag or the milk bucket / release it (the Chinook has three hooks: Space drops them all)'], ['<kbd>G</kbd> (hold)', 'Pour milk: the bucket\'s valve, or the skycrane\'s belly doors (they open wider the longer you hold)'], ['Double-tap <kbd>G</kbd> or <kbd>Shift</kbd>+<kbd>G</kbd>', 'Salvo: dump the lot (latches the doors or the bucket valve open; again to close)'], ['<kbd>T</kbd> (hold)', 'Skycrane: pump milk up the snorkel (only with the intake under the surface)'], ['Double-tap <kbd>T</kbd> or <kbd>Shift</kbd>+<kbd>T</kbd>', 'Skycrane auto-fill: reel down, pump until full, reel up (any hose or pump key takes over)'], ['<kbd>Z</kbd> / <kbd>X</kbd> (hold)', 'Skycrane: reel the snorkel in / out'], ['<kbd>V</kbd>', 'Switch aircraft: micro heli / Chinook / skycrane'], ['<kbd>F</kbd>', 'Flight Assist on / off'], ['<kbd>R</kbd>', 'Restart flight'], ['<kbd>Shift</kbd>+<kbd>R</kbd>', 'Reset sandbox'],
-        ['<kbd>C</kbd> / <kbd>Shift</kbd>+<kbd>C</kbd>', 'Next / previous camera: chase, cockpit, locked chase, nose cam, tripod, cargo cam (pick which in Pause)'], ['<kbd>1</kbd>', 'Cockpit and back. In the cockpit, drag the mouse to look around, wheel to zoom'], ['<kbd>2</kbd>–<kbd>7</kbd>', 'Chase, locked chase, nose cam, orbit, tripod, cargo cam'], ['<kbd>B</kbd> or right mouse (hold)', 'GoPro: bolted under the side, straight down, with a ring where the load will land'], ['<kbd>U</kbd> / <kbd>Home</kbd>', 'Recenter camera or look ahead (drag to orbit, wheel to zoom)'], ['<kbd>N</kbd>', 'Mark this moment for a flight note (describe it later in Pause → Flight replay)'], ['<kbd>M</kbd>', 'Mute'], ['<kbd>Esc</kbd>', 'Pause'], ['<kbd>F2</kbd>', 'Frame rate readout'], ['<kbd>`</kbd>', 'Debug overlay']],
+      keyboard: this.kbHelpRows(),
       gamepad: this.padHelpRows(),
+      hotas: this.hotasHelpRows(),
       touch: this.touchHelpRows(),
     };
     return R[tab].map(([k, d]) => `<dt>${k}</dt><dd>${d}</dd>`).join('');
@@ -446,6 +503,34 @@ export class Hud {
       ['', 'Put a thumb down anywhere in its half of the screen: that spot is the centre. Slide past the rim and the centre follows you. Pick another layout or stick size in Pause.'],
       ['<kbd>Hook</kbd>', 'Hook / release (glows when a loop is in reach)'], ['<kbd>Pour</kbd> (hold)', 'Pour milk (appears while you carry the bucket); double-tap latches it open'], ['<kbd>Doors</kbd> (hold)', 'Skycrane belly doors, opening wider as you hold; double-tap = salvo'], ['<kbd>Pump</kbd> (hold)', 'Skycrane pump; double-tap = auto-fill'], ['<kbd>Hose ▲</kbd> <kbd>Hose ▼</kbd>', 'Reel the snorkel in / out'],
       ['<kbd>GoPro</kbd> (hold)', 'Bolted camera looking straight down'], ['Assist switch (top left)', 'Flight Assist on / off'], ['Camera icon (top right)', 'Next camera'], ['Drag the open screen', 'Look around in the cockpit, or orbit the chase camera'], ['Double-tap the open screen', 'Look ahead again'], ['↻ (top right)', 'Restart flight'], ['‖ (top right)', 'Pause: sticks, sound, aircraft, cameras, mark a moment']];
+  }
+
+  // The keyboard sheet, like the gamepad's, is written from the layout in force.
+  kbHelpRows() {
+    const layout = this.input ? this.input.kbLayout : defaultKbLayout();
+    const keys = (l) => l.map((k) => `<kbd>${k}</kbd>`).join(' ');
+    return [
+      ['Scheme', `${kbPresetName(layout)} (change it in Pause or Controls and remapping)`],
+      ...describeKb(layout).map((r) => [keys(r.keys), r.label]),
+      ['<kbd>Shift</kbd>+restart', 'Reset sandbox'],
+      ['<kbd>1</kbd>', 'Cockpit and back. Drag the mouse to look around, wheel to zoom'], ['<kbd>2</kbd>–<kbd>7</kbd>', 'Chase, locked chase, nose cam, orbit, tripod, cargo cam'],
+      ['<kbd>Home</kbd>', 'Recenter camera or look ahead'], ['<kbd>M</kbd>', 'Mute'], ['<kbd>Esc</kbd> / <kbd>P</kbd>', 'Pause (Esc also lets go of the mouse)'], ['<kbd>H</kbd>', 'This sheet'], ['<kbd>F2</kbd>', 'Frame rate readout'], ['<kbd>`</kbd>', 'Debug overlay'],
+    ];
+  }
+
+  hotasHelpRows() {
+    const H = this.input?.hotas;
+    if (!H) return [];
+    const P = H.profile;
+    const ax = (a) => (P.axes[a] ? `${H.devName(P.axes[a].dev)} axis ${P.axes[a].index + 1}` : 'unbound');
+    const rows = [
+      ['Stick', `Tilt (${ax('roll')}, ${ax('pitch')}). Twist to turn (${ax('yaw')})`],
+      ['Throttle', P.lift === 'lever' ? 'Is the collective: where you leave it is the lift. With Assist on, the middle holds height' : 'Lift like the pad\'s lift stick: past half way climbs, below sinks (Lift stick setting applies)'],
+      ['Hat', 'Orbit and zoom the camera; glance around in the cockpit'],
+    ];
+    for (const A of HOTAS_ACTIONS) if (P.buttons[A.id].length) rows.push([P.buttons[A.id].map((r) => `<kbd>${H.refName(r)}</kbd>`).join(' '), A.label]);
+    rows.push(['', `${P.taught ? 'Taught on your device.' : 'X56 defaults, not yet taught: if a control does the wrong thing, use Teach in Controls → Flight stick.'} Chrome and Edge only see a stick after you press one of its buttons.`]);
+    return rows;
   }
 
   // The gamepad sheet is written from the layout in force, so it is always true to the player's setup.
@@ -476,15 +561,31 @@ export class Hud {
   closeModal() { this.modal.classList.remove('show'); this.modalKind = null; document.activeElement?.blur?.(); }
 
   // ---------------------------------------------------------------- controller settings
-  openController(pads) {
+  openController(pads, tab = this.device === 'gamepad' || this.device === 'hotas' ? this.device : 'keyboard') {
     this.modalKind = 'controller';
     this.pads = pads;
+    this.ctlTab = tab;
     const S = pads.settings;
     const slider = (key, label, min, max, step) => `<label class="opt">${label}<input type="range" data-pad="${key}" min="${min}" max="${max}" step="${step}" value="${S[key]}" /></label>`;
     const check = (key, label) => `<label class="opt">${label}<input type="checkbox" data-pad="${key}" ${S[key] ? 'checked' : ''} /></label>`;
     this.modal.innerHTML = `
-      <div class="panel menu pad-panel" role="dialog" aria-label="Controller settings">
-        <h2>Controller</h2>
+      <div class="panel menu pad-panel" role="dialog" aria-label="Controls and remapping">
+        <h2>Controls</h2>
+        <div class="help-tabs ctl-tabs">
+          ${[['keyboard', 'Keyboard and mouse'], ['gamepad', 'Gamepad'], ['hotas', 'Flight stick']].map(([t, nm]) => `<button data-act="ctltab" data-tab="${t}" class="${t === tab ? 'on' : ''}">${nm}</button>`).join('')}
+        </div>
+        <div class="kb-tab ${tab === 'keyboard' ? '' : 'hidden'}">
+          <div class="kb-capture hidden" role="status"><p class="kb-prompt"></p><div class="row"><button class="secondary" data-kb="capcancel">Cancel</button></div></div>
+          <div class="kb-layout kb-settings"></div>
+          <div class="row stack kb-settings">${liftSelect(CFG.collective.mode)}</div>
+          <div class="row kb-settings"><button class="primary" style="margin-top:0" data-act="closecontroller">Done</button></div>
+        </div>
+        <div class="ho-tab ${tab === 'hotas' ? '' : 'hidden'}">
+          <div class="ho-teach hidden" role="status"><p class="wz-step"></p><p class="ho-prompt"></p><div class="row"><button class="secondary" data-ho="skip">Skip this one</button><button class="secondary" data-ho="cancel">Cancel</button></div></div>
+          <div class="ho-body"></div>
+          <div class="row ho-settings"><button class="primary" style="margin-top:0" data-act="closecontroller">Done</button></div>
+        </div>
+        <div class="pad-tab ${tab === 'gamepad' ? '' : 'hidden'}">
         <div class="pad-list"></div>
         <div class="pad-test" aria-hidden="true">
           <div class="pad-stick"><div class="dot l"></div><span class="lbl-l"></span></div>
@@ -511,7 +612,8 @@ export class Hud {
           <button class="secondary" data-act="padreset">Forget pad wiring</button>
           <button class="secondary" data-act="padrumble">Test rumble</button>
         </div>
-        <p class="help-note">Using a <b>Steam Controller</b>? Browsers only see it as a gamepad through Steam Input: add your browser to Steam as a Non-Steam Game with the <b>Gamepad</b> layout and open Helicoptea from there (steps in the README). If it appears above as a standard layout it just works; otherwise use <b>Teach it an odd pad…</b>, which only tells the game where each stick and button is; the layout above decides what they do.</p>
+        <p class="help-note pad-note">Using a <b>Steam Controller</b>? Browsers only see it as a gamepad through Steam Input: add your browser to Steam as a Non-Steam Game with the <b>Gamepad</b> layout and open Helicoptea from there (steps in the README). If it appears above as a standard layout it just works; otherwise use <b>Teach it an odd pad…</b>, which only tells the game where each stick and button is; the layout above decides what they do.</p>
+        </div>
       </div>`;
     this.modal.querySelectorAll('[data-pad]').forEach((el) => {
       el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', () => {
@@ -519,12 +621,180 @@ export class Hud {
         pads.saveSettings();
       });
     });
-    this.modal.querySelector('.pad-settings [data-setting=collectiveMode]').addEventListener('change', (e) => this.h.setting('collectiveMode', e.target.value));
+    for (const el of this.modal.querySelectorAll('[data-setting=collectiveMode]')) {
+      el.addEventListener('change', (e) => { this.h.setting('collectiveMode', e.target.value); for (const o of this.modal.querySelectorAll('[data-setting=collectiveMode]')) o.value = e.target.value; });
+    }
     this.modal.querySelector('.pad-capture [data-lay=capcancel]').addEventListener('click', () => pads.cancelCapture());
+    this.modal.querySelector('.kb-capture [data-kb=capcancel]').addEventListener('click', () => this.input?.cancelKbCapture());
     this.renderLayout();
+    this.renderKb();
+    this.renderHotas();
     this.modal.classList.add('show');
     this.updateController();
     this.focusFirst();
+  }
+
+  setCtlTab(tab) {
+    if (this.modalKind !== 'controller') return;
+    this.input?.cancelKbCapture();
+    if (this.pads?.capture) this.pads.cancelCapture();
+    this.ctlTab = tab;
+    this.modal.querySelectorAll('.ctl-tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+    this.modal.querySelector('.kb-tab').classList.toggle('hidden', tab !== 'keyboard');
+    this.modal.querySelector('.pad-tab').classList.toggle('hidden', tab !== 'gamepad');
+    this.modal.querySelector('.ho-tab').classList.toggle('hidden', tab !== 'hotas');
+    if (tab !== 'hotas' && this.input) { this.input.hotas.cancelTeach(); this.input.hotas.cancelCapture(); }
+  }
+
+  // ---------------------------------------------------------------- flight stick / HOTAS
+  renderHotas(focusKey) {
+    const H = this.input?.hotas;
+    const box = this.modal.querySelector('.ho-body');
+    if (!box || !H) return;
+    const P = H.profile;
+    const axRow = (a) => {
+      const r = P.axes[a];
+      return `<div class="opt lay-btn ho-axis"><span>${HOTAS_AXIS_LABEL[a]}<small class="ho-src">${r ? `${H.devName(r.dev)}, axis ${r.index + 1}${r.sign < 0 ? ', reversed' : ''}` : 'unbound'}</small></span>
+        <span class="ho-meter" data-axis="${a}"><i></i></span>
+        <span class="chips"><button class="secondary" data-ho="teach1" data-axis="${a}" data-key="ht-${a}">Teach</button><button class="secondary" data-ho="flip" data-axis="${a}" data-key="hf-${a}" ${r ? '' : 'disabled'}>Reverse</button></span></div>`;
+    };
+    const chips = (A) => {
+      const list = P.buttons[A.id];
+      const c = list.map((r, i) => `<span class="chip"><button class="secondary" data-ho="rebind" data-id="${A.id}" data-slot="${i}" data-key="hb-${A.id}-${i}">${H.refName(r)}</button><button class="secondary x" data-ho="unbind" data-id="${A.id}" data-slot="${i}" data-key="hx-${A.id}-${i}" aria-label="Remove ${H.refName(r)} from ${A.label}">×</button></span>`);
+      if (list.length < MAX_HOTAS_BUTTONS) c.push(`<button class="secondary add" data-ho="rebind" data-id="${A.id}" data-key="hadd-${A.id}" aria-label="Add a button for ${A.label}">+</button>`);
+      return c.join('');
+    };
+    const slider = (k, label, min, max, step) => `<label class="opt">${label}<input type="range" data-ho="num" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${P[k]}" /></label>`;
+    box.innerHTML = `
+      <div class="ho-list"></div>
+      <p class="help-note">${P.taught ? 'Taught on your stick.' : 'Set up for the <b>X56</b> as a first guess. Press <b>Teach all</b> and move each control once to set it exactly; any stick and throttle works the same way.'} Chrome and Edge only show a stick after you press one of its buttons.</p>
+      <div class="row"><button class="primary" style="margin-top:0" data-ho="teach" data-key="hteach">Teach all</button><button class="secondary" data-ho="reset" data-key="hreset">Back to X56 defaults</button></div>
+      <h3 class="pad-h">Axes</h3>
+      ${HOTAS_AXES.map(axRow).join('')}
+      <label class="opt">Throttle as lift
+        <select data-ho="lift" data-key="hlift" aria-label="Throttle as lift">
+          <option value="spring" ${P.lift === 'spring' ? 'selected' : ''}>Like the lift stick: middle of its travel is centre</option>
+          <option value="lever" ${P.lift === 'lever' ? 'selected' : ''}>A real collective: where you leave it is the lift</option>
+        </select></label>
+      <p class="help-note">As a real collective, the throttle position is the collective with Assist off, so it stays where you put it. With Assist on, the middle of its travel holds height.</p>
+      <h3 class="pad-h">Feel</h3>
+      ${slider('deadZone', 'Dead zone', 0, 0.2, 0.01)}
+      ${slider('expo', 'Fine control near centre', 0, 0.9, 0.05)}
+      ${slider('cyclic', 'Tilt sensitivity', 0.3, 1.5, 0.05)}
+      ${slider('yaw', 'Turn sensitivity', 0.3, 1.5, 0.05)}
+      <h3 class="pad-h">Buttons</h3>
+      ${HOTAS_ACTIONS.map((A) => `<div class="opt lay-btn"><span>${A.label}</span><span class="chips">${chips(A)}</span></div>`).join('')}
+      <p class="help-note">The hat orbits and zooms the camera, or glances around in the cockpit. A button can only do one thing: choosing one that is in use moves it.</p>`;
+    const again = (key) => { this.renderHotas(key); };
+    const teachView = (v) => {
+      const t = this.modal.querySelector('.ho-teach');
+      const others = this.modal.querySelectorAll('.ho-body, .ho-settings');
+      if (!v || v.done) { t.classList.add('hidden'); others.forEach((e) => e.classList.remove('hidden')); if (v && v.done) this.toast('Flight stick set up'); again('hteach'); return; }
+      t.classList.remove('hidden'); others.forEach((e) => e.classList.add('hidden'));
+      t.querySelector('.wz-step').textContent = v.total > 1 ? `Step ${v.step} of ${v.total}` : '';
+      t.querySelector('.ho-prompt').innerHTML = v.prompt;
+    };
+    const none = () => this.toast('Press a button on your stick or throttle first so the browser can see it');
+    box.querySelector('[data-ho=teach]').addEventListener('click', () => { if (!H.startTeach(teachView)) none(); });
+    box.querySelector('[data-ho=reset]').addEventListener('click', () => { H.resetProfile(); again('hreset'); });
+    box.querySelector('[data-ho=lift]').addEventListener('change', (e) => { H.setProfile({ ...H.profile, lift: e.target.value }); });
+    for (const el of box.querySelectorAll('[data-ho=num]')) el.addEventListener('input', () => H.setProfile({ ...H.profile, [el.dataset.k]: parseFloat(el.value) }));
+    for (const el of box.querySelectorAll('[data-ho=teach1]')) el.addEventListener('click', () => { if (!H.startTeach(teachView, el.dataset.axis)) none(); });
+    for (const el of box.querySelectorAll('[data-ho=flip]')) el.addEventListener('click', () => { H.flip(el.dataset.axis); again(el.dataset.key); });
+    for (const el of box.querySelectorAll('[data-ho=unbind]')) el.addEventListener('click', () => { H.unbind(el.dataset.id, H.profile.buttons[el.dataset.id][+el.dataset.slot]); again(`hadd-${el.dataset.id}`); });
+    for (const el of box.querySelectorAll('[data-ho=rebind]')) {
+      el.addEventListener('click', () => {
+        const id = el.dataset.id, slot = el.dataset.slot !== undefined ? +el.dataset.slot : null;
+        const ok = H.startCapture((ref) => { teachView(null); if (ref) H.bind(id, ref, slot); again(el.dataset.key); });
+        if (!ok) { none(); return; }
+        teachView({ step: 1, total: 1, prompt: `Press the stick or throttle button for <b>${HOTAS_ACTIONS.find((a) => a.id === id).label}</b><br><small>or wait a few seconds to cancel</small>` });
+      });
+    }
+    const t = this.modal.querySelector('.ho-teach');
+    t.querySelector('[data-ho=skip]').onclick = () => H.skipTeach();
+    t.querySelector('[data-ho=cancel]').onclick = () => { H.cancelTeach(); H.cancelCapture(); };
+    if (focusKey) this.focusKey(focusKey);
+  }
+
+  // Live: the devices the browser sees and where each axis sits.
+  updateHotas() {
+    const H = this.input?.hotas;
+    const el = this.modal.querySelector('.ho-list');
+    if (!H || !el || this.ctlTab !== 'hotas') return;
+    const html = H.devices.length
+      ? H.devices.map((g) => `<div class="pad-item on"><b>${H.devName(g.id)}</b><span>${g.axes.length} axes · ${g.buttons.length} buttons</span><small>${g.id}</small></div>`).join('')
+      : '<div class="pad-item"><b>No flight stick seen yet</b><span>Plug it in and press one of its buttons: browsers hide sticks until then.</span></div>';
+    if (el.innerHTML !== html) el.innerHTML = html;
+    const P = H.profile;
+    for (const m of this.modal.querySelectorAll('.ho-meter')) {
+      const r = P.axes[m.dataset.axis];
+      const g = r && H.resolve(r.dev);
+      const v = g && Number.isFinite(g.axes[r.index]) ? g.axes[r.index] * r.sign : 0;
+      m.firstElementChild.style.transform = `translateX(${(v * 50).toFixed(1)}%)`;
+    }
+  }
+
+  // ---------------------------------------------------------------- keyboard and mouse: schemes, mouse, keys
+  renderKb(focusKey) {
+    const inp = this.input;
+    const box = this.modal.querySelector('.kb-layout');
+    if (!box || !inp) return;
+    const L = inp.kbLayout, m = kbMappingOf(L);
+    const opts = [...KB_PRESET_ORDER.map((id) => [id, KB_PRESETS[id].name]), ...(L.custom ? [['custom', 'Custom (yours)']] : [])];
+    const blurb = L.preset === 'custom' ? 'Your own scheme. Pick a preset to start again from it; yours stays in this list.' : KB_PRESETS[L.preset].blurb;
+    const sel = (key, attrs, list, cur, labels) => `<select ${attrs} data-key="${key}">${list.map((v) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${labels[v]}</option>`).join('')}</select>`;
+    const chips = (B) => {
+      const list = m.keys[B.id];
+      const c = list.map((k, i) => `<span class="chip"><button class="secondary" data-kb="rebind" data-id="${B.id}" data-slot="${i}" data-key="k-${B.id}-${i}" title="Change">${keyName(k)}</button><button class="secondary x" data-kb="unbind" data-id="${B.id}" data-code="${k}" data-key="kx-${B.id}-${i}" aria-label="Remove ${keyName(k)} from ${B.label}">×</button></span>`);
+      if (list.length < MAX_KEYS) c.push(`<button class="secondary add" data-kb="rebind" data-id="${B.id}" data-key="kadd-${B.id}" aria-label="Add a key for ${B.label}">+</button>`);
+      return c.join('');
+    };
+    const group = (title, list) => `<h3 class="pad-h">${title}</h3>${list.map((B) => `<div class="opt lay-btn"><span>${B.label}</span><span class="chips">${chips(B)}</span></div>`).join('')}`;
+    const flies = m.mouse.x !== 'none' || m.mouse.y !== 'none';
+    box.innerHTML = `
+      <h3 class="pad-h">Scheme</h3>
+      <label class="opt">Preset <select data-kb="preset" data-key="kpreset" aria-label="Keyboard and mouse scheme">${opts.map(([id, nm]) => `<option value="${id}" ${L.preset === id ? 'selected' : ''}>${nm}</option>`).join('')}</select></label>
+      <p class="help-note lay-blurb">${blurb}</p>
+      <h3 class="pad-h">Mouse</h3>
+      <label class="opt">Mouse ↔ ${sel('mx', 'data-kb="maxis" data-dir="x" aria-label="Mouse left and right"', MOUSE_TARGETS, m.mouse.x, MOUSE_TARGET_LABEL)}</label>
+      <label class="opt">Mouse ↕ ${sel('my', 'data-kb="maxis" data-dir="y" aria-label="Mouse forward and back"', MOUSE_TARGETS, m.mouse.y, MOUSE_TARGET_LABEL)}</label>
+      <label class="opt">Mouse feel ${sel('mmode', 'data-kb="mmode" aria-label="Mouse feel"', MOUSE_MODES, m.mouse.mode, MOUSE_MODE_LABEL)}</label>
+      <label class="opt">Mouse sensitivity <span class="weight-row"><small>fine</small><input type="range" min="0.2" max="3" step="0.05" value="${L.mouseSens}" data-kb="sens" data-key="ksens" aria-label="Mouse sensitivity" /><small>quick</small></span></label>
+      <label class="opt">Invert mouse ↕ (pull back to dip the nose) <input type="checkbox" data-kb="inv" data-key="kinv" ${L.invertMouse ? 'checked' : ''} /></label>
+      <p class="help-note">${flies ? 'Click the scene to start flying with the mouse; <kbd>Esc</kbd> lets it go and pauses. <b>Moves the nose</b>: each movement is a push that springs back, so how far you move is how far it rotates, and with Assist off the rotation carries on until you stop it. With Assist on, mouse tilt stays where you leave it. <b>Virtual stick</b>: the mouse position is the stick, drawn as a dot in a ring.' : 'The mouse does not fly in this scheme: drag to orbit the camera.'}</p>
+      ${group('Flying', KB_FLIGHT)}
+      ${group('Actions', KB_ACTIONS)}
+      <p class="help-note">Choosing a key that already does something else moves it: the other job takes your old key if it would be left with none. Mouse buttons work too. <kbd>Esc</kbd>, <kbd>P</kbd>, <kbd>H</kbd>, <kbd>M</kbd>, <kbd>Shift</kbd>, the F keys and the camera digits <kbd>1</kbd>–<kbd>7</kbd> stay as they are.</p>`;
+    const after = (notes, key) => { if (notes && notes.length) this.toast(notes.join('. '), 3.5); this.renderKb(key); this.refreshKeys(); };
+    box.querySelector('[data-kb=preset]').addEventListener('change', (e) => { inp.chooseKbPreset(e.target.value); after([], 'kpreset'); });
+    for (const el of box.querySelectorAll('[data-kb=maxis]')) el.addEventListener('change', () => after(inp.setMouseAxis(el.dataset.dir, el.value), el.dataset.key));
+    box.querySelector('[data-kb=mmode]').addEventListener('change', (e) => after(inp.setMouseMode(e.target.value), 'mmode'));
+    box.querySelector('[data-kb=sens]').addEventListener('change', (e) => inp.setMouseFeel('mouseSens', parseFloat(e.target.value)));
+    box.querySelector('[data-kb=inv]').addEventListener('change', (e) => inp.setMouseFeel('invertMouse', e.target.checked));
+    for (const el of box.querySelectorAll('[data-kb=unbind]')) el.addEventListener('click', () => after(inp.unbindKey(el.dataset.id, el.dataset.code), `kadd-${el.dataset.id}`));
+    for (const el of box.querySelectorAll('[data-kb=rebind]')) {
+      el.addEventListener('click', () => {
+        const id = el.dataset.id, slot = el.dataset.slot !== undefined ? +el.dataset.slot : null;
+        // Wait a beat so this click is not taken as the new binding.
+        setTimeout(() => {
+          inp.startKbCapture((res) => {
+            this.showKbCapture(null);
+            if (res) after(inp.bindKey(id, res.code, slot), el.dataset.key);
+            else this.focusKey(el.dataset.key);
+          });
+          this.showKbCapture(`Press the key or mouse button for <b>${[...KB_FLIGHT, ...KB_ACTIONS].find((b) => b.id === id).label}</b>`);
+        }, 120);
+      });
+    }
+    if (focusKey) this.focusKey(focusKey);
+  }
+
+  showKbCapture(html) {
+    const c = this.modal.querySelector('.kb-capture');
+    if (!c) return;
+    c.classList.toggle('hidden', !html);
+    this.modal.querySelectorAll('.kb-settings').forEach((e) => e.classList.toggle('hidden', !!html));
+    if (html) c.querySelector(".kb-prompt").innerHTML = `${html}<br><small><kbd>Esc</kbd> or wait a few seconds to cancel</small>`;
   }
 
   // ---------------------------------------------------------------- layout: presets, sticks, buttons
@@ -612,6 +882,7 @@ export class Hud {
       this.focusFirst();
       return;
     }
+    if (this.ctlTab !== 'gamepad') this.setCtlTab('gamepad');
     wz.classList.remove('hidden');
     others.forEach((e) => e.classList.add('hidden'));
     wz.querySelector('.wz-step').textContent = `Step ${view.step} of ${view.total}`;
@@ -620,6 +891,7 @@ export class Hud {
 
   updateController() {
     if (this.modalKind !== 'controller' || !this.pads) return;
+    this.updateHotas();
     const pads = this.pads;
     const list = pads.list();
     const el = this.modal.querySelector('.pad-list');

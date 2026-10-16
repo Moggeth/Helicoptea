@@ -1,29 +1,26 @@
 import { CFG } from '../config.js';
 import { Gamepads } from './gamepad.js';
+import { Hotas } from './hotas.js';
 import { CAM_KEYS, LOOK_MODES } from '../render/cameraModes.js';
+import {
+  FIXED_KEYS, KB_FLIGHT, kbMappingOf, keyIndex, mouseFlies, normalizeKbLayout, chooseKbPreset, bindKey, unbindKey, setMouseAxis, setMouseMode,
+} from './kbLayouts.js';
 
 // Merges keyboard, gamepad and touch into one control state.
 // Axes (all -1..1): pitch (+ forward), roll (+ right), yaw (+ right), collective (+ up).
 // Collective with assist on commands climb/sink speed. With assist off it is a sprung lever by default
 // (up climbs, centred settles gently, down sinks faster; sim/collective.js) or, in hold mode, a rate that
 // trims the collective and leaves it. Every source rests at 0, so switching devices never jumps the throttle.
-const KEYMAP = {
-  pitchUp: ['ArrowUp', 'KeyI'], pitchDown: ['ArrowDown', 'KeyK'],
-  rollLeft: ['ArrowLeft', 'KeyJ'], rollRight: ['ArrowRight', 'KeyL'],
-  collUp: ['KeyW'], collDown: ['KeyS'], yawLeft: ['KeyA', 'KeyQ'], yawRight: ['KeyD', 'KeyE'],
-};
-// Held, not edge-triggered: the milk bucket's valve stays open while the key is down.
-const POUR_KEYS = ['KeyG'];
-// Skycrane tank: T pumps (held), Z / X reel the snorkel in / out (held).
-const TANK_KEYS = { pump: ['KeyT'], reelIn: ['KeyZ'], reelOut: ['KeyX'] };
+// Keys and mouse come from the keyboard layout (kbLayouts.js: presets and the player's remapping); a few keys
+// are fixed (FIXED_KEYS: pause, help, mute, debug) and the digits pick cameras.
 const DOUBLE_TAP = 320; // ms
-// Camera: C steps through the cameras (Shift+C back), 1 is the cockpit and back, 2-7 pick one, B (held) is the GoPro.
-const BOLT_KEYS = ['KeyB'];
-const ACTION_KEYS = {
-  ...Object.fromEntries(Object.entries(CAM_KEYS).map(([k, id]) => [k, `cam:${id}`])),
-  Space: 'attach', Enter: 'attach', KeyV: 'aircraft', Digit1: 'cockpit', KeyF: 'assist', KeyR: 'restart', KeyC: 'camNext', KeyU: 'recenter', Home: 'recenter',
-  Escape: 'pause', KeyP: 'pause', KeyH: 'help', Slash: 'help', KeyM: 'mute', Backquote: 'debug', F3: 'debug', F2: 'fpsmeter', KeyB: 'reset', KeyN: 'mark',
-};
+const LS_KB = 'helicoptea.kb.layout';
+const loadKb = () => { try { const v = localStorage.getItem(LS_KB); return v ? JSON.parse(v) : null; } catch { return null; } };
+const saveKb = (v) => { try { localStorage.setItem(LS_KB, JSON.stringify(v)); } catch { /* ignore */ } };
+// Presses that become game actions as they are (held binds and flight directions are read each frame).
+const PRESS = { attach: 'attach', assist: 'assist', recenter: 'recenter', mark: 'mark', aircraft: 'aircraft' };
+// The digits: 1 is the cockpit and back, 2-7 pick a camera.
+const DIGIT_KEYS = { Digit1: 'cockpit', ...Object.fromEntries(Object.entries(CAM_KEYS).map(([k, id]) => [k, `cam:${id}`])) };
 
 // Touch stick layouts: which flight axis each stick's x (left / right) and y (up / down) flies.
 export const TOUCH_LAYOUTS = {
@@ -35,8 +32,10 @@ export const TOUCH_LAYOUTS = {
 export const TOUCH_LAYOUT_IDS = Object.keys(TOUCH_LAYOUTS);
 // Thumb travel from centre to full deflection, in CSS pixels.
 export const TOUCH_SIZES = { small: 48, medium: 64, large: 84 };
-// A short tick under the thumb where the phone can (Android; iOS Safari has no vibration API).
-export function buzz(ms) { try { navigator.vibrate?.(ms); } catch { /* not allowed before a gesture */ } }
+// A short tick under the thumb where the phone can (phoneHaptics.js: Android vibration, iPhone switch tick).
+let haptics = null;
+export function setHaptics(h) { haptics = h; }
+export function buzz(ms) { haptics?.tap(ms, { gap: 30 }); }
 
 function shape(x) {
   const dz = CFG.input.deadZone;
@@ -51,12 +50,11 @@ export class Input {
   constructor(touchRoot) {
     this.keys = new Set();
     this.kb = { pitch: 0, roll: 0, yaw: 0, collective: 0 };
-    this.ctl = { pitch: 0, roll: 0, yaw: 0, collective: 0, pour: false, doors: 0, pump: 0, reel: 0, boltCam: false };
+    this.ctl = { pitch: 0, roll: 0, yaw: 0, collective: 0, lever: null, pour: false, doors: 0, pump: 0, reel: 0, boltCam: false };
     this.actions = [];
     this.source = 'keyboard';
     this.gp = { pitch: 0, roll: 0, yaw: 0, collective: 0, connected: false, id: '' };
     this.touch = { pitch: 0, roll: 0, yaw: 0, collective: 0, active: false, pour: false, doors: false, pump: false, reel: 0, bolt: false };
-    this.mouseBolt = false;
     this.camOrbit = { yaw: 0, pitch: 0, zoom: 0 };
     // First-person free-look deltas (radians) and zoom, taken by the game each frame.
     this.look = { yaw: 0, pitch: 0, zoom: 0 };
@@ -65,59 +63,184 @@ export class Input {
     this.notices = [];
     this.lastTap = {};
     this.aircraft = 'micro';
+    this.assist = true;          // set by the game each frame: the mouse's nose mode holds tilt with assist on
     this.kbDoors = 0;
     this.touchDoors = 0;
     this.touchLayout = 'classic';
     this.touchSize = 'medium';
     this.lastOpenTap = null;
+    // Mouse flying: a virtual stick (x: mouse ↔, y: mouse ↕, +right / +forward) fed by pointer-locked movement.
+    this.mstick = { x: 0, y: 0 };
+    this.mouseOut = { pitch: 0, roll: 0, yaw: 0 };
+    this.canvas = null;
+    this.locked = false;
+    this.kbCapture = null;       // remapping: waiting for a key or mouse button
+    this.setKbLayout(normalizeKbLayout(loadKb()), false);
 
     window.addEventListener('keydown', (e) => {
       // Text entry owns its keys, including letters that also restart or steer the game.
       if (e.target?.matches?.('input, select, textarea') || e.target?.isContentEditable) return;
-      const isGameKey = Object.values(KEYMAP).some((l) => l.includes(e.code)) || ACTION_KEYS[e.code] || POUR_KEYS.includes(e.code) || BOLT_KEYS.includes(e.code) || Object.values(TANK_KEYS).some((l) => l.includes(e.code));
-      if (isGameKey) e.preventDefault();
+      if (this.kbCapture) { e.preventDefault(); this.finishCapture(e.code === 'Escape' ? null : e.code); return; }
+      const bind = this.kidx.get(e.code);
+      if (bind || FIXED_KEYS[e.code] || DIGIT_KEYS[e.code]) e.preventDefault();
       if (e.repeat) return;
       this.keys.add(e.code);
       this.source = 'keyboard';
-      let a = ACTION_KEYS[e.code];
-      if (a === 'reset' && !e.shiftKey) a = null;
-      if (e.code === 'KeyR' && e.shiftKey) a = 'reset';
-      if (a === 'camNext' && e.shiftKey) a = 'camPrev';
-      if (a) this.actions.push(a);
-      // Combos: Shift or a double-tap. G: salvo (dump everything). T: skycrane auto-fill.
-      const combo = { KeyG: 'salvo', KeyT: 'autofill' }[e.code];
-      if (combo) {
-        // When the key went down, not when a busy page got round to the event: on a slow machine the two
-        // can be a frame apart, which would make a quick double-tap look slow.
-        const now = e.timeStamp || performance.now();
-        if (e.shiftKey || now - (this.lastTap[e.code] || 0) < DOUBLE_TAP) { this.actions.push(combo); this.lastTap[e.code] = 0; } else this.lastTap[e.code] = now;
-      }
+      if (bind) this.pressBind(bind, e.code, e.shiftKey);
+      else if (FIXED_KEYS[e.code]) this.actions.push(FIXED_KEYS[e.code]);
+      else if (DIGIT_KEYS[e.code]) this.actions.push(DIGIT_KEYS[e.code]);
     }, { passive: false });
     window.addEventListener('keyup', (e) => { this.keys.delete(e.code); });
+    // Remapping takes a mouse button pressed anywhere (the settings panel covers the scene), except the
+    // panel's own Cancel.
+    window.addEventListener('mousedown', (e) => {
+      if (!this.kbCapture || e.target?.closest?.('.kb-capture button')) return;
+      e.preventDefault(); e.stopPropagation();
+      this.swallowClick = performance.now();
+      this.finishCapture(`Mouse${e.button}`);
+    }, true);
+    // ...and the click or context menu that button would go on to make.
+    for (const ev of ['click', 'auxclick', 'contextmenu']) {
+      window.addEventListener(ev, (e) => {
+        if (this.swallowClick && performance.now() - this.swallowClick < 800) { e.preventDefault(); e.stopPropagation(); if (ev !== 'contextmenu') this.swallowClick = 0; }
+      }, true);
+    }
     window.addEventListener('blur', () => this.clearAll());
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.clearAll(); });
     this.pads = new Gamepads();
+    // Flight sticks and HOTAS: their own layer; the gamepad layer leaves those devices alone.
+    this.hotas = new Hotas();
+    this.pads.exclude = (gp) => this.hotas.owns(gp);
+    this.ho = { pitch: 0, roll: 0, yaw: 0, collective: 0 };
     this.menuMode = false;
     // Mouse orbit (desktop): drag on the canvas, wheel to zoom.
     this.dragging = null;
     if (touchRoot) this.buildTouch(touchRoot);
   }
 
+  // A bound key or mouse button went down.
+  pressBind(bind, code, shift) {
+    if (PRESS[bind]) this.actions.push(PRESS[bind]);
+    else if (bind === 'restart') this.actions.push(shift ? 'reset' : 'restart');
+    else if (bind === 'camNext') this.actions.push(shift ? 'camPrev' : 'camNext');
+    else if (bind === 'centreStick') this.centreMouse();
+    // Combos: Shift or a double-tap. Pour: salvo (dump everything). Pump: skycrane auto-fill.
+    const combo = { pour: 'salvo', pump: 'autofill' }[bind];
+    if (combo) {
+      const now = performance.now();
+      if (shift || now - (this.lastTap[code] || 0) < DOUBLE_TAP) { this.actions.push(combo); this.lastTap[code] = 0; } else this.lastTap[code] = now;
+    }
+  }
+
+  // ---------------------------------------------------------------- keyboard and mouse layout
+  setKbLayout(layout, persist = true) {
+    this.kbLayout = layout;
+    this.kbMap = kbMappingOf(layout);
+    this.kidx = keyIndex(this.kbMap);
+    this.kbFlight = KB_FLIGHT.map((f) => ({ ...f, keys: this.kbMap.keys[f.id] }));
+    this.held = Object.fromEntries(['pour', 'pump', 'reelIn', 'reelOut', 'freeLook', 'boltCam'].map((id) => [id, this.kbMap.keys[id]]));
+    this.mouseFlies = mouseFlies(this.kbMap);
+    this.centreMouse();
+    if (!this.mouseFlies) this.unlock();
+    if (persist) saveKb(layout);
+  }
+  kbEdit(fn) { const r = fn(this.kbLayout); this.setKbLayout(r.layout || r); return r.notes || []; }
+  chooseKbPreset(id) { this.setKbLayout(chooseKbPreset(this.kbLayout, id)); }
+  bindKey(id, code, slot) { return this.kbEdit((l) => bindKey(l, id, code, slot)); }
+  unbindKey(id, code) { return this.kbEdit((l) => unbindKey(l, id, code)); }
+  setMouseAxis(dir, target) { return this.kbEdit((l) => setMouseAxis(l, dir, target)); }
+  setMouseMode(mode) { return this.kbEdit((l) => setMouseMode(l, mode)); }
+  setMouseFeel(k, v) { this.setKbLayout({ ...this.kbLayout, [k]: v }); }
+  // Remapping: the next key or mouse button goes to cb (null when cancelled). Times out like the pad's.
+  startKbCapture(cb) {
+    this.cancelKbCapture();
+    this.kbCapture = { cb, t: setTimeout(() => this.finishCapture(null), 6000) };
+    return true;
+  }
+  cancelKbCapture() { if (this.kbCapture) this.finishCapture(null); }
+  finishCapture(code) {
+    const c = this.kbCapture;
+    if (!c) return;
+    clearTimeout(c.t);
+    this.kbCapture = null;
+    this.keys.clear();
+    c.cb(code ? { code } : null);
+  }
+
+  centreMouse() { this.mstick.x = this.mstick.y = 0; }
+  unlock() {
+    if (this.locked && typeof document !== 'undefined' && document.exitPointerLock) { this.wantLock = false; document.exitPointerLock(); }
+  }
+  // Whether the mouse stick holds its position on this axis (true) or springs back (false).
+  mouseHolds(target) { return this.kbMap.mouse.mode === 'stick' || (this.assist && (target === 'pitch' || target === 'roll')); }
+  mouseMove(dx, dy) {
+    if (!this.locked) return;
+    const M = CFG.input.mouse, L = this.kbLayout;
+    const inv = L.invertMouse ? -1 : 1;
+    const step = (target) => (target === 'none' ? 0 : L.mouseSens / (this.mouseHolds(target) ? M.stickPx : target === 'yaw' ? M.noseYawPx : M.nosePx));
+    const m = this.kbMap.mouse;
+    this.mstick.x += dx * step(m.x);
+    this.mstick.y += -dy * inv * step(m.y);
+    if (m.mode === 'stick') {
+      const r = Math.hypot(this.mstick.x, this.mstick.y);
+      if (r > 1) { this.mstick.x /= r; this.mstick.y /= r; }
+    } else {
+      this.mstick.x = Math.max(-1, Math.min(1, this.mstick.x));
+      this.mstick.y = Math.max(-1, Math.min(1, this.mstick.y));
+    }
+    this.source = 'keyboard';
+  }
+  // Mouse stick to flight axes, springing back the axes that do not hold.
+  updateMouse(dt) {
+    const m = this.kbMap.mouse, o = this.mouseOut;
+    o.pitch = o.roll = o.yaw = 0;
+    if (!this.mouseFlies) return;
+    const k = Math.exp(-dt / CFG.input.mouse.spring);
+    if (m.x !== 'none' && !this.mouseHolds(m.x)) this.mstick.x *= k;
+    if (m.y !== 'none' && !this.mouseHolds(m.y)) this.mstick.y *= k;
+    if (!this.locked) return;
+    if (m.x !== 'none') o[m.x] += this.mstick.x;
+    if (m.y !== 'none') o[m.y] += this.mstick.y;
+  }
+  // For the HUD: the mouse stick's dot, or a nudge to click in. Null when the mouse does not fly.
+  mouseView() {
+    if (!this.mouseFlies) return null;
+    return { locked: this.locked, x: this.mstick.x, y: this.mstick.y, mode: this.kbMap.mouse.mode, looking: this.isHeld('freeLook') };
+  }
+  isHeld(id) { const l = this.held[id]; return !!l && l.some((c) => this.keys.has(c)); }
+
   clearAll() {
     this.pads.stopRumble();
     this.keys.clear();
     Object.assign(this.kb, { pitch: 0, roll: 0, yaw: 0, collective: 0 });
     Object.assign(this.touch, { pitch: 0, roll: 0, yaw: 0, collective: 0, pour: false, doors: false, pump: false, reel: 0, bolt: false });
-    this.mouseBolt = false;
+    this.centreMouse();
     this.pourBtn?.classList.remove('pressed');
     for (const s of this.sticks || []) s.release();
   }
 
   // Mouse drag (or a finger on open screen, away from the sticks) orbits the chase camera or, in the
-  // cockpit, turns the pilot's head. The wheel zooms either.
+  // cockpit, turns the pilot's head. The wheel zooms either. When the keyboard layout flies with the mouse,
+  // a click captures the pointer instead: then the mouse flies, and the free-look key makes it look.
   bindCanvas(canvas) {
+    this.canvas = canvas;
+    const lookBy = (dx, dy, k) => {
+      if (LOOK_MODES.has(this.viewMode)) { this.look.yaw -= dx * k; this.look.pitch -= dy * k; } else { this.camOrbit.yaw -= dx * 0.006; this.camOrbit.pitch += dy * 0.004; }
+    };
     canvas.addEventListener('pointerdown', (e) => {
-      if (e.pointerType === 'mouse' && e.button === 2) { this.mouseBolt = true; this.source = 'keyboard'; return; }
+      if (e.pointerType === 'mouse') {
+        const code = `Mouse${e.button}`;
+        if (this.kbCapture) { e.preventDefault(); this.finishCapture(code); return; }
+        this.source = 'keyboard';
+        if (this.mouseFlies && !this.locked && e.button === 0 && !this.menuMode && canvas.requestPointerLock) {
+          this.wantLock = true;
+          try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => { this.wantLock = false; }); } catch { this.wantLock = false; }
+          return;
+        }
+        const bind = this.kidx.get(code);
+        if (bind) { this.keys.add(code); this.pressBind(bind, code, e.shiftKey); if (bind !== 'freeLook') return; }
+        if (this.locked || e.button === 2) return;
+      }
       if (this.dragging) return;
       this.dragging = { x: e.clientX, y: e.clientY, id: e.pointerId, touch: e.pointerType !== 'mouse' };
       canvas.setPointerCapture(e.pointerId);
@@ -129,21 +252,19 @@ export class Input {
       }
     });
     canvas.addEventListener('pointermove', (e) => {
-      if (!this.dragging || e.pointerId !== this.dragging.id) return;
-      const dx = e.clientX - this.dragging.x, dy = e.clientY - this.dragging.y;
-      if (LOOK_MODES.has(this.viewMode)) {
-        const k = this.dragging.touch ? 0.006 : 0.004;
-        this.look.yaw -= dx * k;
-        this.look.pitch -= dy * k;
-      } else {
-        this.camOrbit.yaw -= dx * 0.006;
-        this.camOrbit.pitch += dy * 0.004;
+      if (this.locked && e.pointerType === 'mouse') {
+        // Pointer-locked: raw movement flies, or looks while free look is held.
+        if (this.isHeld('freeLook')) lookBy(e.movementX, e.movementY, 0.004);
+        else if (!this.menuMode) this.mouseMove(e.movementX, e.movementY);
+        return;
       }
+      if (!this.dragging || e.pointerId !== this.dragging.id) return;
+      lookBy(e.clientX - this.dragging.x, e.clientY - this.dragging.y, this.dragging.touch ? 0.006 : 0.004);
       this.dragging.x = e.clientX; this.dragging.y = e.clientY;
     });
-    const end = (e) => { if (e.pointerType === 'mouse' && e.button === 2) this.mouseBolt = false; if (this.dragging && e.pointerId === this.dragging.id) this.dragging = null; };
-    // Right button released over the HUD or outside the window still lets go of the GoPro.
-    window.addEventListener('pointerup', (e) => { if (e.button === 2) this.mouseBolt = false; });
+    const end = (e) => { if (this.dragging && e.pointerId === this.dragging.id) this.dragging = null; };
+    // A mouse button released over the HUD or outside the window still lets go (the GoPro on right mouse).
+    window.addEventListener('pointerup', (e) => { if (e.pointerType === 'mouse') this.keys.delete(`Mouse${e.button}`); });
     canvas.addEventListener('pointerup', end);
     canvas.addEventListener('pointercancel', end);
     canvas.addEventListener('lostpointercapture', end);
@@ -153,6 +274,18 @@ export class Input {
       else this.camOrbit.zoom += Math.sign(e.deltaY) * 0.08;
     }, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    document.addEventListener('pointerlockchange', () => {
+      const was = this.locked;
+      this.locked = document.pointerLockElement === canvas;
+      if (was && !this.locked) {
+        // Let go of the stick. Esc while flying releases the pointer before the page sees the key: pause.
+        this.centreMouse();
+        for (const k of [...this.keys]) if (k.startsWith('Mouse')) this.keys.delete(k);
+        if (this.wantLock && !this.menuMode) this.actions.push('pause');
+      }
+      this.wantLock = this.locked;
+    });
+    document.addEventListener('pointerlockerror', () => { this.wantLock = false; });
   }
 
   // ---------------------------------------------------------------- touch
@@ -302,12 +435,9 @@ export class Input {
   update(dt) {
     const k = this.keys;
     const has = (l) => l.some((c) => k.has(c));
-    const tgt = {
-      pitch: (has(KEYMAP.pitchUp) ? 1 : 0) - (has(KEYMAP.pitchDown) ? 1 : 0),
-      roll: (has(KEYMAP.rollRight) ? 1 : 0) - (has(KEYMAP.rollLeft) ? 1 : 0),
-      yaw: (has(KEYMAP.yawRight) ? 1 : 0) - (has(KEYMAP.yawLeft) ? 1 : 0),
-      collective: (has(KEYMAP.collUp) ? 1 : 0) - (has(KEYMAP.collDown) ? 1 : 0),
-    };
+    const tgt = this.kbTgt || (this.kbTgt = { pitch: 0, roll: 0, yaw: 0, collective: 0 });
+    tgt.pitch = tgt.roll = tgt.yaw = tgt.collective = 0;
+    for (const f of this.kbFlight) if (has(f.keys)) tgt[f.axis] += f.dir;
     // Keys slew so taps give proportional, not bang-bang, inputs.
     for (const a of ['pitch', 'roll', 'yaw', 'collective']) {
       const t = tgt[a], c = this.kb[a];
@@ -316,32 +446,39 @@ export class Input {
       this.kb[a] = Math.abs(t - c) < step ? t : c + Math.sign(t - c) * step;
     }
     this.pollGamepad(dt);
+    this.pollHotas(dt);
+    // Menus own the pointer: let it go while one is open.
+    if (this.menuMode && this.locked) this.unlock();
+    this.updateMouse(dt);
     const pick = (a) => {
-      const vals = [this.kb[a], this.gp[a], shape(this.touch[a])];
       let best = 0;
-      for (const v of vals) if (Math.abs(v) > Math.abs(best)) best = v;
+      for (const v of [this.kb[a], this.gp[a], shape(this.touch[a]), this.mouseOut[a] || 0, this.ho[a]]) if (Math.abs(v) > Math.abs(best)) best = v;
       return best;
     };
     this.ctl.pitch = pick('pitch');
     this.ctl.roll = pick('roll');
     this.ctl.yaw = pick('yaw');
     this.ctl.collective = pick('collective');
+    // A throttle used as the lever is the collective, whatever else is pushed (Assist off reads ctl.lever).
+    this.ctl.lever = this.hotas.out.lever;
+    if (this.ctl.lever !== null) this.ctl.collective = this.ho.collective;
     // Tank controls (skycrane). Keys and touch open the doors progressively while held; a trigger is direct.
     const sky = this.aircraft === 'skycrane';
     const S = CFG.skycrane.tank;
-    const gHeld = POUR_KEYS.some((c) => k.has(c));
+    const gHeld = this.isHeld('pour') || this.hotas.isHeld('pour');
     this.kbDoors = sky && gHeld ? Math.min(1, this.kbDoors + S.doorSlew * dt) : 0;
     this.touchDoors = sky && this.touch.doors ? Math.min(1, this.touchDoors + S.doorSlew * dt) : 0;
     this.ctl.doors = sky ? Math.max(this.kbDoors, this.touchDoors, this.pads.doors || 0) : 0;
-    this.ctl.pump = sky ? Math.max(TANK_KEYS.pump.some((c) => k.has(c)) ? 1 : 0, this.touch.pump ? 1 : 0, this.pads.pump || 0) : 0;
-    const reel = (TANK_KEYS.reelOut.some((c) => k.has(c)) ? 1 : 0) - (TANK_KEYS.reelIn.some((c) => k.has(c)) ? 1 : 0) + this.touch.reel + (this.pads.reel || 0);
+    this.ctl.pump = sky ? Math.max(this.isHeld('pump') || this.hotas.isHeld('pump') ? 1 : 0, this.touch.pump ? 1 : 0, this.pads.pump || 0) : 0;
+    const reel = (this.isHeld('reelOut') || this.hotas.isHeld('reelOut') ? 1 : 0) - (this.isHeld('reelIn') || this.hotas.isHeld('reelIn') ? 1 : 0) + this.touch.reel + (this.pads.reel || 0);
     this.ctl.reel = sky ? Math.max(-1, Math.min(1, reel)) : 0;
     // The bucket's valve: G / RB / Pour; on the skycrane its hook's bucket opens with the doors.
     this.ctl.pour = sky ? this.ctl.doors > 0.05 : gHeld || !!this.pads.pour || this.touch.pour;
     // Held camera buttons from the pad layout (the camera code reads these; keys and touch can add theirs).
-    // The GoPro: the pad's boltCam binding (LT in the Aim presets), B, the right mouse button or touch GoPro.
-    this.ctl.boltCam = this.pads.isHeld('boltCam') || BOLT_KEYS.some((c) => k.has(c)) || this.mouseBolt || this.touch.bolt;
-    if (!this.enabled) { this.ctl.pitch = this.ctl.roll = this.ctl.yaw = this.ctl.collective = 0; this.ctl.pour = false; this.ctl.doors = this.ctl.pump = this.ctl.reel = 0; this.ctl.boltCam = false; }
+    // The GoPro: the pad's boltCam binding (LT in the Aim presets), the keyboard's (B or right mouse) or touch GoPro.
+    this.ctl.boltCam = this.pads.isHeld('boltCam') || this.isHeld('boltCam') || this.hotas.isHeld('boltCam') || this.touch.bolt;
+    if (!this.enabled) {
+      this.centreMouse(); this.ctl.pitch = this.ctl.roll = this.ctl.yaw = this.ctl.collective = 0; this.ctl.lever = null; this.ctl.pour = false; this.ctl.doors = this.ctl.pump = this.ctl.reel = 0; this.ctl.boltCam = false; }
     return this.ctl;
   }
 
@@ -371,6 +508,22 @@ export class Input {
       this.camOrbit.yaw -= this.pads.look.x * 2.2 * dt;
       this.camOrbit.pitch -= this.pads.look.y * 1.2 * dt;
     }
+  }
+
+  pollHotas(dt) {
+    const H = this.hotas;
+    const used = H.poll(dt, this.menuMode);
+    const o = H.out;
+    this.ho.pitch = o.pitch; this.ho.roll = o.roll; this.ho.yaw = o.yaw; this.ho.collective = o.collective;
+    if (used) this.source = 'hotas';
+    for (const e of H.takeEvents()) this.actions.push(e);
+    for (const n of H.takeNotices()) this.notices.push(n);
+    // The hat glances around the cockpit, or orbits and zooms the chase camera (sideways orbit while look is held).
+    const c = H.cam;
+    if (!c) return;
+    if (LOOK_MODES.has(this.viewMode)) { this.look.yaw -= c.yaw * 1.5 * dt; this.look.pitch -= c.zoom * 1.1 * dt; }
+    else if (c.look) { this.camOrbit.yaw -= c.yaw * 1.8 * dt; this.camOrbit.pitch -= c.zoom * 1.2 * dt; }
+    else { this.camOrbit.yaw += c.yaw * 1.8 * dt; this.camOrbit.zoom += c.zoom * 1.2 * dt; }
   }
 
   takeLook() { const l = { ...this.look }; this.look.yaw = this.look.pitch = this.look.zoom = 0; return l; }
