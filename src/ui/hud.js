@@ -5,6 +5,7 @@ import {
   activeAxes, activeButtons, buttonName, defaultLayout, describe, mappingOf, presetName,
 } from '../input/layouts.js';
 import { CAM_MODES, CAM_NAME } from '../render/cameraModes.js';
+import { HOTAS_ACTIONS, HOTAS_AXES, HOTAS_AXIS_LABEL, MAX_HOTAS_BUTTONS } from '../input/hotas.js';
 import {
   KB_ACTIONS, KB_FLIGHT, KB_PRESETS, KB_PRESET_ORDER, MAX_KEYS, MOUSE_MODES, MOUSE_MODE_LABEL, MOUSE_TARGETS, MOUSE_TARGET_LABEL,
   defaultKbLayout, describeKb, kbMappingOf, kbPresetName, keyName,
@@ -126,6 +127,7 @@ export class Hud {
     const K = {
       keyboard: this.kbKeys(),
       gamepad: this.padKeys(),
+      hotas: this.hotasKeys(),
       touch: { lift: `the ${this.touchStick('collective')} stick up`, attach: '<kbd>Hook</kbd>', assist: 'the <b>Assist</b> switch (top left)', restart: '↻', pour: '<kbd>Pour</kbd>', doors: '<kbd>Doors</kbd>', salvo: 'double-tap <kbd>Doors</kbd>', pump: '<kbd>Pump</kbd>', autofill: 'double-tap <kbd>Pump</kbd>', reel: '<kbd>Hose ▲▼</kbd>' },
     };
     return K[d][action];
@@ -160,6 +162,16 @@ export class Hud {
     this.mstick.classList.toggle('stick', v.mode === 'stick');
     const t = `translate(${(v.x * 26).toFixed(1)}px, ${(-v.y * 26).toFixed(1)}px)`;
     if (t !== this.mlast) { this.mlast = t; this.mdot.style.transform = t; }
+  }
+
+  // Flight-stick prompts follow the HOTAS profile.
+  hotasKeys() {
+    const H = this.input?.hotas;
+    const k = (id) => { const r = H?.profile.buttons[id]?.[0]; return r ? `<kbd>${H.refName(r)}</kbd>` : '<kbd>unbound</kbd>'; };
+    return {
+      lift: H?.profile.lift === 'lever' ? 'the throttle forward' : 'the throttle past half way', attach: k('attach'), assist: k('assist'), restart: k('restart'),
+      pour: k('pour'), doors: k('pour'), salvo: `twice ${k('pour')}`, pump: k('pump'), autofill: '<kbd>unbound</kbd>', reel: `${k('reelIn')} ${k('reelOut')}`,
+    };
   }
 
   // Gamepad prompts follow the player's layout (set via hud.pads by the game).
@@ -451,7 +463,7 @@ export class Hud {
       <div class="panel menu" role="dialog" aria-label="Controls">
         <h2>Controls</h2>
         <div class="help-tabs">
-          ${['keyboard', 'gamepad', 'touch'].map((t) => `<button data-act="helptab" data-tab="${t}" class="${t === tab ? 'on' : ''}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}
+          ${[['keyboard', 'Keyboard'], ['gamepad', 'Gamepad'], ['hotas', 'Flight stick'], ['touch', 'Touch']].map(([t, nm]) => `<button data-act="helptab" data-tab="${t}" class="${t === tab ? 'on' : ''}">${nm}</button>`).join('')}
         </div>
         <dl class="help-grid">${this.helpRows(tab)}</dl>
         <p class="help-note"><b>Collective</b> works the same on every device. With Flight Assist on it sets a climb or sink speed: let go to hold
@@ -468,6 +480,7 @@ export class Hud {
     const R = {
       keyboard: this.kbHelpRows(),
       gamepad: this.padHelpRows(),
+      hotas: this.hotasHelpRows(),
       touch: this.touchHelpRows(),
     };
     return R[tab].map(([k, d]) => `<dt>${k}</dt><dd>${d}</dd>`).join('');
@@ -500,6 +513,21 @@ export class Hud {
     ];
   }
 
+  hotasHelpRows() {
+    const H = this.input?.hotas;
+    if (!H) return [];
+    const P = H.profile;
+    const ax = (a) => (P.axes[a] ? `${H.devName(P.axes[a].dev)} axis ${P.axes[a].index + 1}` : 'unbound');
+    const rows = [
+      ['Stick', `Tilt (${ax('roll')}, ${ax('pitch')}). Twist to turn (${ax('yaw')})`],
+      ['Throttle', P.lift === 'lever' ? 'Is the collective: where you leave it is the lift. With Assist on, the middle holds height' : 'Lift like the pad\'s lift stick: past half way climbs, below sinks (Lift stick setting applies)'],
+      ['Hat', 'Orbit and zoom the camera; glance around in the cockpit'],
+    ];
+    for (const A of HOTAS_ACTIONS) if (P.buttons[A.id].length) rows.push([P.buttons[A.id].map((r) => `<kbd>${H.refName(r)}</kbd>`).join(' '), A.label]);
+    rows.push(['', `${P.taught ? 'Taught on your device.' : 'X56 defaults, not yet taught: if a control does the wrong thing, use Teach in Controls → Flight stick.'} Chrome and Edge only see a stick after you press one of its buttons.`]);
+    return rows;
+  }
+
   // The gamepad sheet is written from the layout in force, so it is always true to the player's setup.
   padHelpRows() {
     const layout = this.pads ? this.pads.layout : defaultLayout();
@@ -528,7 +556,7 @@ export class Hud {
   closeModal() { this.modal.classList.remove('show'); this.modalKind = null; document.activeElement?.blur?.(); }
 
   // ---------------------------------------------------------------- controller settings
-  openController(pads, tab = this.device === 'gamepad' ? 'gamepad' : 'keyboard') {
+  openController(pads, tab = this.device === 'gamepad' || this.device === 'hotas' ? this.device : 'keyboard') {
     this.modalKind = 'controller';
     this.pads = pads;
     this.ctlTab = tab;
@@ -539,13 +567,18 @@ export class Hud {
       <div class="panel menu pad-panel" role="dialog" aria-label="Controls and remapping">
         <h2>Controls</h2>
         <div class="help-tabs ctl-tabs">
-          ${[['keyboard', 'Keyboard and mouse'], ['gamepad', 'Gamepad']].map(([t, nm]) => `<button data-act="ctltab" data-tab="${t}" class="${t === tab ? 'on' : ''}">${nm}</button>`).join('')}
+          ${[['keyboard', 'Keyboard and mouse'], ['gamepad', 'Gamepad'], ['hotas', 'Flight stick']].map(([t, nm]) => `<button data-act="ctltab" data-tab="${t}" class="${t === tab ? 'on' : ''}">${nm}</button>`).join('')}
         </div>
         <div class="kb-tab ${tab === 'keyboard' ? '' : 'hidden'}">
           <div class="kb-capture hidden" role="status"><p class="kb-prompt"></p><div class="row"><button class="secondary" data-kb="capcancel">Cancel</button></div></div>
           <div class="kb-layout kb-settings"></div>
           <div class="row stack kb-settings">${liftSelect(CFG.collective.mode)}</div>
           <div class="row kb-settings"><button class="primary" style="margin-top:0" data-act="closecontroller">Done</button></div>
+        </div>
+        <div class="ho-tab ${tab === 'hotas' ? '' : 'hidden'}">
+          <div class="ho-teach hidden" role="status"><p class="wz-step"></p><p class="ho-prompt"></p><div class="row"><button class="secondary" data-ho="skip">Skip this one</button><button class="secondary" data-ho="cancel">Cancel</button></div></div>
+          <div class="ho-body"></div>
+          <div class="row ho-settings"><button class="primary" style="margin-top:0" data-act="closecontroller">Done</button></div>
         </div>
         <div class="pad-tab ${tab === 'gamepad' ? '' : 'hidden'}">
         <div class="pad-list"></div>
@@ -590,6 +623,7 @@ export class Hud {
     this.modal.querySelector('.kb-capture [data-kb=capcancel]').addEventListener('click', () => this.input?.cancelKbCapture());
     this.renderLayout();
     this.renderKb();
+    this.renderHotas();
     this.modal.classList.add('show');
     this.updateController();
     this.focusFirst();
@@ -603,6 +637,96 @@ export class Hud {
     this.modal.querySelectorAll('.ctl-tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
     this.modal.querySelector('.kb-tab').classList.toggle('hidden', tab !== 'keyboard');
     this.modal.querySelector('.pad-tab').classList.toggle('hidden', tab !== 'gamepad');
+    this.modal.querySelector('.ho-tab').classList.toggle('hidden', tab !== 'hotas');
+    if (tab !== 'hotas' && this.input) { this.input.hotas.cancelTeach(); this.input.hotas.cancelCapture(); }
+  }
+
+  // ---------------------------------------------------------------- flight stick / HOTAS
+  renderHotas(focusKey) {
+    const H = this.input?.hotas;
+    const box = this.modal.querySelector('.ho-body');
+    if (!box || !H) return;
+    const P = H.profile;
+    const axRow = (a) => {
+      const r = P.axes[a];
+      return `<div class="opt lay-btn ho-axis"><span>${HOTAS_AXIS_LABEL[a]}<small class="ho-src">${r ? `${H.devName(r.dev)}, axis ${r.index + 1}${r.sign < 0 ? ', reversed' : ''}` : 'unbound'}</small></span>
+        <span class="ho-meter" data-axis="${a}"><i></i></span>
+        <span class="chips"><button class="secondary" data-ho="teach1" data-axis="${a}" data-key="ht-${a}">Teach</button><button class="secondary" data-ho="flip" data-axis="${a}" data-key="hf-${a}" ${r ? '' : 'disabled'}>Reverse</button></span></div>`;
+    };
+    const chips = (A) => {
+      const list = P.buttons[A.id];
+      const c = list.map((r, i) => `<span class="chip"><button class="secondary" data-ho="rebind" data-id="${A.id}" data-slot="${i}" data-key="hb-${A.id}-${i}">${H.refName(r)}</button><button class="secondary x" data-ho="unbind" data-id="${A.id}" data-slot="${i}" data-key="hx-${A.id}-${i}" aria-label="Remove ${H.refName(r)} from ${A.label}">×</button></span>`);
+      if (list.length < MAX_HOTAS_BUTTONS) c.push(`<button class="secondary add" data-ho="rebind" data-id="${A.id}" data-key="hadd-${A.id}" aria-label="Add a button for ${A.label}">+</button>`);
+      return c.join('');
+    };
+    const slider = (k, label, min, max, step) => `<label class="opt">${label}<input type="range" data-ho="num" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${P[k]}" /></label>`;
+    box.innerHTML = `
+      <div class="ho-list"></div>
+      <p class="help-note">${P.taught ? 'Taught on your stick.' : 'Set up for the <b>X56</b> as a first guess. Press <b>Teach all</b> and move each control once to set it exactly; any stick and throttle works the same way.'} Chrome and Edge only show a stick after you press one of its buttons.</p>
+      <div class="row"><button class="primary" style="margin-top:0" data-ho="teach" data-key="hteach">Teach all</button><button class="secondary" data-ho="reset" data-key="hreset">Back to X56 defaults</button></div>
+      <h3 class="pad-h">Axes</h3>
+      ${HOTAS_AXES.map(axRow).join('')}
+      <label class="opt">Throttle as lift
+        <select data-ho="lift" data-key="hlift" aria-label="Throttle as lift">
+          <option value="spring" ${P.lift === 'spring' ? 'selected' : ''}>Like the lift stick: middle of its travel is centre</option>
+          <option value="lever" ${P.lift === 'lever' ? 'selected' : ''}>A real collective: where you leave it is the lift</option>
+        </select></label>
+      <p class="help-note">As a real collective, the throttle position is the collective with Assist off, so it stays where you put it. With Assist on, the middle of its travel holds height.</p>
+      <h3 class="pad-h">Feel</h3>
+      ${slider('deadZone', 'Dead zone', 0, 0.2, 0.01)}
+      ${slider('expo', 'Fine control near centre', 0, 0.9, 0.05)}
+      ${slider('cyclic', 'Tilt sensitivity', 0.3, 1.5, 0.05)}
+      ${slider('yaw', 'Turn sensitivity', 0.3, 1.5, 0.05)}
+      <h3 class="pad-h">Buttons</h3>
+      ${HOTAS_ACTIONS.map((A) => `<div class="opt lay-btn"><span>${A.label}</span><span class="chips">${chips(A)}</span></div>`).join('')}
+      <p class="help-note">The hat orbits and zooms the camera, or glances around in the cockpit. A button can only do one thing: choosing one that is in use moves it.</p>`;
+    const again = (key) => { this.renderHotas(key); };
+    const teachView = (v) => {
+      const t = this.modal.querySelector('.ho-teach');
+      const others = this.modal.querySelectorAll('.ho-body, .ho-settings');
+      if (!v || v.done) { t.classList.add('hidden'); others.forEach((e) => e.classList.remove('hidden')); if (v && v.done) this.toast('Flight stick set up'); again('hteach'); return; }
+      t.classList.remove('hidden'); others.forEach((e) => e.classList.add('hidden'));
+      t.querySelector('.wz-step').textContent = v.total > 1 ? `Step ${v.step} of ${v.total}` : '';
+      t.querySelector('.ho-prompt').innerHTML = v.prompt;
+    };
+    const none = () => this.toast('Press a button on your stick or throttle first so the browser can see it');
+    box.querySelector('[data-ho=teach]').addEventListener('click', () => { if (!H.startTeach(teachView)) none(); });
+    box.querySelector('[data-ho=reset]').addEventListener('click', () => { H.resetProfile(); again('hreset'); });
+    box.querySelector('[data-ho=lift]').addEventListener('change', (e) => { H.setProfile({ ...H.profile, lift: e.target.value }); });
+    for (const el of box.querySelectorAll('[data-ho=num]')) el.addEventListener('input', () => H.setProfile({ ...H.profile, [el.dataset.k]: parseFloat(el.value) }));
+    for (const el of box.querySelectorAll('[data-ho=teach1]')) el.addEventListener('click', () => { if (!H.startTeach(teachView, el.dataset.axis)) none(); });
+    for (const el of box.querySelectorAll('[data-ho=flip]')) el.addEventListener('click', () => { H.flip(el.dataset.axis); again(el.dataset.key); });
+    for (const el of box.querySelectorAll('[data-ho=unbind]')) el.addEventListener('click', () => { H.unbind(el.dataset.id, H.profile.buttons[el.dataset.id][+el.dataset.slot]); again(`hadd-${el.dataset.id}`); });
+    for (const el of box.querySelectorAll('[data-ho=rebind]')) {
+      el.addEventListener('click', () => {
+        const id = el.dataset.id, slot = el.dataset.slot !== undefined ? +el.dataset.slot : null;
+        const ok = H.startCapture((ref) => { teachView(null); if (ref) H.bind(id, ref, slot); again(el.dataset.key); });
+        if (!ok) { none(); return; }
+        teachView({ step: 1, total: 1, prompt: `Press the stick or throttle button for <b>${HOTAS_ACTIONS.find((a) => a.id === id).label}</b><br><small>or wait a few seconds to cancel</small>` });
+      });
+    }
+    const t = this.modal.querySelector('.ho-teach');
+    t.querySelector('[data-ho=skip]').onclick = () => H.skipTeach();
+    t.querySelector('[data-ho=cancel]').onclick = () => { H.cancelTeach(); H.cancelCapture(); };
+    if (focusKey) this.focusKey(focusKey);
+  }
+
+  // Live: the devices the browser sees and where each axis sits.
+  updateHotas() {
+    const H = this.input?.hotas;
+    const el = this.modal.querySelector('.ho-list');
+    if (!H || !el || this.ctlTab !== 'hotas') return;
+    const html = H.devices.length
+      ? H.devices.map((g) => `<div class="pad-item on"><b>${H.devName(g.id)}</b><span>${g.axes.length} axes · ${g.buttons.length} buttons</span><small>${g.id}</small></div>`).join('')
+      : '<div class="pad-item"><b>No flight stick seen yet</b><span>Plug it in and press one of its buttons: browsers hide sticks until then.</span></div>';
+    if (el.innerHTML !== html) el.innerHTML = html;
+    const P = H.profile;
+    for (const m of this.modal.querySelectorAll('.ho-meter')) {
+      const r = P.axes[m.dataset.axis];
+      const g = r && H.resolve(r.dev);
+      const v = g && Number.isFinite(g.axes[r.index]) ? g.axes[r.index] * r.sign : 0;
+      m.firstElementChild.style.transform = `translateX(${(v * 50).toFixed(1)}%)`;
+    }
   }
 
   // ---------------------------------------------------------------- keyboard and mouse: schemes, mouse, keys
@@ -762,6 +886,7 @@ export class Hud {
 
   updateController() {
     if (this.modalKind !== 'controller' || !this.pads) return;
+    this.updateHotas();
     const pads = this.pads;
     const list = pads.list();
     const el = this.modal.querySelector('.pad-list');

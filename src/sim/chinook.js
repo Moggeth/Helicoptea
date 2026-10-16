@@ -265,7 +265,7 @@ export class Chinook {
       const ty = C.inertia[1] * (A.yawKp * (rateCmd - wb.y) + A.yawKi * this.yawInteg) + C.angDamp[1] * rateCmd;
       yCmd = clamp(-ty / yawPower, -1, 1);
     } else {
-      this.collective = stepCollective(this.collective, ctl.collective, C, dt, { grounded: this.grounded, load: 1 + hookedMass(this.sim) / CHINOOK_MASS, settle: 0.35 });
+      this.collective = stepCollective(this.collective, ctl.collective, C, dt, { grounded: this.grounded, load: 1 + hookedMass(this.sim) / CHINOOK_MASS, settle: 0.35, lever: ctl.lever });
       pCmd = ctl.pitch; rCmd = ctl.roll; yCmd = ctl.yaw;
     }
     this.mix.pitch = pCmd; this.mix.roll = rCmd; this.mix.yaw = yCmd;

@@ -1,5 +1,6 @@
 import { CFG } from '../config.js';
 import { Gamepads } from './gamepad.js';
+import { Hotas } from './hotas.js';
 import { CAM_KEYS, LOOK_MODES } from '../render/cameraModes.js';
 import {
   FIXED_KEYS, KB_FLIGHT, kbMappingOf, keyIndex, mouseFlies, normalizeKbLayout, chooseKbPreset, bindKey, unbindKey, setMouseAxis, setMouseMode,
@@ -47,7 +48,7 @@ export class Input {
   constructor(touchRoot) {
     this.keys = new Set();
     this.kb = { pitch: 0, roll: 0, yaw: 0, collective: 0 };
-    this.ctl = { pitch: 0, roll: 0, yaw: 0, collective: 0, pour: false, doors: 0, pump: 0, reel: 0, boltCam: false };
+    this.ctl = { pitch: 0, roll: 0, yaw: 0, collective: 0, lever: null, pour: false, doors: 0, pump: 0, reel: 0, boltCam: false };
     this.actions = [];
     this.source = 'keyboard';
     this.gp = { pitch: 0, roll: 0, yaw: 0, collective: 0, connected: false, id: '' };
@@ -105,6 +106,10 @@ export class Input {
     window.addEventListener('blur', () => this.clearAll());
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.clearAll(); });
     this.pads = new Gamepads();
+    // Flight sticks and HOTAS: their own layer; the gamepad layer leaves those devices alone.
+    this.hotas = new Hotas();
+    this.pads.exclude = (gp) => this.hotas.owns(gp);
+    this.ho = { pitch: 0, roll: 0, yaw: 0, collective: 0 };
     this.menuMode = false;
     // Mouse orbit (desktop): drag on the canvas, wheel to zoom.
     this.dragging = null;
@@ -439,35 +444,39 @@ export class Input {
       this.kb[a] = Math.abs(t - c) < step ? t : c + Math.sign(t - c) * step;
     }
     this.pollGamepad(dt);
+    this.pollHotas(dt);
     // Menus own the pointer: let it go while one is open.
     if (this.menuMode && this.locked) this.unlock();
     this.updateMouse(dt);
     const pick = (a) => {
       let best = 0;
-      for (const v of [this.kb[a], this.gp[a], shape(this.touch[a]), this.mouseOut[a] || 0]) if (Math.abs(v) > Math.abs(best)) best = v;
+      for (const v of [this.kb[a], this.gp[a], shape(this.touch[a]), this.mouseOut[a] || 0, this.ho[a]]) if (Math.abs(v) > Math.abs(best)) best = v;
       return best;
     };
     this.ctl.pitch = pick('pitch');
     this.ctl.roll = pick('roll');
     this.ctl.yaw = pick('yaw');
     this.ctl.collective = pick('collective');
+    // A throttle used as the lever is the collective, whatever else is pushed (Assist off reads ctl.lever).
+    this.ctl.lever = this.hotas.out.lever;
+    if (this.ctl.lever !== null) this.ctl.collective = this.ho.collective;
     // Tank controls (skycrane). Keys and touch open the doors progressively while held; a trigger is direct.
     const sky = this.aircraft === 'skycrane';
     const S = CFG.skycrane.tank;
-    const gHeld = this.isHeld('pour');
+    const gHeld = this.isHeld('pour') || this.hotas.isHeld('pour');
     this.kbDoors = sky && gHeld ? Math.min(1, this.kbDoors + S.doorSlew * dt) : 0;
     this.touchDoors = sky && this.touch.doors ? Math.min(1, this.touchDoors + S.doorSlew * dt) : 0;
     this.ctl.doors = sky ? Math.max(this.kbDoors, this.touchDoors, this.pads.doors || 0) : 0;
-    this.ctl.pump = sky ? Math.max(this.isHeld('pump') ? 1 : 0, this.touch.pump ? 1 : 0, this.pads.pump || 0) : 0;
-    const reel = (this.isHeld('reelOut') ? 1 : 0) - (this.isHeld('reelIn') ? 1 : 0) + this.touch.reel + (this.pads.reel || 0);
+    this.ctl.pump = sky ? Math.max(this.isHeld('pump') || this.hotas.isHeld('pump') ? 1 : 0, this.touch.pump ? 1 : 0, this.pads.pump || 0) : 0;
+    const reel = (this.isHeld('reelOut') || this.hotas.isHeld('reelOut') ? 1 : 0) - (this.isHeld('reelIn') || this.hotas.isHeld('reelIn') ? 1 : 0) + this.touch.reel + (this.pads.reel || 0);
     this.ctl.reel = sky ? Math.max(-1, Math.min(1, reel)) : 0;
     // The bucket's valve: G / RB / Pour; on the skycrane its hook's bucket opens with the doors.
     this.ctl.pour = sky ? this.ctl.doors > 0.05 : gHeld || !!this.pads.pour || this.touch.pour;
     // Held camera buttons from the pad layout (the camera code reads these; keys and touch can add theirs).
     // The GoPro: the pad's boltCam binding (LT in the Aim presets), the keyboard's (B or right mouse) or touch GoPro.
-    this.ctl.boltCam = this.pads.isHeld('boltCam') || this.isHeld('boltCam') || this.touch.bolt;
+    this.ctl.boltCam = this.pads.isHeld('boltCam') || this.isHeld('boltCam') || this.hotas.isHeld('boltCam') || this.touch.bolt;
     if (!this.enabled) {
-      this.centreMouse(); this.ctl.pitch = this.ctl.roll = this.ctl.yaw = this.ctl.collective = 0; this.ctl.pour = false; this.ctl.doors = this.ctl.pump = this.ctl.reel = 0; this.ctl.boltCam = false; }
+      this.centreMouse(); this.ctl.pitch = this.ctl.roll = this.ctl.yaw = this.ctl.collective = 0; this.ctl.lever = null; this.ctl.pour = false; this.ctl.doors = this.ctl.pump = this.ctl.reel = 0; this.ctl.boltCam = false; }
     return this.ctl;
   }
 
@@ -497,6 +506,22 @@ export class Input {
       this.camOrbit.yaw -= this.pads.look.x * 2.2 * dt;
       this.camOrbit.pitch -= this.pads.look.y * 1.2 * dt;
     }
+  }
+
+  pollHotas(dt) {
+    const H = this.hotas;
+    const used = H.poll(dt, this.menuMode);
+    const o = H.out;
+    this.ho.pitch = o.pitch; this.ho.roll = o.roll; this.ho.yaw = o.yaw; this.ho.collective = o.collective;
+    if (used) this.source = 'hotas';
+    for (const e of H.takeEvents()) this.actions.push(e);
+    for (const n of H.takeNotices()) this.notices.push(n);
+    // The hat glances around the cockpit, or orbits and zooms the chase camera (sideways orbit while look is held).
+    const c = H.cam;
+    if (!c) return;
+    if (LOOK_MODES.has(this.viewMode)) { this.look.yaw -= c.yaw * 1.5 * dt; this.look.pitch -= c.zoom * 1.1 * dt; }
+    else if (c.look) { this.camOrbit.yaw -= c.yaw * 1.8 * dt; this.camOrbit.pitch -= c.zoom * 1.2 * dt; }
+    else { this.camOrbit.yaw += c.yaw * 1.8 * dt; this.camOrbit.zoom += c.zoom * 1.2 * dt; }
   }
 
   takeLook() { const l = { ...this.look }; this.look.yaw = this.look.pitch = this.look.zoom = 0; return l; }

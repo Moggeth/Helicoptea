@@ -461,6 +461,7 @@ async function boot() {
       case 'controller': hud.openController(input.pads); break;
       case 'closecontroller':
         input.cancelKbCapture();
+        input.hotas.cancelTeach(); input.hotas.cancelCapture();
         input.pads.cancelWizard();
         if (input.pads.capture) input.pads.cancelCapture();
         hud.closeModal();
@@ -482,6 +483,7 @@ async function boot() {
   // Back button in menus: close the innermost panel.
   function back() {
     if (input.kbCapture) { input.cancelKbCapture(); return; }
+    if (input.hotas.teach || input.hotas.capture) { input.hotas.cancelTeach(); input.hotas.cancelCapture(); return; }
     if (input.pads.capture) { input.pads.cancelCapture(); return; }
     if (input.pads.wizard) { doAction('wizcancel'); return; }
     if (hud.modalKind === 'tuning') tuningPanel.close();

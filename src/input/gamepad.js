@@ -92,6 +92,7 @@ export class Gamepads {
     if (typeof window === 'undefined') return;
     window.addEventListener('gamepadconnected', (e) => {
       const gp = e.gamepad;
+      if (this.exclude && this.exclude(gp)) return;   // a flight stick: hotas.js reads it
       this.rest.set(gp.index, gp.axes.slice());
       this.notices.push({ type: 'connected', text: `${prettyName(gp.id)} connected${gp.mapping === 'standard' || this.hasBinding(gp) ? '' : ': set it up in Controller settings'}` });
       if (this.activeIndex === null) this.activeIndex = gp.index;
@@ -112,7 +113,7 @@ export class Gamepads {
     this.pour = false; this.doors = 0; this.pump = 0; this.reel = 0; this.look = null; this.viewHeldT = 0; this.viewLooked = false;
     this.holds = {};
   }
-  list() { return [...(navigator.getGamepads ? navigator.getGamepads() : [])].filter(Boolean); }
+  list() { return [...(navigator.getGamepads ? navigator.getGamepads() : [])].filter((g) => g && !(this.exclude && this.exclude(g))); }
   active() { const l = navigator.getGamepads ? navigator.getGamepads() : []; return this.activeIndex !== null ? l[this.activeIndex] : null; }
   hasBinding(gp) { return !!load(`bind.${gp.id}`, null); }
   bindingFor(gp) {

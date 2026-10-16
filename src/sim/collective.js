@@ -53,7 +53,9 @@ export function springStick(want, tw, load = 1) {
 
 // One step of the assist-off collective. def: the aircraft's CFG block (thrustToWeight, collectiveRate,
 // idleCollective). Landed with the stick centred, the lever settles to idle so the aircraft sits firmly.
-export function stepCollective(current, stick, def, dt, { grounded = false, load = 1, settle = 0.25 } = {}) {
+// lever (0..1, or null): a HOTAS throttle used as the collective itself, which wins over both modes.
+export function stepCollective(current, stick, def, dt, { grounded = false, load = 1, settle = 0.25, lever = null } = {}) {
+  if (lever !== null && lever !== undefined) return clamp(lever, 0, 1);
   if (collectiveMode() === 'hold') return clamp(current + stick * def.collectiveRate * dt, 0, 1);
   if (grounded && stick <= 0.02) return current + (def.idleCollective - current) * (1 - Math.exp(-dt / settle));
   return springCollective(stick, def.thrustToWeight, load);

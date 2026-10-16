@@ -420,7 +420,7 @@ export class Skycrane {
       else this.yawInteg = clamp(this.yawInteg + (rateCmd - wb.y) * dt, -0.4, 0.4);
       yawTorque = C.inertia[1] * (A.yawKp * (rateCmd - wb.y) + A.yawKi * this.yawInteg) + C.angDamp[1] * rateCmd;
     } else {
-      this.collective = stepCollective(this.collective, ctl.collective, C, dt, { grounded: this.grounded, load: 1 + (this.tankMass + hookedMass(this.sim)) / SKYCRANE_MASS, settle: 0.35 });
+      this.collective = stepCollective(this.collective, ctl.collective, C, dt, { grounded: this.grounded, load: 1 + (this.tankMass + hookedMass(this.sim)) / SKYCRANE_MASS, settle: 0.35, lever: ctl.lever });
       pCmd = ctl.pitch; rCmd = ctl.roll;
       yawTorque = -ctl.yaw * C.tailMax * tailArm;
     }
