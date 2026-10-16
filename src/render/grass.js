@@ -103,7 +103,7 @@ const VERT_HEAD = `
     // Colour: shaded at the root (close to the lawn under it, so blades never read as dark spikes), sunlit at
     // the tip; meadow grass drier; flower heads.
     vec3 base = vec3(0.115, 0.2, 0.055);
-    vec3 tip = mix(vec3(0.27, 0.46, 0.11), vec3(0.5, 0.52, 0.2), mk.g * (0.4 + 0.6 * h2.y));
+    vec3 tip = mix(vec3(0.27, 0.46, 0.11), vec3(0.43, 0.47, 0.17), mk.g * (0.4 + 0.6 * h2.y));
     tip *= 0.8 + 0.4 * h1;
     vec3 col = mix(base, tip, smoothstep(0.0, 0.75, t));
     if (flower > 0.5 && t > 0.8) {

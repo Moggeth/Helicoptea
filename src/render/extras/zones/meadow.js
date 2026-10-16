@@ -150,17 +150,19 @@ const merge = (list) => mergeGeometries(list.map(ni).map((g) => { for (const k o
 
 // ------------------------------------------------------------------ 1. wildflowers
 function flowerHeads() {
-  // Poppy: four crinkled scarlet petals in a bowl, a dark blotch at each base, a grey-green pod in a ring of dark stamens.
-  const poppyPetals = [], poppyCore = [];
+  // Poppy: four crinkled scarlet petals opening in a wide bowl (the inner pair a little more upright), a dark
+  // blotch at each base inside, and a grey-green seed pod with a dark crown in a ring of dark stamens.
+  const poppyPetals = [], poppyCore = [], poppyPod = [];
   for (let i = 0; i < 4; i++) {
-    const big = i % 2 === 0, sz = big ? 0.034 : 0.029, yaw = i * Math.PI / 2 + 0.25;
-    const petal = cupPatch(sz, sz * 1.05, big ? 0.55 : 0.5, 0, 0, 1, 1, 0, 4, 16, 0.0026);
-    const blot = cupPatch(sz, sz * 1.05, big ? 0.55 : 0.5, -0.62, 0, 0.3, 0.5, 0.0007, 1, 10, 0);
-    for (const g of [petal, blot]) { g.translate(sz * 0.9, 0.001, 0); g.rotateZ(1.05); g.rotateY(yaw); }
+    const big = i % 2 === 0, sz = big ? 0.034 : 0.03, yaw = i * Math.PI / 2 + 0.25;
+    const petal = cupPatch(sz, sz * 1.08, big ? 0.3 : 0.34, 0, 0, 1, 1, 0, 5, 18, 0.003);
+    const blot = cupPatch(sz, sz * 1.08, big ? 0.3 : 0.34, -0.66, 0, 0.26, 0.42, 0.0008, 1, 10, 0);
+    for (const g of [petal, blot]) { g.translate(sz * 0.92, 0.001 + (big ? 0 : 0.0015), 0); g.rotateZ(big ? 0.62 : 0.82); g.rotateY(yaw); }
     poppyPetals.push(petal); poppyCore.push(blot);
   }
-  poppyCore.push(new THREE.CylinderGeometry(0.017, 0.015, 0.004, 14).translate(0, 0.004, 0));
-  poppyCore.push(new THREE.SphereGeometry(0.0085, 8, 5).scale(1, 0.75, 1).translate(0, 0.009, 0));
+  poppyCore.push(new THREE.CylinderGeometry(0.014, 0.012, 0.006, 16, 1, true).translate(0, 0.005, 0));   // stamens
+  poppyPod.push(new THREE.SphereGeometry(0.0075, 10, 6).scale(1, 0.95, 1).translate(0, 0.0085, 0));
+  poppyCore.push(new THREE.CylinderGeometry(0.0062, 0.0062, 0.0012, 8).translate(0, 0.0158, 0));          // the crown
 
   // Cornflower: a ring of eight ragged blue florets round a ring of smaller violet ones, in a green bract bowl.
   const cfOuter = [], cfInner = [], cfCore = [];
@@ -186,7 +188,7 @@ function flowerHeads() {
   bcCore.push(new THREE.CylinderGeometry(0.0085, 0.0075, 0.0025, 9).translate(0, 0.004, 0));
 
   return {
-    poppy: { petals: merge(poppyPetals), core: merge(poppyCore) },
+    poppy: { petals: merge(poppyPetals), core: merge(poppyCore), pod: merge(poppyPod) },
     corn: { petals: merge(cfOuter), inner: merge(cfInner), core: merge(cfCore) },
     daisy: { petals: merge(dzPetals), core: merge(dzCore) },
     buttercup: { petals: merge(bcPetals), core: merge(bcCore) },
@@ -281,7 +283,8 @@ function buildFlowers(ctx) {
       const hd = H[name];
       if (name === 'poppy') {
         ctx.batch.add(hd.petals, petalM, hm, jitter(rnd() < 0.2 ? 0xe5532e : 0xd92a1d, 0.1), opt);
-        ctx.batch.add(hd.core, petalM, hm, 0x241f1c, opt);
+        ctx.batch.add(hd.core, petalM, hm, 0x1e1a1c, opt);
+        ctx.batch.add(hd.pod, petalM, hm, 0x8d9c74, opt);
       } else if (name === 'corn') {
         ctx.batch.add(hd.petals, petalM, hm, jitter(0x3f63d8, 0.1), opt);
         ctx.batch.add(hd.inner, petalM, hm, 0x6a3fb2, opt);

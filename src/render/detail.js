@@ -50,32 +50,72 @@ export function buildDetail(scene, quality) {
     b.add(boxUV(w + 0.04, 0.06, 0.3, 1), oak, T(cx, D.top - 0.03, D.z1 - 0.15));
     b.add(boxUV(w + 0.07, 0.025, 0.33, 1), oak, T(cx, D.top + 0.012, D.z1 - 0.16), 0xe8d8c8);
     // Shelves with plates standing in a groove, and cups on hooks under each.
-    const willow = canvasTex(256, 256, (c, W) => {
-      c.fillStyle = '#f6f2ea'; c.fillRect(0, 0, W, W);
-      c.strokeStyle = '#2f4f8f'; c.lineWidth = 10; c.beginPath(); c.arc(W / 2, W / 2, W * 0.44, 0, Math.PI * 2); c.stroke();
-      c.lineWidth = 3; c.beginPath(); c.arc(W / 2, W / 2, W * 0.36, 0, Math.PI * 2); c.stroke();
-      c.fillStyle = 'rgba(47,79,143,0.75)';
-      for (let i = 0; i < 14; i++) { const a = i / 14 * Math.PI * 2; c.beginPath(); c.arc(W / 2 + Math.cos(a) * W * 0.4, W / 2 + Math.sin(a) * W * 0.4, 6, 0, Math.PI * 2); c.fill(); }
-      c.fillStyle = 'rgba(47,79,143,0.6)'; c.fillRect(W * 0.3, W * 0.42, W * 0.4, W * 0.04); c.fillRect(W * 0.46, W * 0.3, W * 0.08, W * 0.3);
-      c.beginPath(); c.arc(W * 0.6, W * 0.62, 18, 0, Math.PI * 2); c.fill();
+    // Blue-and-white transfer ware: a fretwork border, a ring, and a little willow-pattern scene in the well
+    // (willow tree, pagoda, the bridge with its three figures, the fence and the two birds).
+    const willow = canvasTex(512, 512, (c, W) => {
+      const B = '#2c4a8c', m = W / 2;
+      c.fillStyle = '#f7f3ea'; c.fillRect(0, 0, W, W);
+      c.strokeStyle = B; c.fillStyle = B; c.lineCap = 'round'; c.lineJoin = 'round';
+      c.lineWidth = 34; c.beginPath(); c.arc(m, m, W * 0.445, 0, Math.PI * 2); c.stroke();
+      c.strokeStyle = '#f7f3ea'; c.lineWidth = 3;
+      for (let i = 0; i < 36; i++) {           // fret: little hooks reversed out of the band
+        const a = i / 36 * Math.PI * 2, r0 = W * 0.43, r1 = W * 0.46;
+        c.beginPath(); c.moveTo(m + Math.cos(a) * r0, m + Math.sin(a) * r0); c.lineTo(m + Math.cos(a) * r1, m + Math.sin(a) * r1);
+        c.lineTo(m + Math.cos(a + 0.07) * r1, m + Math.sin(a + 0.07) * r1); c.stroke();
+      }
+      c.strokeStyle = B; c.lineWidth = 4; c.beginPath(); c.arc(m, m, W * 0.36, 0, Math.PI * 2); c.stroke();
+      c.lineWidth = 2; c.beginPath(); c.arc(m, m, W * 0.345, 0, Math.PI * 2); c.stroke();
+      c.save(); c.beginPath(); c.arc(m, m, W * 0.33, 0, Math.PI * 2); c.clip();
+      c.globalAlpha = 0.85;
+      c.beginPath(); c.moveTo(m - 170, m + 70); c.quadraticCurveTo(m, m + 40, m + 170, m + 90); c.lineTo(m + 170, m + 200); c.lineTo(m - 170, m + 200); c.fill();   // water's edge
+      c.fillRect(m + 20, m - 40, 70, 60); c.beginPath(); c.moveTo(m + 5, m - 40); c.lineTo(m + 55, m - 85); c.lineTo(m + 105, m - 40); c.fill();   // pagoda
+      c.beginPath(); c.moveTo(m + 15, m - 85); c.lineTo(m + 55, m - 118); c.lineTo(m + 95, m - 85); c.fill();
+      c.fillStyle = '#f7f3ea'; c.fillRect(m + 45, m - 20, 18, 40); c.fillStyle = B;
+      c.lineWidth = 7; c.beginPath(); c.moveTo(m - 70, m - 120); c.quadraticCurveTo(m - 60, m - 20, m - 40, m + 60); c.stroke();                      // willow trunk
+      c.lineWidth = 3;
+      for (let i = 0; i < 9; i++) { const x0 = m - 120 + i * 14; c.beginPath(); c.moveTo(m - 68, m - 118 + i * 3); c.quadraticCurveTo(x0, m - 140, x0 - 10 + i * 2, m - 40 + i * 6); c.stroke(); }   // fronds
+      c.lineWidth = 5; c.beginPath(); c.moveTo(m - 150, m + 45); c.quadraticCurveTo(m - 70, m - 5, m + 10, m + 45); c.stroke();                       // bridge
+      for (let i = 0; i < 3; i++) { c.beginPath(); c.arc(m - 105 + i * 22, m + 6 + Math.abs(i - 1) * 4, 6, 0, Math.PI * 2); c.fill(); c.fillRect(m - 109 + i * 22, m + 10 + Math.abs(i - 1) * 4, 8, 14); }
+      c.lineWidth = 3; for (let i = 0; i < 8; i++) { c.beginPath(); c.moveTo(m - 160 + i * 18, m + 100); c.lineTo(m - 151 + i * 18, m + 82); c.lineTo(m - 142 + i * 18, m + 100); c.stroke(); }   // fence
+      for (const [bx, by] of [[m - 10, m - 135], [m + 30, m - 150]]) { c.beginPath(); c.moveTo(bx - 16, by + 6); c.quadraticCurveTo(bx - 8, by - 6, bx, by + 4); c.quadraticCurveTo(bx + 8, by - 6, bx + 16, by + 6); c.stroke(); }   // birds
+      c.restore();
     });
-    const plateMat = new THREE.MeshPhysicalMaterial({ map: willow, roughness: 0.25, clearcoat: 0.6 });
+    const plateMat = new THREE.MeshPhysicalMaterial({ map: willow, roughness: 0.22, clearcoat: 0.6 });
+    // A real plate: foot ring, a shallow well and a raised rim, planar-mapped with the transfer.
+    const plateGeo = (r) => {
+      const prof = [[0, 0.007], [r * 0.6, 0.006], [r * 0.7, 0.008], [r * 0.93, 0.0135], [r, 0.0145], [r * 1.005, 0.012], [r * 0.95, 0.0085], [r * 0.7, 0.003], [r * 0.6, 0], [r * 0.56, 0.0005], [r * 0.5, 0.002], [0.0001, 0.002]];
+      const g = new THREE.LatheGeometry(prof.map(([x, y]) => new THREE.Vector2(x, y)), 40);
+      const P = g.attributes.position, uv = g.attributes.uv;
+      for (let i = 0; i < P.count; i++) uv.setXY(i, 0.5 + P.getX(i) / (2 * r), 0.5 - P.getZ(i) / (2 * r));
+      g.rotateX(Math.PI / 2);
+      return g;
+    };
     const cupGlaze = [0x2f4f8f, 0xc9663e, 0x7f9c8a, 0xe8c547];
-    for (const y of D.shelves) {
+    const mugGeo = vesselGeometry({ rOutBottom: 0.028, rOut: 0.034, rIn: 0.031, rInBottom: 0.025, height: 0.07, bottom: 0.006, belly: 0.002 });
+    const mugHandle = handleGeometry(0.019, 0.0045).translate(0.034 + 0.006, 0.036, 0);
+    // The hook catches the inside top of the handle; the mug hangs from it on its side, mouth tipped down.
+    const hookAt = new THREE.Vector3(0.034 + 0.006 + 0.019 - 0.0045, 0.036, 0);
+    const _hm = new THREE.Matrix4(), _hr = new THREE.Matrix4(), _ht = new THREE.Matrix4();
+    for (const [k, y] of D.shelves.entries()) {
       b.add(boxUV(w - 0.05, 0.02, D.shelfDepth, 1), oak, T(cx, y, D.z1 - D.shelfDepth / 2), 0xf0e0d0);
       b.add(boxUV(w - 0.05, 0.012, 0.012, 1), oak, T(cx, y + 0.02, D.z1 - 0.08), 0xd0c0b0); // plate rail
       const n = 4;
       for (let i = 0; i < n; i++) {
-        const x = D.x0 + 0.1 + (w - 0.2) * i / (n - 1), r = 0.085 + (i % 2) * 0.015;
-        const plate = new THREE.CircleGeometry(r, 32);
-        b.add(plate, plateMat, T(x, y + 0.012 + r, D.z1 - 0.045, Math.PI, -0.18));
+        // Plates on the top shelf are tea plates, small enough to stand clear of the cornice.
+        const room = (D.shelves[k + 1] ?? D.top - 0.06) - y - 0.035;
+        const x = D.x0 + 0.1 + (w - 0.2) * i / (n - 1), r = Math.min(0.085 + (i % 2) * 0.015, room / 2);
+        b.add(plateGeo(r), plateMat, T(x, y + 0.012 + r, D.z1 - 0.045, Math.PI, -0.18));
       }
       for (let i = 0; i < 4; i++) {
         const x = D.x0 + 0.14 + (w - 0.28) * i / 3, cz = D.z1 - D.shelfDepth + 0.03;
-        const glz = glazeMaterial(cupGlaze[i % 4], { roughness: 0.3 });
-        b.add(vesselGeometry({ rOutBottom: 0.026, rOut: 0.034, rIn: 0.031, rInBottom: 0.024, height: 0.06, bottom: 0.006, belly: 0.002 }), glz, T(x, y - 0.1, cz, 0, Math.PI));
-        b.add(handleGeometry(0.018, 0.004), glz, T(x, y - 0.06, cz + 0.035, Math.PI / 2, Math.PI));
-        b.add(new THREE.CylinderGeometry(0.002, 0.002, 0.03, 5), knob, T(x, y - 0.025, cz + 0.035));
+        const glz = glazeMaterial(cupGlaze[(i + k) % 4], { roughness: 0.3 });
+        const s = (i + k) % 2 ? 1 : -1, hy = y - 0.042;
+        // Brass cup hook screwed into the shelf's underside.
+        b.add(new THREE.CylinderGeometry(0.0022, 0.0022, 0.03, 6), knob, T(x, y - 0.025, cz));
+        b.add(new THREE.TorusGeometry(0.006, 0.0018, 5, 10, Math.PI), knob, T(x, hy + 0.006, cz, Math.PI / 2, 0, Math.PI));
+        _hm.makeTranslation(x, hy, cz).multiply(_hr.makeRotationY(s < 0 ? Math.PI : 0)).multiply(_hr.makeRotationZ(Math.PI / 2 + 0.25)).multiply(_ht.makeTranslation(-hookAt.x, -hookAt.y, -hookAt.z));
+        b.add(mugGeo, glz, _hm);
+        b.add(mugHandle, glz, _hm);
       }
     }
     // A stoneware jug on the worktop.
