@@ -138,6 +138,15 @@ function pilot(sim) {
   check('the dresser shelves hold things up', !!dr && dr.timeOfImpact < 0.3, dr ? f(dr.timeOfImpact) : 'none');
   const door = ray({ x: (BACKDOOR.x0 + BACKDOOR.x1) / 2, y: 0.3, z: 0 }, { x: 0, y: 0, z: -1 }, 2.0);
   check('the doorway is open', !door || door.timeOfImpact > 1.9, door ? f(door.timeOfImpact) : 'clear');
+  // The neighbourhood's colliders stream in round the aircraft: the parade's shop fronts (z 23.8) are not in
+  // the world while it sits on the pad, and are solid once it is beside them.
+  const shop = () => ray({ x: 0, y: 0.6, z: 22.8 }, { x: 0, y: 0, z: 1 }, 1.5);
+  run(sim, 0.2);
+  const away = shop();
+  sim.heli.body.setTranslation({ x: 0, y: 0.6, z: 22.5 }, true);
+  run(sim, 0.15);
+  const near = shop();
+  check('far area colliders stream in when the aircraft comes near', !away && !!near && near.timeOfImpact < 1.2, `on the pad ${away ? f(away.timeOfImpact) : 'none'}, beside it ${near ? f(near.timeOfImpact) : 'none'}`);
 }
 
 // 6. Things to play with: napkins blow about, the lamp swings, the cat bats at bags, the radio switches on

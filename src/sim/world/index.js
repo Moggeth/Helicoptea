@@ -35,18 +35,18 @@ export function worldHelpers(addRaw, out = null) {
   let size = 0; // the next collider's footprint radius (helpers set it; a bare add guesses)
   const add = (desc, x, y, z, kind, material, rot) => {
     const c = addRaw(desc, x, y, z, kind, material, rot);
-    if (out) out.push([c, x, z, size || 2.5, desc]);
+    if (out) out.push([c, x, z, size || 2.5, desc, null, null, y]);
     size = 0;
     return c;
   };
   const box = (hx, hy, hz, x, y, z, kind, material, yaw = 0) => {
-    size = Math.hypot(hx, hz, hy * 0.3);
+    size = Math.hypot(hx, hy, hz);
     return add(RAPIER.ColliderDesc.cuboid(hx, hy, hz), x, y, z, kind, material, yaw ? _q.setFromAxisAngle(_up, yaw).clone() : null);
   };
   return {
     add, box,
     boxQ: (hx, hy, hz, x, y, z, kind, material, quat) => { size = Math.hypot(hx, hy, hz); return add(RAPIER.ColliderDesc.cuboid(hx, hy, hz), x, y, z, kind, material, quat); },
-    cyl: (r, hh, x, y, z, kind, material) => { size = r + 0.01; return add(RAPIER.ColliderDesc.cylinder(hh, r), x, y, z, kind, material); },
+    cyl: (r, hh, x, y, z, kind, material) => { size = Math.hypot(r, hh) + 0.01; return add(RAPIER.ColliderDesc.cylinder(hh, r), x, y, z, kind, material); },
     ball: (r, x, y, z, kind, material) => { size = r; return add(RAPIER.ColliderDesc.ball(r), x, y, z, kind, material); },
     rail(a, b, r, kind, material) {
       _d.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
@@ -57,14 +57,14 @@ export function worldHelpers(addRaw, out = null) {
     },
     hull(pts, kind, material) {
       // Hulls are made in world space at the origin: record where they really are.
-      let cx = 0, cz = 0;
+      let cx = 0, cy = 0, cz = 0;
       const n = pts.length / 3;
-      for (let i = 0; i < pts.length; i += 3) { cx += pts[i] / n; cz += pts[i + 2] / n; }
+      for (let i = 0; i < pts.length; i += 3) { cx += pts[i] / n; cy += pts[i + 1] / n; cz += pts[i + 2] / n; }
       let r = 0;
-      for (let i = 0; i < pts.length; i += 3) r = Math.max(r, Math.hypot(pts[i] - cx, pts[i + 2] - cz));
+      for (let i = 0; i < pts.length; i += 3) r = Math.max(r, Math.hypot(pts[i] - cx, pts[i + 1] - cy, pts[i + 2] - cz));
       const desc = RAPIER.ColliderDesc.convexHull(new Float32Array(pts));
       const c = addRaw(desc, 0, 0, 0, kind, material);
-      if (out) out.push([c, cx, cz, r, desc]);
+      if (out) out.push([c, cx, cz, r, desc, null, null, cy]);
       return c;
     },
     groundY: groundHeight,
@@ -109,7 +109,8 @@ export function buildWorldColliders(add) {
 
 // Collider streaming. Rapier's step cost grows with every collider in the world (disabled ones too):
 // thousands of area colliders made every step about four times dearer. So area colliders exist only near
-// something that can touch them: the aircraft (STREAM_R metres plus the collider's own size) and every bag,
+// something that can touch them: the aircraft (STREAM_R metres plus the collider's own size, in 3D, so the
+// floors of the house above or below stay out) and every bag,
 // piece of wreckage and hanging load (a metre and a half). The rest are taken out of the world and made again
 // from their descriptions when something comes near. Checked a dozen times a second; flight covers well
 // under a metre in that time. sim.streamColliders = false keeps them all (the headless route checks sweep the
@@ -132,16 +133,16 @@ export class ColliderStreamer {
     const all = sim.streamColliders === false;
     // The aircraft's reach grows with its speed (it covers speed x 0.08 s between checks, and a crash
     // throws pieces).
-    if (sim.heli) { const v = sim.heli.vel ? Math.hypot(sim.heli.vel.x, sim.heli.vel.z) : 0; F.push(sim.heli.pos.x, sim.heli.pos.z, Math.min(STREAM_R, (sim.heli.type === 'micro' ? 1.6 : 2.6) + v * 0.8)); }
-    for (const b of sim.cargoItems()) if (b.pos) F.push(b.pos.x, b.pos.z, 1.5);
-    for (const d of sim.debris) { const t = d.body.translation(); F.push(t.x, t.z, 1.5); }
+    if (sim.heli) { const h = sim.heli, v = h.vel ? h.vel.length() : 0; F.push(h.pos.x, h.pos.z, Math.min(STREAM_R, (h.type === 'micro' ? 1.6 : 2.6) + v * 0.8), h.pos.y); }
+    for (const b of sim.cargoItems()) if (b.pos) F.push(b.pos.x, b.pos.z, 1.5, b.pos.y);
+    for (const d of sim.debris) { const t = d.body.translation(); F.push(t.x, t.z, 1.5, t.y); }
     const L = this.list, on = this.on;
     for (let i = 0; i < L.length; i++) {
       const e = L[i];
       let want = all;
-      for (let k = 0; !want && k < F.length; k += 3) {
-        const dx = e[1] - F[k], dz = e[2] - F[k + 1], r = e[3] + F[k + 2];
-        if (dx * dx + dz * dz < r * r) want = true;
+      for (let k = 0; !want && k < F.length; k += 4) {
+        const dx = e[1] - F[k], dz = e[2] - F[k + 1], dy = e[7] - F[k + 3], r = e[3] + F[k + 2];
+        if (dx * dx + dy * dy + dz * dz < r * r) want = true;
       }
       if (want === !!on[i]) continue;
       on[i] = want ? 1 : 0;

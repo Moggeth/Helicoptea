@@ -21,7 +21,9 @@ const f = (x, d = 3) => Number(x).toFixed(d);
   const p0 = sim.heli.pos.clone();
   run(sim, 2);
   check('heli rests on pad', sim.state === 'flying' && sim.heli.pos.distanceTo(p0) < 0.01, `moved ${f(sim.heli.pos.distanceTo(p0), 4)} m`);
-  const bagsOk = sim.bags.length === sim.pegs.length && sim.pegs.every((p) => p.bag && p.bag.attach.kind === 'peg' && p.bag.pos.y > p.tip.y - 0.22);
+  // (The neighbourhood's stands, station 2 on, only hang bags while the aircraft is near them.)
+  const home = sim.pegs.filter((p) => p.station < 2);
+  const bagsOk = sim.bags.length === home.length && home.every((p) => p.bag && p.bag.attach.kind === 'peg' && p.bag.pos.y > p.tip.y - 0.22);
   check('a bag hangs from every peg on both stands', bagsOk, sim.bags.map((b) => f(b.pos.y)).join(', '));
 }
 

@@ -60,7 +60,7 @@ export function buildStaticWorld(sim, { bare = false } = {}) {
   const home = CUPS.length - WORLD_CUPS.length;
   CUPS.forEach((C, i) => {
     if (i < home) { buildCupColliders(C, add, box, cyl); return; }
-    const rec = (desc, x, y, z, kind, material, rot) => { const c = add(desc, x, y, z, kind, material, rot); sim.streamer.list.push([c, C.x, C.z, (C.saucer || C.rOut) + 0.05, desc]); return c; };
+    const rec = (desc, x, y, z, kind, material, rot) => { const c = add(desc, x, y, z, kind, material, rot); sim.streamer.list.push([c, C.x, C.z, (C.saucer || C.rOut) + C.height, desc, null, null, C.baseY]); return c; };
     const rbox = (hx, hy, hz, x, y, z, kind, material, yaw = 0) => rec(RAPIER.ColliderDesc.cuboid(hx, hy, hz), x, y, z, kind, material, yaw ? q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw).clone() : null);
     const rcyl = (r, hh, x, y, z, kind, material) => rec(RAPIER.ColliderDesc.cylinder(hh, r), x, y, z, kind, material);
     buildCupColliders(C, rec, rbox, rcyl);
