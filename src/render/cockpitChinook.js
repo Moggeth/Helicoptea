@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
-  V, rod, rbox, at, tubeAlong, switchPanel, breakerItems, seat, extinguisher, headset, mugHolder, placard, lever, paintText,
+  mergeBaked, V, rod, rbox, at, tubeAlong, switchPanel, breakerItems, seat, extinguisher, headset, mugHolder, placard, lever, paintText,
 } from './cockpitKit.js';
 import { quiltTexture, COMNAV, XPDR } from './cockpitDetail.js';
 
@@ -284,6 +284,8 @@ function cabin(K, ctx) {
   }
   // A step down from the cockpit floor through the companionway.
   g.add(new THREE.Mesh(bake(new THREE.BoxGeometry(0.0072, 0.0031, 0.004).translate(0, -0.0092, -0.0605), light, [0.6, 0.6, 0.55]), track));
+  // Phones: the whole cabin as one unlit vertex-coloured mesh (its quilting and webbing textures dropped).
+  if (K.slim) mergeBaked(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }), { textured: true });
   g.traverse((o) => { if (o.isMesh) { o.userData.keep = true; o.userData.noShadow = true; } });
   return g;
 }

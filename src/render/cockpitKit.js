@@ -10,6 +10,9 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 
 const _up = new THREE.Vector3(0, 1, 0), _d = new THREE.Vector3(), _q = new THREE.Quaternion();
 export const V = (x, y, z) => new THREE.Vector3(x, y, z);
+// Geometric detail: 1 on desktop and in VR, lower on phones (rounded corners, tube and rod segments).
+let LO = false;
+export function setKitDetail(lo) { const was = LO; LO = !!lo; return was; }
 
 // ---------------------------------------------------------------- panel atlas
 // Panels register a size (full-size metres) and a painter; finish() packs them into one canvas at the
@@ -136,6 +139,7 @@ function webbingTex(col) {
 // ---------------------------------------------------------------- geometry helpers
 // Cylinder between two points (model metres).
 export function rodGeo(a, b, r0, r1 = r0, seg = 8, open = false) {
+  if (LO) seg = Math.max(5, Math.round(seg * 0.6));
   _d.subVectors(b, a);
   const len = _d.length();
   const g = new THREE.CylinderGeometry(r1, r0, len, seg, 1, open);
@@ -145,9 +149,10 @@ export function rodGeo(a, b, r0, r1 = r0, seg = 8, open = false) {
 }
 export function rod(mat, a, b, r0, r1 = r0, seg = 8) { return new THREE.Mesh(rodGeo(a, b, r0, r1, seg), mat); }
 export function tubeAlong(mat, pts, r, closed = false, radial = 8) {
-  return new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, closed, 'catmullrom', 0.3), Math.max(12, pts.length * 6), r, radial, closed), mat);
+  return new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, closed, 'catmullrom', 0.3), Math.max(LO ? 8 : 12, pts.length * (LO ? 3 : 6)), r, LO ? Math.min(radial, 5) : radial, closed), mat);
 }
 export function rbox(mat, w, h, d, r = 0, seg = 2) {
+  if (LO) seg = 1;
   const geo = r > 0 ? new RoundedBoxGeometry(w, h, d, seg, Math.min(r, w / 2 - 1e-7, h / 2 - 1e-7, d / 2 - 1e-7)) : new THREE.BoxGeometry(w, h, d);
   return new THREE.Mesh(geo, mat);
 }
@@ -155,7 +160,7 @@ export function at(obj, x, y, z, rx = 0, ry = 0, rz = 0) { obj.position.set(x, y
 // A strap: a flat band following points (width w, thickness t), its face turned toward `normal`.
 export function strap(mat, pts, w, t, normal = V(0, 0, -1)) {
   const curve = new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.3);
-  const n = Math.max(8, pts.length * 6);
+  const n = Math.max(LO ? 6 : 8, pts.length * (LO ? 3 : 6));
   const pos = [], uv = [], idx = [];
   const T = new THREE.Vector3(), S = new THREE.Vector3(), N = new THREE.Vector3();
   for (let i = 0; i <= n; i++) {
@@ -599,4 +604,41 @@ export function crewFigure(K, o) {
   visor.position.copy(head); visor.rotation.y = Math.PI; visor.scale.set(1, 1.05, 1.12); g.add(visor);
   const mic = new THREE.Mesh(rodGeo(P(0.12, seatY + 0.74, d - 0.22), P(0.04, seatY + 0.7, d - 0.36), S(0.012)), o.boot); g.add(mic);
   return g;
+}
+
+// ---------------------------------------------------------------- slimming for phones
+// Merge every opaque mesh under root whose material has no texture into ONE mesh, its material colour
+// (times any vertex colour) baked into the vertices, drawn with `material` (vertexColors on). On phones
+// this turns dozens of small material draws (and shadow draws) into one. Meshes under `keep` (animated
+// controls, the live panel) or flagged userData.keep stay as they are. Returns the merged mesh or null.
+export function mergeBaked(root, material, { keep = [], textured = false } = {}) {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const geos = [], victims = [];
+  const m4 = new THREE.Matrix4(), col = new THREE.Color();
+  root.traverse((o) => {
+    if (!o.isMesh || Array.isArray(o.material) || o.userData.keep || o.material.transparent || o.material.visible === false) return;
+    if (!textured && o.material.map) return;
+    for (let a = o; a && a !== root; a = a.parent) if (keep.includes(a)) return;
+    const g0 = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    const n = g0.attributes.position.count, c = new Float32Array(n * 3);
+    const vc = g0.attributes.color;
+    col.copy(o.material.color || col.set(1, 1, 1));
+    if (o.material.emissive && o.material.emissiveIntensity > 0.3 && !o.material.emissiveMap) col.add(o.material.emissive.clone().multiplyScalar(o.material.emissiveIntensity * 0.6));
+    for (let k = 0; k < n; k++) {
+      const s = vc ? [vc.getX(k), vc.getY(k), vc.getZ(k)] : [1, 1, 1];
+      c[k * 3] = col.r * s[0]; c[k * 3 + 1] = col.g * s[1]; c[k * 3 + 2] = col.b * s[2];
+    }
+    for (const name of Object.keys(g0.attributes)) if (!['position', 'normal'].includes(name)) g0.deleteAttribute(name);
+    if (!g0.attributes.normal) g0.computeVertexNormals();
+    g0.setAttribute('color', new THREE.BufferAttribute(c, 3));
+    g0.applyMatrix4(m4.multiplyMatrices(inv, o.matrixWorld));
+    g0.clearGroups();
+    geos.push(g0); victims.push(o);
+  });
+  if (!geos.length) return null;
+  for (const o of victims) o.parent.remove(o);
+  const mesh = new THREE.Mesh(mergeGeometries(geos, false), material);
+  root.add(mesh);
+  return mesh;
 }

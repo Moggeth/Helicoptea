@@ -4,7 +4,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { cabinShellGeometry, CABIN_SECS, sectionPoint } from './heliModel.js';
 import { noseShellGeometry, noseShellPoint, NOSE_PILLAR_Z } from './chinookModel.js';
 import { InstrumentPanel, consoleTexture, FULL_SCALE } from './instruments.js';
-import { PanelAtlas, kitMaterials, strap } from './cockpitKit.js';
+import { PanelAtlas, kitMaterials, strap, mergeBaked, setKitDetail } from './cockpitKit.js';
 import { detailMicro } from './cockpitDetail.js';
 import { detailChinook } from './cockpitChinook.js';
 import { detailSkycrane } from './cockpitSkycrane.js';
@@ -272,6 +272,8 @@ export class Cockpit {
     this.renderer = renderer;
     this.quality = quality;
     this.hi = (quality.name === 'high' || quality.name === 'ultra');
+    // Phones and the low tier: untextured fittings merge into one vertex-coloured mesh (see slimDown()).
+    this.slimTier = !!quality.lite || quality.name === 'low';
     this.loadCam = loadCam;
     this.scene = new THREE.Scene();
     this.scene.environment = worldScene.environment;
@@ -299,7 +301,16 @@ export class Cockpit {
   // The fittings kit for one interior: scale (model metres per full-size metre), its panel atlas and
   // materials.
   kit(kind, M) {
-    return { u: 1 / FULL_SCALE[kind], A: new PanelAtlas(this.quality), M: kitMaterials(M, kind === 'chinook' ? 'olive' : 'grey'), quality: this.quality };
+    return { u: 1 / FULL_SCALE[kind], A: new PanelAtlas(this.quality), M: kitMaterials(M, kind === 'chinook' ? 'olive' : 'grey'), quality: this.quality, slim: this.slimTier };
+  }
+
+  // On phones and the low tier every untextured static part of an interior (dozens of small materials,
+  // each a draw call and a shadow draw) becomes one vertex-coloured mesh. Desktop and VR keep them all.
+  slimDown(root, keep) {
+    if (!this.slimTier) return;
+    if (!this.slimMat) this.slimMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.2 });
+    const m = mergeBaked(root, this.slimMat, { keep });
+    if (m) m.userData.keep = true;   // already merged (and its colours must survive mergeStatic)
   }
 
   // The instrument panel (render/instruments.js): its face, live instruments and the hook-camera display.
@@ -493,6 +504,7 @@ export class Cockpit {
     }, 1, root, { K });
     const keep = [P.group, ...anim.pedals.map((p) => p.g), anim.cyclic.g, anim.collective.g];
     K.A.finish(this.renderer.capabilities.getMaxAnisotropy());
+    this.slimDown(root, keep);
     mergeStatic(root, keep);
     for (const g of keep) mergeStatic(g, []);
     root.traverse((o) => { if (o.isMesh && !o.material.transparent && !o.userData.noShadow) { o.castShadow = o.receiveShadow = true; } });
@@ -585,6 +597,7 @@ export class Cockpit {
     const keep = [P.group];
     for (const A of crew) keep.push(...A.pedals.map((p) => p.g), A.cyclic.g, A.collective.g);
     K.A.finish(this.renderer.capabilities.getMaxAnisotropy());
+    this.slimDown(root, keep);
     mergeStatic(root, keep);
     for (const g of keep) mergeStatic(g, []);
     root.traverse((o) => { if (o.isMesh && !o.material.transparent && !o.userData.noShadow) { o.castShadow = o.receiveShadow = true; } });
@@ -641,6 +654,7 @@ export class Cockpit {
     const keep = [P.group];
     for (const A of crew) keep.push(...A.pedals.map((p) => p.g), A.cyclic.g, A.collective.g);
     K.A.finish(this.renderer.capabilities.getMaxAnisotropy());
+    this.slimDown(root, keep);
     mergeStatic(root, keep);
     for (const g of keep) mergeStatic(g, []);
     root.traverse((o) => { if (o.isMesh && !o.material.transparent && !o.userData.noShadow) { o.castShadow = o.receiveShadow = true; } });
@@ -697,7 +711,9 @@ export class Cockpit {
 
   ensureInterior(type) {
     if (!this.has(type) || this.interiors[type]) return this.interiors[type];
+    const was = setKitDetail(this.slimTier);
     const it = type === 'chinook' ? this.buildChinook() : type === 'skycrane' ? this.buildSkycrane() : this.buildMicro();
+    setKitDetail(was);
     it.group.visible = false;
     this.interiors[type] = it;
     this.scene.add(it.group);

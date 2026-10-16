@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { seat, crewFigure, rbox, at } from './cockpitKit.js';
+import { seat, crewFigure, rbox, at, mergeBaked, setKitDetail } from './cockpitKit.js';
 import { FULL_SCALE } from './instruments.js';
 
 // What you see through the glass from outside: the same seats as the first-person cockpits, seated crew
@@ -64,6 +64,7 @@ export function exteriorCabin(kind) {
   };
   const K = { u, M };
   const g = new THREE.Group();
+  const was = setKitDetail(true);   // seen through tinted glass: coarse corners and tubes are plenty
   const crew = {
     suit: std(new THREE.Color(L.suit).getHex(), 0.9), helmet: new THREE.MeshPhysicalMaterial({ color: L.helmet, roughness: 0.35, clearcoat: 0.7 }),
     visor: new THREE.MeshPhysicalMaterial({ color: 0x15181c, roughness: 0.05, metalness: 0.6, clearcoat: 1 }), glove: std(0x2a231c, 0.6), boot: std(0x1b1a19, 0.5),
@@ -83,6 +84,10 @@ export function exteriorCabin(kind) {
   if (!P.noShield) pg.add(at(rbox(M.cushionEdge, P.w * 1.04, P.h * 0.08, P.h * 0.9), 0, P.h * 0.58, -P.h * 0.3));
   pg.position.set(P.x, P.y, P.z); pg.rotation.x = P.rot;
   g.add(pg);
+  setKitDetail(was);
+  // Seen through tinted glass: one vertex-coloured mesh for everything but the painted panel face.
+  const merged = mergeBaked(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65, metalness: 0.15 }));
+  if (merged) merged.userData.keep = true;   // the airframe's own merge leaves it (and its colours) alone
   g.traverse((o) => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
   return g;
 }

@@ -500,6 +500,7 @@ function mergeStatic(part, keep) {
   const victims = [];
   part.traverse((o) => {
     if (!o.isMesh || Array.isArray(o.material) || o.material.transparent || o.material === undefined) return;
+    if (o.userData.keep) return;
     for (let a = o.parent; a && a !== part; a = a.parent) if (keep.includes(a)) return;
     if (keep.includes(o)) return;
     if (o.material.emissiveIntensity !== undefined && o.material.emissive && o.material.emissive.getHex() === 0xff1a0a) return; // beacon animates

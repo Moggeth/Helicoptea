@@ -519,6 +519,7 @@ function mergeStatic(part, keep) {
   const victims = [];
   part.traverse((o) => {
     if (!o.isMesh || Array.isArray(o.material) || keep.includes(o)) return;
+    if (o.userData.keep) return;
     for (let a = o.parent; a && a !== part; a = a.parent) if (keep.includes(a)) return;
     const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
     for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
