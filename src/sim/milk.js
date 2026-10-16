@@ -317,7 +317,8 @@ export class MilkSystem {
     this.puddles = [];
     this.nextPuddle = 1;
     this.run = 0;
-    this.src = { valve: { acc: 0, run: 0, live: false, was: false }, spill: { acc: 0, run: 0, live: false, was: false }, doors: { acc: 0, run: 0, live: false, was: false } };
+    this.src = { valve: { acc: 0, run: 0, live: false, was: false }, spill: { acc: 0, run: 0, live: false, was: false }, doors: { acc: 0, run: 0, live: false, was: false }, leak: { acc: 0, run: 0, live: false, was: false } };
+    this.leak = null;          // a crashed skycrane's split tank, still emptying (see crashTank)
     this.land = new Map();
     this.splashAcc = null;
     this.lowSince = 0;
@@ -414,6 +415,7 @@ export class MilkSystem {
     for (const v of this.vessels) this.restoreVessel(v);
     this.parcels.length = 0;
     this.puddles.length = 0;
+    this.leak = null;
     this.gone = 0;
     this.land.clear();
     for (const s of Object.values(this.src)) { s.acc = 0; s.live = s.was = false; }
@@ -424,6 +426,7 @@ export class MilkSystem {
   applyForces(dt, ctl) {
     for (const s of Object.values(this.src)) s.live = false;
     if (this.bucket) this.bucket.applyForces(dt, ctl);
+    this.stepLeak(dt);
   }
 
   afterStep(dt) {
@@ -550,15 +553,66 @@ export class MilkSystem {
     return false;
   }
 
-  // A burst tank: the contents fly out in all directions (bounded: merges into the cap if needed).
-  burst(pos, vel, vol, milk, brew) {
-    const n = 14;
+  // A burst tank: the contents fly out in all directions (bounded: merges into the cap if needed). Each
+  // gout is a head and a slower tail of the same run, drawn as a stretched ligament between them.
+  burst(pos, vel, vol, milk, brew, n = 14, speed = 1) {
+    const each = vol / (2 * n);
     for (let i = 0; i < n; i++) {
-      const v = new THREE.Vector3(Math.random() - 0.5, Math.random() * 0.8, Math.random() - 0.5).normalize().multiplyScalar(0.4 + Math.random() * 0.8).add(vel);
-      const q = { p: pos.clone(), v, vol: vol / n, milk, brew, age: 0, run: ++this.run, last: true, src: 'spill', wide: true };
-      if (this.parcels.length < M.maxParcels) this.parcels.push(q);
-      else this.parcels[this.parcels.length - 1].vol += q.vol;
+      const dir = new THREE.Vector3(Math.random() - 0.5, Math.random() * 0.8, Math.random() - 0.5).normalize();
+      const sp = (0.4 + Math.random() * 0.8) * speed, run = ++this.run;
+      for (const [k, last] of [[1, false], [0.6, true]]) {
+        const q = { p: pos.clone(), v: dir.clone().multiplyScalar(sp * k).add(vel), vol: each, milk, brew, age: 0, run, last, src: 'spill', wide: true };
+        if (this.parcels.length < M.maxParcels) this.parcels.push(q);
+        else this.parcels[this.parcels.length - 1].vol += q.vol;
+      }
     }
+  }
+
+  // A skycrane crashing with milk aboard. fill: 0..1 of the tank; impact: m/s the crash was called at.
+  // Most of it bursts out at once (more gouts, flung harder, the fuller the tank and the harder the hit);
+  // the rest is left in the split tank and glugs out of the wreck, pooling wherever it ends up.
+  crashTank(pos, vel, vol, fill, milk, brew, impact) {
+    const hit = THREE.MathUtils.clamp(impact / 1.5, 0.5, 2);
+    const spray = vol * (0.5 + 0.2 * fill);
+    this.burst(pos, vel, spray, milk, brew, Math.round(6 + 18 * fill), (0.35 + 0.45 * fill) * hit);
+    this.leak = { vol: vol - spray, vol0: vol - spray, milk, brew, t: 0, debris: null, pos: pos.clone() };
+    this.sim.emit('tankBurst', { pos: pos.clone(), vel: vel.clone(), vol, fill, milk, brew, impact });
+  }
+
+  // The tank's wreck piece carries the leak (called by the crash once the debris exists).
+  attachLeak(parts) {
+    const L = this.leak;
+    if (!L || L.debris) return;
+    L.debris = parts.find((d) => d.part.name === 'tank') || null;
+    if (!L.debris) { this.burst(L.pos, _a.set(0, 0, 0), L.vol, L.milk, L.brew, 4, 0.3); this.leak = null; }
+  }
+
+  // Glug, glug: out of the lowest corner of the broken tank, in pulses, faster while it is fuller.
+  stepLeak(dt) {
+    const L = this.leak;
+    if (!L) return;
+    const d = L.debris;
+    if (!d || !this.sim.debris.includes(d) || L.vol <= L.vol0 * 0.01) {
+      // Cleared away (or nearly empty): the last of it runs out where the wreck was.
+      if (L.vol > 0) {
+        if (d && d.body && this.sim.debris.includes(d)) this.emit('leak', L.vol, L.pos, _a.set(0, -0.05, 0), L.milk, L.brew);
+        else this.gone += L.vol * L.milk;
+      }
+      this.leak = null;
+      return;
+    }
+    L.t += dt;
+    const t = d.body.translation(), r = d.body.rotation(), lv = d.body.linvel();
+    _q.set(r.x, r.y, r.z, r.w);
+    _d.set(0, -1, 0).applyQuaternion(_q.invert());   // world down, in the tank's frame
+    const hx = d.part.half[0], hy = d.part.half[1], hz = d.part.half[2];
+    L.pos.set(Math.sign(_d.x) * hx * 0.7, Math.sign(_d.y || -1) * hy, Math.sign(_d.z) * hz * 0.7)
+      .applyQuaternion(_q.set(r.x, r.y, r.z, r.w)).add(_a.set(t.x, t.y, t.z));
+    const pulse = 0.35 + 0.65 * Math.max(0, Math.sin(L.t * 2 * Math.PI * (4 + 3 * L.vol / L.vol0)));
+    const dv = Math.min(L.vol, L.vol * (1 - Math.exp(-dt / 1.0)) * pulse * 1.6);
+    L.vol -= dv;
+    _c.set(lv.x, lv.y - 0.08, lv.z);
+    this.emit('leak', dv, L.pos, _c, L.milk, L.brew);
   }
 
   splash(at, q, share) {
@@ -637,6 +691,7 @@ export class MilkSystem {
     for (const q of this.parcels) t += q.vol * q.milk;
     for (const s of Object.values(this.src)) t += s.acc * (s.milk ?? 1);
     for (const pd of this.puddles) t += pd.vol * pd.milk;
+    if (this.leak) t += this.leak.vol * this.leak.milk;
     const tk = this.sim.heli && this.sim.heli.tank;
     if (tk) t += tk.vol * tk.milk;
     return t + this.gone;

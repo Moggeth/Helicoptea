@@ -627,7 +627,7 @@ export class Skycrane {
     // A crash bursts the tank; a restart puts the aircraft (and its milk) away.
     const TK = this.tank, sys = this.sim.milk;
     if (TK.vol > 0) {
-      if (this.crashing) sys.burst(this.local(T.center[0], T.center[1], T.center[2], new THREE.Vector3()), this.vel, TK.vol, TK.milk, TK.brew);
+      if (this.crashing) sys.crashTank(this.local(T.center[0], T.center[1], T.center[2], new THREE.Vector3()), this.vel, TK.vol, TK.vol / TK.capacity, TK.milk, TK.brew, this.crashImpact ?? 1.5);
       else sys.gone += TK.vol * TK.milk;
       TK.vol = 0;
     }

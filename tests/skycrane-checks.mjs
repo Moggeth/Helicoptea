@@ -204,6 +204,36 @@ const climb = (sim) => { run(sim, 2.0, () => ({ ...zero(), collective: 1 })); ru
   check('no crash in the whole tanker loop', sim.state === 'flying', why(sim));
 }
 
+// 8a. A crash spills what was aboard: a fuller tank throws more gouts, further, and pools more milk.
+{
+  const spill = (fill) => {
+    const sim = new Sim({ aircraft: 'skycrane' });
+    const total0 = sim.milk.totalMilk();
+    const got = sim.milk.take(sim.milk.bowl, TANK_CAPACITY * fill);
+    sim.heli.tank.vol = got.vol; sim.heli.tank.milk = 1;
+    sim.heli.body.setTranslation({ x: -0.1, y: 0.35, z: 0.25 }, true);
+    run(sim, 0.05);
+    sim.heli.body.setLinvel({ x: 0, y: -2.5, z: 0 }, true);
+    let gouts = 0, reach = 0, burst = null;
+    const seen = new Set();
+    run(sim, 1.5, () => {
+      for (const e of sim.events) if (e.type === 'tankBurst') burst = e;
+      for (const q of sim.milk.parcels) if (q.src === 'spill' && !seen.has(q.run)) { seen.add(q.run); gouts++; }
+      return zero();
+    });
+    run(sim, 6);
+    const c = sim.crashInfo ? sim.crashInfo.pos : new THREE.Vector3();
+    let pooled = 0;
+    for (const pd of sim.milk.puddles) { pooled += pd.vol; reach = Math.max(reach, Math.hypot(pd.x - c.x, pd.z - c.z)); }
+    return { crashed: sim.state === 'destroyed', burst, gouts, pooled, reach, conserved: same(sim.milk.totalMilk(), total0), vol: got.vol };
+  };
+  const lo = spill(0.2), hi = spill(1);
+  check('a crash with milk aboard bursts the tank', lo.crashed && hi.crashed && !!hi.burst && Math.abs(hi.burst.fill - 1) < 0.02, hi.burst ? `fill ${f(hi.burst.fill, 2)}` : 'no burst');
+  check('a full tank throws more gouts than a fifth-full one', hi.gouts > lo.gouts + 8, `${lo.gouts} vs ${hi.gouts}`);
+  check('the spill pools in proportion to what was aboard', hi.pooled > lo.pooled * 2.5 && hi.pooled > hi.vol * 0.3, `${ml(lo.pooled)} vs ${ml(hi.pooled)} pooled`);
+  check('milk is conserved through both spills', lo.conserved && hi.conserved);
+}
+
 // 8. Crash with milk aboard: the tank bursts, the hose goes, bodies stay bounded.
 {
   const sim = new Sim({ aircraft: 'skycrane' });
@@ -213,12 +243,18 @@ const climb = (sim) => { run(sim, 2.0, () => ({ ...zero(), collective: 1 })); ru
   sim.heli.body.setTranslation({ x: 0.0, y: 0.6, z: 0.3 }, true);
   run(sim, 0.05);
   sim.heli.body.setLinvel({ x: 0, y: -3, z: 0 }, true);
-  let parcels = 0;
-  run(sim, 1.5, () => { parcels = Math.max(parcels, sim.milk.parcels.length); return zero(); });
+  let parcels = 0, leakSeen = false;
+  run(sim, 1.5, () => { parcels = Math.max(parcels, sim.milk.parcels.length); leakSeen ||= !!(sim.milk.leak && sim.milk.leak.debris); return zero(); });
+  run(sim, 5, () => { leakSeen ||= !!(sim.milk.leak && sim.milk.leak.debris); return zero(); });
+  const tankWreck = sim.debris.find((d) => d.part.name === 'tank');
+  const tw = tankWreck && tankWreck.body.translation();
+  const poolNearWreck = !!tw && sim.milk.puddles.some((pd) => Math.hypot(pd.x - tw.x, pd.z - tw.z) < pd.r + 0.04);
   check('a hard drop onto the table explodes', sim.state === 'destroyed', sim.crashInfo ? sim.crashInfo.reason : 'no crash');
   check('the tank bursts milk everywhere', parcels > 5 || sim.milk.puddles.length > 0, `${parcels} parcels, ${sim.milk.puddles.length} puddles`);
   check('breaks into its named parts', sim.debris.length === 16, `${sim.debris.length} pieces`);
   check('milk is conserved through a crash', same(sim.milk.totalMilk(), total0), `${ml(total0)} -> ${ml(sim.milk.totalMilk())}`);
+  check('the split tank glugs out of the wreck and pools by it', leakSeen && !sim.milk.leak && poolNearWreck,
+    `leak ${leakSeen ? 'ran' : 'never ran'}, pool by the wreck ${poolNearWreck ? 'yes' : 'no'}`);
   let maxBodies = 0;
   for (let i = 0; i < 12; i++) {
     sim.restartFlight();

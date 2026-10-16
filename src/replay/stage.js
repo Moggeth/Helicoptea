@@ -5,7 +5,7 @@ import { StringMesh } from '../render/strings.js';
 import { newBagLook, placeTag } from '../render/bagLook.js';
 import { cloneHeliPart } from '../render/models.js';
 import { cloneChinookPart } from '../render/chinookModel.js';
-import { cloneSkycranePart } from '../render/skycraneModel.js';
+import { cloneSkycranePart, SIGHT } from '../render/skycraneModel.js';
 import { milkyTea } from '../render/water.js';
 import { surfaceY } from '../sim/layout.js';
 import { CH, NCH, sampleEntity, ROPE_POINTS, HOSE_POINTS } from './format.js';
@@ -161,6 +161,9 @@ export class ReplayStage {
         U.tailRotor.rotation.x = r[CH.tailPhase];
         U.tailRotor.userData.disc.material.uniforms.uOpacity.value = Math.min(1, rs) * 0.7;
         for (const d of U.doors) d.rotation.z = -d.userData.side * r[CH.tankDoors] * 1.25;
+        // Sight glasses: the recorded fill, the milk lying level (the slosh is not recorded).
+        const fill = r[CH.tankFill];
+        v.skycrane.sight(U.sightMilk, v.skycrane.sightLv, fill > 1e-4 ? fill * (SIGHT.y1 - SIGHT.y0) : -1, UP, this.heliQuat, 0, 1, 0);
       }
       // Contact shadow under the hub.
       const hd = r[CH.hubAgl];

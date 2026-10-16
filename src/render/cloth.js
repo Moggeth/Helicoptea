@@ -11,6 +11,7 @@ const WIDTH = 0.36;     // across the table (z)
 const HANG = 0.2;       // down each end of the table
 const EDGE_R = 0.012;   // the table's rounded end edge
 const LIFT = 0.0012;    // cloth thickness above the table top
+export const RUNNER = { halfZ: WIDTH / 2, lift: LIFT }; // where milk puddles on the table sit on the linen
 
 export class TableCloth {
   constructor(scene, quality, map) {

@@ -1,11 +1,14 @@
 import * as THREE from 'three';
 import { CFG } from '../config.js';
-import { buildSkycrane } from './skycraneModel.js';
+import { buildSkycrane, SIGHT, setSightLevels, sightEdges } from './skycraneModel.js';
+import { TANK_CAPACITY } from '../sim/skycrane.js';
+import { milkyTea } from './water.js';
 import { StringMesh } from './strings.js';
 
-const _p = new THREE.Vector3(), _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _a = new THREE.Vector3();
+const _p = new THREE.Vector3(), _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _a = new THREE.Vector3(), _qs = new THREE.Quaternion();
 const UP = new THREE.Vector3(0, 1, 0);
 const SMOOTH = 28;
+const EDGES = sightEdges();
 
 // Skycrane presentation: airframe, rotors, belly doors, beacon, contact shadow, the snorkel hose as a
 // smooth tube through its physics segments with the red intake nozzle, and pump/downwash ripples.
@@ -42,6 +45,29 @@ export class SkycraneView {
     this.nozzle = nz;
     this.rippleAcc = 0;
     this.downwashAcc = 0;
+    this.sightLv = EDGES.map(() => SIGHT.y0 - 0.001);
+  }
+
+  // Sight glasses: the milk height at each window edge, where the tank's sloshing free surface meets the
+  // wall (fillH: depth over the floor, below 0 when dry; surfN: world normal of the surface; quat: the
+  // drawn pose), so a tilted surface shows as a sloping line across each slot. lv: per-edge state, eased a
+  // little so a physics-rate surface reads smoothly at any frame rate.
+  sight(mesh, lv, fillH, surfN, quat, dt, milk, brew) {
+    _v.copy(surfN).applyQuaternion(_qs.copy(quat).invert());
+    const ny = Math.max(_v.y, 0.2), k = dt > 0 ? 1 - Math.exp(-dt / 0.03) : 1;
+    for (let i = 0; i < EDGES.length; i++) {
+      const want = fillH > 0 ? SIGHT.y0 + fillH - (_v.x * EDGES[i][0] + _v.z * EDGES[i][1]) / ny : SIGHT.y0 - 0.001;
+      lv[i] += (want - lv[i]) * k;
+    }
+    setSightLevels(mesh.geometry, lv);
+    milkyTea(brew, milk, mesh.material.color);
+  }
+
+  // The split tank on a wreck: its sight glasses drain with the leak, the milk lying level in the world.
+  wreckSight(v, leak, quat, dt) {
+    v.sightLv = v.sightLv || [...this.sightLv];
+    const fillH = leak ? leak.vol / TANK_CAPACITY * (SIGHT.y1 - SIGHT.y0) : -1;
+    this.sight(v.mesh.userData.sightMilk, v.sightLv, fillH, UP, quat, dt, leak ? leak.milk : 1, leak ? leak.brew : 0);
   }
 
   hide() {
@@ -73,6 +99,8 @@ export class SkycraneView {
     if (U.beacon) U.beacon.material.emissiveIntensity = (view.time % 1.2) < 0.1 ? 3 : 0;
     // Belly doors swing open with the flow control.
     for (const d of U.doors) d.rotation.z = -d.userData.side * h.tank.doors * 1.25;
+    const TK = h.tank;
+    this.sight(U.sightMilk, this.sightLv, TK.vol > 0 ? TK.fillH : -1, TK.surfN, view.heliQuat, dt, TK.milk, TK.brew);
     view.wreckFocus = null;
 
     // Contact shadow.

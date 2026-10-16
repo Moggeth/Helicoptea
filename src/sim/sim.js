@@ -338,6 +338,7 @@ export class Sim {
     const shed = heli.shed || new Set(), dmg = heli.dmg;
     const blades = def.parts.filter((p) => p.blade).map((p) => (heli.bladePose ? heli.bladePose(p) : null));
     heli.crashing = true; // the skycrane's tank bursts rather than being put away
+    heli.crashImpact = impact;
     for (const c of heli.colliders) this.unregister(c);
     for (const r of heli.rotors) this.unregister(r);
     heli.destroy();
@@ -383,6 +384,7 @@ export class Sim {
       this.debris.push(d);
       parts.push(d);
     }
+    this.milk.attachLeak(parts); // what stays in a burst tank runs out of the wreck where it comes to rest
     // Shove nearby bags (and the bucket).
     for (const b of this.cargoItems()) {
       const dvec = b.pos.clone().sub(pos);

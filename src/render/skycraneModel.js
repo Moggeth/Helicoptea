@@ -53,6 +53,82 @@ function tankTexture() {
   return t;
 }
 
+// Sight-glass scale: a narrow black strip beside each window, white graduations every eighth (long at
+// the quarters), a red line at full and an amber one just above empty. Rows map linearly onto y0..y1.
+function gaugeTexture() {
+  const c = document.createElement('canvas'); c.width = 16; c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#151617'; g.fillRect(0, 0, 16, 256);
+  for (let i = 0; i <= 8; i++) {
+    const y = Math.min(253, Math.max(3, 256 - i * 32)), long = i % 2 === 0 || i === 1;
+    g.fillStyle = i === 8 ? '#d8382c' : i === 1 ? '#e8a623' : '#e9e6dc';
+    g.fillRect(0, y - (long ? 2.5 : 1.5), long ? 16 : 8, long ? 5 : 3);
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+
+// Sight glasses: thin vertical windows let into the tank wall, one on each side (ahead of the gear legs)
+// and one on the back face for the chase views. Tank-part frame: origin at the tank's centre, which is
+// also the sim tank's centre. y0..y1: the tank's floor and roof inside; hw: half the window's width.
+// Each window: o (x, z) the middle of the slot on the skin, n (x, z) its outward normal.
+const TK_W = 0.033, TK_L = 0.063;
+export const SIGHT = {
+  y0: -CFG.skycrane.tank.half[1], y1: CFG.skycrane.tank.half[1], hw: 0.0017,
+  windows: [
+    { o: [-TK_W / 2, -0.0205], n: [-1, 0] },
+    { o: [TK_W / 2, -0.0205], n: [1, 0] },
+    { o: [-0.0065, TK_L / 2], n: [0, 1] },
+  ],
+};
+// The two edges of each window (x, z), where the view samples the milk height: edges() [w0-, w0+, w1-, ...].
+const tanOf = (w) => [w.n[1], -w.n[0]];   // across the slot, so that (tangent x up) is the outward normal
+export function sightEdges() {
+  const out = [];
+  for (const w of SIGHT.windows) { const t = tanOf(w); for (const k of [-1, 1]) out.push([w.o[0] + t[0] * k * SIGHT.hw, w.o[1] + t[1] * k * SIGHT.hw]); }
+  return out;
+}
+const SKIN_MILK = 0.0005;   // out from the skin: interior backing 0.00035, milk 0.0005, pane 0.0007
+// All the windows' milk in one mesh (one draw): per window a face quad from the floor to just under the
+// surface, then a narrow meniscus band tipped up to the light, its top edge sloping with the slosh.
+// Only the heights move (setSightLevels), so the normals hold.
+export function sightMilkGeometry() {
+  const nW = SIGHT.windows.length, pos = new Float32Array(nW * 8 * 3), nor = new Float32Array(nW * 8 * 3), idx = [];
+  SIGHT.windows.forEach((w, i) => {
+    const t = tanOf(w), o = i * 8;
+    const bx = w.o[0] + w.n[0] * SKIN_MILK, bz = w.o[1] + w.n[1] * SKIN_MILK;
+    const m = new THREE.Vector3(w.n[0] * 0.5, 0.87, w.n[1] * 0.5).normalize();
+    for (let r = 0; r < 4; r++) for (const k of [-1, 1]) {
+      const v = o + r * 2 + (k > 0 ? 1 : 0);
+      pos.set([bx + t[0] * k * SIGHT.hw, SIGHT.y0, bz + t[1] * k * SIGHT.hw], v * 3);
+      nor.set(r < 2 ? [w.n[0], 0, w.n[1]] : [m.x, m.y, m.z], v * 3);
+    }
+    idx.push(o, o + 1, o + 3, o, o + 3, o + 2, o + 4, o + 5, o + 7, o + 4, o + 7, o + 6);
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  g.setIndex(idx);
+  g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 0.04);
+  return g;
+}
+
+// Milk heights (tank-part frame y) at each window edge, in sightEdges() order. At or under the floor the
+// window shows dry.
+export function setSightLevels(geo, lv) {
+  const p = geo.attributes.position.array, band = 0.00028;
+  for (let i = 0; i < SIGHT.windows.length; i++) {
+    for (let k = 0; k < 2; k++) {
+      const l = lv[i * 2 + k];
+      const top = l > SIGHT.y0 + 0.0001 ? Math.min(l, SIGHT.y1) : SIGHT.y0;
+      const under = Math.max(SIGHT.y0, top - band);
+      const v = i * 8 + k;
+      p[(v + 2) * 3 + 1] = under; p[(v + 4) * 3 + 1] = under; p[(v + 6) * 3 + 1] = top;
+    }
+  }
+  geo.attributes.position.needsUpdate = true;
+}
+
 function hoseTexture() {
   const c = document.createElement('canvas'); c.width = 64; c.height = 256;
   const g = c.getContext('2d');
@@ -78,6 +154,10 @@ export function skycraneMaterials() {
     darkMetal: new THREE.MeshStandardMaterial({ color: 0x2c2e30, roughness: 0.45, metalness: 0.75 }),
     alu: new THREE.MeshStandardMaterial({ color: 0xc0c4c8, roughness: 0.3, metalness: 0.95 }),
     hubMetal: new THREE.MeshStandardMaterial({ color: 0x55595c, roughness: 0.4, metalness: 0.8 }),
+    gauge: new THREE.MeshStandardMaterial({ map: gaugeTexture(), roughness: 0.55 }),
+    perspex: new THREE.MeshPhysicalMaterial({ color: 0xf2f8fa, roughness: 0.03, metalness: 0, transparent: true, opacity: 0.16, envMapIntensity: 1.8, clearcoat: 1, depthWrite: false }),
+    sightMilk: new THREE.MeshStandardMaterial({ color: 0xf7f3ea, roughness: 0.28 }),
+    tankInside: new THREE.MeshStandardMaterial({ color: 0x1c1b1a, roughness: 0.85 }),
     exhaust: new THREE.MeshStandardMaterial({ color: 0x3d322c, roughness: 0.5, metalness: 0.85, emissive: 0x1a0600, emissiveIntensity: 0.5 }),
     blade: new THREE.MeshStandardMaterial({ color: 0x2b2d2f, roughness: 0.55, metalness: 0.15 }),
     bladeTipRed: new THREE.MeshStandardMaterial({ color: 0xc8241c, roughness: 0.5 }),
@@ -363,6 +443,7 @@ export function buildSkycrane(M = skycraneMaterials()) {
     add('tailPylon', tailRotor, C.tailHub[0], C.tailHub[1], C.tailHub[2]);
   }
 
+  let sightMilkMesh = null;
   // --- Belly tank: boxy, orange, big green numerals on both sides, two belly doors and a white rail.
   const doors = [];
   {
@@ -404,6 +485,32 @@ export function buildSkycrane(M = skycraneMaterials()) {
     const h = C.hooks[0];
     add('tank', rod(V3(h[0], cy - 0.004, h[2] - 0.004), V3(h[0], h[1] + 0.003, h[2]), 0.0006), M.darkMetal);
     add('tank', new THREE.TorusGeometry(0.0026, 0.0007, 8, 16, Math.PI * 1.6).rotateY(Math.PI / 2), M.alu, h[0], h[1] + 0.002, h[2]);
+    // sight glasses: a dark slot into the tank behind a flush perspex pane in a black rubber surround, a
+    // graduated strip beside it; the milk inside is posed per frame (setSightLevels)
+    const S = SIGHT, len = S.y1 - S.y0;
+    const panes = [];
+    for (const w of S.windows) {
+      const t = tanOf(w), rotY = Math.atan2(w.n[0], w.n[1]);
+      const at = (d, a) => [w.o[0] + w.n[0] * d + t[0] * a, cy, cz + w.o[1] + w.n[1] * d + t[1] * a];
+      const quad = (wd, ht) => new THREE.PlaneGeometry(wd, ht).rotateY(rotY);
+      let q = at(0.00035, 0); add('tank', quad(2 * S.hw, len), M.tankInside, q[0], q[1], q[2]);
+      q = at(0.0004, S.hw + 0.0012); add('tank', quad(0.0014, len), M.gauge, q[0], q[1], q[2]);
+      // surround: four thin bars proud of the skin
+      for (const k of [-1, 1]) {
+        q = at(0.0006, k * (S.hw + 0.00035)); add('tank', new THREE.BoxGeometry(0.0007, len + 0.0014, 0.0007).rotateY(rotY), M.frame, q[0], q[1], q[2]);
+        q = at(0.0006, 0); add('tank', new THREE.BoxGeometry(2 * S.hw + 0.0014, 0.0007, 0.0007).rotateY(rotY), M.frame, q[0], q[1] + k * (len / 2 + 0.00035), q[2]);
+      }
+      q = at(0.0007, 0);
+      panes.push(quad(2 * S.hw, len).translate(q[0], 0, q[2] - cz));
+    }
+    const pane = new THREE.Mesh(mergeGeometries(panes, false), M.perspex);
+    pane.userData.keep = true; pane.userData.sightTube = true; pane.userData.noShadow = true;
+    pane.renderOrder = 2;
+    add('tank', pane, 0, cy, cz);
+    const milk = new THREE.Mesh(sightMilkGeometry(), M.sightMilk);
+    milk.userData.keep = true; milk.userData.sightMilk = true; milk.userData.noShadow = true;
+    add('tank', milk, 0, cy, cz);
+    sightMilkMesh = milk;
   }
 
   // --- Gear: nose wheels under the pod, twin mains on long splayed legs.
@@ -508,7 +615,7 @@ export function buildSkycrane(M = skycraneMaterials()) {
   for (const gh of rotor.userData.ghosts) mergeStatic(gh, []);
   for (const p of SKYCRANE_PARTS) if (!p.blade) root.add(parts[p.name]);
   root.traverse((o) => { if (o.isMesh && !o.material.transparent && !o.material.isShaderMaterial && !o.userData.noShadow) { o.castShadow = true; o.receiveShadow = true; } });
-  root.userData = { parts, rotors: [rotor], rotor, tailRotor, doors, beacon: parts.tailBoom.userData.beacon, materials: M };
+  root.userData = { parts, rotors: [rotor], rotor, tailRotor, doors, sightMilk: sightMilkMesh, beacon: parts.tailBoom.userData.beacon, materials: M };
   return root;
 }
 
@@ -549,6 +656,15 @@ export function cloneSkycranePart(model, name) {
   }
   g.traverse((o) => {
     if (!o.isMesh || !o.material) return;
+    // The split tank's sight glasses stay readable: the milk column (its own copy, drained by the wreck's
+    // leak) and the clear tube are not scorched.
+    if (o.userData.sightMilk) {
+      o.geometry = o.geometry.clone(); o.userData.disposeGeo = true;
+      o.material = o.material.clone(); o.material.userData.disposeOwned = true;
+      g.userData.sightMilk = o;
+      return;
+    }
+    if (o.userData.sightTube) return;
     o.castShadow = true;
     const scorch = (m0) => {
       const m = m0.clone();

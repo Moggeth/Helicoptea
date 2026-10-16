@@ -554,6 +554,7 @@ export class View {
       v.age = (v.age || 0) + dt;
       const glow = Math.max(0, 1.4 * Math.exp(-v.age * 2.2) - 0.03);
       for (const m of v.mesh.userData.embers) m.emissiveIntensity = glow * (v.mesh.userData.emberScale ?? 1);
+      if (v.mesh.userData.sightMilk) this.skycrane.wreckSight(v, sim.milk.leak && sim.milk.leak.debris === v.d ? sim.milk.leak : null, _q, dt);
       if (v.smoke > 0) {
         v.smoke -= dt;
         if (Math.random() < 0.5) this.smoke.emit({ p: [_p.x, _p.y + 0.005, _p.z], v: [rand(-0.02, 0.02), rand(0.08, 0.18), rand(-0.02, 0.02)], life: rand(1.0, 1.8), size0: 0.015, size1: rand(0.06, 0.1), col0: [0.2, 0.19, 0.18], col1: [0.6, 0.58, 0.55], alpha: 0.4 * Math.min(1, v.smoke), drag: 1 });

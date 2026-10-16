@@ -2,12 +2,13 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RAPIER, GROUPS } from '../sim/physics.js';
 import { CFG } from '../config.js';
-import { MILK_BOWL, BUCKET_HANGER } from '../sim/layout.js';
+import { MILK_BOWL, BUCKET_HANGER, TABLE } from '../sim/layout.js';
 import { BUCKET } from '../sim/milk.js';
 import { glazeMaterial, vesselGeometry } from './models.js';
 import { TeaSurface, milkyTea } from './water.js';
 import { StringMesh } from './strings.js';
 import { radialTexture } from './textures.js';
+import { RUNNER } from './cloth.js';
 
 const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _c = new THREE.Color();
 const _m = new THREE.Matrix4(), _s = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0), _iq = new THREE.Quaternion();
@@ -251,7 +252,9 @@ export class MilkView {
       }
       mesh.visible = true;
       mesh.userData.r += (pd.r - mesh.userData.r) * 0.12;
-      mesh.position.set(pd.x, pd.y + 0.0004, pd.z);
+      // on the table top, a puddle over the linen runner lies on the cloth, not under it
+      const onRunner = pd.y === 0 && Math.abs(pd.z) < RUNNER.halfZ && Math.abs(pd.x) < TABLE.halfX;
+      mesh.position.set(pd.x, pd.y + 0.0004 + (onRunner ? RUNNER.lift : 0), pd.z);
       mesh.scale.set(mesh.userData.r, 1, mesh.userData.r);
       milkyTea(pd.brew, pd.milk, mesh.material.color);
       mesh.material.opacity = THREE.MathUtils.clamp(0.5 + pd.r * 12, 0.5, 0.93);
@@ -302,6 +305,24 @@ export class MilkView {
           const a = Math.random() * 6.283, r = rand(0.1, 0.4) * (0.3 + sp);
           this.view.smoke.emit({ p: [e.pos.x + Math.cos(a) * 0.015, e.vessel.waterY + 0.002, e.pos.z + Math.sin(a) * 0.015], v: [Math.cos(a) * r, rand(0.3, 1.0) * (0.25 + sp), Math.sin(a) * r],
             life: rand(0.25, 0.55), size0: rand(0.0025, 0.0045), size1: 0.0015, col0: [_c.r, _c.g, _c.b], alpha: 0.95, grav: 9.81, drag: 0.5, kind: 1 });
+        }
+        break;
+      }
+      case 'tankBurst': {
+        // The skycrane's tank splits: a burst of droplets and a soft milky spray, bigger the fuller it was
+        // and the harder it hit (the gouts themselves are stream parcels, drawn by updateStream).
+        const q = Math.min(1, this.quality.particles / 520), f = e.fill, hit = THREE.MathUtils.clamp(e.impact / 1.5, 0.5, 2);
+        milkyTea(e.brew, e.milk, _c);
+        const n = Math.round((10 + 60 * f) * q), m = Math.round((2 + 8 * f) * q);
+        for (let i = 0; i < n; i++) {
+          _v.set(rand(-1, 1), rand(-0.2, 1), rand(-1, 1)).normalize().multiplyScalar(rand(0.2, 0.9) * (0.4 + 0.6 * f) * hit).addScaledVector(e.vel, 0.4);
+          this.view.smoke.emit({ p: [e.pos.x, e.pos.y, e.pos.z], v: [_v.x, _v.y, _v.z], life: rand(0.35, 0.8), size0: rand(0.0015, 0.004), size1: 0.0012,
+            col0: [_c.r, _c.g, _c.b], alpha: 1, grav: 9.81, drag: 0.5, kind: 1 });
+        }
+        for (let i = 0; i < m; i++) {
+          const a = Math.random() * 6.283, sp = rand(0.05, 0.25) * hit;
+          this.view.smoke.emit({ p: [e.pos.x, e.pos.y, e.pos.z], v: [Math.cos(a) * sp, rand(0.02, 0.15), Math.sin(a) * sp], life: rand(0.6, 1.1),
+            size0: rand(0.008, 0.014), size1: rand(0.035, 0.06) * (0.6 + 0.6 * f), col0: [_c.r, _c.g, _c.b], alpha: 0.32, drag: 2.6 });
         }
         break;
       }
