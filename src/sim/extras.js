@@ -2,6 +2,14 @@ import * as dominoes from './extras/dominoes.js';
 import * as panRack from './extras/panRack.js';
 import * as baskets from './extras/baskets.js';
 import * as pottingBench from './extras/pottingBench.js';
+import * as kitchenCounter from './extras/zones/kitchenCounter.js';
+import * as kitchenRoom from './extras/zones/kitchenRoom.js';
+import * as kitchenShelves from './extras/zones/kitchenShelves.js';
+import * as patio from './extras/zones/patio.js';
+import * as bedLeft from './extras/zones/bedLeft.js';
+import * as bedRight from './extras/zones/bedRight.js';
+import * as meadow from './extras/zones/meadow.js';
+import * as fences from './extras/zones/fences.js';
 
 // Extra set pieces for the house and tea garden, one module each (src/sim/extras/*.js, drawn by the
 // matching src/render/extras/*.js). A module's create(sim, lite) returns an object with any of:
@@ -11,7 +19,7 @@ import * as pottingBench from './extras/pottingBench.js';
 //   reset()                    Shift+R: put everything back
 // Modules may add fixed colliders, dynamic bodies and joints of their own (register each collider with
 // sim.register). They must stay DOM-free: the headless checks build the sim in Node.
-const MODULES = { dominoes, panRack, baskets, pottingBench };
+const MODULES = { dominoes, panRack, baskets, pottingBench, kitchenCounter, kitchenRoom, kitchenShelves, patio, bedLeft, bedRight, meadow, fences };
 
 export class Extras {
   constructor(sim, lite = false) {

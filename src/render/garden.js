@@ -339,7 +339,7 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
   b.build(scene);
   const charm = sim ? buildCharm(scene, quality, kitchen, sim) : null;
   const detail = buildDetail(scene, quality);
-  const extras = sim ? buildExtras(scene, quality, kitchen, charm, sim) : null;
+  const extras = sim ? buildExtras(scene, quality, kitchen, charm, sim, grass.uniforms) : null;
 
   // ---------------------------------------------------------------- per-frame
   const wind = grass.uniforms;
