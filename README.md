@@ -9,6 +9,10 @@ Fly a 24 g scale-model helicopter (a deliberately serious, realistic light utili
 
 Three.js (r169) for rendering, Rapier 3D (0.14, WASM) for rigid bodies and contacts. Everything visual and audible is generated procedurally at runtime, so there are no external asset files (see [docs/ATTRIBUTION.md](docs/ATTRIBUTION.md)).
 
+## Guided first flight
+
+On first launch the game offers a short guided flight (or **Pause → Guided first flight** any time; `?lesson=1` starts it straight away). It teaches one thing at a time in the real kitchen and waits until you have actually done each: lift off on the sprung lift stick, hover, tilt and drift, turn, build speed and stop against the momentum, land, hook a bag and steep it, hook and fill the milk bucket and pour, then switch Flight Assist off and hover by hand, and try the cameras. A bar fills while you hold a hover. The wording follows whatever you are flying with (your keyboard and mouse layout, gamepad layout, touch sticks or flight stick) and changes the moment you switch. **End lesson** on the card stops it. See `src/game/tutorial.js` and `tests/tutorial-checks.mjs`.
+
 ## Three aircraft
 
 Pick on the start screen, in **Pause → Aircraft**, or press **V** in flight (`?aircraft=chinook` in the URL also works; the choice is remembered). The **micro heli** is the nimble single-rotor original. The **Chinook** is a 94 g tandem-rotor heavy lifter: two counter-rotating rotors, no tail rotor, three cargo hooks, much more inertia, and its own breakup. See [docs/DESIGN.md](docs/DESIGN.md#chinook-srcsimchinookjs). The **skycrane** is the milk tanker (below).

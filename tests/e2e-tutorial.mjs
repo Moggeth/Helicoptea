@@ -37,16 +37,16 @@ try {
     check('a real takeoff moves the lesson to hover', h.tut === 'hover' && h.step === '2' && /hover/.test(h.text), h);
     await page.waitForFunction(() => window.__helicoptea.tutorial.step !== 'hover', null, { timeout: 15000 }).catch(() => {});
     h = await hint(page);
-    check('hands off the keys, it holds a hover and moves on to drift', h.tut === 'drift' && /arrow keys/.test(h.html), h);
+    check('hands off the keys, it holds a hover and moves on to drift', h.tut === 'drift' && h.html.includes('<kbd>↑</kbd>'), h);
     // The wording follows the device the moment it changes.
     await page.evaluate(() => { window.__helicoptea.input.source = 'gamepad'; });
     await page.waitForTimeout(150);
     h = await hint(page);
-    check('picking up a gamepad rewords the card for the sticks', /stick/.test(h.html) && !/arrow keys/.test(h.html), h);
+    check('picking up a gamepad rewords the card for the sticks', /stick/.test(h.html) && !h.html.includes('<kbd>↑</kbd>'), h);
     await page.keyboard.press('ArrowLeft');
     await page.waitForTimeout(150);
     h = await hint(page);
-    check('a key press switches it straight back', /arrow keys/.test(h.html), h);
+    check('a key press switches it straight back', h.html.includes('<kbd>↑</kbd>'), h);
     // Pause menu: the entry reads End guided flight while it runs, and ends it.
     await page.keyboard.press('Escape'); await page.waitForTimeout(200);
     const btn = await page.locator('.overlay.show [data-act=tutorial]').textContent();
