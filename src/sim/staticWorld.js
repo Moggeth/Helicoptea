@@ -43,17 +43,24 @@ export function buildStaticWorld(sim, { bare = false } = {}) {
   // Launch pad (cork coaster).
   cyl(PAD.radius, PAD.height / 2, PAD.x, PAD.height / 2, PAD.z, 'pad', 'cork');
 
-  // Tea stands (kitchen table and garden table).
-  for (const S of STATIONS) {
-    box(S.baseHalf[0], S.baseHalf[1], S.baseHalf[2], S.x, S.y + S.baseHalf[1], S.z, 'station', 'wood');
+  // Tea stands (kitchen table and garden table; the neighbourhood's stream with their areas).
+  STATIONS.forEach((S, si) => {
+    const sbox = si < 2 ? box : (hx, hy, hz, x, y, z, kind, material, groups) => {
+      const desc = prepDesc(RAPIER.ColliderDesc.cuboid(hx, hy, hz), x, y, z);
+      if (groups) desc.setCollisionGroups(groups);
+      sim.streamer.list.push([null, S.x, S.z, 0.4, desc, { kind, material }, null, S.y + 0.15]);
+      return null;
+    };
+    sbox(S.baseHalf[0], S.baseHalf[1], S.baseHalf[2], S.x, S.y + S.baseHalf[1], S.z, 'station', 'wood');
     for (const sx of [-1, 1]) {
-      box(S.postHalf, S.postHeight / 2, S.postHalf, S.x + sx * S.postX, S.y + S.postHeight / 2, S.z, 'station', 'wood');
+      sbox(S.postHalf, S.postHeight / 2, S.postHalf, S.x + sx * S.postX, S.y + S.postHeight / 2, S.z, 'station', 'wood');
     }
-    box(S.postX + S.postHalf, S.barHalf, S.barHalf, S.x, S.y + S.barY, S.z, 'station', 'wood');
+    sbox(S.postX + S.postHalf, S.barHalf, S.barHalf, S.x, S.y + S.barY, S.z, 'station', 'wood');
     for (const px of S.pegXs) {
-      box(0.0022, 0.0022, S.pegReach / 2, S.x + px, S.y + S.pegY, S.z + S.pegReach / 2, 'station', 'wood').setCollisionGroups(GROUPS.peg);
+      if (si < 2) box(0.0022, 0.0022, S.pegReach / 2, S.x + px, S.y + S.pegY, S.z + S.pegReach / 2, 'station', 'wood').setCollisionGroups(GROUPS.peg);
+      else sbox(0.0022, 0.0022, S.pegReach / 2, S.x + px, S.y + S.pegY, S.z + S.pegReach / 2, 'station', 'wood', GROUPS.peg);
     }
-  }
+  });
 
   // Cups: floor disc, segmented wall ring, handle. The neighbourhood's cups (a score of colliders each)
   // stream with their areas.

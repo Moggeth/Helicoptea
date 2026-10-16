@@ -125,6 +125,7 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
       if (at) { _c.set(at[0], 0, at[1]); _box.makeEmpty(); } else if (_box.isEmpty()) _c.copy(obj.position); else _box.getCenter(_c);
       const c = chunkAt(_c.x, _c.z, lod);
       c.group.add(obj);
+      c.live = true;
       if (!_box.isEmpty()) c.box.union(_box);
       return obj;
     },
@@ -176,6 +177,9 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
     // Nothing in a chunk moves except live objects: skip the per-frame matrix walk for the rest.
     c.group.matrixAutoUpdate = false;
     c.group.updateMatrixWorld(true);
+    c.on = true;
+    // A chunk of merged statics never moves: skip it in the per-frame matrix walk altogether.
+    if (!c.live) c.group.matrixWorldAutoUpdate = false;
     for (const o of c.group.children) if (o.userData.static !== false && o.matrixAutoUpdate === false) o.matrixWorldAutoUpdate = false;
   }
   root.matrixAutoUpdate = false;
@@ -200,7 +204,7 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
     inset(cam, reach) {
       this.saved = this.saved || [];
       this.saved.length = 0;
-      for (const c of list) { this.saved.push(c.group.visible); if (c.group.visible && c.box.distanceToPoint(cam.position) > reach) c.group.visible = false; }
+      for (const c of list) { this.saved.push(c.group.visible); if (c.on && c.box.distanceToPoint(cam.position) > reach) c.group.visible = false; }
       // The far hills and the like are far out of its reach.
       for (const o of extrasInRoot) { this.saved.push(o.visible); o.visible = false; }
     },
@@ -211,8 +215,9 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
       for (const o of extrasInRoot) o.visible = this.saved[i++];
     },
     update(dt, simNow, camera) {
-      // Chunks by distance (every other frame is plenty: the camera moves centimetres per frame).
-      if ((frame++ & 1) === 0 || dt === 0) {
+      // Chunks by distance (every other frame is plenty, every fourth on phones: the camera moves centimetres
+      // per frame).
+      if ((frame++ & (lite ? 3 : 1)) === 0 || dt === 0) {
         const cp = camera.position;
         const inside = (cp.x > ROOM.minX && cp.x < ROOM.maxX && cp.z > ROOM.minZ && cp.z < ROOM.maxZ && cp.y < ROOM.ceilingY)
           || (cp.x > MAIN.x0 && cp.x < MAIN.x1 && cp.z > MAIN.z0 && cp.z < MAIN.z1 && cp.y < MAIN.eave);
@@ -223,14 +228,16 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
           // Indoors, the outside is seen through a window or two: only the structure of the areas close by.
           let vis = d < lim[c.lod];
           if (inside && c.area !== 'house') vis = vis && c.lod === 0 && (!c.areaBox || areaDist(c.areaBox, cp) < IN.lod0);
-          c.group.visible = vis;
+          // Out of sight chunks come off the scene altogether: every render walks the scene graph, and a hidden
+          // group still costs a visit in each.
+          if (vis !== c.on) { c.on = vis; if (vis) root.add(c.group); else root.remove(c.group); }
           // Ambient occlusion only matters close up: far chunks skip the AO pass (it draws them all again).
           const far = d > AO_DIST;
-          if (c.group.visible && c.aoFar !== far) { c.aoFar = far; for (const m of c.group.children) if (!m.userData.alwaysNoAO) m.userData.noAO = far || !!m.userData.foliage; }
+          if (c.on && c.aoFar !== far) { c.aoFar = far; for (const m of c.group.children) if (!m.userData.alwaysNoAO) m.userData.noAO = far || !!m.userData.foliage; }
           // The sun's shadow map covers a few metres round the aircraft: far chunks needn't be offered to it
           // (the shadow cache sorts every caster it is given, every frame).
           const casts = d < SHADOW_DIST;
-          if (c.group.visible && c.casts !== casts) { c.casts = casts; c.group.traverse((m) => { if (m.isMesh && m.userData.casts !== false) { if (m.userData.casts === undefined) m.userData.casts = m.castShadow; m.castShadow = casts && m.userData.casts; } }); }
+          if (c.on && c.casts !== casts) { c.casts = casts; c.group.traverse((m) => { if (m.isMesh && m.userData.casts !== false) { if (m.userData.casts === undefined) m.userData.casts = m.castShadow; m.castShadow = casts && m.userData.casts; } }); }
         }
       }
       const cp = camera.position;

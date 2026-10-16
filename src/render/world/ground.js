@@ -27,7 +27,7 @@ const TYPE_RGB = {
 
 export class GroundPainter {
   constructor(quality) {
-    this.ppm = quality.lite ? 8 : quality.name === 'low' ? 8 : 14;   // pixels per metre
+    this.ppm = quality.lite ? 6 : quality.name === "low" ? 8 : 14;   // pixels per metre (phones: within their texture budget)
     this.ops = [];
     this.shadows = [];
   }
