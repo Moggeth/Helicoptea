@@ -8,6 +8,8 @@ import { buildHouseShell } from './houseShell.js';
 import { buildCharm } from './charm.js';
 import { buildDetail } from './detail.js';
 import { buildExtras } from './extras.js';
+import { buildWorld } from './world/index.js';
+import { HEDGE_GATE } from '../sim/world/plan.js';
 
 const V2 = (x, y) => new THREE.Vector2(x, y);
 const _v = new THREE.Vector3(), _c = new THREE.Vector3();
@@ -30,15 +32,9 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
   const sky = skyDome(sunDir);
   scene.add(sky);
   const horizon = new THREE.Color(0xe4e0d4);
-  scene.fog = new THREE.Fog(horizon, 6, 28);
+  // Haze over the neighbourhood: the world's far chunks stop drawing just beyond where it closes in.
+  scene.fog = quality.lite ? new THREE.Fog(horizon, 16, 92) : new THREE.Fog(horizon, 28, 165);
   scene.background = horizon;
-  {
-    const far = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshLambertMaterial({ color: 0x5d7343 }));
-    far.rotation.x = -Math.PI / 2;
-    far.position.y = fy - 0.012;
-    far.receiveShadow = false;
-    scene.add(far);
-  }
 
   buildHouseShell(scene, quality);
 
@@ -103,21 +99,26 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
     run(G.minX, G.maxZ, G.minX, G.minZ);
     run(G.maxX, G.maxZ, G.maxX, G.minZ);
     run(G.minX, G.minZ, G.maxX, G.minZ);
-    run(G.minX, G.maxZ, ROOM.minX - WALL_T, G.maxZ);
-    run(ROOM.maxX + WALL_T, G.maxZ, G.maxX, G.maxZ);
+    // (The gaps from the house corners to the side fences open onto the side passages.)
     // Hedge: a dense core plus leaf cards on its faces.
     const hz = (HEDGE.z0 + HEDGE.z1) / 2, hd = HEDGE.z1 - HEDGE.z0, hh = HEDGE.top - fy;
     const nSeg = 9;
-    for (let i = 0; i < nSeg; i++) {
-      const x = G.minX + (i + 0.5) / nSeg * (G.maxX - G.minX);
-      const g = blobGeometry(0.5, 2, i * 1.7, 0.12);
-      b.add(g, leafy, T(x, fy + hh * 0.5, hz, rnd() * 6, 0, 0, (G.maxX - G.minX) / nSeg * 1.25, hh * 1.0, hd * 1.05), 0xb8c8a8, decor);
+    // Two runs either side of the garden gate onto the back lane.
+    for (const [x0, x1] of [[G.minX, HEDGE_GATE.x0], [HEDGE_GATE.x1, G.maxX]]) {
+      const n = Math.max(1, Math.round(nSeg * (x1 - x0) / (G.maxX - G.minX))), sw = (x1 - x0) / n;
+      for (let i = 0; i < n; i++) {
+        const g = blobGeometry(0.5, 2, x0 * 3 + i * 1.7, 0.12);
+        // End blocks are squarer so the gap has clean clipped sides.
+        const end = i === 0 || i === n - 1;
+        b.add(g, leafy, T(x0 + (i + 0.5) * sw, fy + hh * 0.5, hz, end ? 0 : rnd() * 6, 0, 0, sw * (end ? 1.0 : 1.25), hh * 1.0, hd * 1.05), 0xb8c8a8, decor);
+      }
     }
     const pts = [];
     const n = Math.round(2600 * q);
     for (let i = 0; i < n; i++) {
       const face = rnd();
       const x = G.minX + 0.05 + rnd() * (G.maxX - G.minX - 0.1);
+      if (x > HEDGE_GATE.x0 - 0.02 && x < HEDGE_GATE.x1 + 0.02) continue;
       if (face < 0.7) pts.push([x, fy + 0.08 + rnd() * (hh - 0.12), HEDGE.z1 + 0.01 + rnd() * 0.04, 0, 0, 1]);
       else pts.push([x, HEDGE.top - 0.02 + rnd() * 0.04, HEDGE.z0 + rnd() * hd, 0, 1, 0]);
     }
@@ -317,29 +318,12 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
     }
   }
 
-  // ---------------------------------------------------------------- beyond the fence: neighbours' trees
-  if (tier !== 'low') {
-    const n = Math.round(14 * q + 4);
-    for (let i = 0; i < n; i++) {
-      const side = i % 3;
-      let x, z;
-      if (side === 0) { x = GARDEN.minX - 0.5 + rnd() * (GARDEN.maxX - GARDEN.minX + 1); z = GARDEN.minZ - 1.2 - rnd() * 4; }
-      else if (side === 1) { x = GARDEN.minX - 1.0 - rnd() * 3; z = GARDEN.maxZ - rnd() * 5.5; }
-      else { x = GARDEN.maxX + 1.0 + rnd() * 3; z = GARDEN.maxZ - rnd() * 5.5; }
-      const hgt = 2.2 + rnd() * 3;
-      b.add(new THREE.CylinderGeometry(0.06, 0.12, hgt, 8), bark, T(x, fy + hgt / 2, z), 0x998877, { cast: false, receive: false });
-      const k = 2 + Math.floor(rnd() * 3);
-      for (let j = 0; j < k; j++) {
-        const r = 0.7 + rnd() * 0.9;
-        b.add(blobGeometry(r, 2, i * 3 + j, 0.2), leafy, T(x + (rnd() - 0.5) * 0.8, fy + hgt + (rnd() - 0.3) * 0.9, z + (rnd() - 0.5) * 0.8), [0x8a9a80, 0xa0b090, 0x7e8c74, 0xb0b89a][(i + j) % 4], { cast: false, receive: false });
-      }
-    }
-  }
-
   b.build(scene);
   const charm = sim ? buildCharm(scene, quality, kitchen, sim) : null;
   const detail = buildDetail(scene, quality);
   const extras = sim ? buildExtras(scene, quality, kitchen, charm, sim, grass.uniforms) : null;
+  // The neighbourhood round the house and garden (src/render/world).
+  const world = buildWorld(scene, quality, { kitchen, sim, wind: grass.uniforms, teaStand, charm });
 
   // ---------------------------------------------------------------- per-frame
   const wind = grass.uniforms;
@@ -355,8 +339,12 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
     grass,
     charm,
     extras,
+    world,
     update(dt, focus, camera, sim) {
       t += dt;
+      // The sky dome rides with the camera (it is drawn at the far plane), wherever in the world it is.
+      sky.position.copy(camera.position);
+      world.update(dt, sim, camera);
       if (charm) charm.update(dt, sim, camera);
       if (kitchen.cloth) kitchen.cloth.update(dt, sim);
       detail.update(dt, sim, grass.uniforms.uBreeze.value);

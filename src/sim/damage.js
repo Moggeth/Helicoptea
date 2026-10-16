@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RAPIER, GROUPS } from './physics.js';
 import { CFG } from '../config.js';
+import { groundHeight } from './world/plan.js';
 
 // Damage model: what rotor and tail strikes do to a live aircraft before (and instead of) the final crash.
 //   Blade wear     light rotor contact chips the blades: lift falls off and a 1/rev shake grows.
@@ -358,7 +359,7 @@ export class Damage {
     if (impact > heli.def.impactDv) return { reason: why, impact, material: why === 'rotor strike' ? struck : material };
     if (D && D.hulk && ((anyContact && impact > CFG.crash.bumpDv) || D.shedT > DAMAGE.hulkTime)) return { reason: over && anyContact ? 'rollover' : 'rotor strike', impact: Math.max(impact, speed), material: struck };
     if (D && D.shed & 3 && !D.hulk && D.shedT > DAMAGE.oneRotorTime) return { reason: 'rotor strike', impact: speed, material: struck };
-    if (heli.pos.y < -0.72 && heli.up.y < 0.5) return D && (D.tail || D.shed) ? { reason: D.tail ? 'tail strike' : 'rotor strike', impact: 1, material: D.tail ? material : struck } : { reason: 'floor', impact: 1, material };
+    if (heli.pos.y < groundHeight(heli.pos.x, heli.pos.z) + 0.04 && heli.up.y < 0.5) return D && (D.tail || D.shed) ? { reason: D.tail ? 'tail strike' : 'rotor strike', impact: 1, material: D.tail ? material : struck } : { reason: 'floor', impact: 1, material };
     if (anyContact && over) return { reason: D && D.tail ? 'tail strike' : 'rollover', impact: 1, material };
     return null;
   }

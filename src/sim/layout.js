@@ -1,4 +1,6 @@
 // Static table layout shared by physics colliders and render meshes (metres, table top at y = 0).
+import { WORLD_CUPS, WORLD_STATIONS } from './world/index.js';
+import { BOUNDS as WORLD_BOUNDS, groundHeight } from './world/plan.js';
 
 export const TABLE = { halfX: 0.86, halfZ: 0.52, thickness: 0.045, height: 0.76 };
 
@@ -38,6 +40,8 @@ export const CUPS = [
     bottom: 0.007, water: 0.045, handleYaw: Math.PI * 0.5, glaze: 0xe8c547, rim: 0xc0392b },
   { id: 'chimney', name: 'Chimney mug', x: 1.69, z: 0.1, standY: 3.4, baseY: 3.4, rOut: 0.047, rIn: 0.0415, height: 0.096,
     bottom: 0.009, water: 0.074, handleYaw: Math.PI, glaze: 0x3f5e4a, rim: 0xd8d0bf },
+  // The rest of the neighbourhood's cups (src/sim/world/*.js).
+  ...WORLD_CUPS,
 ];
 
 export const DISCARD = { x: 0.5, z: -0.29, radius: 0.078, rimHeight: 0.013, thickness: 0.006 };
@@ -68,7 +72,7 @@ export const PATIO = { minX: -1.7, maxX: 2.35, minZ: -2.4, maxZ: GARDEN.maxZ };
 export const GTABLE = { x: 0.35, z: -2.95, halfX: 0.55, halfZ: 0.34, top: -0.05, thickness: 0.03 };
 // A second tea stand on the garden table, so the garden can be played on its own.
 export const GARDEN_STATION = { ...STATION, x: 0.02, z: -3.06, y: GTABLE.top };
-export const STATIONS = [STATION, GARDEN_STATION];
+export const STATIONS = [STATION, GARDEN_STATION, ...WORLD_STATIONS];
 export const GTEAPOT = { x: 0.62, z: -3.12, r: 0.075, h: 0.11 };
 export const GJAR = { x: -0.12, z: -2.72, r: 0.035, h: 0.11 };
 export const GCHAIRS = [[0.0, -2.38, 0], [0.95, -2.42, 0.25]];
@@ -83,10 +87,10 @@ export const MEADOW_Z = -4.7; // long grass beyond this line
 
 // Roof (gable along x) and the chimney stack on its back slope, near the ridge.
 export const ROOF = { eaveZ: ROOM.minZ - WALL_T - 0.28, eaveY: ROOM.floorY + 2.6 - 0.05 + 0.02, ridgeZ: (ROOM.maxZ + ROOM.minZ) / 2, rise: 1.13,
-  frontEaveZ: ROOM.maxZ + WALL_T + 0.28, halfX: (ROOM.maxX - ROOM.minX) / 2 + WALL_T + 0.2, thick: 0.05 };
+  frontEaveZ: ROOM.maxZ + 0.08, halfX: (ROOM.maxX - ROOM.minX) / 2 + WALL_T + 0.2, thick: 0.05 };
 export const CHIMNEY = { x: 1.575, z: 0.1, halfX: 0.225, halfZ: 0.22, top: 3.4, pots: [[1.45, -0.02], [1.45, 0.22]], potR: 0.075, potH: 0.28 };
-// The play space: everything outside it is walled off (invisible walls behind fences and the house).
-export const BOUNDS = { minX: GARDEN.minX, maxX: GARDEN.maxX, minZ: GARDEN.minZ, maxZ: ROOF.frontEaveZ + 0.1, top: ROOM.floorY + 8 };
+// The play space: the whole neighbourhood (src/sim/world/plan.js), walled off by invisible walls.
+export const BOUNDS = WORLD_BOUNDS;
 
 // Kitchen charm.
 export const FRIDGE = { x0: ROOM.minX, x1: ROOM.minX + 0.68, z0: 0.9, z1: 1.5, top: ROOM.floorY + 1.8 };
@@ -111,7 +115,7 @@ export function surfaceY(x, z) {
   if (Math.abs(x) < TABLE.halfX && Math.abs(z) < TABLE.halfZ) return 0;
   if (Math.abs(x - GTABLE.x) < GTABLE.halfX && Math.abs(z - GTABLE.z) < GTABLE.halfZ) return GTABLE.top;
   if (x > COUNTER.x0 && z > COUNTER.z0 && z < COUNTER.z1) return COUNTER.top;
-  return ROOM.floorY;
+  return groundHeight(x, z);
 }
 
 // Cylinders (x, z, radius, topY, bottomY) used by the visual string verlet to avoid obvious clipping.

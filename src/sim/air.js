@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RAPIER, GROUPS } from './physics.js';
 import { CFG } from '../config.js';
 import { CUPS, TEAPOT, SUGAR, VASE, JUG, BOOKS, STATION, TABLE, MILK_BOWL } from './layout.js';
+import { groundHeight } from './world/plan.js';
 
 // Rotor downwash as a small fluid simulation.
 //
@@ -260,7 +261,7 @@ export class AirField {
     return out;
   }
 
-  surfaceY(x, z) { return Math.abs(x) < TABLE.halfX && Math.abs(z) < TABLE.halfZ ? 0 : -0.76; }
+  surfaceY(x, z) { return Math.abs(x) < TABLE.halfX && Math.abs(z) < TABLE.halfZ ? 0 : groundHeight(x, z); }
 
   maxSpeed() {
     let m = 0;

@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { RAPIER } from './physics.js';
 import { ROOM, WALL_T, BACKDOOR, WINDOW, SILL, COUNTER, KETTLE, CHAIRS, GARDEN, GTABLE, GTEAPOT, GJAR, GCHAIRS,
-  ARCH, BIRDBATH, STUMP, BENCH, TREE, POTS, HEDGE, ROOF, CHIMNEY, BOUNDS, FRIDGE, RADIO, CLOCK, FRAMES, CURTAINS,
+  ARCH, BIRDBATH, STUMP, BENCH, TREE, POTS, HEDGE, ROOF, CHIMNEY, FRIDGE, RADIO, CLOCK, FRAMES, CURTAINS,
   CAT, GNOME, LANTERN, CUPS, DRESSER, RANGE, LINE, FEEDER, BREADBIN, FRUITBOWL, CADDIES, CADDY, linePoint } from './layout.js';
+import { KITCHEN_HALL_DOOR, HEDGE_GATE } from './world/plan.js';
+import { buildWorldColliders } from './world/index.js';
 
 // Colliders for the house shell (back wall with an open door and window), the kitchen counter and chairs,
 // and the tea garden behind the house. Primitive shapes; the render meshes are richer.
@@ -16,7 +18,8 @@ export function buildHouseColliders(add, box, cyl) {
   box(hx, 0.05, hz, cx, ROOM.ceilingY + 0.05, cz, 'wall', 'plaster');
   box(WALL_T / 2, wallH / 2, hz, ROOM.minX - WALL_T / 2, wallY, cz, 'wall', 'plaster');
   box(WALL_T / 2, wallH / 2, hz, ROOM.maxX + WALL_T / 2, wallY, cz, 'wall', 'plaster');
-  box(hx, wallH / 2, WALL_T / 2, cx, wallY, ROOM.maxZ + WALL_T / 2, 'wall', 'plaster');
+  // Front wall, shared with the main house, with the doorway through to the hall.
+  for (const [x0, x1, y0, y1] of frontWallPieces()) box((x1 - x0) / 2, (y1 - y0) / 2, WALL_T / 2, (x0 + x1) / 2, (y0 + y1) / 2, ROOM.maxZ + WALL_T / 2, 'wall', 'plaster');
   // Back wall, around the openings.
   for (const [x0, x1, y0, y1] of backWallPieces()) {
     box((x1 - x0) / 2, (y1 - y0) / 2, WALL_T / 2, (x0 + x1) / 2, (y0 + y1) / 2, ROOM.minZ - WALL_T / 2, 'wall', 'plaster');
@@ -46,29 +49,27 @@ export function buildHouseColliders(add, box, cyl) {
 
   buildDetailColliders(add, box, cyl);
 
-  // Garden boundary: fences with tall invisible walls just behind them (the sky has no lid).
+  // Garden boundary: the side fences at their real height (the neighbours' gardens are beyond them). The
+  // gaps from the house corners to the side fences open onto the side passages (their gates are drawn and
+  // made solid by the side areas, src/sim/world/left.js and right.js).
   const G = GARDEN;
   const gx = (G.minX + G.maxX) / 2, gz = (G.minZ + G.maxZ) / 2;
-  const tallH = 8;
-  const Bd = BOUNDS, bz = (Bd.minZ + Bd.maxZ) / 2, bhz = (Bd.maxZ - Bd.minZ) / 2 + 0.1;
-  box(0.05, tallH / 2, bhz, Bd.minX - 0.05, fy + tallH / 2, bz, 'fence', 'wood');
-  box(0.05, tallH / 2, bhz, Bd.maxX + 0.05, fy + tallH / 2, bz, 'fence', 'wood');
-  box((G.maxX - G.minX) / 2 + 0.1, tallH / 2, 0.05, gx, fy + tallH / 2, G.minZ - 0.05, 'fence', 'wood');
-  // In front of the house (only reachable over the roof) and a lid high above everything.
-  box((Bd.maxX - Bd.minX) / 2 + 0.1, tallH / 2, 0.05, gx, fy + tallH / 2, Bd.maxZ + 0.05, 'fence', 'wood');
-  box((Bd.maxX - Bd.minX) / 2 + 0.1, 0.05, bhz, gx, Bd.top + 0.05, bz, 'fence', 'wood');
-  // Short fence runs from the house corners to the side fences.
-  box((ROOM.minX - WALL_T - G.minX) / 2, tallH / 2, 0.05, (ROOM.minX - WALL_T + G.minX) / 2, fy + tallH / 2, G.maxZ + 0.05, 'fence', 'wood');
-  box((G.maxX - ROOM.maxX - WALL_T) / 2, tallH / 2, 0.05, (G.maxX + ROOM.maxX + WALL_T) / 2, fy + tallH / 2, G.maxZ + 0.05, 'fence', 'wood');
+  const fenceTop = fy + G.fenceH + 0.06, fh = (fenceTop - fy) / 2;
+  box(0.035, fh, (G.maxZ - G.minZ) / 2, G.minX, fy + fh, gz, 'fence', 'wood');
+  box(0.035, fh, (G.maxZ - G.minZ) / 2, G.maxX, fy + fh, gz, 'fence', 'wood');
+  // Everything beyond: the neighbourhood's ground, its areas and the walls round the world.
+  buildWorldColliders(add);
   // Roof slopes, gable ends and the chimney stack with its pots.
   const Rf = ROOF, ridgeY = Rf.eaveY + Rf.rise;
   for (const ez of [Rf.eaveZ, Rf.frontEaveZ]) {
-    const run = Math.abs(Rf.ridgeZ - ez), len = Math.hypot(run, Rf.rise), pitch = Math.atan2(Rf.rise, run) * (ez < Rf.ridgeZ ? -1 : 1);
+    // Both slopes share the pitch; the front one is cut short where it meets the main house.
+    const run = Math.abs(Rf.ridgeZ - ez), rise = Rf.rise * run / (Rf.ridgeZ - Rf.eaveZ);
+    const len = Math.hypot(run, rise), pitch = Math.atan2(rise, run) * (ez < Rf.ridgeZ ? -1 : 1);
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, 0, 0));
-    add(RAPIER.ColliderDesc.cuboid(Rf.halfX, Rf.thick / 2, len / 2), 0, (Rf.eaveY + ridgeY) / 2, (ez + Rf.ridgeZ) / 2, 'roof', 'tile', q);
+    add(RAPIER.ColliderDesc.cuboid(Rf.halfX, Rf.thick / 2, len / 2), 0, ridgeY - rise / 2, (ez + Rf.ridgeZ) / 2, 'roof', 'tile', q);
   }
   // Soffits close the gap between the wall tops and the roof at both eaves.
-  for (const [ez, wz] of [[Rf.eaveZ, ROOM.minZ - WALL_T], [Rf.frontEaveZ, ROOM.maxZ + WALL_T]]) {
+  for (const [ez, wz] of [[Rf.eaveZ, ROOM.minZ - WALL_T]]) { // the front slope runs into the main house's wall
     const yTop = Rf.eaveY + Math.abs(wz - ez) * Rf.rise / Math.abs(Rf.ridgeZ - ez), pts = [];
     for (const x of [-Rf.halfX, Rf.halfX]) pts.push(x, Rf.eaveY - 0.09, ez, x, Rf.eaveY, ez, x, Rf.eaveY - 0.09, wz, x, yTop, wz);
     add(RAPIER.ColliderDesc.convexHull(new Float32Array(pts)), 0, 0, 0, 'roof', 'wood');
@@ -107,7 +108,10 @@ export function buildHouseColliders(add, box, cyl) {
 
   // Hedge along the back fence.
   // (The clipped hedge bulges a little proud of its line, so its collider does too.)
-  box((G.maxX - G.minX) / 2, (HEDGE.top - fy) / 2, (HEDGE.z1 + 0.24 - HEDGE.z0) / 2, gx, (HEDGE.top + fy) / 2, (HEDGE.z0 + HEDGE.z1 + 0.24) / 2, 'hedge', 'plant');
+  // It has a gap for the garden gate onto the back lane.
+  for (const [x0, x1] of [[G.minX, HEDGE_GATE.x0], [HEDGE_GATE.x1, G.maxX]]) {
+    box((x1 - x0) / 2, (HEDGE.top - fy) / 2, (HEDGE.z1 + 0.24 - HEDGE.z0) / 2, (x0 + x1) / 2, (HEDGE.top + fy) / 2, (HEDGE.z0 + HEDGE.z1 + 0.24) / 2, 'hedge', 'plant');
+  }
 
   // Garden table on four legs, its teapot and jam jar of flowers, two chairs.
   const T = GTABLE;
@@ -204,6 +208,13 @@ function buildDetailColliders(add, box, cyl) {
   cyl(F.r, F.h / 2, F.x, F.y, F.z, 'feeder', 'wood');
   add(RAPIER.ColliderDesc.cone(0.03, F.r + 0.03), F.x, F.y + F.h / 2 + 0.03, F.z, 'feeder', 'wood');
   add(RAPIER.ColliderDesc.capsule((F.hangFrom - F.y - F.h / 2 - 0.06) / 2, 0.006), F.x, (F.hangFrom + F.y + F.h / 2 + 0.06) / 2, F.z, 'feeder', 'metal');
+}
+
+// Rectangles [x0, x1, y0, y1] of the kitchen's front wall around the doorway into the hall.
+export function frontWallPieces() {
+  const fy = ROOM.floorY, top = fy + 2.6 - 0.05, D = KITCHEN_HALL_DOOR;
+  const L = ROOM.minX - WALL_T, Rr = ROOM.maxX + WALL_T;
+  return [[L, D.x0, fy, top], [D.x0, D.x1, D.top, top], [D.x1, Rr, fy, top]];
 }
 
 // Rectangles [x0, x1, y0, y1] of the back wall left after cutting the door and the window.

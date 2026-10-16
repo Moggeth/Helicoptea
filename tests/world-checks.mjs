@@ -7,7 +7,7 @@ import { Sim } from '../src/sim/sim.js';
 import { Autopilot } from '../src/sim/autopilot.js';
 import { TeaBag } from '../src/sim/teabag.js';
 import { CFG } from '../src/config.js';
-import { GARDEN, BACKDOOR, WINDOW, ROOM, PAD, RADIO, COUNTER, TREE, LAMP, DRESSER, linePoint } from '../src/sim/layout.js';
+import { GARDEN, BACKDOOR, WINDOW, ROOM, PAD, RADIO, COUNTER, TREE, LAMP, DRESSER, BOUNDS, linePoint } from '../src/sim/layout.js';
 import { gearDrop } from '../src/sim/aircraft.js';
 
 await initPhysics();
@@ -114,16 +114,19 @@ function pilot(sim) {
   check('reset sandbox refills both stands and empties every cup', sim.pegs.every((p) => p.bag) && sim.cups.every((c) => c.brew === 0) && sim.bags.length === sim.pegs.length);
 }
 
-// 5. The world is closed: the fences stop anything leaving the garden, and the house has no gaps.
+// 5. The world is closed: walls round the neighbourhood stop anything leaving it (and a lid on the sky),
+// the garden's fences and the house have no gaps.
 {
   const sim = new Sim();
   run(sim, 0.05); // build the query structures
   const ray = (o, d, max) => sim.world.castRay(new RAPIER.Ray(o, d), max, true, undefined, GROUPS.queryWorld);
-  const c = { x: (GARDEN.minX + GARDEN.maxX) / 2, y: 1.5, z: (GARDEN.minZ + GARDEN.maxZ) / 2 };
-  const out = [[1, 0, 0], [-1, 0, 0], [0, 0, -1]].map(([x, y, z]) => ray(c, { x, y, z }, 20));
-  check('fences (and the invisible walls above them) close the garden', out.every((h) => h && h.timeOfImpact < 4.5), out.map((h) => (h ? f(h.timeOfImpact, 2) : 'none')).join(', '));
-  const high = ray({ x: c.x, y: 5, z: c.z }, { x: 1, y: 0, z: 0 }, 20);
-  check('the boundary is still there 5 m up', !!high && high.timeOfImpact < 4.5);
+  const c = { x: (GARDEN.minX + GARDEN.maxX) / 2, y: 0.2, z: (GARDEN.minZ + GARDEN.maxZ) / 2 };
+  const out = [[1, 0, 0], [-1, 0, 0]].map(([x, y, z]) => ray(c, { x, y, z }, 20));
+  check('the side fences close the garden at fence height', out.every((h) => h && h.timeOfImpact < 4.5), out.map((h) => (h ? f(h.timeOfImpact, 2) : 'none')).join(', '));
+  const B = BOUNDS, sky = { x: 0.3, y: B.top - 2, z: 0 };
+  const edges = [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0]].map(([x, y, z]) => ray(sky, { x, y, z }, 200));
+  const want = [B.maxX - 0.3, 0.3 - B.minX, B.maxZ, -B.minZ, 2];
+  check('walls round the world and a lid on the sky', edges.every((h, i) => h && Math.abs(h.timeOfImpact - want[i]) < 0.2), edges.map((h) => (h ? f(h.timeOfImpact, 1) : 'none')).join(', '));
   const wall = ray({ x: -1.6, y: 0.3, z: 0 }, { x: 0, y: 0, z: -1 }, 5);
   check('the back wall beside the window is solid', !!wall && Math.abs(wall.timeOfImpact - (0 - ROOM.minZ)) < 0.01, wall ? f(wall.timeOfImpact) : 'none');
   const mid = linePoint(0.5);

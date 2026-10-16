@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ROOM, WALL_T, BACKDOOR, WINDOW, SILL } from '../sim/layout.js';
-import { backWallPieces, sashes, doorLeaf } from '../sim/house.js';
+import { backWallPieces, frontWallPieces, sashes, doorLeaf } from '../sim/house.js';
+import { KITCHEN_HALL_DOOR, MAIN } from '../sim/world/plan.js';
 import * as TX from './textures.js';
 import { brickTexture, roofTexture } from './gardenTextures.js';
 import { Batcher, T, boxUV, planeUV } from './batch.js';
@@ -45,7 +46,22 @@ export function buildHouseShell(scene, quality) {
     const x = sx > 0 ? ROOM.maxX - 0.0005 : ROOM.minX + 0.0005; // just proud of the brick behind it
     b.add(planeUV(ROOM.maxZ - ROOM.minZ, cy - fy, 1), plaster, T(x, (cy + fy) / 2, czz, -sx * Math.PI / 2), 0xffffff, { cast: false });
   }
-  b.add(planeUV(ROOM.maxX - ROOM.minX, cy - fy, 1), plaster, T(0, (cy + fy) / 2, ROOM.maxZ - 0.0005, Math.PI), 0xffffff, { cast: false });
+  // Front wall (shared with the main house): plaster round the doorway into the hall, an architrave, and
+  // plastered reveals through the thickness of both walls.
+  for (const [x0, x1, y0, y1] of frontWallPieces()) {
+    const yy0 = Math.max(y0, fy), yy1 = Math.min(y1, cy), ix0 = Math.max(x0, ROOM.minX), ix1 = Math.min(x1, ROOM.maxX);
+    if (yy1 > yy0 && ix1 > ix0) b.add(planeUV(ix1 - ix0, yy1 - yy0, 1), plaster, T((ix0 + ix1) / 2, (yy0 + yy1) / 2, ROOM.maxZ - 0.0005, Math.PI), 0xffffff, { cast: false });
+  }
+  {
+    const H = KITCHEN_HALL_DOOR, hw = H.x1 - H.x0, hh = H.top - fy, depth = MAIN.z0 - ROOM.maxZ, rzz = ROOM.maxZ + depth / 2;
+    const zf = ROOM.maxZ - 0.012;
+    b.add(new THREE.BoxGeometry(hw + 0.14, 0.07, 0.024), paint, T((H.x0 + H.x1) / 2, H.top + 0.035, zf));
+    for (const x of [H.x0 - 0.035, H.x1 + 0.035]) b.add(new THREE.BoxGeometry(0.07, hh, 0.024), paint, T(x, fy + hh / 2, zf));
+    b.add(planeUV(depth, hh, 1), plaster, T(H.x0 + 0.0005, fy + hh / 2, rzz, Math.PI / 2), 0xf2ece2, { cast: false });
+    b.add(planeUV(depth, hh, 1), plaster, T(H.x1 - 0.0005, fy + hh / 2, rzz, -Math.PI / 2), 0xf2ece2, { cast: false });
+    b.add(planeUV(hw, depth, 1), plaster, T((H.x0 + H.x1) / 2, H.top - 0.0005, rzz, 0, Math.PI / 2), 0xf2ece2, { cast: false });
+    b.add(new THREE.BoxGeometry(hw, 0.02, depth + 0.02), new THREE.MeshStandardMaterial({ color: 0x8a6a4a, roughness: 0.6 }), T((H.x0 + H.x1) / 2, fy + 0.008, rzz));
+  }
 
   // Window: architraves inside and out, a full-depth mullion and transom, sill inside, stone sill outside.
   const W = WINDOW, wx0 = W.x - W.w / 2, wx1 = W.x + W.w / 2, wy0 = W.y - W.h / 2, wy1 = W.y + W.h / 2;
@@ -102,10 +118,11 @@ export function buildHouseShell(scene, quality) {
   const eaveZ = zo - 0.28, eaveY = top + 0.02, ridgeZ = czz, ridgeY = top + 1.15;
   const rx = ROOM.maxX - ROOM.minX + 2 * WALL_T + 0.4;
   for (const side of [-1, 1]) {
-    const ez = side < 0 ? eaveZ : ROOM.maxZ + WALL_T + 0.28;
-    const run = Math.abs(ridgeZ - ez), rise = ridgeY - eaveY, len = Math.hypot(run, rise);
+    // The front slope keeps the back's pitch and stops inside the main house's back wall.
+    const ez = side < 0 ? eaveZ : MAIN.outer.z0 + 0.08;
+    const run = Math.abs(ridgeZ - ez), rise = (ridgeY - eaveY) * run / (ridgeZ - eaveZ), len = Math.hypot(run, rise);
     const pitch = Math.atan2(rise, run);
-    b.add(boxUV(rx, 0.05, len, 1), roof, T(0, (eaveY + ridgeY) / 2, (ez + ridgeZ) / 2, 0, side * pitch), 0xffffff, { cast: false });
+    b.add(boxUV(rx, 0.05, len, 1), roof, T(0, ridgeY - rise / 2, (ez + ridgeZ) / 2, 0, side * pitch), 0xffffff, { cast: false });
   }
   b.add(new THREE.BoxGeometry(rx, 0.12, 0.025), paint, T(0, eaveY - 0.02, eaveZ - 0.01), 0xffffff, { cast: false });
   b.add(new THREE.CylinderGeometry(0.05, 0.05, rx, 12, 1, true, 0, Math.PI), dark, T(0, eaveY - 0.03, eaveZ - 0.06, 0, Math.PI / 2, Math.PI / 2), 0xffffff, { cast: false });

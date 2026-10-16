@@ -141,8 +141,17 @@ export class Sim {
   }
 
   // ---------- bags ----------
+  // The neighbourhood's tea stands (stations after the kitchen's and the garden's) only hang bags while the
+  // helicopter is near them, so the bag pool goes where you are.
+  pegNear(peg, r) {
+    if (peg.station < 2) return true;
+    const h = this.heli;
+    return !!h && h.pos.distanceToSquared(peg.tip) < r * r;
+  }
+
   refillPeg(peg) {
     if (peg.bag) return;
+    if (!this.pegNear(peg, 4)) return;
     if (!this.makeRoomForBag()) return;
     const quat = new THREE.Quaternion(); // hanging upright, face towards +z
     const anchorY = peg.tip.y - CFG.cargo.ropeLength * 0.995;
@@ -605,6 +614,9 @@ export class Sim {
       if (!p.bag) {
         p.emptyFor += dt;
         if (p.emptyFor > CFG.cargo.pegRefillDelay) this.refillPeg(p);
+      } else if (p.station >= 2 && p.bag.attach && p.bag.attach.kind === 'peg' && !this.pegNear(p, 9)) {
+        this.removeBag(p.bag);
+        p.emptyFor = 99;
       }
     }
     for (const b of [...this.bags]) {

@@ -176,7 +176,7 @@ async function boot() {
 
   const scene = new THREE.Scene();
   scene.matrixWorldAutoUpdate = false; // updated once per frame in frame(), before the first render
-  const camera = new THREE.PerspectiveCamera(CFG.camera.fov, innerWidth / innerHeight, 0.01, 60);
+  const camera = new THREE.PerspectiveCamera(CFG.camera.fov, innerWidth / innerHeight, 0.01, 420);
   // Viewport size, read once per resize: reading innerWidth/innerHeight inside the frame, after the HUD has
   // touched the DOM, forces a synchronous style and layout pass each time.
   let vw = innerWidth, vh = innerHeight;

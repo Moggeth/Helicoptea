@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RAPIER, GROUPS } from '../sim/physics.js';
 import { ROOM, TABLE } from '../sim/layout.js';
+import { groundHeight } from '../sim/world/plan.js';
 import { teaColor } from './water.js';
 
 // Camera modes beyond the chase rig (camera.js) and the pilot's seat (cockpitCam.js). Each rig poses the
@@ -51,7 +52,7 @@ function keepClear(sim, from, to, out) {
   const hit = sim.world.castRay(new RAPIER.Ray({ x: from.x, y: from.y, z: from.z }, { x: dir.x, y: dir.y, z: dir.z }), len, true, undefined, GROUPS.queryWorld);
   if (hit && hit.timeOfImpact > 0.004) out.copy(from).addScaledVector(dir, Math.max(0.004, hit.timeOfImpact - 0.01));
   if (Math.abs(out.x) < TABLE.halfX + 0.05 && Math.abs(out.z) < TABLE.halfZ + 0.05) out.y = Math.max(out.y, 0.004);
-  out.y = Math.max(out.y, ROOM.floorY + 0.01);
+  out.y = Math.max(out.y, groundHeight(out.x, out.z) + 0.01);
   return out;
 }
 
