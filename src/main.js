@@ -31,6 +31,8 @@ import { CAM_IDS, CAM_NAME, DEFAULT_CYCLE, LockedRig, NoseRig, BoltRig, TripodRi
 import { FrameStats } from './perf.js';
 import { FpsMeter } from './ui/fpsMeter.js';
 import { ShadowCache } from './render/shadowCache.js';
+import { warmInSteps } from './render/warmup.js';
+import { gpuEstimate } from './render/gpuBudget.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -45,6 +47,7 @@ let fatal = false;
 function showError(msg, detail) {
   if (fatal) return;
   fatal = true;
+  store.set('booting', ''); // a script error is not a memory crash: don't lower the quality for it
   console.error('[Helicoptea] fatal:', msg, detail || '');
   // Keep a small local crash history even after this tab or its devtools have been closed.
   try {
@@ -71,8 +74,24 @@ const PRESETS = {
   low: { name: 'low', dprCap: 1, shadows: 512, particles: 220, textureSize: 1024, steam: 0.4, antialias: false, transmission: false, ao: false },
 };
 const qualitySetting = params.get('quality') || store.get('quality', 'auto');
-const quality = { ...(PRESETS[qualitySetting] || (IS_TOUCH ? PRESETS.medium : PRESETS.high)) };
+// Crash guard. A tab killed for memory or a reset GPU runs no more of our code, so each load leaves a
+// 'booting' mark that is only cleared once the game has run for a while (or the page was put away). A mark
+// still there at the next load means the last one died: Auto then steps down a tier and remembers it
+// ('safeTier'), as it does after a lost graphics context (see boot()). Picking a quality clears it.
+const TIERS = ['low', 'medium', 'high', 'ultra'];
+const lowerTier = (name) => TIERS[Math.max(0, TIERS.indexOf(name) - 1)];
+const autoTier = IS_TOUCH ? 'medium' : 'high';
+let safeTier = TIERS.includes(store.get('safeTier', '')) ? store.get('safeTier') : null;
+const diedLastTime = !!store.get('booting', '') && (!navigator.webdriver || params.get('crashguard') === '1');
+if (diedLastTime && !PRESETS[qualitySetting]) {
+  safeTier = lowerTier(safeTier && TIERS.indexOf(safeTier) < TIERS.indexOf(autoTier) ? safeTier : autoTier);
+  store.set('safeTier', safeTier);
+}
+store.set('booting', String(Date.now()));
+const autoPreset = safeTier && TIERS.indexOf(safeTier) < TIERS.indexOf(autoTier) ? PRESETS[safeTier] : PRESETS[autoTier];
+const quality = { ...(PRESETS[qualitySetting] || autoPreset) };
 quality.setting = qualitySetting;
+quality.fallback = !PRESETS[qualitySetting] && autoPreset !== PRESETS[autoTier];
 const applyAoParam = () => {
   if (params.get('ao') === '0') quality.ao = false;
   if (params.get('ao') === '1') quality.ao = true;
@@ -98,6 +117,8 @@ async function boot() {
   const probeInfo = probe.getExtension('WEBGL_debug_renderer_info');
   quality.software = SOFTWARE_GL.test(probeInfo ? probe.getParameter(probeInfo.UNMASKED_RENDERER_WEBGL) : probe.getParameter(probe.RENDERER));
   if (quality.software && !PRESETS[qualitySetting]) { Object.assign(quality, PRESETS.low); applyAoParam(); }
+  // Give the probe's context back now: a phone has room for few of them, and this one held a framebuffer.
+  probe.getExtension('WEBGL_lose_context')?.loseContext();
 
   let renderer;
   try {
@@ -114,7 +135,26 @@ async function boot() {
   // Shadow maps are drawn once per frame (see frame()), not again for every pass that renders the scene
   // (the AO normal pass and the hook camera would otherwise each redraw every shadow caster).
   renderer.shadowMap.autoUpdate = false;
-  canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); showError('The graphics context was lost (the GPU may have been reset). Reload to continue.'); });
+  // A lost context (the GPU was reset, or the browser took its memory back) can't be rebuilt in place, so
+  // on Auto the game reloads itself once a tier lower; after that, or on a chosen quality, it asks.
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    let retried = false;
+    try { retried = sessionStorage.getItem('helicoptea.lostReload') === '1'; } catch { /* ignore */ }
+    const lower = lowerTier(quality.name);
+    if (!PRESETS[qualitySetting] && !retried && lower !== quality.name) {
+      store.set('safeTier', lower);
+      store.set('booting', '');
+      try { sessionStorage.setItem('helicoptea.lostReload', '1'); } catch { /* ignore */ }
+      console.warn(`[Helicoptea] graphics context lost on ${quality.name}; reloading on ${lower}`);
+      $('load-status').textContent = 'The graphics ran out of room. Restarting with lighter graphics…';
+      $('loading').classList.remove('fade');
+      $('loading').classList.add('show');
+      setTimeout(() => location.reload(), 600);
+      return;
+    }
+    showError('The graphics context was lost (the GPU may have been reset). Reload to continue, or pick a lower Quality in Settings.');
+  });
 
   setProgress(0.15, 'Starting the physics…');
   await initPhysics();
@@ -164,17 +204,28 @@ async function boot() {
   const fpRig = new CockpitRig();
   setProgress(0.78, 'Warming the shaders…');
   await tick();
-  const warm = async () => { if (renderer.compileAsync) await renderer.compileAsync(scene, camera); else renderer.compile(scene, camera); };
-  await warm();
+  // Phones build the programs a few at a time (render/warmup.js): all at once is the long stall that can
+  // get the tab's graphics reset or the tab killed. Desktops keep the single, quicker pass.
+  const stepped = quality.lite || params.get('warm') === 'steps';
+  const warm = async (root, cam, lights, from, to) => {
+    if (stepped) await warmInSteps(renderer, root, cam, lights, { onStep: (f) => setProgress(from + (to - from) * f) });
+    else if (renderer.compileAsync) await renderer.compileAsync(root, cam);
+    else renderer.compile(root, cam);
+  };
+  await warm(scene, camera, scene, 0.78, 0.88);
   // Materials drawn into a render target (the AO pipeline, the hook camera) use a different shader variant
   // from the screen's: build those now too, or each one compiles mid-flight the first time it is seen.
+  const hadTarget = !!post.target;
   post.ensureTarget();
   renderer.setRenderTarget(post.target);
-  await warm();
+  await warm(scene, camera, scene, 0.88, 0.96);
   renderer.setRenderTarget(null);
   for (const it of Object.values(cockpit.interiors)) it.group.visible = true;
-  renderer.compile(cockpit.scene, cockpit.camera);
+  await warm(cockpit.scene, cockpit.camera, cockpit.scene, 0.96, 1);
   for (const it of Object.values(cockpit.interiors)) it.group.visible = false;
+  // Without AO that full-screen, multisampled half-float target (~40 MB on a phone) was only needed to pick
+  // the shader variants; it comes back when the hook camera first runs.
+  if (!hadTarget && quality.lite) post.releaseTarget();
   setProgress(1, 'Ready');
 
   const input = new Input($('touch'));
@@ -223,7 +274,7 @@ async function boot() {
     action: (a, el) => doAction(a, el),
     volume: (v) => { audio.setVolume(v); if (audio.muted && v > 0) audio.setMuted(false); hud.setVolume(audio.volume, audio.muted); },
     setting: (k, v) => {
-      if (k === 'quality') { store.set('quality', v); location.reload(); }
+      if (k === 'quality') { store.set('quality', v); store.set('safeTier', ''); location.reload(); }
       if (k === 'debug') { debug.enabled = v; store.set('debug', v ? '1' : '0'); }
       if (k === 'fpsMeter') { fpsMeter.shown = !!v; store.set('fpsMeter', v ? '1' : '0'); }
       if (k === 'weight') { weight = v; worldSpeed = speedOf(v); store.set('weight', String(v)); }
@@ -623,6 +674,16 @@ async function boot() {
   $('start-hint').classList.remove('hidden');
   $('load-status').textContent = `Loaded in ${((performance.now() - t0) / 1000).toFixed(1)} s`;
   console.info(`[Helicoptea] ready in ${(performance.now() - t0).toFixed(0)} ms | quality ${quality.name} (${quality.setting}${quality.software ? ', software renderer' : ''}) | dpr ${dpr.toFixed(2)} | ${debug.gpuName()} | Rapier ${RAPIER.version ? RAPIER.version() : ''}`);
+  const gpuBudget = () => gpuEstimate(renderer, [scene, cockpit.scene], [post.target, post.ao?.gtaoRenderTarget, post.ao?.pdRenderTarget, post.ao?.normalRenderTarget, loadCam.rt]);
+  const gpu = gpuBudget();
+  console.info(`[Helicoptea] GPU memory ~${gpu.totalMB} MB (textures ${gpu.texturesMB}, shadows ${gpu.shadowsMB}, targets ${gpu.targetsMB}, screen ${gpu.screenMB}) | ${gpu.programs} programs${quality.fallback ? ' | lighter graphics after an earlier crash' : ''}`);
+  if (IS_TOUCH && gpu.overBudget) console.warn(`[Helicoptea] over the phone GPU budget: ~${gpu.totalMB} of ${gpu.budgetMB} MB`);
+  if (quality.fallback) $('load-status').textContent += ' · lighter graphics after a crash (Settings > Quality)';
+  // The crash guard's mark (see the quality section) is cleared once a flight has run for a minute, or when
+  // the page is put away or closed normally: a tab killed after that is not taken as this game's crash.
+  const settled = () => store.set('booting', '');
+  addEventListener('pagehide', settled);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) settled(); });
   function wantFullscreen() { return !navigator.webdriver && (params.get('fs') || store.get('fullscreen', '1')) !== '0'; }
   function setFullscreen(on) {
     const d = document, el = d.documentElement;
@@ -634,6 +695,7 @@ async function boot() {
   const begin = () => {
     if (started) return;
     started = true;
+    setTimeout(settled, 60000);
     // Phones: the start tap is the gesture that may hide the browser's bars (Android; iPhone Safari can't,
     // but Add to Home Screen opens the game full screen anyway).
     if (IS_TOUCH && wantFullscreen()) setFullscreen(true);
@@ -1101,7 +1163,7 @@ async function boot() {
   requestAnimationFrame(frame);
 
   // Expose a tiny handle for console debugging and automated checks.
-  window.__helicoptea = { CFG, perf, get fpsMeter() { return fpsMeter; }, shadowCache, cam, cycleView, get camMode() { return cam.eff; }, tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
+  window.__helicoptea = { CFG, perf, gpuBudget, get fpsMeter() { return fpsMeter; }, shadowCache, cam, cycleView, get camMode() { return cam.eff; }, tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
 }
 
 boot().catch((err) => showError('Helicoptea failed to start. Please reload.', err));

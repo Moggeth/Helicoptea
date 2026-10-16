@@ -37,8 +37,17 @@ export class Post {
     if (this.target) return;
     const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
     this.target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: this.quality.antialias ? 4 : 0 });
-    this.output = new FullScreenQuad(this.outputMaterial());
+    // The output pass outlives a released target (keeping its compiled program): point it at the new one.
+    if (this.output) this.output.material.uniforms.tDiffuse.value = this.target.texture;
+    else this.output = new FullScreenQuad(this.outputMaterial());
     this.setSize(innerWidth, innerHeight);
+  }
+
+  // Free the target while nothing draws through it (no AO); ensureTarget() makes it again when needed.
+  releaseTarget() {
+    if (this.enabled || !this.target) return;
+    this.target.dispose();
+    this.target = null;
   }
 
   build(quality) {
