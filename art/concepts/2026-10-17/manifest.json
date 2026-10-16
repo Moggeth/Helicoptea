@@ -1,0 +1,133 @@
+{
+  "sourceRevision": "e4076c35e5cc1d36aab79557740bb68a31229d47",
+  "selectedImages": [
+    {
+      "id": "01",
+      "file": "01-the-art-of-making-tea.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 2532089,
+      "sha256": "96474360dedfce0ab12fe347eed2188bce8ba09c18215ce9eb656919cc1a4dbd"
+    },
+    {
+      "id": "02",
+      "file": "02-micro-utility-airframe.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 2158333,
+      "sha256": "fedef6f05e7424335391d14aee1fe817aedc74f3541f305ddff0388ebb000ac5"
+    },
+    {
+      "id": "03",
+      "file": "03-chinook-three-hook-haul.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 2310095,
+      "sha256": "877a7c12064cfb30e785a7976ed101d286fda8e26c34ec5e7e6c4d0fd3ea658a"
+    },
+    {
+      "id": "04",
+      "file": "04-skycrane-milk-system-v2.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 2152271,
+      "sha256": "256b9cb8429bcf034681df4dd4c2d442a08493c03301cf9ed8f0f6d3332dd7ef"
+    },
+    {
+      "id": "05",
+      "file": "05-thimble-coaxial-scout.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 2202755,
+      "sha256": "277d30dad06706701f5574a587fb66f88a533bb648d4e24afc6975affda6c17a"
+    },
+    {
+      "id": "06",
+      "file": "06-swift-tiltrotor-courier-v2.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 2011956,
+      "sha256": "78beb9ae5ffc97c4c9eac714b0c7f4bad4e5991c60a18a7563765121120b313c"
+    },
+    {
+      "id": "07",
+      "file": "07-lacewing-intermeshing-crane.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 2700328,
+      "sha256": "c1656bceb228cd20deb747bcf536e992590d26fd18593d5efc24a9f5ef556346"
+    },
+    {
+      "id": "08",
+      "file": "08-dandelion-autogyro.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 2549301,
+      "sha256": "a470d75225b639294a3149d0eee33ac069492e885e415879799600be51f7fca5"
+    },
+    {
+      "id": "09",
+      "file": "09-kingfisher-amphibian.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 2577585,
+      "sha256": "4cd16550c84e60298a679c088d63456fc820b09138f1fa9dff7277636dd5b90f"
+    },
+    {
+      "id": "10",
+      "file": "10-teacaddy-cargo-airship.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 2376766,
+      "sha256": "18f81475ec1f3e6c2ee952146afa3c6245cd14fe3f215ce984d3ee24d7593a71"
+    },
+    {
+      "id": "11",
+      "file": "11-useful-little-abilities-v2.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 2077848,
+      "sha256": "e63efd4a648519c8ade1815c559dc6265437b0d13e32eca16499206c5b73a7b8"
+    },
+    {
+      "id": "12",
+      "file": "12-greenhouse-tea-trails.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 3065300,
+      "sha256": "a379f34b3ed95daf76320409289280d24160e2b00a2361de8f328a259c6c1424"
+    },
+    {
+      "id": "13",
+      "file": "13-rain-on-the-conservatory.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 2840030,
+      "sha256": "1dee55e0fffda1701787b923fd8ed807d361a39010e1afe41d42d117201dacbe"
+    },
+    {
+      "id": "14",
+      "file": "14-midnight-pantry-run.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 2273894,
+      "sha256": "821150a234d2fd5f3c838bb06a63f11cdd6dd6ce8496482d1c8d0a3db0ae347c"
+    },
+    {
+      "id": "15",
+      "file": "15-paper-boat-assist.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 2715453,
+      "sha256": "eba92ba9d1a095296d76f5d374b2c529816ddf459784dcd294a64df6d9d99f8b"
+    },
+    {
+      "id": "16",
+      "file": "16-the-garden-precision-rally.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 2719765,
+      "sha256": "15d9b5eb61d102152c3ea24937280f82f757f4d2dc48ca9ea8ca875376635987"
+    }
+  ]
+}

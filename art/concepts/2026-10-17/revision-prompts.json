@@ -1,0 +1,14 @@
+[
+  {
+    "id": "04",
+    "prompt": "Edit this Skycrane concept sheet, preserving its premium rendering, layout, orange/green identity and all views. Correct ONLY the fluid plumbing: the milk intake hose must originate at a dedicated pump mounted on the LOWER FRONT FACE OF THE BELLY TANK, well below and physically separate from the two turbine pods. In the hero view show the flexible white snorkel fully reeled/stowed in a neat U below the tank; remove the erroneous white hose looping into the engine area. In the bottom-left pumping vignette route the white hose from the LOWER TANK pump straight down into the crock, not out of the cockpit nose. Keep the cockpit glazing, engines, rotor mast and air intakes visibly free of liquid piping. Bottom-middle carry state has hose stowed below tank; bottom-right gravity stream comes only through open belly doors. Keep all other parts and composition unchanged. This is fluid-system concept art for 3D artists; construction must visibly distinguish engines from milk pump. No new text."
+  },
+  {
+    "id": "06",
+    "prompt": "Edit this SWIFT tiltrotor sheet. Preserve all artwork and layout EXCEPT the small AIRPLANE MODE view at the bottom center: fix BOTH wingtip nacelles so they are truly rotated 90 degrees from hover to horizontal forward flight. Their long nacelle axes must point fore-aft parallel to the fuselage, with both three-blade propeller hubs at the FRONT and BOTH propeller disks in VERTICAL planes, like ordinary airplane propellers facing forward. The nacelles pivot at the wing tips. There must NOT be any horizontal helicopter rotor disk above either nacelle in the AIRPLANE MODE inset. Keep the large upper hover hero and bottom-left HOVER MODE inset unchanged with horizontal rotor disks and vertical nacelles. Do not add more propellers or alter the fuselage/cargo pod. Accurate mode comparison is essential for 3D animation reference."
+  },
+  {
+    "id": "11",
+    "prompt": "Edit this four-tool concept sheet while preserving the entire premium artwork, layouts, mechanisms and materials. Remove the misleading invented load ratings MAX 250 g from the REEL housing and MAX 200 g from the MAGNET housing. Replace each of those two inscriptions with the short words LIGHT CARGO, no numeric capacity. Also remove any unverified screw-size, voltage or manufacturing-size specification from annotations; keep generic part names such as hardpoint plate, pump, hose and motor. Keep the proposed 5 ml water-pod label. Preserve the four titles REEL, MAGNET, SPRAY and QUICK SWAP, the two latch states and all visual views. Do not invent any new performance claims or text. These are artist concepts, not certified specifications."
+  }
+]
