@@ -20,7 +20,9 @@ missions) and flight routes built on purpose.
   pool (`maxBags` 14) follows you.
 - **Rendering**: [src/render/world/index.js](../src/render/world/index.js) runs each area's `build(ctx)`,
   merges static meshes per material into 12 m chunks and draws them by distance in three levels of detail,
-  paints the ground ([ground.js](../src/render/world/ground.js)) and draws the horizon.
+  paints the ground ([ground.js](../src/render/world/ground.js)) and draws the horizon. The sky, the haze
+  (scene fog) and the far hills' pre-mixed haze share one set of colours in
+  [src/render/atmosphere.js](../src/render/atmosphere.js): change them there, not in each place.
 - **Shared assets**: [src/render/world/kit.js](../src/render/world/kit.js) (houses, windows, doors, trees,
   hedges, fences, leaf cards, world materials) and their colliders in
   [src/sim/world/shapes.js](../src/sim/world/shapes.js).
