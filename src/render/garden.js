@@ -9,7 +9,7 @@ import { buildCharm } from './charm.js';
 import { buildDetail } from './detail.js';
 import { buildExtras } from './extras.js';
 import { buildWorld } from './world/index.js';
-import { HEDGE_GATE } from '../sim/world/plan.js';
+import { HEDGE_GATE, groundHeight } from '../sim/world/plan.js';
 
 const V2 = (x, y) => new THREE.Vector2(x, y);
 const _v = new THREE.Vector3(), _c = new THREE.Vector3();
@@ -324,6 +324,7 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
   const extras = sim ? buildExtras(scene, quality, kitchen, charm, sim, grass.uniforms) : null;
   // The neighbourhood round the house and garden (src/render/world).
   const world = buildWorld(scene, quality, { kitchen, sim, wind: grass.uniforms, teaStand, charm });
+  grass.addWorld(world.ground.material.userData.grassMask, world.ground.material.map, quality);
 
   // ---------------------------------------------------------------- per-frame
   const wind = grass.uniforms;
@@ -379,6 +380,11 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
       sun.target.position.copy(_c);
       sun.position.copy(_c).add(sunOff);
       sun.target.updateMatrixWorld();
+      // Flying high over the neighbourhood, the shadow camera reaches further down the sun's ray so the
+      // aircraft's shadow still lands on the ground below (in steps, so the cached shadows rebuild rarely).
+      const alt = Math.max(0, focus.y - groundHeight(focus.x, focus.z));
+      const far = alt < 1.5 ? 4.5 : Math.min(36, 4.5 + Math.ceil((alt - 1.5) * 1.45 / 2) * 2);
+      if (sun.shadow.camera.far !== far) { sun.shadow.camera.far = far; sun.shadow.camera.updateProjectionMatrix(); }
     },
   };
 }

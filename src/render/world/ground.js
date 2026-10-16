@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { makeNoise, fbm } from '../gardenTextures.js';
-import { FY, PARK, MAIN, groundHeight, shadowOffset } from '../../sim/world/plan.js';
+import { FY, PARK, MAIN, STREAM, POND, groundHeight, shadowOffset } from '../../sim/world/plan.js';
 import { ROOM, WALL_T, GARDEN } from '../../sim/layout.js';
 
 // The ground of the neighbourhood: one big painted map (colour, and what the surface is made of) under
@@ -18,7 +18,7 @@ import { ROOM, WALL_T, GARDEN } from '../../sim/layout.js';
 export const MAP = { x0: -26, x1: 26, z0: -54, z1: 38 };
 
 const TYPE_COLOR = {
-  grass: '#66793c', meadow: '#74793f', gravel: '#a39883', tarmac: '#4b4c4f', paving: '#a8a296', soil: '#56412f', dirt: '#7a664d',
+  grass: '#6f8a40', meadow: '#7f8a48', gravel: '#a39883', tarmac: '#4b4c4f', paving: '#a8a296', soil: '#56412f', dirt: '#7a664d',
 };
 // Surface classes in the type map: R grass, G gravel, B hard (tarmac, paving); black is soil.
 const TYPE_RGB = {
@@ -63,7 +63,7 @@ function paint(g) {
     const [nc, nx] = mk(w, h), img = nx.createImageData(w, h);
     for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
       const v = fbm(n, i / s * 0.35, j / s * 0.35, 4), k = (j * w + i) * 4;
-      img.data[k] = 120 + 120 * v; img.data[k + 1] = 140 + 100 * v; img.data[k + 2] = 90 + 90 * v; img.data[k + 3] = 90;
+      img.data[k] = 150 + 105 * v; img.data[k + 1] = 165 + 90 * v; img.data[k + 2] = 120 + 100 * v; img.data[k + 3] = 80;
     }
     nx.putImageData(img, 0, 0);
     col.imageSmoothingEnabled = true;
@@ -131,7 +131,46 @@ function paint(g) {
   tex.colorSpace = THREE.SRGBColorSpace; tex.flipY = false; tex.anisotropy = 8;
   const types = new THREE.CanvasTexture(tc);
   types.flipY = false; types.generateMipmaps = true; types.minFilter = THREE.LinearMipmapLinearFilter;
-  return { tex, types, W, H };
+  return { tex, types, W, H, mask: grassMask(g) };
+}
+
+// Where grass grows on the neighbourhood's lawns, for the grass blades (src/render/grass.js): R presence,
+// G length (lawn short, meadow long), B wild flowers, A the ground's height above FY (0..HS m).
+const HS = 4;
+function grassMask(g) {
+  const ppm = g.ppm >= 14 ? 5 : 3;
+  const W = Math.round((MAP.x1 - MAP.x0) * ppm), H = Math.round((MAP.z1 - MAP.z0) * ppm);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  const X = (x) => (x - MAP.x0) * ppm, Z = (z) => (z - MAP.z0) * ppm;
+  const LEN = { grass: 'rgb(255,70,0)', meadow: 'rgb(255,215,40)' };
+  ctx.fillStyle = LEN.meadow; ctx.fillRect(0, 0, W, H);
+  for (const op of g.ops) {
+    const type = op.o.type || 'grass';
+    ctx.globalAlpha = op.o.alpha ?? 1;
+    ctx.fillStyle = ctx.strokeStyle = LEN[type] || 'rgb(0,0,0)';
+    shape(ctx, op, X, Z);
+    if (op.k === 'path') { ctx.lineWidth = op.width * ppm; ctx.lineCap = ctx.lineJoin = 'round'; ctx.stroke(); } else ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  // None in the tea garden, the kitchen and the house (they have their own floors and grass).
+  ctx.fillStyle = '#000';
+  const hole = (x0, z0, x1, z1) => ctx.fillRect(X(x0), Z(z0), (x1 - x0) * ppm, (z1 - z0) * ppm);
+  hole(GARDEN.minX, GARDEN.minZ, GARDEN.maxX, ROOM.minZ - WALL_T);
+  hole(ROOM.minX - WALL_T, ROOM.minZ - WALL_T, ROOM.maxX + WALL_T, ROOM.maxZ);
+  hole(MAIN.outer.x0, MAIN.outer.z0, MAIN.outer.x1, MAIN.outer.z1 + 0.7);
+  const src = ctx.getImageData(0, 0, W, H).data, d = new Uint8Array(W * H * 4);
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+    const k = (j * W + i) * 4, x = MAP.x0 + (i + 0.5) / ppm, z = MAP.z0 + (j + 0.5) / ppm;
+    const h = groundHeight(x, z);
+    const wet = h < Math.max(STREAM.water, POND.water) + 0.04 && z < PARK.z1;
+    d[k] = wet ? 0 : src[k]; d[k + 1] = src[k + 1]; d[k + 2] = src[k + 2];
+    d[k + 3] = Math.round(255 * Math.min(1, Math.max(0, (h - FY) / HS)));
+  }
+  const t = new THREE.DataTexture(d, W, H, THREE.RGBAFormat);
+  t.magFilter = t.minFilter = THREE.LinearFilter;
+  t.needsUpdate = true;
+  return { texture: t, rect: new THREE.Vector4(MAP.x0, MAP.z0, MAP.x1 - MAP.x0, MAP.z1 - MAP.z0), heightScale: HS };
 }
 
 function convexHull(pts) {
@@ -184,7 +223,7 @@ function detailTexture() {
 }
 
 export function groundMaterial(g) {
-  const { tex, types } = paint(g);
+  const { tex, types, mask } = paint(g);
   const size = new THREE.Vector2(MAP.x1 - MAP.x0, MAP.z1 - MAP.z0);
   const mat = new THREE.MeshLambertMaterial({ map: tex });
   mat.name = 'world-ground';
@@ -205,6 +244,7 @@ export function groundMaterial(g) {
   };
   mat.customProgramCacheKey = () => 'world-ground';
   mat.userData.u = u;
+  mat.userData.grassMask = mask;
   return mat;
 }
 

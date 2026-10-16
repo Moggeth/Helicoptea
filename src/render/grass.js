@@ -53,6 +53,8 @@ const VERT_HEAD = `
   uniform vec4 uBlade; // width, min height, max height, near layer (1) / far layer (0)
   uniform vec4 uOther; // the other layer's window (centre x, z, half size) for cross-fading
   uniform float uGroundY;
+  uniform float uHeightScale; // the neighbourhood's lawns: mask alpha is the ground's height above uGroundY
+  uniform sampler2D uShadeMap; uniform float uShade; // ... and blades take the painted ground's light and shade
   varying vec3 vGrassCol;
   ${WIND_GLSL}
   vec3 gPos; vec3 gNrm;
@@ -97,7 +99,7 @@ const VERT_HEAD = `
     float along = H * (1.0 - cos(phi)) / th;
     float up = H * sin(phi) / th;
     float w = W * (1.0 - pow(t, 1.4)) * (flower > 0.5 && t > 0.82 ? 2.6 : 1.0);
-    gPos = vec3(root.x + D.x * along, uGroundY + up, root.y + D.y * along) + side * position.x * w;
+    gPos = vec3(root.x + D.x * along, uGroundY + mk.a * uHeightScale + up, root.y + D.y * along) + side * position.x * w;
     vec3 T = vec3(D.x * sin(phi), cos(phi), D.y * sin(phi));
     gNrm = normalize(mix(normalize(cross(side, T)), vec3(0.0, 1.0, 0.0), 0.6));
     // Colour: shaded at the root (close to the lawn under it, so blades never read as dark spikes), sunlit at
@@ -112,6 +114,10 @@ const VERT_HEAD = `
         ? (k < 0.45 ? vec3(0.42, 0.30, 0.70) : k < 0.7 ? vec3(0.95, 0.62, 0.72) : k < 0.85 ? vec3(0.98, 0.95, 0.88) : vec3(0.98, 0.72, 0.2))
         : (k < 0.6 ? vec3(0.98, 0.97, 0.92) : k < 0.85 ? vec3(0.98, 0.82, 0.22) : vec3(0.75, 0.55, 0.85));
       col = fc;
+    }
+    if (uShade > 0.5) {
+      float l = dot(texture2D(uShadeMap, muv).rgb, vec3(0.3, 0.59, 0.11));
+      col *= clamp(l / 0.15, 0.35, 1.3);
     }
     vGrassCol = col;
   }
@@ -143,6 +149,7 @@ export class Grass {
   }
 
   layer(nx, nz, cell, o, shadows) {
+    const mask = o.mask || this.mask;
     // One blade: a tapered strip of `segs` segments ending in a point.
     const pos = [], idx = [];
     for (let s = 0; s < o.segs; s++) { const t = s / o.segs; pos.push(-0.5, t, 0, 0.5, t, 0); }
@@ -164,8 +171,11 @@ export class Grass {
       ...this.uniforms,
       uWin: { value: new THREE.Vector4(0, 0, cell, 0) },
       uWinN: { value: new THREE.Vector2(nx, nz) },
-      uMask: { value: this.mask.texture },
-      uMaskRect: { value: this.mask.rect },
+      uMask: { value: mask.texture },
+      uMaskRect: { value: mask.rect },
+      uHeightScale: { value: o.heightScale || 0 },
+      uShadeMap: { value: o.shadeMap || null },
+      uShade: { value: o.shadeMap ? 1 : 0 },
       uBlade: { value: new THREE.Vector4(o.width, o.hMin, o.hMax, o.near ? 1 : 0) },
       uOther: { value: new THREE.Vector4(0, 0, 0, 0) },
       uGroundY: { value: GARDEN.groundY },
@@ -184,7 +194,7 @@ export class Grass {
         // is flipped to point at the ground and half the lawn shows as black spikes.
         .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n  normal = normalize(vNormal);');
     };
-    mat.customProgramCacheKey = () => `grass-${o.near ? 'n' : 'f'}`;
+    mat.customProgramCacheKey = () => `grass-${o.near ? 'n' : 'f'}`; // one program for every layer (the world's lawns too)
     const mesh = new THREE.Mesh(geo, mat);
     mesh.frustumCulled = false;
     mesh.receiveShadow = !!shadows;
@@ -195,8 +205,24 @@ export class Grass {
     return mesh;
   }
 
+  // Grass on the neighbourhood's lawns (src/render/world/ground.js paints the mask): a window of clumps that
+  // follows the camera, drawn like the garden's far layer but with the ground's height and shade.
+  addWorld(mask, shadeMap, quality) {
+    const tier = quality.name === 'ultra' ? 'high' : quality.name;
+    const w = quality.lite ? { cell: 0.085, n: 110 } : tier === 'high' ? { cell: 0.05, n: 300 } : tier === 'medium' ? { cell: 0.065, n: 200 } : { cell: 0.085, n: 120 };
+    this.world = this.layer(w.n, w.n, w.cell, { width: 0.008, hMin: 0.03, hMax: 0.26, near: true, segs: 2, mask, shadeMap, heightScale: mask.heightScale }, false);
+    this.worldCell = w.cell; this.worldN = w.n;
+    this.blades += w.n * w.n;
+    this.world.name = 'world-grass';
+  }
+
   // centre: where the dense layer should be (around the camera and what it looks at).
   update(centre, camera) {
+    if (this.world) {
+      const n = this.worldN, c = this.worldCell;
+      const bx = Math.floor(camera.position.x / c) - n / 2, bz = Math.floor(camera.position.z / c) - n / 2;
+      this.world.material.userData.u.uWin.value.set(bx, bz, c, 0);
+    }
     const n = this.nearN, c = this.nearCell;
     const nu = this.near.material.userData.u;
     const bx = Math.floor(centre.x / c) - n / 2, bz = Math.floor(centre.z / c) - n / 2;

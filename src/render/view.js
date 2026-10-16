@@ -589,6 +589,8 @@ export class View {
     while (this.steamAcc > 0.4) {
       this.steamAcc -= 0.4;
       for (const c of sim.cups) {
+        // Only the cups near the aircraft steam (there are cups all over the neighbourhood).
+        if ((c.x - this.heliPos.x) ** 2 + (c.z - this.heliPos.z) ** 2 > 64) continue;
         const a = Math.random() * Math.PI * 2, r = Math.random() * c.rIn * 0.7;
         this.smoke.emit({ p: [c.x + Math.cos(a) * r, c.waterY + 0.004, c.z + Math.sin(a) * r], v: [rand(-0.01, 0.01), rand(0.035, 0.06), rand(-0.01, 0.01)], life: rand(2.2, 3.4),
           size0: 0.012, size1: rand(0.05, 0.08), col0: [1, 0.98, 0.95], alpha: 0.07, drag: 0.2 });
