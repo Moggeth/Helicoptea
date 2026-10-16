@@ -29,6 +29,9 @@ const ICONS = {
   camera: '<svg viewBox="0 0 24 24"><rect x="3" y="7" width="13" height="11" rx="2"/><path d="m16 11 5-3v9l-5-3"/><circle cx="9.5" cy="12.5" r="2.5"/></svg>',
 };
 
+const KEYBOARD_KEYS = { lift: '<kbd>W</kbd>', attach: '<kbd>Space</kbd>', assist: '<kbd>F</kbd>', restart: '<kbd>R</kbd>', pour: '<kbd>G</kbd>', doors: '<kbd>G</kbd>', salvo: 'double-tap <kbd>G</kbd>', pump: '<kbd>T</kbd>', autofill: 'double-tap <kbd>T</kbd>', reel: '<kbd>Z</kbd> <kbd>X</kbd>' };
+const TOUCH_KEYS = { attach: '<kbd>Hook</kbd>', assist: 'the <b>Assist</b> switch (top left)', restart: '↻', pour: '<kbd>Pour</kbd>', doors: '<kbd>Doors</kbd>', salvo: 'double-tap <kbd>Doors</kbd>', pump: '<kbd>Pump</kbd>', autofill: 'double-tap <kbd>Pump</kbd>', reel: '<kbd>Hose ▲▼</kbd>' };
+
 export class Hud {
   constructor(root, handlers) {
     this.root = root;
@@ -115,14 +118,20 @@ export class Hud {
     this.refreshKeys();
   }
 
+  // Called every frame by the hints: build only the table for the device in use, and the gamepad's only
+  // when its layout changes (it copies the whole mapping).
   key(action) {
     const d = this.device;
-    const K = {
-      keyboard: { lift: '<kbd>W</kbd>', attach: '<kbd>Space</kbd>', assist: '<kbd>F</kbd>', restart: '<kbd>R</kbd>', pour: '<kbd>G</kbd>', doors: '<kbd>G</kbd>', salvo: 'double-tap <kbd>G</kbd>', pump: '<kbd>T</kbd>', autofill: 'double-tap <kbd>T</kbd>', reel: '<kbd>Z</kbd> <kbd>X</kbd>' },
-      gamepad: this.padKeys(),
-      touch: { lift: `the ${this.touchStick('collective')} stick up`, attach: '<kbd>Hook</kbd>', assist: 'the <b>Assist</b> switch (top left)', restart: '↻', pour: '<kbd>Pour</kbd>', doors: '<kbd>Doors</kbd>', salvo: 'double-tap <kbd>Doors</kbd>', pump: '<kbd>Pump</kbd>', autofill: 'double-tap <kbd>Pump</kbd>', reel: '<kbd>Hose ▲▼</kbd>' },
-    };
-    return K[d][action];
+    if (d === 'keyboard') return KEYBOARD_KEYS[action];
+    if (d === 'gamepad') {
+      const L = this.pads ? this.pads.layout : null;
+      if (!this._padKeys || this._padKeysFor !== L || this._padKeysPreset !== L?.preset || this._padKeysCustom !== L?.custom) {
+        this._padKeys = this.padKeys(); this._padKeysFor = L; this._padKeysPreset = L?.preset; this._padKeysCustom = L?.custom;
+      }
+      return this._padKeys[action];
+    }
+    if (action === 'lift') return `the ${this.touchStick('collective')} stick up`;
+    return TOUCH_KEYS[action];
   }
 
   // Which touch stick ('left' / 'right') flies an axis in the player's touch layout.
