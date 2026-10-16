@@ -35,8 +35,10 @@ export const TOUCH_LAYOUTS = {
 export const TOUCH_LAYOUT_IDS = Object.keys(TOUCH_LAYOUTS);
 // Thumb travel from centre to full deflection, in CSS pixels.
 export const TOUCH_SIZES = { small: 48, medium: 64, large: 84 };
-// A short tick under the thumb where the phone can (Android; iOS Safari has no vibration API).
-export function buzz(ms) { try { navigator.vibrate?.(ms); } catch { /* not allowed before a gesture */ } }
+// A short tick under the thumb where the phone can (phoneHaptics.js: Android vibration, iPhone switch tick).
+let haptics = null;
+export function setHaptics(h) { haptics = h; }
+export function buzz(ms) { haptics?.tap(ms, { gap: 30 }); }
 
 function shape(x) {
   const dz = CFG.input.deadZone;

@@ -12,9 +12,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failed = 0, total = 0;
 const check = (name, ok, detail = '') => { total++; if (!ok) failed++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  — ${typeof detail === 'string' ? detail : JSON.stringify(detail)}` : ''}`); };
 
-async function open(viewport, query = '') {
-  const ctx = await browser.newContext({ viewport, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+async function open(viewport, query = '', { ios = false } = {}) {
+  const ua = ios ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' : undefined;
+  const ctx = await browser.newContext({ viewport, hasTouch: true, isMobile: true, deviceScaleFactor: 2, userAgent: ua });
   await ctx.addInitScript(() => { try { localStorage.clear(); } catch { /* fresh profile */ } });
+  // Record haptics: Android's vibrate() calls, and the iPhone switch's clicks.
+  await ctx.addInitScript((ios) => {
+    window.__buzz = [];
+    if (ios) { try { delete Navigator.prototype.vibrate; } catch { /* */ } }
+    else navigator.vibrate = (p) => { window.__buzz.push(p); return true; };
+    document.addEventListener('click', (e) => { if (e.target && e.target.matches && e.target.matches('input[switch]')) window.__buzz.push('tick'); }, true);
+  }, ios);
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -124,6 +132,52 @@ try {
     const fps = await page.evaluate(async () => { const H = window.__helicoptea; const f0 = H.frames, t0 = performance.now(); await new Promise((r) => setTimeout(r, 3000)); return +((H.frames - f0) / ((performance.now() - t0) / 1000)).toFixed(1); });
     console.log(`INFO  emulated phone 844x390 @2x frame rate: ${fps} fps`);
     check('no page errors (landscape)', errors.length === 0, errors.slice(0, 3).join(' | '));
+    await ctx.close();
+  }
+
+  // ---------------------------------------------------------------- haptics and battery saver
+  for (const ios of [false, true]) {
+    const tag = ios ? 'iPhone' : 'Android';
+    const { ctx, page, errors, touch } = await open({ width: 844, height: 390 }, '&aircraft=micro&view=chase&worldSpeed=1', { ios });
+    await page.tap('#start-btn');
+    await sleep(400);
+    const buzz = () => page.evaluate(() => window.__buzz.splice(0));
+    await buzz();
+    const L = await zoneBox(page, 'left');
+    const lx = L.x + L.width * 0.4, ly = L.y + L.height * 0.6;
+    await touch('touchStart', [{ x: lx, y: ly, id: 1 }]);
+    await touch('touchMove', [{ x: lx, y: ly - 64, id: 1 }]);
+    await sleep(1200);
+    let b = await buzz();
+    check(`${tag}: lift-off gives one tap`, b.length >= 1 && b.length <= 3 && (ios ? b[0] === 'tick' : typeof b[0] === 'number'), b);
+    // Stick down to land: touchdown tap.
+    await touch('touchMove', [{ x: lx, y: ly + 64, id: 1 }]);
+    await page.waitForFunction(() => window.__helicoptea.sim.heli.grounded, null, { timeout: 8000 }).catch(() => {});
+    await sleep(300);
+    await touch('touchEnd', []);
+    b = await buzz();
+    check(`${tag}: touchdown gives a tap`, b.length >= 1, b);
+    await page.tap('.hud-tr [data-act=pause]');
+    await page.waitForSelector('.overlay.show .touch-opts');
+    const opts = await page.evaluate(() => ({ vib: !!document.querySelector('[data-setting=haptics]'), saver: !!document.querySelector('[data-setting=batterySaver]'), home: !!document.querySelector('.home-tip'), fs: !!document.querySelector('[data-setting=fullscreen]') }));
+    check(`${tag}: pause offers Vibration and Battery saver`, opts.vib && opts.saver, opts);
+    if (ios) check('iPhone: Add to Home Screen tip instead of a full screen switch', opts.home, opts);
+    await page.evaluate(() => { const c = document.querySelector('[data-setting=haptics]'); c.click(); });
+    await page.evaluate(() => { document.querySelector('[data-setting=batterySaver]').scrollIntoView(); });
+    await page.tap('[data-setting=batterySaver]');
+    await page.tap('.overlay.show [data-act=resume]');
+    await buzz();
+    await touch('touchStart', [{ x: lx, y: ly, id: 1 }]);
+    await touch('touchMove', [{ x: lx, y: ly - 64, id: 1 }]);
+    await sleep(1200);
+    await touch('touchEnd', []);
+    b = await buzz();
+    check(`${tag}: Vibration off stays quiet`, b.length === 0, b);
+    if (!ios) {
+      const fps = await page.evaluate(async () => { const H = window.__helicoptea; const f0 = H.frames, t0 = performance.now(); await new Promise((r) => setTimeout(r, 2000)); return (H.frames - f0) / ((performance.now() - t0) / 1000); });
+      check('Battery saver holds rendering near 30 fps', fps > 25 && fps < 33, fps.toFixed(1));
+    }
+    check(`${tag}: no page errors`, errors.length === 0, errors.slice(0, 3).join(' | '));
     await ctx.close();
   }
 

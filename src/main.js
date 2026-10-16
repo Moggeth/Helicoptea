@@ -9,7 +9,8 @@ import { Sim } from './sim/sim.js';
 import { buildKitchen } from './render/kitchen.js';
 import { View, SHADOW_ONLY } from './render/view.js';
 import { FollowCamera } from './render/camera.js';
-import { Input, buzz } from './input/input.js';
+import { Input, buzz, setHaptics } from './input/input.js';
+import { PhoneHaptics, hapticForEvent, IS_IOS } from './input/phoneHaptics.js';
 import { Audio } from './audio/audio.js';
 import { bindUi } from './audio/ui.js';
 import { Hud } from './ui/hud.js';
@@ -181,6 +182,11 @@ async function boot() {
   input.bindCanvas(canvas);
   input.setTouchLayout(store.get('touchLayout', 'classic'), store.get('touchSize', 'medium'));
   if (IS_TOUCH) input.source = 'touch';
+  // Phone taps for what the aircraft feels (touch only; a controller rumbles instead).
+  const haptics = new PhoneHaptics();
+  haptics.enabled = IS_TOUCH && store.get('haptics', '1') !== '0';
+  setHaptics(haptics);
+  const air = { up: false };   // lift-off: off the ground with hysteresis, so skids settling don't count
   const audio = new Audio();
   if (kitchen.garden.charm) kitchen.garden.charm.audio = audio; // the radio and the cat
   const debug = new Debug(sim, renderer, scene);
@@ -235,6 +241,8 @@ async function boot() {
       if (k === 'rotorStrikes') { sim.damage.rotorStrikes = !!v; store.set(k, v ? '1' : '0'); }
       if (k === 'touchLayout') { input.setTouchLayout(v); store.set(k, input.touchLayout); hud.refreshKeys(); }
       if (k === 'touchSize') { input.setTouchLayout(null, v); store.set(k, input.touchSize); }
+      if (k === 'batterySaver') { store.set(k, v ? '1' : '0'); fpsCap = v ? 30 : 0; }
+      if (k === 'haptics') { haptics.enabled = !!v; store.set(k, v ? '1' : '0'); if (v) haptics.tap(20, { force: true }); }
       if (k === 'fullscreen') { store.set(k, v ? '1' : '0'); setFullscreen(!!v); }
       if (k === 'muted') { audio.setMuted(!!v); hud.setVolume(audio.volume, audio.muted); }
     },
@@ -309,7 +317,7 @@ async function boot() {
   }
 
   function pauseOpts() { return { quality: quality.setting, debug: debug.enabled, fpsMeter: fpsMeter.shown, aircraft: sim.aircraft, weight, view: fp.mode, camCycle: cam.cycle, camFeel: cam.feel, fpFov: fp.fov, fpMotion: fp.motion, fpVibration: fp.vibration, loadCam: fp.loadCam, cues: { ...depth.settings }, rotorStrikes: sim.damage.rotorStrikes, collectiveMode: CFG.collective.mode,
-    touch: IS_TOUCH, fullscreen: document.fullscreenEnabled ? !!document.fullscreenElement : null, touchLayout: input.touchLayout, touchSize: input.touchSize, volume: audio.volume, muted: audio.muted }; }
+    touch: IS_TOUCH, batterySaver: fpsCap === 30, haptics: haptics.supported ? haptics.enabled : null, fullscreen: document.fullscreenEnabled ? !!document.fullscreenElement : null, homeScreenTip: IS_IOS && !navigator.standalone, touchLayout: input.touchLayout, touchSize: input.touchSize, volume: audio.volume, muted: audio.muted }; }
 
   // Something to ride for the cargo cam: a load on a hook, or the skycrane's snorkel paid out.
   function cargoReady() {
@@ -623,6 +631,12 @@ async function boot() {
   $('start-hint').classList.remove('hidden');
   $('load-status').textContent = `Loaded in ${((performance.now() - t0) / 1000).toFixed(1)} s`;
   console.info(`[Helicoptea] ready in ${(performance.now() - t0).toFixed(0)} ms | quality ${quality.name} (${quality.setting}${quality.software ? ', software renderer' : ''}) | dpr ${dpr.toFixed(2)} | ${debug.gpuName()} | Rapier ${RAPIER.version ? RAPIER.version() : ''}`);
+  // iPhone Safari: no page zoom from a pinch or a double-tap on the controls, and no long-press menu.
+  if (IS_TOUCH) {
+    for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
+    addEventListener('contextmenu', (e) => e.preventDefault());
+  }
   function wantFullscreen() { return !navigator.webdriver && (params.get('fs') || store.get('fullscreen', '1')) !== '0'; }
   function setFullscreen(on) {
     const d = document, el = d.documentElement;
@@ -655,6 +669,9 @@ async function boot() {
   // A menu click must never wake intentionally paused audio.
   const wakeAudio = () => { if (started && !paused && !document.hidden) audio.unlock(); };
   addEventListener('pointerdown', wakeAudio);
+  // iPhone Safari only lets audio start from the end of a touch (or a click), not its start.
+  addEventListener('touchend', wakeAudio);
+  addEventListener('click', wakeAudio);
   addEventListener('keydown', wakeAudio);
   const keyStart = (e) => { if (e.code === 'Tab' || picker.contains(document.activeElement)) return; begin(); };
   startBtn.addEventListener('click', begin);
@@ -744,7 +761,8 @@ async function boot() {
   let last = performance.now();
   let frameEMA = 16.7;
   let lowFrames = 0, highFrames = 0;
-  const fpsCap = parseFloat(params.get('fps')) || 0;
+  // ?fps=30 caps rendering for tests; on phones Pause → Battery saver caps it at 30 (physics stays at 240 Hz).
+  let fpsCap = parseFloat(params.get('fps')) || (IS_TOUCH && store.get('batterySaver', '0') === '1' ? 30 : 0);
   const dynRes = params.get('dynres') !== '0';
   let lastRender = 0;
   let crashShown = false;
@@ -852,6 +870,15 @@ async function boot() {
       if (e.type === 'tailStrike') { cinema.strike(0.3); hud.toast('Tail rotor gone: lower the collective to slow the spin', 3.5); }
       if (e.type === 'restart') { if (stageKind) stageT = 1.2; cinema.reset(); crashShown = false; hud.hideCrash(); fp.crashT = 0; fpRig.reset(); fpRig.lookYaw = fpRig.lookPitch = 0; }
       if (e.type === 'autoFill') hud.toast({ pump: 'Intake in: pumping', up: e.full ? 'Tank full: reeling in' : 'Source dry: reeling in', done: 'Snorkel stowed' }[e.phase], 1.6);
+    }
+    if (input.source === 'touch' && haptics.enabled) {
+      const hh = sim.state === 'flying' ? sim.heli : null;
+      if (hh) {
+        const c = hh.grounded ? 0 : hh.skidClearance;
+        if (!air.up && c > 0.008) { air.up = true; hapticForEvent(haptics, { type: 'liftoff' }); }
+        else if (air.up && c < 0.003) air.up = false;
+      } else air.up = false;
+      for (const e of events) hapticForEvent(haptics, e);
     }
     // Rumble as physical feedback (only when flying with a controller).
     if (input.source === 'gamepad') {
