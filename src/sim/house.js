@@ -156,9 +156,10 @@ export function buildHouseColliders(add, box, cyl) {
   // The garden gnome (and the little tray his teacup sits on) and the cat on the bench.
   {
     const g = GNOME, gc = CUPS.find((c) => c.id === 'gnome');
-    cyl(0.085, 0.09, g.x, fy + 0.09, g.z, 'gnome', 'ceramic');
-    add(RAPIER.ColliderDesc.ball(0.062), g.x, fy + 0.235, g.z, 'gnome', 'ceramic');
-    add(RAPIER.ColliderDesc.cone(0.07, 0.06), g.x, fy + 0.33, g.z, 'gnome', 'ceramic');
+    cyl(0.095, 0.085, g.x, fy + 0.09, g.z, 'gnome', 'ceramic');
+    cyl(0.062, 0.05, g.x, fy + 0.225, g.z, 'gnome', 'ceramic');
+    add(RAPIER.ColliderDesc.ball(0.058), g.x, fy + 0.335, g.z, 'gnome', 'ceramic');
+    add(RAPIER.ColliderDesc.cone(0.08, 0.055), g.x, fy + 0.45, g.z, 'gnome', 'ceramic');
     cyl(0.05, 0.004, gc.x, gc.standY - 0.004, gc.z, 'saucer', 'ceramic');
     box(0.06, 0.012, 0.03, (g.x + gc.x) / 2, gc.standY - 0.02, gc.z, 'gnome', 'ceramic');
   }

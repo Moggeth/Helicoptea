@@ -324,15 +324,15 @@ export function build(ctx) {
       put(tubeGeo([V(0, 0, 0), V(Math.cos(a) * 0.05, 0.26, Math.sin(a) * 0.05), V(Math.cos(a) * 0.12, 0.44, Math.sin(a) * 0.12)], 0.007, 0.004, 4), low, pl(0, 0, 0, 0, 0, 0, 1), 0x6a5a3e, false);
     }
     // Florets: many small four-petalled stars over a dome, three blue-to-lilac tints and a pale eye in each.
-    const star = bloomGeo({ n: 4, r: 0.5, cup: 0.08, ruff: 0, lobe: 0.35, rings: 1, arcs: 2, over: 1.0 });
-    const eye = new THREE.CircleGeometry(0.11, 5).translate(0, 0, 0.05);
+    const star = bloomGeo({ n: 4, r: 0.5, cup: 0.18, ruff: 0, lobe: 0.1, rings: 1, arcs: 4, over: 0.9 });   // rounded sepals with gaps
+    const eye = new THREE.CircleGeometry(0.075, 6).translate(0, 0, 0.06);
     const heads = [[0.1, 0.46, 0.0, 0.07], [0.0, 0.54, -0.07, 0.072], [-0.09, 0.44, 0.06, 0.064], [0.1, 0.4, 0.13, 0.06], [0.1, 0.55, -0.15, 0.058], [-0.02, 0.38, 0.17, 0.056], [0.17, 0.35, -0.09, 0.052], [0.0, 0.33, -0.17, 0.052]];
     // Three overlapping tints graded by height: lilac-blue on top, deeper blue lower down (no hard band).
     const tints = [0x9a9fe4, 0x7c93e0, 0x5f7dd2];
     const o = new THREE.Object3D();
     heads.slice(0, lite ? 5 : 7).forEach(([hx2, hy, hz2, r], hi) => {
-      put(new THREE.IcosahedronGeometry(r * 0.72, 1), low, pl(hx2, hy - r * 0.1, hz2, 0, 0, 0, 1).multiply(new THREE.Matrix4().makeScale(1, 0.85, 1)), 0x5a6cb8, false);
-      const m = Math.round((lite ? 120 : 300) * (r / 0.06) ** 2);
+      put(new THREE.IcosahedronGeometry(r * 0.8, 2), low, pl(hx2, hy - r * 0.08, hz2, 0, 0, 0, 1).multiply(new THREE.Matrix4().makeScale(1, 0.82, 1)), 0x34407a, false);
+      const m = Math.round((lite ? 70 : 125) * (r / 0.06) ** 2);
       const groups = [[], [], []], eyes = [];
       const ga = Math.PI * (3 - Math.sqrt(5));
       for (let i = 0; i < m; i++) {
@@ -341,12 +341,12 @@ export function build(ctx) {
         const nx = Math.cos(ph) * rr, ny = yy, nz = Math.sin(ph) * rr;
         o.position.set(nx * r, ny * r * 0.8, nz * r);
         o.lookAt(nx * 2 * r, ny * 2 * r, nz * 2 * r);       // faces outward along the sphere normal
-        o.rotateX((rnd() - 0.5) * 0.5); o.rotateY((rnd() - 0.5) * 0.5); o.rotateZ(rnd() * 6.28);
-        const sc = (0.033 + rnd() * 0.01) * (r / 0.06) ** 0.3;
+        o.rotateX((rnd() - 0.5) * 0.3); o.rotateY((rnd() - 0.5) * 0.3); o.rotateZ(rnd() * 6.28);
+        const sc = (0.046 + rnd() * 0.012) * (r / 0.06) ** 0.3;
         o.scale.set(sc, sc, sc); o.updateMatrix();
         const gv = Math.min(2, Math.max(0, Math.floor((f + (rnd() - 0.5) * 0.45) * 3)));
         groups[gv].push(star.clone().applyMatrix4(o.matrix));
-        if (i % 3 === 0 && f < 0.7) eyes.push(eye.clone().applyMatrix4(o.matrix));
+        if (f < 0.8) eyes.push(eye.clone().applyMatrix4(o.matrix));
       }
       groups.forEach((gl, gi) => { if (gl.length) put(mergeAll(gl), low, pl(hx2, hy, hz2, 0, 0, 0, 1), jit(tints[gi], rnd, 0.03)); });
       put(mergeAll(eyes), low, pl(hx2, hy, hz2, 0, 0, 0, 1), 0xdfe6f8, false);

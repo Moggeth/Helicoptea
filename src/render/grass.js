@@ -100,11 +100,12 @@ const VERT_HEAD = `
     gPos = vec3(root.x + D.x * along, uGroundY + up, root.y + D.y * along) + side * position.x * w;
     vec3 T = vec3(D.x * sin(phi), cos(phi), D.y * sin(phi));
     gNrm = normalize(mix(normalize(cross(side, T)), vec3(0.0, 1.0, 0.0), 0.6));
-    // Colour: dark at the root, sunlit at the tip; meadow grass drier; flower heads.
-    vec3 base = vec3(0.07, 0.14, 0.035);
+    // Colour: shaded at the root (close to the lawn under it, so blades never read as dark spikes), sunlit at
+    // the tip; meadow grass drier; flower heads.
+    vec3 base = vec3(0.115, 0.2, 0.055);
     vec3 tip = mix(vec3(0.27, 0.46, 0.11), vec3(0.5, 0.52, 0.2), mk.g * (0.4 + 0.6 * h2.y));
     tip *= 0.8 + 0.4 * h1;
-    vec3 col = mix(base, tip, smoothstep(0.0, 1.0, t));
+    vec3 col = mix(base, tip, smoothstep(0.0, 0.75, t));
     if (flower > 0.5 && t > 0.8) {
       float k = gHash12(cellId + 5.0);
       vec3 fc = bed > 0.5
@@ -178,7 +179,10 @@ export class Grass {
         .replace('#include <begin_vertex>', 'vec3 transformed = gPos;');
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', '#include <common>\nvarying vec3 vGrassCol;')
-        .replace('#include <color_fragment>', 'diffuseColor.rgb *= vGrassCol;');
+        .replace('#include <color_fragment>', 'diffuseColor.rgb *= vGrassCol;')
+        // A blade is lit the same from both sides (light comes through it): without this the back face's normal
+        // is flipped to point at the ground and half the lawn shows as black spikes.
+        .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n  normal = normalize(vNormal);');
     };
     mat.customProgramCacheKey = () => `grass-${o.near ? 'n' : 'f'}`;
     const mesh = new THREE.Mesh(geo, mat);
