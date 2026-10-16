@@ -301,9 +301,9 @@ try {
   {
     const { ctx, page, logs } = await open('?aircraft=micro&view=chase', { touch: true, mobile: true, viewport: { width: 844, height: 390 } });
     await fly(page, -0.56, 0.3, 0.24, 0.3, 1000);
-    await page.tap('.touch-btn.cam'); await sleep(200);
+    await page.tap('.hud-tr [data-act=view]'); await sleep(200);
     let s = await state(page);
-    check('touch: Cam button steps to the next camera', s.mode === 'cockpit', s.mode);
+    check('touch: camera icon steps to the next camera', s.mode === 'cockpit', s.mode);
     const box = await page.locator('.touch-btn.bolt').boundingBox();
     check('touch: GoPro button on screen', !!box && box.x > 0 && box.y > 0 && box.x + box.width < 844, JSON.stringify(box));
     // Hold with a real touch (CDP), so the button's pointer capture works as on a phone.

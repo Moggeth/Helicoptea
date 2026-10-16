@@ -53,7 +53,7 @@ export class Flow {
     const k = (a) => hud.key(a);
     const dev = hud.device;
     const texts = {
-      lift: `Hold ${k('lift')} to lift off the pad.${dev === 'keyboard' ? ' Arrow keys tilt, <kbd>A</kbd> <kbd>D</kbd> turn.' : ''}`,
+      lift: `Hold ${k('lift')} to lift off the pad.${dev === 'keyboard' ? ' Arrow keys tilt, <kbd>A</kbd> <kbd>D</kbd> turn.' : dev === 'touch' ? ` Tilt with the ${hud.touchStick('pitch')} stick.` : ''}`,
       hook: 'Fly to the tea stand and bring the brass hook under the helicopter close to a bag\'s loop.',
       carry: 'Carry it to a cup. Ease off early: the bag keeps swinging after you stop.',
       dip: 'Lower it right in and let it steep. Watch the tea darken, then lift it out.',

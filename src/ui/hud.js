@@ -6,6 +6,7 @@ import {
 } from '../input/layouts.js';
 import { CAM_MODES, CAM_NAME } from '../render/cameraModes.js';
 import { CFG } from '../config.js';
+import { TOUCH_LAYOUTS, TOUCH_SIZES } from '../input/input.js';
 
 // The assist-off lift stick: a sprung lever, or the old trim-and-hold collective (sim/collective.js).
 const LIFT_MODES = [['spring', 'Springs back: hold up to climb'], ['hold', 'Stays put: trim and leave it']];
@@ -43,7 +44,7 @@ export class Hud {
         <button class="icon-btn" data-act="view" title="Next camera (C)" aria-label="Next camera">${ICONS.camera}<span class="key kb">C</span></button>
         <button class="icon-btn" data-act="recenter" title="Recenter camera (U)" aria-label="Recenter camera">${ICONS.view}</button>
         <button class="icon-btn mark-btn" data-act="mark" title="Mark this moment for a flight note (N, gamepad R3)" aria-label="Mark this moment for a flight note">${ICONS.flag}<span class="key kb">N</span></button>
-        <div style="position:relative">
+        <div class="sound-wrap" style="position:relative">
           <button class="icon-btn" data-act="sound" title="Sound (M to mute)" aria-label="Sound settings">${ICONS.sound}</button>
           <div class="vol-pop hidden"><button class="secondary" data-act="mute" style="padding:6px 10px">Mute</button><input type="range" min="0" max="1" step="0.01" aria-label="Volume" /></div>
         </div>
@@ -119,9 +120,15 @@ export class Hud {
     const K = {
       keyboard: { lift: '<kbd>W</kbd>', attach: '<kbd>Space</kbd>', assist: '<kbd>F</kbd>', restart: '<kbd>R</kbd>', pour: '<kbd>G</kbd>', doors: '<kbd>G</kbd>', salvo: 'double-tap <kbd>G</kbd>', pump: '<kbd>T</kbd>', autofill: 'double-tap <kbd>T</kbd>', reel: '<kbd>Z</kbd> <kbd>X</kbd>' },
       gamepad: this.padKeys(),
-      touch: { lift: 'left stick ↑', attach: '<kbd>Hook</kbd>', assist: '<kbd>Assist</kbd>', restart: '↻', pour: '<kbd>Pour</kbd>', doors: '<kbd>Doors</kbd>', salvo: 'double-tap <kbd>Doors</kbd>', pump: '<kbd>Pump</kbd>', autofill: 'double-tap <kbd>Pump</kbd>', reel: '<kbd>Hose ▲▼</kbd>' },
+      touch: { lift: `the ${this.touchStick('collective')} stick up`, attach: '<kbd>Hook</kbd>', assist: 'the <b>Assist</b> switch (top left)', restart: '↻', pour: '<kbd>Pour</kbd>', doors: '<kbd>Doors</kbd>', salvo: 'double-tap <kbd>Doors</kbd>', pump: '<kbd>Pump</kbd>', autofill: 'double-tap <kbd>Pump</kbd>', reel: '<kbd>Hose ▲▼</kbd>' },
     };
     return K[d][action];
+  }
+
+  // Which touch stick ('left' / 'right') flies an axis in the player's touch layout.
+  touchStick(axis) {
+    const L = TOUCH_LAYOUTS[this.touchLayoutOf ? this.touchLayoutOf() : 'classic'] || TOUCH_LAYOUTS.classic;
+    return L.left.x === axis || L.left.y === axis ? 'left' : 'right';
   }
 
   // Gamepad prompts follow the player's layout (set via hud.pads by the game).
@@ -325,6 +332,23 @@ export class Hud {
           <button class="secondary" data-act="reset">Reset sandbox</button>
           <button class="secondary" data-act="replay">Flight replay</button>
         </div>
+        ${opts.touch ? `<div class="row stack touch-opts">
+          <label class="opt">Sticks
+            <select data-setting="touchLayout" aria-label="Touch stick layout">
+              ${Object.entries(TOUCH_LAYOUTS).map(([id, l]) => `<option value="${id}" ${opts.touchLayout === id ? 'selected' : ''}>${l.name}</option>`).join('')}
+            </select></label>
+          <label class="opt">Stick size
+            <select data-setting="touchSize" aria-label="Touch stick size">
+              ${Object.keys(TOUCH_SIZES).map((id) => `<option value="${id}" ${opts.touchSize === id ? 'selected' : ''}>${id[0].toUpperCase() + id.slice(1)}${id === 'small' ? ': quick' : id === 'large' ? ': fine' : ''}</option>`).join('')}
+            </select></label>
+          ${liftSelect(opts.collectiveMode)}
+          ${opts.fullscreen === null || opts.fullscreen === undefined ? '' : `<label class="opt">Full screen <input type="checkbox" data-setting="fullscreen" ${opts.fullscreen ? 'checked' : ''}/></label>`}
+          <label class="opt">Sound <span class="weight-row"><input type="range" min="0" max="1" step="0.01" value="${opts.muted ? 0 : opts.volume}" data-setting="volume" aria-label="Volume" /></span></label>
+          <div class="opt aircraft-row" role="radiogroup" aria-label="Aircraft">Aircraft
+            <span>${[['micro', 'Micro'], ['chinook', 'Chinook'], ['skycrane', 'Skycrane']].map(([id, nm]) => `<button class="secondary${opts.aircraft === id ? ' on' : ''}" role="radio" aria-checked="${opts.aircraft === id}" data-act="aircraft" data-id="${id}">${nm}</button>`).join(' ')}</span></div>
+          <div class="opt touch-links"><button class="secondary" data-act="help">Controls</button><button class="secondary" data-act="markNow">⚑ Mark this moment</button></div>
+        </div>` : ''}
+        <details class="more" ${opts.touch ? '' : 'open'}><summary>${opts.touch ? 'More settings' : 'Settings'}</summary>
         <div class="row stack">
           <label class="opt">Graphics quality
             <select data-setting="quality">
@@ -333,7 +357,7 @@ export class Hud {
           <label class="opt">World weight <span class="weight-row"><small>light</small><input type="range" min="0" max="1" step="0.05" value="${opts.weight ?? 0.75}" data-setting="weight" aria-label="World weight" /><small>heavy</small></span></label>
           <label class="opt">Debug overlay <input type="checkbox" data-setting="debug" ${opts.debug ? 'checked' : ''}/></label>
           <label class="opt">Controller <button class="secondary" style="padding:6px 12px" data-act="controller">Settings</button></label>
-          ${liftSelect(opts.collectiveMode)}
+          ${opts.touch ? '' : liftSelect(opts.collectiveMode)}
           <label class="opt">Flight tuning <button class="secondary" style="padding:6px 12px" data-act="tuning">Open board</button></label>
           <label class="opt">Show tips again <button class="secondary" style="padding:6px 12px" data-act="resethints">Replay</button></label>
           <div class="opt aircraft-row cam-row" role="radiogroup" aria-label="Camera">Camera
@@ -351,10 +375,11 @@ export class Hud {
           ${[['shadows', 'Load shadows'], ['plumb', 'Plumb line and height'], ['cupHint', 'Glint when over a cup'], ['dipCam', 'Close-in camera over a cup']].map(([k, nm]) => `<label class="opt">${nm} <input type="checkbox" data-cue="${k}" ${opts.cues && opts.cues[k] ? 'checked' : ''}/></label>`).join('')}
           <label class="opt">Rotor strikes break the blades <input type="checkbox" data-setting="rotorStrikes" ${opts.rotorStrikes !== false ? 'checked' : ''}/></label>
           <label class="opt">Frame rate readout <kbd>F2</kbd> <input type="checkbox" data-setting="fpsMeter" ${opts.fpsMeter ? 'checked' : ''}/></label>
-          <div class="opt aircraft-row" role="radiogroup" aria-label="Aircraft">Aircraft
-            <span>${[['micro', 'Micro heli'], ['chinook', 'Chinook'], ['skycrane', 'Skycrane']].map(([id, nm]) => `<button class="secondary${opts.aircraft === id ? ' on' : ''}" style="padding:6px 12px" role="radio" aria-checked="${opts.aircraft === id}" data-act="aircraft" data-id="${id}">${nm}</button>`).join(' ')}</span></div>
+          ${opts.touch ? '' : `<div class="opt aircraft-row" role="radiogroup" aria-label="Aircraft">Aircraft
+            <span>${[['micro', 'Micro heli'], ['chinook', 'Chinook'], ['skycrane', 'Skycrane']].map(([id, nm]) => `<button class="secondary${opts.aircraft === id ? ' on' : ''}" style="padding:6px 12px" role="radio" aria-checked="${opts.aircraft === id}" data-act="aircraft" data-id="${id}">${nm}</button>`).join(' ')}</span></div>`}
         </div>
         <p class="help-note">Reset sandbox clears every cup and bag. Restart flight keeps your brewing. Switching aircraft starts a fresh flight on the pad. Quality changes reload the page. With rotor strikes off, blades pass through scenery instead of breaking. Every flight is recorded: <b>Flight replay</b> plays it back with its telemetry, and notes you add there (or marks you drop in flight with <kbd>N</kbd>) are saved to <code>logs/flights</code>.</p>
+        </details>
       </div>`;
     this.modal.querySelector('[data-setting=quality]').addEventListener('change', (e) => this.h.setting('quality', e.target.value));
     this.modal.querySelector('[data-setting=debug]').addEventListener('change', (e) => this.h.setting('debug', e.target.checked));
@@ -371,6 +396,9 @@ export class Hud {
     this.modal.querySelector('[data-setting=loadCam]').addEventListener('change', (e) => this.h.setting('loadCam', e.target.value));
     this.modal.querySelector('[data-setting=collectiveMode]').addEventListener('change', (e) => this.h.setting('collectiveMode', e.target.value));
     for (const el of this.modal.querySelectorAll('[data-cue]')) el.addEventListener('change', () => this.h.setting(`cue.${el.dataset.cue}`, el.checked));
+    for (const k of ['touchLayout', 'touchSize']) this.modal.querySelector(`[data-setting=${k}]`)?.addEventListener('change', (e) => this.h.setting(k, e.target.value));
+    this.modal.querySelector('[data-setting=fullscreen]')?.addEventListener('change', (e) => this.h.setting('fullscreen', e.target.checked));
+    this.modal.querySelector('[data-setting=volume]')?.addEventListener('input', (e) => this.h.volume(parseFloat(e.target.value)));
     this.modal.classList.add('show');
     this.focusFirst();
   }
@@ -401,10 +429,23 @@ export class Hud {
         ['<kbd>Space</kbd>', 'Hook a bag or the milk bucket / release it (the Chinook has three hooks: Space drops them all)'], ['<kbd>G</kbd> (hold)', 'Pour milk: the bucket\'s valve, or the skycrane\'s belly doors (they open wider the longer you hold)'], ['Double-tap <kbd>G</kbd> or <kbd>Shift</kbd>+<kbd>G</kbd>', 'Salvo: dump the lot (latches the doors or the bucket valve open; again to close)'], ['<kbd>T</kbd> (hold)', 'Skycrane: pump milk up the snorkel (only with the intake under the surface)'], ['Double-tap <kbd>T</kbd> or <kbd>Shift</kbd>+<kbd>T</kbd>', 'Skycrane auto-fill: reel down, pump until full, reel up (any hose or pump key takes over)'], ['<kbd>Z</kbd> / <kbd>X</kbd> (hold)', 'Skycrane: reel the snorkel in / out'], ['<kbd>V</kbd>', 'Switch aircraft: micro heli / Chinook / skycrane'], ['<kbd>F</kbd>', 'Flight Assist on / off'], ['<kbd>R</kbd>', 'Restart flight'], ['<kbd>Shift</kbd>+<kbd>R</kbd>', 'Reset sandbox'],
         ['<kbd>C</kbd> / <kbd>Shift</kbd>+<kbd>C</kbd>', 'Next / previous camera: chase, cockpit, locked chase, nose cam, tripod, cargo cam (pick which in Pause)'], ['<kbd>1</kbd>', 'Cockpit and back. In the cockpit, drag the mouse to look around, wheel to zoom'], ['<kbd>2</kbd>–<kbd>7</kbd>', 'Chase, locked chase, nose cam, orbit, tripod, cargo cam'], ['<kbd>B</kbd> or right mouse (hold)', 'GoPro: bolted under the side, straight down, with a ring where the load will land'], ['<kbd>U</kbd> / <kbd>Home</kbd>', 'Recenter camera or look ahead (drag to orbit, wheel to zoom)'], ['<kbd>N</kbd>', 'Mark this moment for a flight note (describe it later in Pause → Flight replay)'], ['<kbd>M</kbd>', 'Mute'], ['<kbd>Esc</kbd>', 'Pause'], ['<kbd>F2</kbd>', 'Frame rate readout'], ['<kbd>`</kbd>', 'Debug overlay']],
       gamepad: this.padHelpRows(),
-      touch: [['Left thumb', 'Up / down: collective. Left / right: yaw'], ['Right thumb', 'Cyclic: tilt in any direction'], ['<kbd>Hook</kbd>', 'Hook / release (glows when a loop is in reach)'], ['<kbd>Pour</kbd> (hold)', 'Pour milk (appears while you carry the bucket); double-tap latches it open'], ['<kbd>Doors</kbd> (hold)', 'Skycrane belly doors, opening wider as you hold; double-tap = salvo'], ['<kbd>Pump</kbd> (hold)', 'Skycrane pump; double-tap = auto-fill'], ['<kbd>Hose ▲</kbd> <kbd>Hose ▼</kbd>', 'Reel the snorkel in / out'],
-        ['<kbd>Assist</kbd>', 'Flight Assist on / off'], ['Camera icon (top right)', 'Next camera'], ['<kbd>GoPro</kbd> (hold)', 'Bolted camera looking straight down'], ['Drag open screen', 'Look around in the cockpit, or orbit the chase camera'], ['<kbd>View</kbd>', 'Recenter camera or look ahead'], ['<kbd>Mark</kbd>', 'Mark this moment for a flight note'], ['↻ (top right)', 'Restart flight']],
+      touch: this.touchHelpRows(),
     };
     return R[tab].map(([k, d]) => `<dt>${k}</dt><dd>${d}</dd>`).join('');
+  }
+
+  touchHelpRows() {
+    const L = TOUCH_LAYOUTS[this.touchLayoutOf ? this.touchLayoutOf() : 'classic'] || TOUCH_LAYOUTS.classic;
+    const AX = { collective: ['more lift', 'less lift'], yaw: ['turn right', 'turn left'], pitch: ['nose down (forward)', 'nose up (back)'], roll: ['tilt right', 'tilt left'] };
+    const stick = (side) => {
+      const m = L[side];
+      if (m.y === 'pitch' && m.x === 'roll') return 'Cyclic: tilt in any direction';
+      return `Up / down: ${AX[m.y][0]} / ${AX[m.y][1]}. Left / right: ${AX[m.x][1]} / ${AX[m.x][0]}`;
+    };
+    return [['Left thumb', stick('left')], ['Right thumb', stick('right')],
+      ['', 'Put a thumb down anywhere in its half of the screen: that spot is the centre. Slide past the rim and the centre follows you. Pick another layout or stick size in Pause.'],
+      ['<kbd>Hook</kbd>', 'Hook / release (glows when a loop is in reach)'], ['<kbd>Pour</kbd> (hold)', 'Pour milk (appears while you carry the bucket); double-tap latches it open'], ['<kbd>Doors</kbd> (hold)', 'Skycrane belly doors, opening wider as you hold; double-tap = salvo'], ['<kbd>Pump</kbd> (hold)', 'Skycrane pump; double-tap = auto-fill'], ['<kbd>Hose ▲</kbd> <kbd>Hose ▼</kbd>', 'Reel the snorkel in / out'],
+      ['<kbd>GoPro</kbd> (hold)', 'Bolted camera looking straight down'], ['Assist switch (top left)', 'Flight Assist on / off'], ['Camera icon (top right)', 'Next camera'], ['Drag the open screen', 'Look around in the cockpit, or orbit the chase camera'], ['Double-tap the open screen', 'Look ahead again'], ['↻ (top right)', 'Restart flight'], ['‖ (top right)', 'Pause: sticks, sound, aircraft, cameras, mark a moment']];
   }
 
   // The gamepad sheet is written from the layout in force, so it is always true to the player's setup.

@@ -151,8 +151,8 @@ export const CFG = {
   },
 
   input: {
-    deadZone: 0.14,
-    expo: 0.45,
+    deadZone: 0.07,         // touch sticks, per axis: small, since a thumb has no centre detent to find
+    expo: 0.45,             // touch sticks: fine control near the centre, full authority at the rim
     keyRise: 7.5,           // keyboard axis slew (1/s) so taps are proportional
     keyFall: 11,
   },

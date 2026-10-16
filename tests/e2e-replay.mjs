@@ -284,11 +284,15 @@ const hold = async (page, keys, ms) => { for (const k of keys) await page.keyboa
   await H(page, () => { window.__helicoptea.input.touch.collective = 0.9; });
   await sleep(1200);
   await H(page, () => { window.__helicoptea.input.touch.collective = 0; });
-  const markBtn = await page.locator('.touch-btn.mark').boundingBox();
-  check('touch: Mark button shown', !!markBtn && markBtn.width > 30);
-  await tap('.touch-btn.mark');
+  // Touch marks from the pause menu (the moment you paused), then flies on.
+  await tap('.hud-tr [data-act=pause]');
+  const markBtn = await page.locator('.overlay [data-act=markNow]').boundingBox();
+  check('touch: Mark this moment shown in Pause', !!markBtn && markBtn.width > 30);
+  await page.locator('.overlay [data-act=markNow]').scrollIntoViewIfNeeded();   // the menu scrolls on a short phone
+  await tap('.overlay [data-act=markNow]');
   let notes = await H(page, () => window.__helicoptea.recorder.current.notes.map((n) => n.tag));
-  check('touch: Mark button marks the moment', notes.includes('mark'));
+  const menuOpen = await H(page, () => !!document.querySelector('.overlay.show .menu'));
+  check('touch: Mark this moment marks it and resumes', notes.includes('mark') && !menuOpen, JSON.stringify({ notes, menuOpen }));
   // Pause (‖) then Flight replay.
   await tap('.hud-tr [data-act=pause]');
   await tap('.overlay [data-act=replay]');

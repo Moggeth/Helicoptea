@@ -62,6 +62,19 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .aircraft-pick button.on { background: rgba(242, 184, 75, 0.16); border-color: var(--honey); }
 .aircraft-pick button:focus-visible, body.pad-nav .aircraft-pick button:focus { outline: 3px solid var(--honey); outline-offset: 3px; }
 .aircraft-pick + #start-btn { margin-top: 16px; }
+/* Short landscape phones: the title card fits without scrolling (and scrolls, never clips, if it can't). */
+#loading { overflow-y: auto; }
+#loading .load-card { margin: auto; }
+@media (max-height: 500px) and (orientation: landscape) {
+  .steam { height: 26px; margin-bottom: 0; }
+  .logo h1 { font-size: 46px; }
+  .tagline { margin: 6px 0 14px; font-size: 14px; }
+  .load-status { margin-top: 6px; }
+  .aircraft-pick { margin-top: 12px; }
+  .aircraft-pick button { padding: 7px 10px; }
+  .aircraft-pick + #start-btn { margin-top: 12px; }
+  .load-hint { margin-top: 8px; }
+}
 .aircraft-row button.on { background: var(--sage); color: #fff; }
 .panel {
   background: var(--paper); color: var(--ink); border-radius: 18px; box-shadow: var(--shadow);
@@ -163,15 +176,10 @@ kbd {
 .crash-replay { display: inline-flex; align-items: center; gap: 7px; background: rgba(255, 244, 226, 0.88); }
 .crash-replay svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-/* flight-note mark: an icon top right on desktop, a small button above Assist on touch */
-body.touch-ui .mark-btn { display: none; }
-.touch-btn.mark { width: 48px; height: 48px; left: calc(156px + var(--safe-l)); bottom: calc(58vh + 4px); border-radius: 14px; }
-.touch-btn.mark .ico { font-size: 17px; line-height: 1; margin-bottom: -10px; }
-.touch-btn.mark .lbl { font-size: 9.5px; }
 
 /* pause / menu / help */
 .menu .row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
-.menu .row.stack { flex-direction: column; align-items: stretch; }
+.menu .row.stack { flex-direction: column; align-items: stretch; flex-wrap: nowrap; }   /* one line, or its width grows to the widest row */
 .menu label.opt, .menu div.opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14.5px; padding: 8px 0; border-top: 1px solid rgba(42,29,22,0.1); }
 .menu select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid rgba(42,29,22,0.25); background: #fffaf1; }
 .help-tabs { display: flex; gap: 6px; margin: 10px 0 12px; }
@@ -181,6 +189,33 @@ body.touch-ui .mark-btn { display: none; }
 .help-grid dt { text-align: right; white-space: nowrap; }
 .help-grid dd { margin: 0; color: var(--ink-soft); }
 .help-note { font-size: 12.5px; color: var(--ink-soft); margin-top: 14px; line-height: 1.45; }
+.menu details.more { margin-top: 12px; }
+.menu details.more > summary { cursor: pointer; font-weight: 650; font-size: 14.5px; padding: 10px 0 4px; list-style: none; display: flex; align-items: center; gap: 8px; color: var(--ink); }
+.menu details.more > summary::-webkit-details-marker { display: none; }
+.menu details.more > summary::before { content: '▸'; transition: transform 0.15s; display: inline-block; color: var(--ink-soft); }
+.menu details.more[open] > summary::before { transform: rotate(90deg); }
+.menu details.more > .row.stack { margin-top: 4px; }
+.touch-opts select { max-width: 58%; }
+.touch-opts .weight-row input { width: 160px; }
+.touch-opts .aircraft-row { flex-wrap: wrap; }
+.touch-opts .aircraft-row span { display: flex; flex-wrap: wrap; gap: 6px; }
+.menu label.opt { min-width: 0; }
+.menu label.opt select { min-width: 0; max-width: 62%; text-overflow: ellipsis; }
+body.touch-ui:not(.pad-nav) .panel button:focus-visible, body.touch-ui:not(.pad-nav) #start-btn:focus-visible { outline: none; }
+.touch-opts .aircraft-row button, .touch-links button { padding: 8px 14px; font-size: 14px; }
+.touch-links { justify-content: flex-start !important; flex-wrap: wrap; }
+/* Phones: a pause menu that fits a short landscape screen and a narrow portrait one. */
+@media (max-height: 500px), (max-width: 500px) {
+  .panel { padding: 16px 18px; border-radius: 16px; }
+  .panel h2 { font-size: 22px; margin-bottom: 0; }
+  .menu > p:first-of-type { display: none; }
+  .menu .row { margin-top: 10px; gap: 8px; }
+  .menu .row > button.primary, .menu .row > button.secondary { padding: 10px 16px; font-size: 14.5px; }
+  .menu label.opt, .menu div.opt { font-size: 14px; padding: 6px 0; }
+  .help-grid { font-size: 13px; gap: 6px 10px; }
+  .help-grid dt { white-space: normal; }
+}
+@media (max-height: 500px) and (orientation: landscape) { .panel.menu { width: min(620px, 100%); } }
 
 /* debug */
 /* Frame-rate readout (F2): under the top-right buttons, out of the way of the hook camera and the sticks. */
@@ -196,44 +231,78 @@ body.touch-ui .mark-btn { display: none; }
 }
 
 /* ---------------------------------------------------------------- touch */
-#touch { position: fixed; inset: 0; z-index: 9; pointer-events: none; }
+/* Twin floating sticks, one per half of the screen; a thumb's landing spot becomes the centre. The few
+   buttons sit in an arc above the right stick (Hook nearest the thumb), and only the ones that fit the
+   aircraft and cargo show. Everything else lives in the top bar or the pause menu. */
+#touch { position: fixed; inset: 0; z-index: 9; pointer-events: none; --stick-r: 64px; --zone-h: 58vh; --zone-w: 47vw; }
 #touch > * { pointer-events: auto; touch-action: none; }
-.stick-zone { position: absolute; bottom: 0; width: 42vw; height: 58vh; }
+.stick-zone { position: absolute; bottom: 0; width: var(--zone-w); height: var(--zone-h); }
 .stick-zone.left { left: 0; }
 .stick-zone.right { right: 0; }
 .stick-base {
-  position: absolute; width: 128px; height: 128px; margin: -64px 0 0 -64px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(250,244,233,0.10), rgba(250,244,233,0.20)); box-shadow: inset 0 0 0 2px rgba(250,244,233,0.45);
-  left: calc(26% + var(--safe-l)); top: 64%; transition: opacity 0.2s; opacity: 0.55;
+  position: absolute; width: calc(2 * var(--stick-r)); height: calc(2 * var(--stick-r)); margin: calc(-1 * var(--stick-r)) 0 0 calc(-1 * var(--stick-r)); border-radius: 50%;
+  background: radial-gradient(circle, rgba(250,244,233,0.06), rgba(250,244,233,0.16)); box-shadow: inset 0 0 0 2px rgba(250,244,233,0.4);
+  left: calc(34% + var(--safe-l)); top: 60%; transition: opacity 0.25s; opacity: 0.4;
 }
-.stick-zone.right .stick-base { left: auto; left: 74%; }
+.stick-zone.right .stick-base { left: calc(66% - var(--safe-r)); }
 .stick-zone.active .stick-base { opacity: 1; transition: none; }
-.stick-knob { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(250,244,233,0.88); box-shadow: 0 3px 10px rgba(0,0,0,0.3); }
-.stick-label { position: absolute; bottom: calc(10px + var(--safe-b)); left: 0; right: 0; text-align: center; color: rgba(250,244,233,0.7); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; text-shadow: 0 1px 2px rgba(0,0,0,0.5); display: flex; justify-content: center; gap: 14px; pointer-events: none; }
+.stick-knob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%; background: rgba(250,244,233,0.9); box-shadow: 0 3px 10px rgba(0,0,0,0.3); }
+.stick-zone.active .stick-knob { background: #fff; }
+.stick-label { position: absolute; bottom: calc(8px + var(--safe-b)); left: 0; right: 0; text-align: center; color: rgba(250,244,233,0.6); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; text-shadow: 0 1px 2px rgba(0,0,0,0.5); display: flex; justify-content: center; gap: 12px; pointer-events: none; transition: opacity 0.4s; }
+.stick-zone.active .stick-label { opacity: 0; }
 .touch-btn {
   position: absolute; border: 0; border-radius: 50%; background: rgba(250,244,233,0.88); color: var(--ink); box-shadow: 0 4px 14px rgba(0,0,0,0.3);
-  display: grid; place-items: center; font-weight: 700; touch-action: none;
+  display: grid; place-items: center; align-content: center; gap: 1px; font-weight: 700; touch-action: none; padding: 0; transition: opacity 0.2s, transform 0.08s;
 }
-.touch-btn.pressed { transform: scale(0.94); background: #fff; }
-.touch-btn .lbl { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
-.touch-btn.attach { width: 74px; height: 74px; right: calc(22px + var(--safe-r)); bottom: calc(58vh - 10px); background: var(--honey); }
-.touch-btn.attach .ico { font-size: 22px; line-height: 1; margin-bottom: -12px; }
-.touch-btn.attach.ready { animation: pulse 0.9s ease-in-out infinite; }
+.touch-btn.pressed { transform: scale(0.92); background: #fff; }
+#touch.down .touch-btn { opacity: 0; pointer-events: none; }
+.touch-btn .lbl { font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; line-height: 1; }
+.touch-btn .ico { font-size: 20px; line-height: 1; }
+.touch-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.touch-btn.attach { width: 72px; height: 72px; right: calc(20px + var(--safe-r)); bottom: calc(var(--zone-h) - 6px); background: var(--honey); }
+.touch-btn.attach .ico { font-size: 22px; }
+.touch-btn.attach.idle { opacity: 0.7; }
+.touch-btn.attach.ready { animation: pulse 0.9s ease-in-out infinite; opacity: 1; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 10px rgba(242,184,75,0.35), 0 4px 14px rgba(0,0,0,0.3); } }
-.touch-btn.assist { width: 60px; height: 60px; left: calc(20px + var(--safe-l)); bottom: calc(58vh - 4px); border-radius: 18px; }
-.touch-btn.assist.on { background: var(--sage); color: #fff; }
-.touch-btn.recenter { width: 48px; height: 48px; right: calc(108px + var(--safe-r)); bottom: calc(58vh + 4px); }
-.touch-btn.pour { width: 58px; height: 58px; right: calc(166px + var(--safe-r)); bottom: calc(58vh + 2px); background: #f4f0e6; }
-.touch-btn.pour .ico { font-size: 20px; line-height: 1; margin-bottom: -12px; }
-.touch-btn.pour.hidden { display: none; }
+.touch-btn.bolt { width: 50px; height: 50px; right: calc(104px + var(--safe-r)); bottom: calc(var(--zone-h) + 4px); background: rgba(43,36,32,0.82); color: #f3e9d8; }
+.touch-btn.bolt .lbl { font-size: 8.5px; }
+.touch-btn.bolt.pressed { background: #e0463a; color: #fff; }
+.touch-btn.pour, .touch-btn.doors { width: 58px; height: 58px; right: calc(166px + var(--safe-r)); bottom: calc(var(--zone-h) + 2px); background: #f4f0e6; }
+.touch-btn.doors { background: #f2a35e; }
 .touch-btn.pour.empty { opacity: 0.55; }
-.touch-btn.doors, .touch-btn.pump, .touch-btn.reel-in, .touch-btn.reel-out { background: #f6ede0; }
-.touch-btn.doors { width: 62px; height: 62px; right: calc(166px + var(--safe-r)); bottom: calc(58vh + 2px); background: #f2a35e; }
-.touch-btn.pump { width: 56px; height: 56px; right: calc(236px + var(--safe-r)); bottom: calc(58vh + 4px); }
-.touch-btn.reel-in, .touch-btn.reel-out { width: 54px; height: 34px; border-radius: 12px; left: calc(92px + var(--safe-l)); }
-.touch-btn.reel-in { bottom: calc(58vh + 34px); }
-.touch-btn.reel-out { bottom: calc(58vh - 6px); }
-.touch-btn.doors.hidden, .touch-btn.pump.hidden, .touch-btn.reel-in.hidden, .touch-btn.reel-out.hidden { display: none; }
+.touch-btn.pump { width: 54px; height: 54px; right: calc(236px + var(--safe-r)); bottom: calc(var(--zone-h) + 4px); background: #f6ede0; }
+.touch-btn.reel-in, .touch-btn.reel-out { width: 58px; height: 36px; border-radius: 12px; left: calc(92px + var(--safe-l)); background: #f6ede0; }
+.touch-btn.reel-in { bottom: calc(var(--zone-h) + 36px); }
+.touch-btn.reel-out { bottom: calc(var(--zone-h) - 6px); }
+/* Touch top bar: the assist switch, restart, camera and pause. Sound, help and the rest are in Pause. */
+body.touch-ui .hud-tr [data-act=recenter], body.touch-ui .hud-tr .sound-wrap, body.touch-ui .hud-tr [data-act=help], body.touch-ui .mark-btn { display: none; }
+body.touch-ui .pill .full { display: none; }
+body.touch-ui .icon-btn { width: 44px; height: 44px; }
+/* Prompts and toasts go where the thumbs aren't: top centre between the bars in landscape, just above
+   the button row in portrait. They wrap instead of running off a narrow screen. */
+body.touch-ui .prompt { white-space: normal; text-align: center; width: max-content; max-width: min(520px, calc(100vw - 340px - var(--safe-l) - var(--safe-r))); font-size: 13px; padding: 8px 14px; border-radius: 18px; bottom: auto; top: calc(14px + var(--safe-t)); }
+body.touch-ui .prompt kbd { margin-right: 3px; }
+body.touch-ui .toast { bottom: calc(112px + var(--safe-b)); }
+body.touch-ui .toast { max-width: min(460px, calc(100vw - 32px)); text-align: center; }
+/* Portrait phones: sticks along the bottom, buttons in one row above; a gentle nudge to rotate. */
+@media (orientation: portrait) {
+  #touch { --zone-h: 42vh; --zone-w: 50vw; --cell: min(72px, calc((100vw - var(--safe-l) - var(--safe-r) - 24px) / 5)); --row: calc(var(--zone-h) + 10px); }
+  .touch-btn.attach { right: calc(12px + var(--safe-r)); bottom: var(--row); width: calc(var(--cell) - 2px); height: calc(var(--cell) - 2px); }
+  .touch-btn.bolt { right: calc(12px + var(--safe-r) + var(--cell) + 6px); bottom: calc(var(--row) + 8px); }
+  .touch-btn.pour, .touch-btn.doors { right: calc(12px + var(--safe-r) + 2 * var(--cell) + 4px); bottom: calc(var(--row) + 4px); width: calc(var(--cell) - 8px); height: calc(var(--cell) - 8px); }
+  .touch-btn.pump { right: calc(12px + var(--safe-r) + 3 * var(--cell) + 2px); bottom: calc(var(--row) + 6px); width: calc(var(--cell) - 12px); height: calc(var(--cell) - 12px); }
+  .touch-btn.reel-in, .touch-btn.reel-out { left: calc(12px + var(--safe-l)); width: calc(var(--cell) - 8px); }
+  .touch-btn.reel-in { bottom: calc(var(--row) + 42px); }
+  .touch-btn.reel-out { bottom: var(--row); }
+  .stick-base { top: 56%; left: calc(40% + var(--safe-l)); }
+  .stick-zone.right .stick-base { left: 60%; }
+  .hint { max-width: calc(100vw - 32px); top: calc(104px + var(--safe-t)); font-size: 13.5px; }
+  .rotate-nudge { display: block !important; }
+  body.touch-ui .prompt { top: auto; bottom: calc(42vh + 84px); max-width: calc(100vw - 32px); }
+  body.touch-ui .toast { bottom: auto; top: calc(64px + var(--safe-t)); }
+  body.touch-ui .tank-gauge.tank-gauge { top: 24%; }
+  .assist-invite { display: none; }
+}
 .tank-gauge { position: absolute; left: calc(18px + var(--safe-l, 0px)); top: 50%; transform: translateY(-50%); display: flex; gap: 8px; align-items: flex-end; pointer-events: none;
   color: var(--cream, #fbf5ea); text-shadow: 0 1px 3px rgba(0,0,0,0.6); font-size: 12px; }
 .tank-gauge.hidden { display: none; }
@@ -245,27 +314,9 @@ body.touch-ui .mark-btn { display: none; }
 .tank-gauge.pumping .tg-bar { box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.55), 0 0 10px rgba(255,250,235,0.7); }
 body.touch-ui .tank-gauge { top: 34%; }
 
-/* Portrait phones: sticks along the bottom, buttons above; a gentle nudge to rotate. */
-@media (orientation: portrait) {
-  #touch { --button-cell: calc((100vw - var(--safe-l) - var(--safe-r) - 24px) / 5); --button-left: calc(12px + var(--safe-l)); }
-  .stick-zone { height: 40vh; width: 50vw; }
-  .touch-btn.attach { right: auto; left: calc(var(--button-left) + 4 * var(--button-cell)); width: min(74px, calc(var(--button-cell) - 4px)); bottom: calc(40vh + 8px); }
-  .touch-btn.assist { left: var(--button-left); width: min(60px, calc(var(--button-cell) - 4px)); bottom: calc(40vh + 14px); }
-  .touch-btn.mark { left: var(--button-left); bottom: calc(40vh + 84px); }
-  .touch-btn.recenter { right: auto; left: calc(var(--button-left) + 3 * var(--button-cell)); bottom: calc(40vh + 20px); }
-  .touch-btn.pour, .touch-btn.doors { right: auto; left: calc(var(--button-left) + var(--button-cell)); width: min(62px, calc(var(--button-cell) - 4px)); bottom: calc(40vh + 80px); }
-  .touch-btn.pump { right: auto; left: calc(var(--button-left) + var(--button-cell)); width: min(56px, calc(var(--button-cell) - 4px)); bottom: calc(40vh + 18px); }
-  .touch-btn.reel-in, .touch-btn.reel-out { left: calc(var(--button-left) + 2 * var(--button-cell)); width: min(54px, calc(var(--button-cell) - 4px)); }
-  .touch-btn.reel-in { bottom: calc(40vh + 46px); }
-  .touch-btn.reel-out { bottom: calc(40vh + 8px); }
-  .hint { max-width: calc(100vw - 32px); top: calc(96px + var(--safe-t)); font-size: 13.5px; }
-  .rotate-nudge { display: block !important; }
-  .assist-invite { display: none; }
-  .stick-zone.right .stick-base { left: 58%; }
-  .stick-zone.left .stick-base { left: calc(42% + var(--safe-l)); }
-}
-.rotate-nudge { display: none; position: absolute; left: 50%; top: calc(62px + var(--safe-t)); transform: translateX(-50%); font-size: 12px; color: var(--cream); background: rgba(42,29,22,0.7); padding: 6px 12px; border-radius: 999px; pointer-events: none !important; }
+.rotate-nudge { animation: nudge 4s ease forwards; display: none; position: absolute; left: 50%; top: calc(62px + var(--safe-t)); transform: translateX(-50%); font-size: 12px; color: var(--cream); background: rgba(42,29,22,0.7); padding: 6px 12px; border-radius: 999px; pointer-events: none !important; }
 body:not(.touch-ui) .rotate-nudge { display: none !important; }
+@keyframes nudge { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
 
 @media (max-width: 480px) { .pill .full { display: none; } .hud-tr { gap: 6px; } }
 @media (max-width: 640px), (max-height: 480px) {
@@ -398,14 +449,6 @@ body.pip-top .hint:not(.show), body.pip-top .prompt:not(.show) { pointer-events:
 }
 
 /* ---------------------------------------------------------------- camera modes */
-.touch-btn.cam { width: 48px; height: 48px; left: calc(212px + var(--safe-l)); bottom: calc(58vh + 4px); border-radius: 14px; }
-.touch-btn.bolt { width: 52px; height: 52px; left: calc(268px + var(--safe-l)); bottom: calc(58vh + 2px); border-radius: 14px; background: #2b2420; color: #f3e9d8; }
-.touch-btn.bolt .lbl { font-size: 9.5px; }
-.touch-btn.bolt.pressed { background: #e0463a; color: #fff; }
-@media (orientation: portrait) {
-  .touch-btn.cam { left: calc(var(--button-left) + 2 * var(--button-cell)); bottom: calc(40vh + 84px); }
-  .touch-btn.bolt { left: calc(var(--button-left) + 3 * var(--button-cell)); bottom: calc(40vh + 82px); }
-}
 .aircraft-row button.chk:not(.on) { opacity: 0.6; }
 .cam-row > span { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
 

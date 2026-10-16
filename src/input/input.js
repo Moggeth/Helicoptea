@@ -25,6 +25,19 @@ const ACTION_KEYS = {
   Escape: 'pause', KeyP: 'pause', KeyH: 'help', Slash: 'help', KeyM: 'mute', Backquote: 'debug', F3: 'debug', F2: 'fpsmeter', KeyB: 'reset', KeyN: 'mark',
 };
 
+// Touch stick layouts: which flight axis each stick's x (left / right) and y (up / down) flies.
+export const TOUCH_LAYOUTS = {
+  classic: { name: 'Classic: lift and turn left, tilt right', left: { y: 'collective', x: 'yaw', label: ['Lift', 'Turn'] }, right: { y: 'pitch', x: 'roll', label: ['Tilt'] } },
+  aim: { name: 'Aim: lift and roll left, pitch and turn right', left: { y: 'collective', x: 'roll', label: ['Lift', 'Roll'] }, right: { y: 'pitch', x: 'yaw', label: ['Pitch', 'Turn'] } },
+  southpaw: { name: 'Southpaw: tilt left, lift and turn right', left: { y: 'pitch', x: 'roll', label: ['Tilt'] }, right: { y: 'collective', x: 'yaw', label: ['Lift', 'Turn'] } },
+  mode1: { name: 'RC Mode 1: pitch and turn left, lift and roll right', left: { y: 'pitch', x: 'yaw', label: ['Pitch', 'Turn'] }, right: { y: 'collective', x: 'roll', label: ['Lift', 'Roll'] } },
+};
+export const TOUCH_LAYOUT_IDS = Object.keys(TOUCH_LAYOUTS);
+// Thumb travel from centre to full deflection, in CSS pixels.
+export const TOUCH_SIZES = { small: 48, medium: 64, large: 84 };
+// A short tick under the thumb where the phone can (Android; iOS Safari has no vibration API).
+export function buzz(ms) { try { navigator.vibrate?.(ms); } catch { /* not allowed before a gesture */ } }
+
 function shape(x) {
   const dz = CFG.input.deadZone;
   const s = Math.sign(x), a = Math.abs(x);
@@ -54,6 +67,9 @@ export class Input {
     this.aircraft = 'micro';
     this.kbDoors = 0;
     this.touchDoors = 0;
+    this.touchLayout = 'classic';
+    this.touchSize = 'medium';
+    this.lastOpenTap = null;
 
     window.addEventListener('keydown', (e) => {
       // Text entry owns its keys, including letters that also restart or steer the game.
@@ -105,7 +121,12 @@ export class Input {
       if (this.dragging) return;
       this.dragging = { x: e.clientX, y: e.clientY, id: e.pointerId, touch: e.pointerType !== 'mouse' };
       canvas.setPointerCapture(e.pointerId);
-      if (this.dragging.touch) this.source = 'touch';
+      if (this.dragging.touch) {
+        this.source = 'touch';
+        // Double-tap the open screen to look ahead again.
+        const now = e.timeStamp || performance.now(), t = this.lastOpenTap;
+        if (t && now - t.at < DOUBLE_TAP && Math.hypot(e.clientX - t.x, e.clientY - t.y) < 40) { this.actions.push('recenter'); this.lastOpenTap = null; } else this.lastOpenTap = { at: now, x: e.clientX, y: e.clientY };
+      }
     });
     canvas.addEventListener('pointermove', (e) => {
       if (!this.dragging || e.pointerId !== this.dragging.id) return;
@@ -135,81 +156,87 @@ export class Input {
   }
 
   // ---------------------------------------------------------------- touch
+  // Twin floating sticks: a thumb lands anywhere in its half and that spot becomes the centre. Push past
+  // the rim and the centre follows the thumb, so reversing is instant however far the thumb has wandered.
+  // Which stick flies what is a layout (TOUCH_LAYOUTS); stick travel is a size (TOUCH_SIZES).
   buildTouch(root) {
     this.touchRoot = root;
-    const mk = (cls, label) => {
+    const mk = (cls) => {
       const zone = document.createElement('div');
       zone.className = `stick-zone ${cls}`;
-      zone.innerHTML = `<div class="stick-base"><div class="stick-knob"></div></div><div class="stick-label">${label}</div>`;
+      zone.innerHTML = '<div class="stick-base"><div class="stick-knob"></div></div><div class="stick-label"></div>';
       root.appendChild(zone);
       return zone;
     };
-    const left = mk('left', '<span>Lift</span><span>Turn</span>');
-    const right = mk('right', '<span>Tilt</span>');
+    const left = mk('left');
+    const right = mk('right');
     const self = this;
     class Stick {
-      constructor(zone, onMove) {
-        this.zone = zone; this.base = zone.querySelector('.stick-base'); this.knob = zone.querySelector('.stick-knob');
-        this.id = null; this.cx = 0; this.cy = 0; this.onMove = onMove;
+      constructor(zone, side) {
+        this.zone = zone; this.side = side; this.base = zone.querySelector('.stick-base'); this.knob = zone.querySelector('.stick-knob');
+        this.id = null; this.cx = 0; this.cy = 0; this.x = 0; this.y = 0;
         zone.addEventListener('pointerdown', (e) => this.start(e));
         zone.addEventListener('pointermove', (e) => this.move(e));
         zone.addEventListener('pointerup', (e) => this.end(e));
         zone.addEventListener('pointercancel', (e) => this.end(e));
         zone.addEventListener('lostpointercapture', (e) => this.end(e));
       }
+      radius() { return Math.max(36, Math.min(TOUCH_SIZES[self.touchSize] || 64, this.zone.clientWidth * 0.3)); }
       start(e) {
         if (this.id !== null) return;
         e.preventDefault();
         this.id = e.pointerId;
-        this.zone.setPointerCapture(e.pointerId);
-        const r = this.zone.getBoundingClientRect();
+        try { this.zone.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ }
         this.cx = e.clientX; this.cy = e.clientY;
-        this.base.style.left = `${e.clientX - r.left}px`;
-        this.base.style.top = `${e.clientY - r.top}px`;
+        this.place();
         this.zone.classList.add('active');
         self.source = 'touch';
         this.move(e);
       }
+      place() {
+        const r = this.zone.getBoundingClientRect();
+        this.base.style.left = `${this.cx - r.left}px`;
+        this.base.style.top = `${this.cy - r.top}px`;
+      }
       move(e) {
         if (e.pointerId !== this.id) return;
         e.preventDefault();
-        const R = Math.min(64, this.zone.clientWidth * 0.22);
+        const R = this.radius();
         let dx = (e.clientX - this.cx) / R, dy = (e.clientY - this.cy) / R;
         const m = Math.hypot(dx, dy);
-        if (m > 1) { dx /= m; dy /= m; }
+        if (m > 1) {
+          dx /= m; dy /= m;
+          // Leash: drag the centre along behind the thumb.
+          this.cx = e.clientX - dx * R; this.cy = e.clientY - dy * R;
+          this.place();
+        }
         this.knob.style.transform = `translate(${dx * R}px, ${dy * R}px)`;
-        this.onMove(dx, -dy);
+        this.x = dx; this.y = -dy;
+        self.applySticks();
       }
       end(e) { if (e.pointerId !== this.id) return; this.release(); }
       release() {
         this.id = null;
         this.knob.style.transform = 'translate(0px, 0px)';
         this.zone.classList.remove('active');
-        this.onMove(0, 0);
+        this.base.style.left = this.base.style.top = '';
+        this.x = this.y = 0;
+        self.applySticks();
       }
     }
-    this.sticks = [
-      new Stick(left, (x, y) => { this.touch.yaw = x; this.touch.collective = y; }),
-      new Stick(right, (x, y) => { this.touch.roll = x; this.touch.pitch = y; }),
-    ];
+    this.sticks = [new Stick(left, 'left'), new Stick(right, 'right')];
+    this.setTouchLayout(this.touchLayout, this.touchSize);
     const btn = (cls, html, action) => {
       const b = document.createElement('button');
       b.className = `touch-btn ${cls}`;
       b.innerHTML = html;
-      b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); this.source = 'touch'; this.actions.push(action); b.classList.add('pressed'); });
+      b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); this.source = 'touch'; this.actions.push(action); b.classList.add('pressed'); buzz(8); });
       b.addEventListener('pointerup', () => b.classList.remove('pressed'));
       b.addEventListener('pointercancel', () => b.classList.remove('pressed'));
       root.appendChild(b);
       return b;
     };
     this.attachBtn = btn('attach', '<span class="ico">⚓</span><span class="lbl">Hook</span>', 'attach');
-    this.assistBtn = btn('assist', '<span class="lbl">Assist</span>', 'assist');
-    btn('recenter', '<span class="lbl">View</span>', 'recenter');
-    // Next camera, and the GoPro while held.
-    btn('cam', '<span class="lbl">Cam</span>', 'view');
-    // Mark this moment for a flight note (described later in the replay).
-    btn('mark', '<span class="ico">⚑</span><span class="lbl">Mark</span>', 'mark');
-    // Pour: held. Shown only while the milk bucket is on a hook.
     // Held buttons; a double-tap fires a combo.
     const hold = (cls, html, set, combo) => {
       const b = document.createElement('button');
@@ -217,7 +244,7 @@ export class Input {
       b.innerHTML = html;
       let last = 0;
       b.addEventListener('pointerdown', (e) => {
-        e.preventDefault(); e.stopPropagation(); this.source = 'touch'; set(true); b.classList.add('pressed'); b.setPointerCapture?.(e.pointerId);
+        e.preventDefault(); e.stopPropagation(); this.source = 'touch'; set(true); b.classList.add('pressed'); b.setPointerCapture?.(e.pointerId); buzz(8);
         const now = e.timeStamp || performance.now();   // when the finger landed (see the keyboard combos)
         if (combo && now - last < DOUBLE_TAP) { this.actions.push(combo); last = 0; } else last = now;
       });
@@ -226,7 +253,8 @@ export class Input {
       root.appendChild(b);
       return b;
     };
-    this.boltBtn = hold('bolt', '<span class="lbl">GoPro</span>', (v) => { this.touch.bolt = v; });
+    // The GoPro, straight down, while held.
+    this.boltBtn = hold('bolt', '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="3"/><circle cx="12" cy="12" r="3.2"/></svg><span class="lbl">GoPro</span>', (v) => { this.touch.bolt = v; });
     this.boltBtn.classList.remove('hidden');
     // Pour (bucket): shown only while the bucket is on a hook. Double-tap latches the valve open.
     this.pourBtn = hold('pour', '<span class="ico">🥛</span><span class="lbl">Pour</span>', (v) => { this.touch.pour = v; }, 'salvo');
@@ -237,6 +265,30 @@ export class Input {
       reelOut: hold('reel-out', '<span class="lbl">Hose ▼</span>', (v) => { this.touch.reel = v ? 1 : 0; }),
       reelIn: hold('reel-in', '<span class="lbl">Hose ▲</span>', (v) => { this.touch.reel = v ? -1 : 0; }),
     };
+  }
+
+  // Which stick flies what, and how far a stick travels to full deflection.
+  setTouchLayout(layout, size) {
+    if (TOUCH_LAYOUTS[layout]) this.touchLayout = layout;
+    if (TOUCH_SIZES[size]) this.touchSize = size;
+    if (!this.sticks) return;
+    const L = TOUCH_LAYOUTS[this.touchLayout];
+    for (const s of this.sticks) {
+      s.zone.querySelector('.stick-label').innerHTML = L[s.side].label.map((t) => `<span>${t}</span>`).join('');
+      s.zone.dataset.axes = `${L[s.side].y} ${L[s.side].x}`;
+    }
+    this.touchRoot.style.setProperty('--stick-r', `${TOUCH_SIZES[this.touchSize]}px`);
+    this.applySticks();
+  }
+
+  applySticks() {
+    const L = TOUCH_LAYOUTS[this.touchLayout];
+    const t = this.touch;
+    t.pitch = t.roll = t.yaw = t.collective = 0;
+    for (const s of this.sticks || []) {
+      const m = L[s.side];
+      t[m.x] = s.x; t[m.y] = s.y;
+    }
   }
 
   // Which touch buttons fit the aircraft and cargo (called by the game each frame).

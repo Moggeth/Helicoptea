@@ -9,7 +9,7 @@ import { Sim } from './sim/sim.js';
 import { buildKitchen } from './render/kitchen.js';
 import { View, SHADOW_ONLY } from './render/view.js';
 import { FollowCamera } from './render/camera.js';
-import { Input } from './input/input.js';
+import { Input, buzz } from './input/input.js';
 import { Audio } from './audio/audio.js';
 import { bindUi } from './audio/ui.js';
 import { Hud } from './ui/hud.js';
@@ -179,6 +179,8 @@ async function boot() {
 
   const input = new Input($('touch'));
   input.bindCanvas(canvas);
+  input.setTouchLayout(store.get('touchLayout', 'classic'), store.get('touchSize', 'medium'));
+  if (IS_TOUCH) input.source = 'touch';
   const audio = new Audio();
   if (kitchen.garden.charm) kitchen.garden.charm.audio = audio; // the radio and the cat
   const debug = new Debug(sim, renderer, scene);
@@ -231,6 +233,10 @@ async function boot() {
       if (k.startsWith('cue.')) { depth.set(k.slice(4), v); store.set(k, v ? '1' : '0'); }
       if (k === 'collectiveMode') { CFG.collective.mode = v === 'hold' ? 'hold' : 'spring'; store.set(k, CFG.collective.mode); }
       if (k === 'rotorStrikes') { sim.damage.rotorStrikes = !!v; store.set(k, v ? '1' : '0'); }
+      if (k === 'touchLayout') { input.setTouchLayout(v); store.set(k, input.touchLayout); hud.refreshKeys(); }
+      if (k === 'touchSize') { input.setTouchLayout(null, v); store.set(k, input.touchSize); }
+      if (k === 'fullscreen') { store.set(k, v ? '1' : '0'); setFullscreen(!!v); }
+      if (k === 'muted') { audio.setMuted(!!v); hud.setVolume(audio.volume, audio.muted); }
     },
   });
   const flow = new Flow(sim, hud);
@@ -264,6 +270,7 @@ async function boot() {
   });
   const fmtWall = (w) => `${Math.floor(w / 60)}:${String(Math.floor(w % 60)).padStart(2, '0')}`;
   hud.pads = input.pads;
+  hud.touchLayoutOf = () => input.touchLayout;
   hud.setAssist(sim.assist);
   hud.setVolume(audio.volume, audio.muted);
   hud.setDevice(IS_TOUCH ? 'touch' : 'keyboard');
@@ -301,7 +308,8 @@ async function boot() {
     } else hud.openPause(pauseOpts());
   }
 
-  function pauseOpts() { return { quality: quality.setting, debug: debug.enabled, fpsMeter: fpsMeter.shown, aircraft: sim.aircraft, weight, view: fp.mode, camCycle: cam.cycle, camFeel: cam.feel, fpFov: fp.fov, fpMotion: fp.motion, fpVibration: fp.vibration, loadCam: fp.loadCam, cues: { ...depth.settings }, rotorStrikes: sim.damage.rotorStrikes, collectiveMode: CFG.collective.mode }; }
+  function pauseOpts() { return { quality: quality.setting, debug: debug.enabled, fpsMeter: fpsMeter.shown, aircraft: sim.aircraft, weight, view: fp.mode, camCycle: cam.cycle, camFeel: cam.feel, fpFov: fp.fov, fpMotion: fp.motion, fpVibration: fp.vibration, loadCam: fp.loadCam, cues: { ...depth.settings }, rotorStrikes: sim.damage.rotorStrikes, collectiveMode: CFG.collective.mode,
+    touch: IS_TOUCH, fullscreen: document.fullscreenEnabled ? !!document.fullscreenElement : null, touchLayout: input.touchLayout, touchSize: input.touchSize, volume: audio.volume, muted: audio.muted }; }
 
   // Something to ride for the cargo cam: a load on a hook, or the skycrane's snorkel paid out.
   function cargoReady() {
@@ -396,6 +404,13 @@ async function boot() {
       case 'replay': openReplay(); break;
       case 'mark': {
         const n = paused ? null : recorder.addNote({ tag: 'mark', source: 'flight' });
+        if (n) hud.toast(`Marked ${fmtWall(n.wall)}. Describe it later in Pause → Flight replay`, 2.2);
+        break;
+      }
+      case 'markNow': {
+        // From the touch pause menu: the moment you paused.
+        const n = recorder.addNote({ tag: 'mark', source: 'flight' });
+        setPaused(false);
         if (n) hud.toast(`Marked ${fmtWall(n.wall)}. Describe it later in Pause → Flight replay`, 2.2);
         break;
       }
@@ -608,9 +623,20 @@ async function boot() {
   $('start-hint').classList.remove('hidden');
   $('load-status').textContent = `Loaded in ${((performance.now() - t0) / 1000).toFixed(1)} s`;
   console.info(`[Helicoptea] ready in ${(performance.now() - t0).toFixed(0)} ms | quality ${quality.name} (${quality.setting}${quality.software ? ', software renderer' : ''}) | dpr ${dpr.toFixed(2)} | ${debug.gpuName()} | Rapier ${RAPIER.version ? RAPIER.version() : ''}`);
+  function wantFullscreen() { return !navigator.webdriver && (params.get('fs') || store.get('fullscreen', '1')) !== '0'; }
+  function setFullscreen(on) {
+    const d = document, el = d.documentElement;
+    try {
+      if (on && !d.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+      else if (!on && d.fullscreenElement) d.exitFullscreen().catch(() => {});
+    } catch { /* not allowed here */ }
+  }
   const begin = () => {
     if (started) return;
     started = true;
+    // Phones: the start tap is the gesture that may hide the browser's bars (Android; iPhone Safari can't,
+    // but Add to Home Screen opens the game full screen anyway).
+    if (IS_TOUCH && wantFullscreen()) setFullscreen(true);
     audio.unlock();
     audio.ui('start');
     // A gamepad press doesn't count as a user gesture for audio in every browser: offer a one-tap fix.
@@ -770,12 +796,14 @@ async function boot() {
     hud.updateController();
     if (input.attachBtn) {
       const cand = sim.attachCandidate();
+      if (!!cand !== input.attachBtn.classList.contains('ready') && cand) buzz(12);   // a loop just came in reach
       input.attachBtn.classList.toggle('ready', !!cand);
+      input.attachBtn.classList.toggle('idle', !cand && !sim.carriedCargo().length);
+      input.touchRoot.classList.toggle('down', crashShown);   // nothing to press after a crash but Restart
       input.attachBtn.querySelector('.lbl').textContent = !cand && sim.carriedCargo().length ? 'Drop' : 'Hook';
       const bk = sim.milk.bucket, carryingBucket = !!(bk && sim.carriedCargo().includes(bk));
       input.setTouchMode(sim.aircraft === 'skycrane', carryingBucket);
       input.pourBtn.classList.toggle('empty', carryingBucket && bk.vol < 1e-7);
-      input.assistBtn.classList.toggle('on', sim.assist);
     }
 
     if (replay.active) { replayFrame(frameDt); return; }

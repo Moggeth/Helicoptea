@@ -16,7 +16,7 @@ try{
   await page.locator('#start-btn:not(.hidden)').click();
   await page.waitForFunction(()=>document.querySelector('.hint')?.classList.contains('show'));
   const prefix=mode;
-  if(touch){await page.locator('.touch-btn.recenter').tap();await page.waitForFunction(()=>document.querySelector('.hint .txt').textContent.includes('left stick'));}
+  if(touch){await page.waitForFunction(()=>document.querySelector('.hint .txt').textContent.includes('left stick'));}
   if(pad){await page.evaluate(()=>window.__pad.buttons[1]={pressed:true,value:1});await page.waitForTimeout(120);await page.evaluate(()=>window.__pad.buttons[1]={pressed:false,value:0});await page.waitForFunction(()=>document.querySelector('.hint .txt').textContent.includes('L-stick'));}
   const before=await page.locator('.hint').textContent();
   check(`${prefix}: lift hint uses current device`,before.includes(touch?'left stick':pad?'L-stick':'W'),before);
@@ -39,6 +39,7 @@ try{
   await page.locator('[data-act=skiphints]').click();await page.waitForFunction(()=>!document.querySelector('.hint').classList.contains('show'));
   check(`${prefix}: Skip tips hides guidance`,true);
   await page.keyboard.press('r');await page.waitForTimeout(200);await page.keyboard.press('Escape');
+  await page.waitForSelector('.overlay.show details.more');await page.evaluate(()=>document.querySelector('.overlay.show details.more').setAttribute('open',''));   // under More settings on touch
   await page.locator('[data-act=resethints]').click();
   await page.waitForFunction(()=>document.querySelector('.hint').classList.contains('show')&&document.querySelector('.hint .step').textContent==='1');
   check(`${prefix}: replay tips restores first step`,true);
