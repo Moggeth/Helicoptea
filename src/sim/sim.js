@@ -8,6 +8,7 @@ import { TeaBag } from './teabag.js';
 import { AirField } from './air.js';
 import { lazySceneQueries } from './sceneQueries.js';
 import { Props } from './props.js';
+import { Extras } from './extras.js';
 import { MilkSystem } from './milk.js';
 import { Damage, CRASH_KINDS } from './damage.js';
 
@@ -101,6 +102,7 @@ export class Sim {
     for (const p of this.pegs) this.refillPeg(p);
     this.milk = new MilkSystem(this);
     this.props = new Props(this, !!opts.lite);
+    this.extras = new Extras(this, !!opts.lite);
     // A bare sim keeps only the table and pad: the milk station, lamp, cat and other set pieces
     // still exist (their code expects them) but take no part in collisions.
     if (this.bare) {
@@ -448,6 +450,7 @@ export class Sim {
     for (const c of this.cups) { c.brew = 0; c.steep = 0; }
     this.milk.reset();
     this.props.reset();
+    this.extras.reset();
     this.air.clear();
     for (const p of this.pegs) { p.bag = null; }
     this.restartFlight();
@@ -467,6 +470,7 @@ export class Sim {
     for (const b of this.bags) b.applyForces(dt);
     this.milk.applyForces(dt, ctl);
     this.props.applyForces(dt);
+    this.extras.applyForces(dt);
 
     this.world.step(this.eventQueue);
     this.time += dt;
@@ -478,6 +482,9 @@ export class Sim {
       const i2 = this.colliderInfo.get(ev.collider2());
       if (!i1 || !i2) return;
       const imp = ev.totalForceMagnitude() * dt;
+      // Extra set pieces can listen for their own knocks (info.onImpact(impulse, otherInfo)).
+      if (i1.onImpact) i1.onImpact(imp, i2);
+      if (i2.onImpact) i2.onImpact(imp, i1);
       const heliInfo = i1.kind === 'heli' ? i1 : (i2.kind === 'heli' ? i2 : null);
       if (heliInfo) {
         const other = heliInfo === i1 ? i2 : i1;
@@ -551,6 +558,7 @@ export class Sim {
     }
     this.milk.afterStep(dt);
     this.props.afterStep(dt);
+    this.extras.afterStep(dt);
     if (this.heli) {
       let load = 0;
       for (const b of this.carriedCargo()) load += b.tension;

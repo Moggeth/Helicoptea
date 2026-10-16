@@ -16,6 +16,7 @@ import { noiseBuffer, brownBuffer, impulse } from './synth.js';
 import { Ambience } from './ambience.js';
 import { teaSound, Steep } from './tea.js';
 import { uiSound } from './ui.js';
+import { extraSound } from './extras.js';
 import { ROOM } from '../sim/layout.js';
 
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -494,6 +495,7 @@ export class Audio {
           break;
         }
         case 'restart': this.ui('restart'); break;
+        case 'extra': extraSound(this, e, now); break;
         default: break;
       }
     }
