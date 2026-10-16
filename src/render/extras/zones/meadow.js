@@ -548,6 +548,11 @@ function buildSundial(ctx) {
   const prof = [[0.095, 0], [0.1, 0.03], [0.074, 0.08], [0.066, 0.13], [0.09, 0.22], [0.112, 0.31], [0.1, 0.38], [0.068, 0.46], [0.056, 0.52], [0.06, 0.57], [0.086, 0.6], [0.09, 0.62], [0.07, 0.635]].map(([r, y]) => new THREE.Vector2(r, y));
   put(scaleUV(new THREE.LatheGeometry(prof, 22), 1.6, 1.6), stone, ST, 0, 0.12, 0, Math.PI / 10);
   const topY = S.h;
+  // The baluster's top (0.755) to the cap's underside (topY - 0.09): a square block and a moulding, so the
+  // cap sits on stone rather than floating over the shaft.
+  const balTop = 0.12 + 0.635, capBot = topY - 0.09;
+  put(new THREE.CylinderGeometry(0.075, 0.07, 0.012, 22), stone, ST, 0, balTop + 0.006, 0, Math.PI / 10);
+  put(bx(0.15, capBot - balTop - 0.012, 0.15), stone, ST2, 0, (balTop + 0.012 + capBot) / 2, 0);
   put(new THREE.CylinderGeometry(0.18, 0.15, 0.05, 8), stone, ST, 0, topY - 0.065, 0, Math.PI / 8);
   put(new THREE.CylinderGeometry(0.155, 0.16, 0.014, 8), stone, 0xcac5b5, 0, topY - 0.033, 0, Math.PI / 8);
   // The dial plate: brass, chamfered, with a dark engraved ring, hour lines and the gnomon.
