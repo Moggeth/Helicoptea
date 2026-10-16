@@ -9,3 +9,6 @@ releases/
 
 # Source renders for branding are large and reproducible (tools/branding); keep them out of git
 assets/branding/renders/
+
+# Trailer renders (tools/trailer) are large and reproducible
+/trailer/

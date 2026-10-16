@@ -85,6 +85,21 @@ and notes are saved to `logs/flights/` by the dev and preview servers (in the br
 with a **Download** button for a copy), and `node tools/flight-notes.mjs` summarises the notes with the
 telemetry around each one. See [docs/FLIGHT-LOGS.md](docs/FLIGHT-LOGS.md).
 
+## Trailer capture
+
+`tools/trailer/` records trailer footage from the real game. `rig.mjs` runs the page on a virtual clock
+(requestAnimationFrame and `performance.now` only advance when a frame is stepped), so every frame is exactly
+1/60 s of game time at 1920×1080 however slowly it renders, and builds the game's own audio graph on an
+`OfflineAudioContext` suspended at each frame boundary, so the sound is the game's mix, sample-aligned to the
+picture. `shots.mjs` flies each shot with the in-game autopilot and a scripted camera; `edit.mjs` cuts them,
+adds the logo title card and normalises loudness with ffmpeg. Output goes to the ignored `trailer/` folder.
+
+```
+npm run build -- --outDir scratch/trailer-dist && npx vite preview --outDir scratch/trailer-dist --port 4677
+node tools/trailer/shots.mjs http://localhost:4677/            # all shots (--only=dip,pour; --preview for every 10th frame)
+node tools/trailer/edit.mjs                                    # trailer/helicoptea-trailer.mp4
+```
+
 ## Flight tuning board
 
 **Pause → Flight tuning → Open board** shows every feel setting as a slider, grouped as *Moving a dot*
