@@ -708,7 +708,7 @@ function ducks(S) {
   const group = new THREE.Group();
   group.name = 'park-ducks';
   for (const d of list) { d.mesh = new THREE.Mesh(geos[d.kind], mat); d.mesh.castShadow = true; d.mesh.frustumCulled = false; group.add(d.mesh); }
-  ctx.object(group, 1);
+  ctx.object(group, 1, [cx, cz]);
   let t = 0;
   const pos = (d, tt) => {
     const L = d.lead !== null ? list[d.lead] : d, a = L.a + (d.lead !== null ? -Math.sign(L.sp) * d.lag : 0) + L.sp * tt;

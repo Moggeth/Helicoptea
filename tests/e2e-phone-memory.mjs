@@ -65,6 +65,12 @@ try {
     await page.tap('#start-btn');
     await page.waitForFunction(() => window.__helicoptea.frames > 120, null, { timeout: 60000 });
     await sleep(2000);
+    // Retained script memory: what is still reachable after a garbage collection (building the neighbourhood
+    // leaves a lot of short-lived garbage that the next collection takes; how much is still uncollected at a
+    // given moment says little about what the page keeps).
+    const rawHeap = await page.evaluate(() => performance.memory?.usedJSHeapSize || 0);
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send('HeapProfiler.collectGarbage');
     const r = await page.evaluate(() => {
       const h = window.__helicoptea, T = window.__gpuTally;
       return { tier: h.quality.name, now: T.now, peak: T.peak, contexts: T.contexts, lost: T.lost, programs: h.renderer.info.programs.length, heap: performance.memory?.usedJSHeapSize || 0, budget: window.__helicoptea.gpuBudget?.() };
@@ -74,7 +80,7 @@ try {
     check('GPU memory in flight stays inside the phone budget (160 MB)', MB(r.now) < 160, `${MB(r.now)} MB live`);
     check('GPU memory peak during load stays inside the phone budget (160 MB)', MB(r.peak) < 160, `${MB(r.peak)} MB peak`);
     check('only the game keeps a WebGL context (the probe is given back)', r.contexts === 2 && r.lost === 1, { contexts: r.contexts, lost: r.lost });
-    check('JS heap stays under 150 MB', MB(r.heap) < 150, `${MB(r.heap)} MB`);
+    check('JS heap stays under 150 MB', MB(r.heap) < 150, `${MB(r.heap)} MB retained (${MB(rawHeap)} MB before collecting)`);
     check('start-up logs its GPU memory estimate', /GPU memory ~\d+ MB/.test(line), line);
     check('no errors', !errors.length, errors.slice(0, 3));
     await ctx.close();

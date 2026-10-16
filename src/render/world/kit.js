@@ -183,7 +183,7 @@ export function buildTree(ctx, s) {
     const n = kind === 'conifer' ? 1 : 3;
     for (let i = 0; i < n; i++) {
       const rr = n === 1 ? r : r * (0.55 + rnd() * 0.25);
-      const g = kind === 'conifer' ? new THREE.ConeGeometry(r, r * 2.6, 9, 3) : blob(rr, rnd);
+      const g = kind === 'conifer' ? new THREE.ConeGeometry(r, r * 2.6, 9, 3) : blob(rr, rnd, ctx.lite);
       const ox = n === 1 ? 0 : (rnd() - 0.5) * r * 0.9, oy = n === 1 ? 0 : (rnd() - 0.4) * r * 0.6, oz = n === 1 ? 0 : (rnd() - 0.5) * r * 0.9;
       ctx.add(g, wk.leafy, T(s.x + dx + ox, y + dy + oy, s.z + dz + oz, rnd() * 6), tones[i % tones.length], 0);
     }
@@ -202,8 +202,8 @@ export function buildTree(ctx, s) {
   }
 }
 
-function blob(r, rnd) {
-  const g = new THREE.IcosahedronGeometry(r, 2);
+function blob(r, rnd, lite = false) {
+  const g = new THREE.IcosahedronGeometry(r, lite ? 1 : 2);
   const p = g.attributes.position, seed = rnd() * 10;
   for (let i = 0; i < p.count; i++) {
     _v.fromBufferAttribute(p, i);
@@ -293,7 +293,7 @@ export function buildHedge(ctx, { a, b, h, d = 0.5, gaps = [], y = FY, color = 0
   const seg = 0.9;
   for (let u = seg / 2; u < len; u += seg) {
     if (open(u)) continue;
-    const g = blob(0.5, rnd);
+    const g = blob(0.5, rnd, ctx.lite);
     ctx.add(g, ctx.wk.leafy, T(a[0] + dx * u, y + h * 0.5, a[1] + dz * u, yaw, 0, 0, seg * 1.25, h * 1.15, d * 1.1), color, 0);
   }
   ctx.ground.shadowRect(Math.min(a[0], b[0]) - d / 2, Math.min(a[1], b[1]) - d / 2, Math.max(a[0], b[0]) + d / 2, Math.max(a[1], b[1]) + d / 2, h * 0.7, 0.35);

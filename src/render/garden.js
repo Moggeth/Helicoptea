@@ -33,7 +33,7 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
   scene.add(sky);
   const horizon = new THREE.Color(0xe4e0d4);
   // Haze over the neighbourhood: the world's far chunks stop drawing just beyond where it closes in.
-  scene.fog = quality.lite ? new THREE.Fog(horizon, 16, 92) : new THREE.Fog(horizon, 28, 165);
+  scene.fog = quality.lite ? new THREE.Fog(horizon, 12, 54) : new THREE.Fog(horizon, 28, 165);
   scene.background = horizon;
 
   buildHouseShell(scene, quality);
@@ -325,7 +325,7 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
   const extras = sim ? buildExtras(scene, quality, kitchen, charm, sim, grass.uniforms) : null;
   // The neighbourhood round the house and garden (src/render/world).
   const world = buildWorld(scene, quality, { kitchen, sim, wind: grass.uniforms, teaStand, charm });
-  grass.addWorld(world.ground.material.userData.grassMask, world.ground.material.map, quality);
+  if (typeof location === 'undefined' || new URLSearchParams(location.search).get('worldgrass') !== '0') grass.addWorld(world.ground.material.userData.grassMask, world.ground.material.map, quality);
 
   // ---------------------------------------------------------------- per-frame
   const wind = grass.uniforms;

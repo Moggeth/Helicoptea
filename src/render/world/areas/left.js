@@ -821,7 +821,7 @@ function animated(ctx, { rnd }) {
   };
   tick(0);
   const pond = new THREE.Group(); pond.add(drops, koi, ...rings);
-  ctx.object(pond, 1);
-  ctx.object(wings, 1);
+  ctx.object(pond, 1, [P.x, P.z]);
+  ctx.object(wings, 1, [L.BUDDLEIA.x, L.BUDDLEIA.z]);
   ctx.update(tick);
 }

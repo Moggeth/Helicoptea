@@ -130,7 +130,9 @@ export class ColliderStreamer {
     const sim = this.sim, F = this.foci;
     F.length = 0;
     const all = sim.streamColliders === false;
-    if (sim.heli) F.push(sim.heli.pos.x, sim.heli.pos.z, STREAM_R);
+    // The aircraft's reach grows with its speed (it covers speed x 0.08 s between checks, and a crash
+    // throws pieces).
+    if (sim.heli) { const v = sim.heli.vel ? Math.hypot(sim.heli.vel.x, sim.heli.vel.z) : 0; F.push(sim.heli.pos.x, sim.heli.pos.z, Math.min(STREAM_R, (sim.heli.type === 'micro' ? 1.6 : 2.6) + v * 0.8)); }
     for (const b of sim.cargoItems()) if (b.pos) F.push(b.pos.x, b.pos.z, 1.5);
     for (const d of sim.debris) { const t = d.body.translation(); F.push(t.x, t.z, 1.5); }
     const L = this.list, on = this.on;

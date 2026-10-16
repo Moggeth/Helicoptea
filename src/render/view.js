@@ -36,6 +36,7 @@ export class View {
     this.scene = scene;
     this.sim = sim;
     this.quality = quality;
+    this.kitchenCups = kitchen ? kitchen.cups : null;
     this.time = 0;
     this.M = makeMaterials(quality);
     this.heliModel = buildRealisticHelicopter(quality);
@@ -601,7 +602,15 @@ export class View {
     this.milkView.update(alpha, dt);
 
     // Surfaces, flash, scorch fade, particles.
-    for (const s of this.surfaces) s.update(this.time, dt);
+    // Cups far across the neighbourhood are a few pixels: they (and their tea) stop drawing and rippling.
+    const cupMeshes = this.kitchenCups, lim = this.quality.lite ? 12 * 12 : 16 * 16;
+    for (let i = 0; i < this.surfaces.length; i++) {
+      const s = this.surfaces[i], c = sim.cups[i];
+      const near = (c.x - this.heliPos.x) ** 2 + (c.z - this.heliPos.z) ** 2 < lim;
+      s.mesh.visible = near;
+      if (cupMeshes && cupMeshes[i]) cupMeshes[i].visible = near;
+      if (near) s.update(this.time, dt);
+    }
     this.birdbath.update(this.time, dt);
     this.flashT += dt;
     this.flash.intensity = this.flashT < 0.6 ? 7 * Math.exp(-this.flashT * 9) : 0;

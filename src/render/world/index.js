@@ -3,7 +3,8 @@ import { Batcher, T, boxUV, planeUV, blobGeometry } from '../batch.js';
 import { kitMaterials, swayMaterial } from '../extras/kit.js';
 import { worldKit } from './kit.js';
 import { GroundPainter, buildGround } from './ground.js';
-import { AREAS, BOUNDS, groundHeight } from '../../sim/world/plan.js';
+import { AREAS, BOUNDS, MAIN, groundHeight } from '../../sim/world/plan.js';
+import { ROOM } from '../../sim/layout.js';
 import { WORLD_STATIONS } from '../../sim/world/index.js';
 import * as house from './areas/house.js';
 import * as left from './areas/left.js';
@@ -23,65 +24,110 @@ import * as horizon from './areas/horizon.js';
 //   lod 2  fine (small clutter, leaf cards, ornaments): not built on phones and the low tier; within DIST.lod2
 // Live objects (anything animated) go in through ctx.object(obj, lod) and are culled with their chunk;
 // ctx.update(fn) runs fn(dt, sim, camera) each frame while the camera is within DIST.update of the area.
-const CHUNK = 12;
+// Chunk size per level of detail: structure in big chunks (few draw calls). Phones draw fewer, bigger chunks:
+// they are held back by draw calls far more than by triangles the frustum could have culled.
+const CHUNK = [40, 24, 12], CHUNK_LITE = [80, 36, 12];
+const AO_DIST = 14;
+function freeArray() { this.array = null; } // chunk size per level of detail: structure in big chunks (few draw calls)
 const AREA_MODULES = { house, left, right, street, allotments, park };
 
 const _c = new THREE.Vector3(), _p = new THREE.Vector3(), _box = new THREE.Box3();
+
+// The set-piece kit has a material per kind of surface, but most differ only in roughness and metalness over
+// one of three grain textures. In the world's merged chunks they share one material per texture, reading
+// roughness and metalness from the vertices: a third of the draw calls (and of those in the AO pass).
+const SHARED = { grain: ['wood', 'weathered', 'wicker'], rough: ['terracotta', 'stone', 'soil', 'iron', 'zinc'], fine: ['paint', 'enamel', 'brass', 'copper', 'steel', 'fabric', 'paper', 'rubber'] };
+function sharedMaterials(kit) {
+  const by = new Map();
+  for (const [cls, names] of Object.entries(SHARED)) {
+    const m = kit[names[0]].clone();
+    m.name = `world-kit-${cls}`;
+    m.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', `#include <common>
+attribute vec2 rm;
+varying vec2 vRM;`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+vRM = rm;`);
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+varying vec2 vRM;`)
+        .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = vRM.x;')
+        .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = vRM.y;');
+    };
+    m.customProgramCacheKey = () => `world-kit-rm`;
+    for (const n of names) by.set(kit[n], { mat: m, rm: [kit[n].roughness, kit[n].metalness] });
+  }
+  return by;
+}
 
 export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm } = {}) {
   const lite = !!quality.lite;
   const hi = quality.name === 'high' || quality.name === 'ultra';
   // Draw distances (metres from the camera to a chunk's box).
-  const DIST = lite ? { lod0: 95, lod1: 28, lod2: 0, update: 26 } : { lod0: 170, lod1: 55, lod2: 24, update: 40 };
+  const DIST = lite ? { lod0: 56, lod1: 13, lod2: 0, update: 20 } : { lod0: 170, lod1: 40, lod2: 18, update: 40 };
+  // Indoors (the kitchen and the house) the world outside is only seen through windows and doors: its detail
+  // closes in.
+  const IN = lite ? { lod1: 8, lod2: 0 } : { lod1: 16, lod2: 9 };
   const kit = kitMaterials();
   const wk = worldKit(quality);
+  const shared = sharedMaterials(kit);
   const ground = new GroundPainter(quality);
   const root = new THREE.Group();
   root.name = 'world';
   scene.add(root);
 
   const chunks = new Map();
-  const chunkAt = (x, z) => {
-    const ix = Math.floor(x / CHUNK), iz = Math.floor(z / CHUNK), key = `${ix},${iz}`;
+  const chunkAt = (x, z, lod) => {
+    const S = (lite ? CHUNK_LITE : CHUNK)[lod], ix = Math.floor(x / S), iz = Math.floor(z / S), key = `${lod}:${ix},${iz}`;
     let c = chunks.get(key);
     if (!c) {
-      c = { key, batch: [new Batcher(), new Batcher(), new Batcher()], groups: [0, 1, 2].map((l) => { const g = new THREE.Group(); g.name = `world-${key}-lod${l}`; root.add(g); return g; }),
-        box: new THREE.Box3(new THREE.Vector3(ix * CHUNK, BOUNDS.top, iz * CHUNK), new THREE.Vector3(ix * CHUNK + CHUNK, -1, iz * CHUNK + CHUNK)), dist: 0 };
+      const group = new THREE.Group();
+      group.name = `world-${key}`;
+      root.add(group);
+      c = { key, lod, batch: new Batcher(), group, box: new THREE.Box3(new THREE.Vector3(ix * S, BOUNDS.top, iz * S), new THREE.Vector3(ix * S + S, -1, iz * S + S)), dist: 0,
+        cell: new THREE.Box3(new THREE.Vector3(ix * S - 4, -10, iz * S - 4), new THREE.Vector3(ix * S + S + 4, 60, iz * S + S + 4)) };
       chunks.set(key, c);
     }
     return c;
   };
   const updaters = [];
+  let thin = 0;
   let current = null;
 
   const replayProps = charm && charm.replay ? charm.replay.props : new Map();
   const ctx = {
     scene, quality, kitchen, sim, wind, lite, hi,
-    kit, wk, T, boxUV, planeUV, blobGeometry,
+    kit, wk, T, boxUV, planeUV,
+    // Foliage lumps: a coarser sphere on phones.
+    blobGeometry: (r, detail = 2, seed = 1, amp = 0.22) => blobGeometry(r, lite ? Math.min(detail, 1) : detail, seed, amp),
     ground,
     groundY: groundHeight,
     // Static mesh, merged into its chunk by material. colour tints the (white-based) material per piece.
     add(geo, mat, matrix = null, color = 0xffffff, lod = 1) {
       if (lod >= 2 && lite) return;
+      // Phones get half the small leaves and petals (they are most of the world's triangles).
+      if (lite && lod >= 1 && /leaf|petal/.test(mat.name) && (thin++ & 1)) return;
       if (!geo.boundingBox) geo.computeBoundingBox();
       geo.boundingBox.getCenter(_c);
       if (matrix) _c.applyMatrix4(matrix);
-      chunkAt(_c.x, _c.z).batch[lod].add(geo, mat, matrix, color);
+      const s = shared.get(mat);
+      chunkAt(_c.x, _c.z, lod).batch.add(geo, s ? s.mat : mat, matrix, color, s ? { rm: s.rm } : undefined);
     },
-    // A live object (animated, instanced, transparent...): culled with the chunk its position is in.
-    object(obj, lod = 1) {
+    // A live object (animated, instanced, transparent...): culled with the chunk its position is in. at: [x, z]
+    // where it really is, for things posed only once they animate (instances, children placed per frame).
+    object(obj, lod = 1, at = null) {
       if (lod >= 2 && lite) return obj;
       obj.updateMatrixWorld(true);
       _box.setFromObject(obj);
-      if (_box.isEmpty()) _box.getCenter(_c).copy(obj.position); else _box.getCenter(_c);
-      const c = chunkAt(_c.x, _c.z);
-      c.groups[lod].add(obj);
+      if (at) { _c.set(at[0], 0, at[1]); _box.makeEmpty(); } else if (_box.isEmpty()) _c.copy(obj.position); else _box.getCenter(_c);
+      const c = chunkAt(_c.x, _c.z, lod);
+      c.group.add(obj);
       if (!_box.isEmpty()) c.box.union(_box);
       return obj;
     },
     update(fn) { updaters.push({ fn, area: current }); },
     // Foliage that bends in breeze and rotor wash (see src/render/extras/kit.js).
-    sway: (mat, opts) => swayMaterial(mat, wind || {}, opts),
+    // (Phones keep it still: one material fewer per kind of plant in every chunk, and a cheaper vertex shader.)
+    sway: (mat, opts) => (lite ? mat : swayMaterial(mat, wind || {}, opts)),
     get audio() { return charm ? charm.audio : null; },
     airAt: (p, out) => (sim && sim.props ? sim.props.airAt(p, out) : out.set(0, 0, 0)),
     replayProxy(id, onPosed) {
@@ -109,16 +155,26 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
 
   // Merge each chunk's statics; fit the chunk boxes to what they hold.
   for (const c of chunks.values()) {
-    for (let l = 0; l < 3; l++) {
-      for (const m of c.batch[l].build(c.groups[l])) {
-        if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
-        c.box.union(m.geometry.boundingBox);
-        // Foliage adds a lot of triangles and almost no visible occlusion: keep it out of the AO pass.
-        if (/leaf|petal|sway|glass/.test(m.material.name)) m.userData.noAO = true;
-      }
+    for (const m of c.batch.build(c.group)) {
+      if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+      m.geometry.computeBoundingSphere();
+      c.box.union(m.geometry.boundingBox);
+      // The merged vertices live on the GPU once uploaded: let go of the copy in script memory (phones keep
+      // their tabs alive on far less).
+      for (const a of Object.values(m.geometry.attributes)) a.onUpload(freeArray);
+      // Foliage adds a lot of triangles and almost no visible occlusion: keep it out of the AO pass.
+      if (/leaf|petal|sway|glass/.test(m.material.name)) m.userData.noAO = m.userData.foliage = true;
     }
     if (c.box.min.y > c.box.max.y) { c.box.min.y = -1; c.box.max.y = 1; }
+    // A long piece (a path, a fence run) shouldn't drag a whole chunk's detail into view from afar: the box
+    // that decides drawing stays within a few metres of the chunk's own square.
+    c.box.intersect(c.cell);
+    // Nothing in a chunk moves except live objects: skip the per-frame matrix walk for the rest.
+    c.group.matrixAutoUpdate = false;
+    c.group.updateMatrixWorld(true);
+    for (const o of c.group.children) if (o.userData.static !== false && o.matrixAutoUpdate === false) o.matrixWorldAutoUpdate = false;
   }
+  root.matrixAutoUpdate = false;
 
   // The ground beyond the house and garden, painted by the areas, and the far hills round it all.
   const groundMesh = buildGround(ground, quality);
@@ -138,12 +194,16 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
       // Chunks by distance (every other frame is plenty: the camera moves centimetres per frame).
       if ((frame++ & 1) === 0 || dt === 0) {
         const cp = camera.position;
+        const inside = (cp.x > ROOM.minX && cp.x < ROOM.maxX && cp.z > ROOM.minZ && cp.z < ROOM.maxZ && cp.y < ROOM.ceilingY)
+          || (cp.x > MAIN.x0 && cp.x < MAIN.x1 && cp.z > MAIN.z0 && cp.z < MAIN.z1 && cp.y < MAIN.eave);
+        const lim = [DIST.lod0, inside ? IN.lod1 : DIST.lod1, inside ? IN.lod2 : DIST.lod2];
         for (const c of list) {
           const d = c.box.distanceToPoint(cp);
           c.dist = d;
-          c.groups[0].visible = d < DIST.lod0;
-          c.groups[1].visible = d < DIST.lod1;
-          c.groups[2].visible = d < DIST.lod2;
+          c.group.visible = d < lim[c.lod];
+          // Ambient occlusion only matters close up: far chunks skip the AO pass (it draws them all again).
+          const far = d > AO_DIST;
+          if (c.group.visible && c.aoFar !== far) { c.aoFar = far; for (const m of c.group.children) if (!m.userData.alwaysNoAO) m.userData.noAO = far || !!m.userData.foliage; }
         }
       }
       const cp = camera.position;

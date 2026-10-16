@@ -6,17 +6,32 @@ import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferG
 export class Batcher {
   constructor() { this.groups = new Map(); }
 
-  add(geo, mat, matrix, color = 0xffffff, { cast = true, receive = true } = {}) {
-    let g = geo.index ? geo.toNonIndexed() : geo.clone();
+  // rm: [roughness, metalness] per piece, for materials that read them from the vertices (see
+  // src/render/world/index.js); every piece in such a group must pass it.
+  add(geo, mat, matrix, color = 0xffffff, { cast = true, receive = true, rm = null } = {}) {
+    // Kept indexed (shared vertices: a sphere or tube has a quarter of the vertices that way); pieces without
+    // an index get a plain one so every piece merges alike.
+    const g = geo.clone();
+    if (!g.index) g.setIndex([...Array(g.attributes.position.count).keys()]);
     if (matrix) g.applyMatrix4(matrix);
     for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
+    if (rm) {
+      const a = new Uint8Array(g.attributes.position.count * 2);
+      for (let i = 0; i < a.length; i += 2) { a[i] = Math.round(rm[0] * 255); a[i + 1] = Math.round(rm[1] * 255); }
+      g.setAttribute('rm', new THREE.BufferAttribute(a, 2, true));
+    }
     const n = g.attributes.position.count;
     if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(n * 2), 2));
     if (!g.attributes.normal) g.computeVertexNormals();
+    // Tint as normalised shorts (linear colour needs more than a byte in the darks) and normals as bytes:
+    // less than half the memory of floats, which phones need.
     const c = new THREE.Color(color);
-    const col = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
-    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    const col = new Uint16Array(n * 3), cr = Math.round(c.r * 65535), cg = Math.round(c.g * 65535), cb = Math.round(c.b * 65535);
+    for (let i = 0; i < n; i++) { col[i * 3] = cr; col[i * 3 + 1] = cg; col[i * 3 + 2] = cb; }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3, true));
+    const nf = g.attributes.normal.array, ni = new Int8Array(nf.length);
+    for (let i = 0; i < nf.length; i++) ni[i] = Math.round(Math.max(-1, Math.min(1, nf[i])) * 127);
+    g.setAttribute('normal', new THREE.BufferAttribute(ni, 3, true));
     const key = `${mat.uuid}|${cast ? 1 : 0}${receive ? 1 : 0}`;
     if (!this.groups.has(key)) this.groups.set(key, { mat, cast, receive, list: [] });
     this.groups.get(key).list.push(g);
