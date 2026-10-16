@@ -168,6 +168,10 @@ Each extra set piece is one module pair: `src/sim/extras/<name>.js` (`create(sim
 - **Potting bench** (left fence by the patio): fixed colliders to land on, two loose pots (one lite) that wash can tip off (drag boosted 28x, capped at 1.5x their weight).
 - **Kitchen cabinetry and the fig**: Shaker doors, drawers and brass on the counter and wall cabinets; a fiddle-leaf fig whose leaves sway in the wash and return exactly to rest, so the shadow cache keeps them still. Its colliders live in the potting bench's sim module.
 
+**Area modules** (`src/sim/extras/zones/*.js`, `src/render/extras/zones/*.js`) add about fifty more pieces in eight areas: the counter, the kitchen walls and floor, the sill/dresser/shelves, the patio, the left and right borders, the meadow and the fences. Static parts go into one shared Batcher (`ctx.batch`), split into an inside and an outside merge so the frustum culls the other half, with every piece casting (the shadow cache draws still casters once) and one group per material; materials come from a shared white-based kit (`ctx.kit`, [src/render/extras/kit.js](../src/render/extras/kit.js)) tinted per piece, and foliage uses `ctx.sway` (GPU bending in breeze, outwash and downwash). Merged foliage is kept out of the AO pass.
+
+**Cost and phones**: measured at 1080p high on an RTX 3080 Ti, the kitchen chase view went from about 250 to 175 fps (1% low about 123) and the garden view from about 260 to 245 fps. On phones and the low tier (`LITE_SKIP` in [src/sim/extras.js](../src/sim/extras.js)) the borders, meadow, fences, the kitchen walls and shelves, the dandelions and the leaf pile are left out, which keeps an emulated, 4x CPU-throttled phone at master's frame rate (within run-to-run noise). `?noextras=all` or `?noextras=a,b` hides pieces for measuring.
+
 Shift+R resets every piece (the leaves and dandelions hook `sim.extras.reset`). `node tests/shot-world.mjs [url] [--view=name:x,y,z,lx,ly,lz]` photographs the house and garden from fixed viewpoints through `window.__helicoptea.freeCam`.
 
 ## Ambient occlusion ([src/render/post.js](../src/render/post.js))

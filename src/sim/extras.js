@@ -21,6 +21,10 @@ import * as fences from './extras/zones/fences.js';
 // sim.register). They must stay DOM-free: the headless checks build the sim in Node.
 const MODULES = { dominoes, panRack, baskets, pottingBench, kitchenCounter, kitchenRoom, kitchenShelves, patio, bedLeft, bedRight, meadow, fences };
 
+// Left out on phones and the low tier (sim and render alike): the densest planting and the busiest areas.
+// Phones keep the first set pieces, the counter and the patio.
+export const LITE_SKIP = new Set(['bedLeft', 'bedRight', 'meadow', 'fences', 'kitchenRoom', 'kitchenShelves', 'dandelions', 'leaves']);
+
 export class Extras {
   constructor(sim, lite = false) {
     this.sim = sim;
@@ -28,7 +32,7 @@ export class Extras {
     this.list = [];
     if (sim.bare) return;
     for (const [name, mod] of Object.entries(MODULES)) {
-      if (!mod.create) continue;
+      if (!mod.create || Extras.skip.has(name) || Extras.skip.has('all') || (lite && LITE_SKIP.has(name))) continue;
       const m = mod.create(sim, lite) || {};
       this.mods[name] = m;
       this.list.push(m);
@@ -46,3 +50,5 @@ export class Extras {
   afterStep(dt) { for (const m of this.list) if (m.afterStep) m.afterStep(dt); }
   reset() { for (const m of this.list) if (m.reset) m.reset(); }
 }
+// Modules to leave out (profiling, and the page's ?noextras= list).
+Extras.skip = new Set();
