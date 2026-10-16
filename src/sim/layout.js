@@ -102,7 +102,7 @@ export const LAMP = { x: 0.05, z: 0.05, length: 0.45, shadeR: 0.16, shadeH: 0.14
 export const MOBILE = { x: -1.45, z: 1.15, length: 0.42, arm: 0.26, scale: 2 };              // toy planes on a ceiling mobile
 
 // Garden characters.
-export const CAT = { x: -1.76, z: -5.5, yaw: -1.25 };   // sits on the bench, guarding the bench mug
+export const CAT = { x: -1.76, z: -5.5, yaw: 0.45 };    // sits on the bench facing the house, beside the bench mug
 export const GNOME = { x: -2.55, z: -3.0, yaw: Math.PI / 2 };
 export const LANTERN = { x: BACKDOOR.x1 + 0.22, y: BACKDOOR.top + 0.05, z: ROOM.minZ - WALL_T - 0.07 };
 
