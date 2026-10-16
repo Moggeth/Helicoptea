@@ -7,6 +7,8 @@ import { Sim } from '../src/sim/sim.js';
 export async function worldSim() {
   await initPhysics();
   const sim = new Sim();
+  sim.streamColliders = false; // every area's colliders, wherever the aircraft is
+  sim.streamer.update(0, true);
   sim.step({ pitch: 0, roll: 0, yaw: 0, collective: 0 }); // build the query structures
   return sim;
 }

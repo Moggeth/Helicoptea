@@ -58,7 +58,7 @@ export function buildHouseColliders(add, box, cyl) {
   box(0.035, fh, (G.maxZ - G.minZ) / 2, G.minX, fy + fh, gz, 'fence', 'wood');
   box(0.035, fh, (G.maxZ - G.minZ) / 2, G.maxX, fy + fh, gz, 'fence', 'wood');
   // Everything beyond: the neighbourhood's ground, its areas and the walls round the world.
-  buildWorldColliders(add);
+  const streamed = buildWorldColliders(add);
   // Roof slopes, gable ends and the chimney stack with its pots.
   const Rf = ROOF, ridgeY = Rf.eaveY + Rf.rise;
   for (const ez of [Rf.eaveZ, Rf.frontEaveZ]) {
@@ -168,6 +168,7 @@ export function buildHouseColliders(add, box, cyl) {
     box(0.06, 0.012, 0.03, (g.x + gc.x) / 2, gc.standY - 0.02, gc.z, 'gnome', 'ceramic');
   }
   for (const [f, y, r] of catBalls()) add(RAPIER.ColliderDesc.ball(r), f.x, y, f.z, 'cat', 'fur');
+  return streamed;
 }
 
 // The Welsh dresser, the range cooker, the counter's bread bin, fruit bowl and tea tins, the washing line

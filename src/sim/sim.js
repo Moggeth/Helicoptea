@@ -580,6 +580,7 @@ export class Sim {
 
     // Housekeeping at a low rate.
     if (this.stepCount % 12 === 0) this.housekeeping(dt * 12);
+    if (this.streamer) this.streamer.update(dt);
     this.lastStepMs = performance.now() - t0;
   }
 

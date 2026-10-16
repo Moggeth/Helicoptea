@@ -111,7 +111,9 @@ function pilot(sim) {
   sim.cups.forEach((c) => { c.brew = 0.5; });
   sim.resetSandbox();
   run(sim, 0.2);
-  check('reset sandbox refills both stands and empties every cup', sim.pegs.every((p) => p.bag) && sim.cups.every((c) => c.brew === 0) && sim.bags.length === sim.pegs.length);
+  // (The neighbourhood's stands only hang bags while the aircraft is near them.)
+  const home = sim.pegs.filter((p) => p.station < 2);
+  check('reset sandbox refills both stands and empties every cup', home.every((p) => p.bag) && sim.cups.every((c) => c.brew === 0) && sim.bags.length === home.length);
 }
 
 // 5. The world is closed: walls round the neighbourhood stop anything leaving it (and a lid on the sky),

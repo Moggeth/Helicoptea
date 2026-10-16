@@ -30,21 +30,43 @@ const _q = new THREE.Quaternion(), _up = new THREE.Vector3(0, 1, 0), _d = new TH
 //   w.rail([x,y,z], [x,y,z], r, kind, material)               capsule between two points (posts, poles, wires)
 //   w.hull(points, kind, material)                            convex hull of [x,y,z,...] in world space
 //   w.groundY(x, z)                                           the ground's height there
-export function worldHelpers(add) {
-  const box = (hx, hy, hz, x, y, z, kind, material, yaw = 0) =>
-    add(RAPIER.ColliderDesc.cuboid(hx, hy, hz), x, y, z, kind, material, yaw ? _q.setFromAxisAngle(_up, yaw).clone() : null);
+// out (optional) collects every collider made with its footprint, [collider, x, z, radius], for streaming.
+export function worldHelpers(addRaw, out = null) {
+  let size = 0; // the next collider's footprint radius (helpers set it; a bare add guesses)
+  const add = (desc, x, y, z, kind, material, rot) => {
+    const c = addRaw(desc, x, y, z, kind, material, rot);
+    if (out) out.push([c, x, z, size || 2.5, desc]);
+    size = 0;
+    return c;
+  };
+  const box = (hx, hy, hz, x, y, z, kind, material, yaw = 0) => {
+    size = Math.hypot(hx, hz, hy * 0.3);
+    return add(RAPIER.ColliderDesc.cuboid(hx, hy, hz), x, y, z, kind, material, yaw ? _q.setFromAxisAngle(_up, yaw).clone() : null);
+  };
   return {
     add, box,
-    boxQ: (hx, hy, hz, x, y, z, kind, material, quat) => add(RAPIER.ColliderDesc.cuboid(hx, hy, hz), x, y, z, kind, material, quat),
-    cyl: (r, hh, x, y, z, kind, material) => add(RAPIER.ColliderDesc.cylinder(hh, r), x, y, z, kind, material),
-    ball: (r, x, y, z, kind, material) => add(RAPIER.ColliderDesc.ball(r), x, y, z, kind, material),
+    boxQ: (hx, hy, hz, x, y, z, kind, material, quat) => { size = Math.hypot(hx, hy, hz); return add(RAPIER.ColliderDesc.cuboid(hx, hy, hz), x, y, z, kind, material, quat); },
+    cyl: (r, hh, x, y, z, kind, material) => { size = r + 0.01; return add(RAPIER.ColliderDesc.cylinder(hh, r), x, y, z, kind, material); },
+    ball: (r, x, y, z, kind, material) => { size = r; return add(RAPIER.ColliderDesc.ball(r), x, y, z, kind, material); },
     rail(a, b, r, kind, material) {
       _d.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
       const len = _d.length();
       const q = new THREE.Quaternion().setFromUnitVectors(_up, _d.normalize());
+      size = len / 2 + r;
       return add(RAPIER.ColliderDesc.capsule(Math.max(0.0005, len / 2), r), (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2, kind, material, q);
     },
-    hull: (pts, kind, material) => add(RAPIER.ColliderDesc.convexHull(new Float32Array(pts)), 0, 0, 0, kind, material),
+    hull(pts, kind, material) {
+      // Hulls are made in world space at the origin: record where they really are.
+      let cx = 0, cz = 0;
+      const n = pts.length / 3;
+      for (let i = 0; i < pts.length; i += 3) { cx += pts[i] / n; cz += pts[i + 2] / n; }
+      let r = 0;
+      for (let i = 0; i < pts.length; i += 3) r = Math.max(r, Math.hypot(pts[i] - cx, pts[i + 2] - cz));
+      const desc = RAPIER.ColliderDesc.convexHull(new Float32Array(pts));
+      const c = addRaw(desc, 0, 0, 0, kind, material);
+      if (out) out.push([c, cx, cz, r, desc]);
+      return c;
+    },
     groundY: groundHeight,
   };
 }
@@ -56,10 +78,14 @@ export const PARK_FIELD = { x0: BOUNDS.minX - 1, x1: BOUNDS.maxX + 1, z0: BOUNDS
 
 export function buildWorldColliders(add) {
   const w = worldHelpers(add);
+  const streamed = [];
   const B = BOUNDS;
-  // Flat ground from the park's edge to the far side of the street.
-  const fz0 = PARK.z1 + 0.5, fz1 = B.maxZ + 1;
-  w.box((B.maxX - B.minX) / 2 + 1, 0.05, (fz1 - fz0) / 2, (B.minX + B.maxX) / 2, FY - 0.05, (fz0 + fz1) / 2, 'ground', 'grass');
+  // Flat ground from the park's edge to the far side of the street, round the kitchen and garden's own floor
+  // slab (x, z within 6 m of the origin): every loose thing in the garden touching a second, overlapping
+  // ground box was a contact pair more for every body, every step.
+  const fz0 = PARK.z1 + 0.5, fz1 = B.maxZ + 1, x0 = B.minX - 1, x1 = B.maxX + 1;
+  const slab = (ax, az, bx, bz) => w.box((bx - ax) / 2, 0.05, (bz - az) / 2, (ax + bx) / 2, FY - 0.05, (az + bz) / 2, 'ground', 'grass');
+  slab(x0, fz0, x1, -6); slab(x0, -6, -6, 6); slab(6, -6, x1, 6); slab(x0, 6, x1, fz1);
   // The park.
   {
     const F = PARK_FIELD;
@@ -76,5 +102,59 @@ export function buildWorldColliders(add) {
   w.box(hx, H / 2, 0.05, cx, FY + H / 2, B.minZ - 0.05, 'bounds', 'wood');
   w.box(hx, H / 2, 0.05, cx, FY + H / 2, B.maxZ + 0.05, 'bounds', 'wood');
   w.box(hx, 0.05, hz, cx, B.top + 0.05, cz, 'bounds', 'wood');
-  for (const m of Object.values(AREA_MODULES)) if (m.colliders) m.colliders(w);
+  const ws = worldHelpers(add, streamed);
+  for (const m of Object.values(AREA_MODULES)) if (m.colliders) m.colliders(ws);
+  return streamed;
+}
+
+// Collider streaming. Rapier's step cost grows with every collider in the world (disabled ones too):
+// thousands of area colliders made every step about four times dearer. So area colliders exist only near
+// something that can touch them: the aircraft (STREAM_R metres plus the collider's own size) and every bag,
+// piece of wreckage and hanging load (a metre and a half). The rest are taken out of the world and made again
+// from their descriptions when something comes near. Checked a dozen times a second; flight covers well
+// under a metre in that time. sim.streamColliders = false keeps them all (the headless route checks sweep the
+// whole world).
+const STREAM_R = 4;
+export class ColliderStreamer {
+  constructor(sim, list) {
+    this.sim = sim;
+    this.list = list;
+    this.on = new Uint8Array(list.length).fill(1);
+    this.t = 0;
+    this.foci = [];
+  }
+  update(dt, force = false) {
+    this.t -= dt;
+    if (this.t > 0 && !force) return;
+    this.t = 0.08;
+    const sim = this.sim, F = this.foci;
+    F.length = 0;
+    const all = sim.streamColliders === false;
+    if (sim.heli) F.push(sim.heli.pos.x, sim.heli.pos.z, STREAM_R);
+    for (const b of sim.cargoItems()) if (b.pos) F.push(b.pos.x, b.pos.z, 1.5);
+    for (const d of sim.debris) { const t = d.body.translation(); F.push(t.x, t.z, 1.5); }
+    const L = this.list, on = this.on;
+    for (let i = 0; i < L.length; i++) {
+      const e = L[i];
+      let want = all;
+      for (let k = 0; !want && k < F.length; k += 3) {
+        const dx = e[1] - F[k], dz = e[2] - F[k + 1], r = e[3] + F[k + 2];
+        if (dx * dx + dz * dz < r * r) want = true;
+      }
+      if (want === !!on[i]) continue;
+      on[i] = want ? 1 : 0;
+      if (want) {
+        e[0] = sim.world.createCollider(e[4], e[6]);
+        sim.register(e[0], e[5]);
+      } else {
+        const c = e[0];
+        e[5] = sim.colliderInfo.get(c.handle);
+        e[6] = c.parent();
+        sim.unregister(c);
+        sim.world.removeCollider(c, false);
+        e[0] = null;
+      }
+    }
+  }
+
 }
