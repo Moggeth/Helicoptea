@@ -98,7 +98,8 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
     };
     run(G.minX, G.maxZ, G.minX, G.minZ);
     run(G.maxX, G.maxZ, G.maxX, G.minZ);
-    run(G.minX, G.minZ, G.maxX, G.minZ);
+    run(G.minX, G.minZ, HEDGE_GATE.x0 - 0.05, G.minZ); // the back fence stops either side of the garden gate
+    run(HEDGE_GATE.x1 + 0.05, G.minZ, G.maxX, G.minZ);
     // (The gaps from the house corners to the side fences open onto the side passages.)
     // Hedge: a dense core plus leaf cards on its faces.
     const hz = (HEDGE.z0 + HEDGE.z1) / 2, hd = HEDGE.z1 - HEDGE.z0, hh = HEDGE.top - fy;
