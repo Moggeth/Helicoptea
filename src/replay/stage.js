@@ -329,7 +329,7 @@ export class ReplayStage {
     _p.set(b[0], b[1], b[2]); _q.set(b[3], b[4], b[5], b[6]);
     if (id === 'lamp') C.placeLamp(_p, _q);
     else if (id === 'mobile') C.placeMobile(_p, _q, playDt * 6);
-    else { const m = C.props.get(id); if (m) { m.position.copy(_p); m.quaternion.copy(_q); } }
+    else { const m = C.props.get(id); if (m) { m.position.copy(_p); m.quaternion.copy(_q); if (m.onPosed) m.onPosed(m); } }
   }
 
   debrisMesh(e) {

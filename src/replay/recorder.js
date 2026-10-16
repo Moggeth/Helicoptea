@@ -246,6 +246,7 @@ export class FlightRecorder {
       for (const it of P.items) this.trackBody(i, `prop:${it.def.id}`, it.body, seenNow);
       this.trackBody(i, 'prop:lamp', P.lamp.body, seenNow);
       this.trackBody(i, 'prop:mobile', P.mobile.body, seenNow);
+      if (sim.extras) for (const r of sim.extras.recorded()) this.trackBody(i, `prop:${r.id}`, r.body, seenNow);
     }
     for (const e of f.entities.values()) if (e.died < 0 && !seenNow.has(e.id)) e.died = i;
     f.dirty = true;

@@ -848,6 +848,7 @@ async function boot() {
   const fpsMeter = new FpsMeter($('hud'), perf);
   fpsMeter.shown = params.get('fpsmeter') === '1' || store.get('fpsMeter', '0') === '1';
 
+  const freeCam = { on: false, pos: new THREE.Vector3(), look: new THREE.Vector3() };
   function frame(now) {
     requestAnimationFrame(frame);
     if (fatal) return;
@@ -1066,6 +1067,8 @@ async function boot() {
     underLiquid(mode === 'cargo' && rig ? rig.under : null);
     kitchen.garden.update(rd * worldSpeed, view.focusPoint(), camera, sim); // grass wind, shadow follow (also in first person)
     fp.wasLive = fpLive;
+    // Dev and screenshot tooling can pin the camera anywhere (window.__helicoptea.freeCam).
+    if (freeCam.on) { camera.position.copy(freeCam.pos); camera.lookAt(freeCam.look); }
     camera.updateMatrixWorld();
     depth.linearBlend = post.linear;
     depth.update(rd * worldSpeed, camera, vw, vh);
@@ -1198,7 +1201,7 @@ async function boot() {
   requestAnimationFrame(frame);
 
   // Expose a tiny handle for console debugging and automated checks.
-  window.__helicoptea = { THREE, CFG, perf, gpuBudget, get fpsMeter() { return fpsMeter; }, shadowCache, cam, cycleView, get camMode() { return cam.eff; }, tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
+  window.__helicoptea = { THREE, freeCam, CFG, perf, gpuBudget, get fpsMeter() { return fpsMeter; }, shadowCache, cam, cycleView, get camMode() { return cam.eff; }, tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
 }
 
 boot().catch((err) => showError('Helicoptea failed to start. Please reload.', err));

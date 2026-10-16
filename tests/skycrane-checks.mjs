@@ -226,7 +226,7 @@ const climb = (sim) => { run(sim, 2.0, () => ({ ...zero(), collective: 1 })); ru
     sim.heli.body.setTranslation({ x: 0.0, y: 0.5, z: 0.3 }, true);
     sim.heli.body.setLinvel({ x: 0, y: -3, z: 0 }, true);
     run(sim, 0.6);
-    maxBodies = Math.max(maxBodies, sim.world.bodies.len());
+    maxBodies = Math.max(maxBodies, sim.world.bodies.len() - sim.extras.recorded().length); // the set pieces' own bodies are fixed in number
   }
   check('12 crash/restart cycles stay bounded', maxBodies < 75 && sim.debris.length <= CFG.crash.maxDebris, `max bodies ${maxBodies}, debris ${sim.debris.length}`);
   sim.restartFlight();
@@ -240,7 +240,7 @@ const climb = (sim) => { run(sim, 2.0, () => ({ ...zero(), collective: 1 })); ru
   run(sim, 0.5);
   sim.setAircraft('micro');
   run(sim, 1);
-  check('switch to the micro heli from the skycrane', sim.heli.type === 'micro' && sim.state === 'flying' && sim.world.bodies.len() < 30, `${sim.world.bodies.len()} bodies`);
+  check('switch to the micro heli from the skycrane', sim.heli.type === 'micro' && sim.state === 'flying' && sim.world.bodies.len() - sim.extras.recorded().length < 30, `${sim.world.bodies.len()} bodies, ${sim.extras.recorded().length} of them set pieces`);
   sim.setAircraft('skycrane');
   run(sim, 1);
   check('switch back to the skycrane sits on the pad', sim.heli.type === 'skycrane' && sim.heli.grounded);

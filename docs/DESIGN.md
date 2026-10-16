@@ -153,6 +153,27 @@ Everything you can see in the house and garden is solid now, down to the curtain
 - **A robin** on the bird bath flies off to the hedge when you come close, and comes back.
 - **The fridge notes** flutter in rotor wash; **the clock** keeps real time; the curtains stir.
 
+## Set pieces ([src/sim/extras.js](../src/sim/extras.js), [src/render/extras.js](../src/render/extras.js))
+
+Each extra set piece is one module pair: `src/sim/extras/<name>.js` (`create(sim, lite)` returning any of `recorded`, `applyForces`, `afterStep`, `reset`) and `src/render/extras/<name>.js` (`build(ctx)` returning `update`). Recorded bodies replay as `prop:<id>` through a proxy the render module registers (`ctx.replayProxy`, with `onPosed` for instanced meshes). Colliders can carry `onImpact(impulse, other)`; sounds go out as `sim.emit('extra', { kind, pos })` and play through `registerExtraSound` in [src/audio/extras.js](../src/audio/extras.js). Render-only pieces read the air with `ctx.airAt` and early-out when no rotor wake is near, so a calm garden costs a few microseconds.
+
+- **Domino run** (kitchen floor): a 1.25x double-six set, 25 tiles in an S-curve ending in a little gate, 28 dynamic bodies (14 lite) that start asleep, drawn as one instanced mesh with the pips in the shader. A skid, a bag or low hover wash beside the first tile topples the lot (the floor jet is boosted 4x, it is too thin to tip a tile otherwise).
+- **Copper pan rack** (ceiling, in front of the range): six pans and a ladle (four lite) on ball joints from S-hooks, world group (a rotor strike counts), swinging in wash, clanging by size. One skinned mesh.
+- **Hanging baskets** (garden wall either side of the back door): pendulums on chains from wrought-iron brackets, world group, 0.3 kg and boosted wash so a 24 g helicopter can visibly swing them; trailing stems lag and flutter.
+- **Wind chime** (apple tree limb): six tubes tuned to D major pentatonic, striker and sail as damped pendulums driven by breeze, wash, inflow and eddies; inharmonic partials, capped strike rate. Render-only, no shadow (the shadow cache cannot see bones move).
+- **Paper boat** (bird bath): render-only, pushed by the outwash, bobbing, bouncing off the rim.
+- **Garden windmills** (patio pots and lawn): weather-vane heads, wheels with angular momentum, a blur disc above 14 rad/s, quiet whirr.
+- **Dandelion clocks** (meadow): 13 heads, every seed one instance; wash past each seed's threshold releases it to drift on the air; heads regrow after 40 s.
+- **Leaf pile** (under the apple tree): 250 leaves (120 lite) woken by a ground wake, tumbling and settling where they land; leaves sleep after 0.4 s of calm.
+- **Potting bench** (left fence by the patio): fixed colliders to land on, two loose pots (one lite) that wash can tip off (drag boosted 28x, capped at 1.5x their weight).
+- **Kitchen cabinetry and the fig**: Shaker doors, drawers and brass on the counter and wall cabinets; a fiddle-leaf fig whose leaves sway in the wash and return exactly to rest, so the shadow cache keeps them still. Its colliders live in the potting bench's sim module.
+
+**Area modules** (`src/sim/extras/zones/*.js`, `src/render/extras/zones/*.js`) add about fifty more pieces in eight areas: the counter, the kitchen walls and floor, the sill/dresser/shelves, the patio, the left and right borders, the meadow and the fences. Static parts go into one shared Batcher (`ctx.batch`), split into an inside and an outside merge so the frustum culls the other half, with every piece casting (the shadow cache draws still casters once) and one group per material; materials come from a shared white-based kit (`ctx.kit`, [src/render/extras/kit.js](../src/render/extras/kit.js)) tinted per piece, and foliage uses `ctx.sway` (GPU bending in breeze, outwash and downwash). Merged foliage is kept out of the AO pass.
+
+**Cost and phones**: measured at 1080p high on an RTX 3080 Ti, the kitchen chase view went from about 250 to 175 fps (1% low about 123) and the garden view from about 260 to 245 fps. On phones and the low tier (`LITE_SKIP` in [src/sim/extras.js](../src/sim/extras.js)) the borders, meadow, fences, the kitchen walls and shelves, the dandelions and the leaf pile are left out, which keeps an emulated, 4x CPU-throttled phone at master's frame rate (within run-to-run noise). `?noextras=all` or `?noextras=a,b` hides pieces for measuring.
+
+Shift+R resets every piece (the leaves and dandelions hook `sim.extras.reset`). `node tests/shot-world.mjs [url] [--view=name:x,y,z,lx,ly,lz]` photographs the house and garden from fixed viewpoints through `window.__helicoptea.freeCam`.
+
 ## Ambient occlusion ([src/render/post.js](../src/render/post.js))
 
 GTAO (Three.js `GTAOPass`) with a 12 cm world radius, tuned for the miniature scale. It runs on the high tier and on desktop medium, and is off on touch devices and the low tier (`?ao=0` / `?ao=1` override). Transparent and effect-only meshes (tea, glass, rotor blur, strings, decals, particles) are excluded from the occlusion pass.
