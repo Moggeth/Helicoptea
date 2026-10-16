@@ -22,7 +22,7 @@ html, body {
   margin: 0; height: 100%; overflow: hidden; background: #2a1d16; color: var(--ink);
   font-family: var(--sans); -webkit-font-smoothing: antialiased;
   overscroll-behavior: none; touch-action: none; user-select: none; -webkit-user-select: none;
-  -webkit-tap-highlight-color: transparent;
+  -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; -webkit-text-size-adjust: 100%;
 }
 canvas#game { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; display: block; outline: none; }
 .hidden { display: none !important; }
@@ -204,6 +204,8 @@ kbd {
 body.touch-ui:not(.pad-nav) .panel button:focus-visible, body.touch-ui:not(.pad-nav) #start-btn:focus-visible { outline: none; }
 .touch-opts .aircraft-row button, .touch-links button { padding: 8px 14px; font-size: 14px; }
 .touch-links { justify-content: flex-start !important; flex-wrap: wrap; }
+.opt-note { margin-left: auto; color: var(--ink-soft); font-size: 12px; }
+.home-tip small { color: var(--ink-soft); font-size: 12.5px; text-align: right; }
 /* Phones: a pause menu that fits a short landscape screen and a narrow portrait one. */
 @media (max-height: 500px), (max-width: 500px) {
   .panel { padding: 16px 18px; border-radius: 16px; }
@@ -234,7 +236,8 @@ body.touch-ui:not(.pad-nav) .panel button:focus-visible, body.touch-ui:not(.pad-
 /* Twin floating sticks, one per half of the screen; a thumb's landing spot becomes the centre. The few
    buttons sit in an arc above the right stick (Hook nearest the thumb), and only the ones that fit the
    aircraft and cargo show. Everything else lives in the top bar or the pause menu. */
-#touch { position: fixed; inset: 0; z-index: 9; pointer-events: none; --stick-r: 64px; --zone-h: 58vh; --zone-w: 47vw; }
+/* dvh after vh: iPhone Safari's vh includes the toolbar, which would push the sticks under it. */
+#touch { position: fixed; inset: 0; z-index: 9; pointer-events: none; --stick-r: 64px; --zone-h: 58vh; --zone-h: 58dvh; --zone-w: 47vw; }
 #touch > * { pointer-events: auto; touch-action: none; }
 .stick-zone { position: absolute; bottom: 0; width: var(--zone-w); height: var(--zone-h); }
 .stick-zone.left { left: 0; }
@@ -286,7 +289,7 @@ body.touch-ui .toast { bottom: calc(112px + var(--safe-b)); }
 body.touch-ui .toast { max-width: min(460px, calc(100vw - 32px)); text-align: center; }
 /* Portrait phones: sticks along the bottom, buttons in one row above; a gentle nudge to rotate. */
 @media (orientation: portrait) {
-  #touch { --zone-h: 42vh; --zone-w: 50vw; --cell: min(72px, calc((100vw - var(--safe-l) - var(--safe-r) - 24px) / 5)); --row: calc(var(--zone-h) + 10px); }
+  #touch { --zone-h: 42vh; --zone-h: 42dvh; --zone-w: 50vw; --cell: min(72px, calc((100vw - var(--safe-l) - var(--safe-r) - 24px) / 5)); --row: calc(var(--zone-h) + 10px); }
   .touch-btn.attach { right: calc(12px + var(--safe-r)); bottom: var(--row); width: calc(var(--cell) - 2px); height: calc(var(--cell) - 2px); }
   .touch-btn.bolt { right: calc(12px + var(--safe-r) + var(--cell) + 6px); bottom: calc(var(--row) + 8px); }
   .touch-btn.pour, .touch-btn.doors { right: calc(12px + var(--safe-r) + 2 * var(--cell) + 4px); bottom: calc(var(--row) + 4px); width: calc(var(--cell) - 8px); height: calc(var(--cell) - 8px); }
@@ -298,7 +301,7 @@ body.touch-ui .toast { max-width: min(460px, calc(100vw - 32px)); text-align: ce
   .stick-zone.right .stick-base { left: 60%; }
   .hint { max-width: calc(100vw - 32px); top: calc(104px + var(--safe-t)); font-size: 13.5px; }
   .rotate-nudge { display: block !important; }
-  body.touch-ui .prompt { top: auto; bottom: calc(42vh + 84px); max-width: calc(100vw - 32px); }
+  body.touch-ui .prompt { top: auto; bottom: calc(42vh + 84px); bottom: calc(42dvh + 84px); max-width: calc(100vw - 32px); }
   body.touch-ui .toast { bottom: auto; top: calc(64px + var(--safe-t)); }
   body.touch-ui .tank-gauge.tank-gauge { top: 24%; }
   .assist-invite { display: none; }

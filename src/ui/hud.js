@@ -391,6 +391,9 @@ export class Hud {
             </select></label>
           ${liftSelect(opts.collectiveMode)}
           ${opts.fullscreen === null || opts.fullscreen === undefined ? '' : `<label class="opt">Full screen <input type="checkbox" data-setting="fullscreen" ${opts.fullscreen ? 'checked' : ''}/></label>`}
+          ${opts.homeScreenTip ? '<div class="opt home-tip">Full screen <small>Share → Add to Home Screen, then open it from there</small></div>' : ''}
+          ${opts.haptics === null || opts.haptics === undefined ? '' : `<label class="opt">Vibration <input type="checkbox" data-setting="haptics" ${opts.haptics ? 'checked' : ''}/></label>`}
+          <label class="opt">Battery saver <small class="opt-note">30 fps</small><input type="checkbox" data-setting="batterySaver" ${opts.batterySaver ? 'checked' : ''}/></label>
           <label class="opt">Sound <span class="weight-row"><input type="range" min="0" max="1" step="0.01" value="${opts.muted ? 0 : opts.volume}" data-setting="volume" aria-label="Volume" /></span></label>
           <div class="opt aircraft-row" role="radiogroup" aria-label="Aircraft">Aircraft
             <span>${[['micro', 'Micro'], ['chinook', 'Chinook'], ['skycrane', 'Skycrane']].map(([id, nm]) => `<button class="secondary${opts.aircraft === id ? ' on' : ''}" role="radio" aria-checked="${opts.aircraft === id}" data-act="aircraft" data-id="${id}">${nm}</button>`).join(' ')}</span></div>
@@ -450,6 +453,8 @@ export class Hud {
     this.modal.querySelector('[data-setting=kbPreset]')?.addEventListener('change', (e) => { this.input?.chooseKbPreset(e.target.value); this.refreshKeys(); });
     for (const el of this.modal.querySelectorAll('[data-cue]')) el.addEventListener('change', () => this.h.setting(`cue.${el.dataset.cue}`, el.checked));
     for (const k of ['touchLayout', 'touchSize']) this.modal.querySelector(`[data-setting=${k}]`)?.addEventListener('change', (e) => this.h.setting(k, e.target.value));
+    this.modal.querySelector('[data-setting=batterySaver]')?.addEventListener('change', (e) => this.h.setting('batterySaver', e.target.checked));
+    this.modal.querySelector('[data-setting=haptics]')?.addEventListener('change', (e) => this.h.setting('haptics', e.target.checked));
     this.modal.querySelector('[data-setting=fullscreen]')?.addEventListener('change', (e) => this.h.setting('fullscreen', e.target.checked));
     this.modal.querySelector('[data-setting=volume]')?.addEventListener('input', (e) => this.h.volume(parseFloat(e.target.value)));
     this.modal.classList.add('show');
