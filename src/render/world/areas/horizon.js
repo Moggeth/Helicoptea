@@ -188,6 +188,27 @@ export function build(ctx, root) {
     for (const [u0, v0, u1, v1] of [[-hu, -hv, hu, -hv], [hu, -hv, hu, hv], [hu, hv, -hu, hv], [-hu, hv, -hu, -hv]]) obj.quad(P(u0, yb, v0), P(u1, yb, v1), P(u1, ye, v1), P(u0, ye, v0), wallCol, mid);
     obj.tri(P(-hu, ye, -hv), P(-hu, ye, hv), P(-hu, yr, 0), wallCol, mid);
     obj.tri(P(hu, ye, -hv), P(hu, ye, hv), P(hu, yr, 0), wallCol, mid);
+    // Close to the map (seen down our street) the long walls get rows of windows: pale frames, glass that
+    // catches the sky.
+    if (rectDist(cx, cz) < 60) {
+      const fr = [0.62, 0.6, 0.56], gl = [0.3, 0.36, 0.42], rows = eave > 4 ? [1.0, 3.4] : [1.0];
+      for (const sg of [-1, 1]) {
+        const v = sg * (hv + 0.03), n = Math.max(1, Math.floor(lenU / 2.4));
+        for (let i = 0; i < n; i++) for (const ry of rows) {
+          const u = -hu + lenU * (i + 0.5) / n, wy = y0 + ry;
+          obj.quad(P(u - 0.55, wy - 0.06, v), P(u + 0.55, wy - 0.06, v), P(u + 0.55, wy + 1.36, v), P(u - 0.55, wy + 1.36, v), fr, mid);
+          const g = sg * 0.02;
+          obj.quad(P(u - 0.45, wy + 0.02, v + g), P(u + 0.45, wy + 0.02, v + g), P(u + 0.45, wy + 1.28, v + g), P(u - 0.45, wy + 1.28, v + g), gl, mid);
+        }
+        // and a window or two in each gable end
+        const u = sg * (hu + 0.03), g = sg * 0.02;
+        for (const vv of lenV > 5 ? [-0.3, 0.3] : [0]) for (const ry of rows) {
+          const c = vv * lenV, wy = y0 + ry;
+          obj.quad(P(u, wy - 0.06, c - 0.55), P(u, wy - 0.06, c + 0.55), P(u, wy + 1.36, c + 0.55), P(u, wy + 1.36, c - 0.55), fr, mid);
+          obj.quad(P(u + g, wy + 0.02, c - 0.45), P(u + g, wy + 0.02, c + 0.45), P(u + g, wy + 1.28, c + 0.45), P(u + g, wy + 1.28, c - 0.45), gl, mid);
+        }
+      }
+    }
     const rc = [cx, ye, cz];
     for (const sg of [-1, 1]) obj.quad(P(-hu - ov, ye - 0.25, sg * (hv + ov)), P(hu + ov, ye - 0.25, sg * (hv + ov)), P(hu + ov, yr + 0.08, 0), P(-hu - ov, yr + 0.08, 0), roofCol, rc);
     const brick = [0.36, 0.17, 0.12];
@@ -220,7 +241,7 @@ export function build(ctx, root) {
   }
   // h: total height; r: crown radius.
   function tree(x, z, h, r, kind = 0, detail = true) {
-    const y0 = H(x, z), dC = Math.hypot(x - CEN.x, z - CEN.z), lod = dC < 62 && detail ? 2 : 1;
+    const y0 = H(x, z), dC = Math.hypot(x - CEN.x, z - CEN.z), lod = (dC < 62 && detail) || rectDist(x, z) < 45 ? 2 : 1;   // rounded when close to the map
     let col;
     if (kind === 2) col = jit(darkCols[(rnd() * darkCols.length) | 0], 0.14);
     else col = jit(treeCols[(rnd() * treeCols.length) | 0], 0.16);

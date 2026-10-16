@@ -27,7 +27,7 @@ export function buildKitchen(scene, renderer, quality, progress, sim) {
   scene.background = new THREE.Color(0xe9dcc5);
   scene.fog = new THREE.Fog(0xe9dcc5, 3.2, 7.5);
 
-  const hemi = new THREE.HemisphereLight(0xe8eef8, 0x8a6a4a, 0.55);
+  const hemi = new THREE.HemisphereLight(0xe6eefa, 0x8c7650, 0.7);
   scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xfff0d8, 3.1);
   sun.position.set(-0.9, 1.9, -1.6);

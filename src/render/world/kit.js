@@ -191,7 +191,7 @@ export function buildTree(ctx, s) {
       ctx.add(g, wk.leafy, T(s.x + dx + ox, y + dy + oy, s.z + dz + oz, rnd() * 6), tones[i % tones.length], 0);
     }
   }
-  ctx.ground.shadowCircle(s.x + s.crown[0][0], s.z + s.crown[0][2], Math.max(...s.crown.map((c) => Math.hypot(c[0], c[2]) + c[3])) * 0.9, top * 0.8, 0.32);
+  ctx.ground.shadowCircle(s.x + s.crown[0][0], s.z + s.crown[0][2], Math.max(...s.crown.map((c) => Math.hypot(c[0], c[2]) + c[3])) * 0.9, top * 0.8, 0.24);
   if (!ctx.lite && kind !== 'conifer') {
     const pts = [];
     const n = Math.round((ctx.hi ? 60 : 30) * s.crown.reduce((a, c) => a + c[3] * c[3], 0));

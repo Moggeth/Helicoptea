@@ -873,7 +873,7 @@ function drawTree(S, t, { detail = 1, density = 1 } = {}) {
     }
   }
   const cx = t.crown.reduce((s, c) => s + c[0], 0) / t.crown.length, cz = t.crown.reduce((s, c) => s + c[2], 0) / t.crown.length;
-  ctx.ground.shadowCircle(t.x + cx, t.z + cz, Math.max(...t.crown.map((c) => Math.hypot(c[0] - cx, c[2] - cz) + c[3])) * 0.9, top * 0.75, 0.3);
+  ctx.ground.shadowCircle(t.x + cx, t.z + cz, Math.max(...t.crown.map((c) => Math.hypot(c[0] - cx, c[2] - cz) + c[3])) * 0.9, top * 0.75, 0.22);
   if (!ctx.lite && kind !== 'conifer') {
     const pts = [];
     for (const [dx, dy, dz, r] of t.crown) shellPoints(rnd, t.x, y, t.z, dx, dy, dz, r, Math.round((ctx.hi ? 44 : 26) * r * r * density), pts);
@@ -937,7 +937,7 @@ function oakTree(S) {
     }
     add(ctx.blobGeometry(r * 0.75, 1, R() * 40, 0.15), wk.leafy, o.x + dx, y + dy - r * 0.05, o.z + dz, 0x93aa78, 0, R() * 6);
   }
-  ctx.ground.shadowCircle(o.x - 1.0, o.z + 0.5, 6.2, 6.0, 0.4);
+  ctx.ground.shadowCircle(o.x - 1.0, o.z + 0.5, 6.2, 6.0, 0.3);
   if (!ctx.lite) {
     const pts = [];
     for (const [dx, dy, dz, r] of o.crown) shellPoints(R, o.x, y, o.z, dx, dy, dz, r, Math.round((ctx.hi ? 700 : 380) * r * r / 5), pts);
