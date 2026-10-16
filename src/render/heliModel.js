@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { HELI_PARTS } from '../sim/helicopter.js';
 import { CFG } from '../config.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { exteriorCabin } from './exteriorCabin.js';
 
 // A deliberately serious, scale-model-accurate light utility helicopter (single turbine, two-blade
 // teetering rotor, skid gear) built procedurally: lofted superellipse fuselage with real glazing,
@@ -91,7 +92,7 @@ export function sectionPoint(sec, a) {
 }
 
 // Loft through sections (sorted along z). classify(a, z) -> material group index.
-function loft(sections, segs, steps, classify, groupsN = 1) {
+export function loft(sections, segs, steps, classify, groupsN = 1) {
   const zs = sections.map((s) => s.z);
   const z0 = zs[0], z1 = zs[zs.length - 1];
   // Catmull-Rom interpolate section params along z for smoothness.
@@ -311,38 +312,21 @@ export function buildRealisticHelicopter(quality = { name: 'high' }) {
   hook.rotation.set(0, Math.PI / 2, Math.PI * 0.7);
   add('fuselage', hook, 0, CFG.heli.hookOffset[1] + 0.003, CFG.heli.hookOffset[2]);
 
-  // Interior: floor, instrument panel and coaming, two seats, pilot.
-  add('fuselage', new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.001, 0.07), M.interior), 0, -0.024, -0.02);
-  const panel = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.009, 0.003), M.interior);
-  panel.rotation.x = -0.4;
-  add('fuselage', panel, 0, -0.006, -0.043);
-  for (let k = 0; k < 6; k++) {
-    const dial = new THREE.Mesh(new THREE.CircleGeometry(0.0013, 12), new THREE.MeshBasicMaterial({ color: k % 2 ? 0x9fe7ff : 0xf2f2f2 }));
-    dial.rotation.x = -0.4 + Math.PI;
-    add('fuselage', dial, -0.009 + (k % 3) * 0.009, -0.0045 - Math.floor(k / 3) * 0.0035, -0.0418);
-  }
+  // Interior seen through the glass: floor, seats, the pilot and the panel (render/exteriorCabin.js).
+  add('fuselage', new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.001, 0.07), M.interior), 0, -0.0251, -0.02);
+  add('fuselage', exteriorCabin('micro'));
+  // Door handles (chrome levers at each door's trailing edge) and hinge blocks on the leading edges.
   for (const sx of [-1, 1]) {
-    const seat = new THREE.Group();
-    const base = new THREE.Mesh(new THREE.BoxGeometry(0.011, 0.003, 0.011), M.seat);
-    const back = new THREE.Mesh(new THREE.BoxGeometry(0.011, 0.016, 0.0025), M.seat);
-    back.position.set(0, 0.008, 0.006); back.rotation.x = -0.15;
-    seat.add(base, back);
-    seat.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-    add('fuselage', seat, sx * 0.0085, -0.017, -0.012);
+    for (const [zh, zf] of [[-0.0042, -0.0172], [0.0168, 0.0016]]) {
+      add('fuselage', new THREE.Mesh(new THREE.BoxGeometry(0.0007, 0.0007, 0.0036), M.alu), sx * 0.0191, -0.0055, zh - 0.0016);
+      for (const y of [0.006, -0.016]) add('fuselage', new THREE.Mesh(new THREE.BoxGeometry(0.0009, 0.0018, 0.0012), M.darkMetal), sx * 0.0189, y, zf);
+    }
   }
-  // Pilot (right seat), looking ahead.
+  // Tail cone: a white collar faired from the cabin into the boom (no open tube end at the joint).
   {
-    const pg = new THREE.Group();
-    const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.0042, 0.008, 4, 10), M.flight);
-    torso.position.set(0, 0.006, 0.002); torso.rotation.x = -0.1;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.0042, 16, 12), M.helmet);
-    head.position.set(0, 0.0165, 0.0005);
-    const visor = new THREE.Mesh(new THREE.SphereGeometry(0.0043, 16, 8, -Math.PI * 0.75, Math.PI * 0.5, Math.PI * 0.35, Math.PI * 0.3), M.visor);
-    visor.position.copy(head.position);
-    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.0013, 0.007, 4, 6), M.flight);
-    arm.position.set(0.0035, 0.004, -0.006); arm.rotation.x = 1.0;
-    pg.add(torso, head, visor, arm);
-    add('fuselage', pg, 0.0085, -0.015, -0.012);
+    const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.0062, 0.0079, 0.016, 28), M.white);
+    cone.rotation.x = Math.PI / 2 - 0.055;
+    add('fuselage', cone, 0, 0.0094, 0.052);
   }
 
   // ---- Tail boom: tapered, with driveshaft cover, strobe, and registration.

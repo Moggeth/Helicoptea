@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CHINOOK_PARTS } from '../sim/chinook.js';
 import { CFG } from '../config.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { exteriorCabin } from './exteriorCabin.js';
 
 // A serious, scale-model CH-47-style tandem-rotor transport, built procedurally: lofted square-section
 // fuselage with the ramp upsweep, multi-pane cockpit glazing with two crew inside, forward pylon fairing,
@@ -270,7 +271,7 @@ export function chinookMaterials() {
     oliveDark: new THREE.MeshStandardMaterial({ color: 0x3a4029, roughness: 0.85, metalness: 0.05 }),
     louvre: new THREE.MeshStandardMaterial({ map: stripTexture('#3d4430', '#15180f'), roughness: 0.85 }),
     black: new THREE.MeshStandardMaterial({ color: 0x141512, roughness: 0.9 }),
-    glass: new THREE.MeshPhysicalMaterial({ color: 0x2c3a3e, roughness: 0.04, metalness: 0.3, transparent: true, opacity: 0.62, envMapIntensity: 2.4, clearcoat: 1, clearcoatRoughness: 0.0, side: THREE.DoubleSide, depthWrite: false }),
+    glass: new THREE.MeshPhysicalMaterial({ color: 0x2c3a3e, roughness: 0.04, metalness: 0.3, transparent: true, opacity: 0.5, envMapIntensity: 2.4, clearcoat: 1, clearcoatRoughness: 0.0, side: THREE.DoubleSide, depthWrite: false }),
     interior: new THREE.MeshStandardMaterial({ color: 0x23251f, roughness: 0.9, side: THREE.BackSide }),
     flight: new THREE.MeshStandardMaterial({ color: 0x55603f, roughness: 0.85 }),
     helmet: new THREE.MeshPhysicalMaterial({ color: 0x3b4230, roughness: 0.45, clearcoat: 0.6 }),
@@ -342,16 +343,25 @@ export function buildChinook(M = chinookMaterials()) {
     const bulkhead = new THREE.Mesh(new THREE.PlaneGeometry(0.036, 0.034), new THREE.MeshStandardMaterial({ color: 0x1e201b, roughness: 0.9 }));
     add('noseCab', bulkhead, 0, 0.002, -0.0625);
     bulkhead.rotation.y = Math.PI;
-    const coaming = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.004, 0.006), M.black);
-    add('noseCab', coaming, 0, 0.004, -0.079);
-    for (const sx of [-0.0072, 0.0072]) {
-      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.0034, 0.004, 4, 10), M.flight);
-      add('noseCab', body, sx, -0.0015, -0.0715);
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.0032, 14, 10), M.helmet);
-      add('noseCab', head, sx, 0.0062, -0.0725);
-      const visor = new THREE.Mesh(new THREE.SphereGeometry(0.0033, 14, 10, -Math.PI * 0.35, Math.PI * 0.7, Math.PI * 0.35, Math.PI * 0.3), M.visor);
-      visor.rotation.y = Math.PI;
-      add('noseCab', visor, sx, 0.0062, -0.0727);
+    add('noseCab', exteriorCabin('chinook'));
+    // Window frames over the glazing's stepped edges: smooth black posts, sills and pillars (the cockpit
+    // draws the same frames from inside).
+    {
+      const at = (a, z, k = 1.006) => { const [x, y] = noseShellPoint(a, z); return new THREE.Vector3(x * k, y * k, z); };
+      const run = (a0, a1, z0, z1, n = 16) => { const pts = []; for (let i = 0; i <= n; i++) { const t = i / n; pts.push(at(a0 + (a1 - a0) * t, z0 + (z1 - z0) * t)); } return pts; };
+      const fr = (pts, r) => add('noseCab', new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length * 3, r, 6, false), M.black));
+      for (const sx of [1, -1]) {
+        const A = (r) => (sx > 0 ? r : Math.PI - r);
+        fr(run(A(0.08), A(0.08), -0.0838, -0.0745), 0.00028);
+        { const pts = []; for (let i = 0; i <= 20; i++) { const r = 0.08 + (1.12 - 0.08) * i / 20; pts.push(at(A(r), NOSE_PILLAR_Z(r))); } fr(pts, 0.0003); }
+        fr(run(A(1.12), A(1.12), -0.0846, -0.0745), 0.00026);
+        fr(run(A(0.05), A(0.05), -0.0745, -0.0655, 8), 0.0003);
+        fr(run(A(0.95), A(0.95), -0.0745, -0.0655, 8), 0.0003);
+        fr(run(A(0.05), A(0.95), -0.0702, -0.0702, 10), 0.00026);
+        fr(run(A(0.05), A(0.95), -0.0655, -0.0655, 10), 0.0003);
+      }
+      fr(run(0.08, Math.PI - 0.08, -0.0745, -0.0745, 32), 0.0003);
+      fr(run(Math.PI / 2, Math.PI / 2, -0.0864, -0.0745), 0.00026);
     }
     // Pitot tubes and the nose vent.
     for (const sx of [-0.007, 0.007]) {
