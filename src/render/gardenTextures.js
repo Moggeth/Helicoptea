@@ -170,7 +170,21 @@ export function leafTexture(size = 256, hue = 100) {
     ctx.beginPath(); ctx.moveTo(-L * 0.9, 0); ctx.lineTo(L * 0.9, 0); ctx.stroke();
     ctx.restore();
   }
-  return toTexture(c, { wrap: false, aniso: 4 });
+  // Leaf colour under the transparent pixels too (a canvas keeps them black), so the mip levels of the cut-
+  // out cards fade to green rather than ringing every distant leaf in black.
+  const img = ctx.getImageData(0, 0, size, size), d = img.data;
+  let sr = 0, sg = 0, sb = 0, sn = 0;
+  for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200) { sr += d[i]; sg += d[i + 1]; sb += d[i + 2]; sn++; }
+  const avg = sn ? [sr / sn, sg / sn, sb / sn] : [60, 90, 40];
+  for (let i = 0; i < d.length; i += 4) {
+    const a = d[i + 3] / 255;
+    for (let k = 0; k < 3; k++) d[i + k] = d[i + k] * a + avg[k] * (1 - a);
+  }
+  const t = new THREE.DataTexture(d, size, size, THREE.RGBAFormat);
+  t.colorSpace = THREE.SRGBColorSpace; t.generateMipmaps = true;
+  t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.anisotropy = 4;
+  t.needsUpdate = true;
+  return t;
 }
 
 // Dense opaque foliage (hedges, distant trees, herbs): leaves over shadowy depth. One tile ~ 0.5 m.

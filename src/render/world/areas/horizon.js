@@ -93,7 +93,7 @@ export function build(ctx, root) {
   };
 
   // ------------------------------------------------------------------ haze
-  const NEAR = lite ? 16 : 28, FAR = lite ? 92 : 165, FINF = 0.93;
+  const NEAR = lite ? 12 : 28, FAR = lite ? 54 : 165, FINF = 0.93; // the scene's fog (garden.js)
   const fogC = C(0xe4e0d4);
   const f60 = clamp((60 - NEAR) / (FAR - NEAR), 0, 1);
   const hzc = [0, 0, 0];
@@ -229,7 +229,7 @@ export function build(ctx, root) {
       const a = rnd() * 6.28;
       blob(x + Math.cos(a) * r * 0.55, cy - ry * 0.2, z + Math.sin(a) * r * 0.55, rx * 0.66, ry * 0.7, rx * 0.66, col, y0 + h - 2 * ry, y0 + h, 1);
     }
-    if (detail && dC < 120) {
+    if (dC < 220) { // a trunk on every tree near enough to see one (a crown alone floats)
       const tw = Math.max(0.45, r * 0.12), top = Math.max(cy - ry * 0.2, y0 + 2);
       const P = (a, y) => [x + Math.cos(a) * (y > top - 0.1 ? tw * 0.6 : tw), y, z + Math.sin(a) * (y > top - 0.1 ? tw * 0.6 : tw)];
       const cc = [x, (y0 + top) / 2, z];
@@ -475,7 +475,7 @@ export function build(ctx, root) {
   }
 
   // ------------------------------------------------------------------ hedgerow trees
-  const roughOK = (x, z) => rectDist(x, z) > 11 && villageMask(x, z) < 0.3;
+  const roughOK = (x, z) => rectDist(x, z) > 28 && villageMask(x, z) < 0.3; // nothing faceted close to the world's edge
   const nearWood = (x, z) => woods.some((w) => inWood(w, x, z));
   for (const [a, b] of edges.values()) {
     const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -499,7 +499,7 @@ export function build(ctx, root) {
     for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) {
       const u = i * sp + (rnd() - 0.5) * sp * 0.7, v = j * sp + (rnd() - 0.5) * sp * 0.7;
       const x = w.x + u * Math.cos(w.rot) - v * Math.sin(w.rot), z = w.z + u * Math.sin(w.rot) + v * Math.cos(w.rot);
-      if (!inWood(w, x, z) || rectDist(x, z) < 9) continue;
+      if (!inWood(w, x, z) || rectDist(x, z) < 28) continue;
       const dd = Math.hypot(x - CEN.x, z - CEN.z);
       tree(x, z, 12 + rnd() * 6, 5.5 + rnd() * 2.5, rnd() < 0.18 ? 2 : 0, dd < 160);
     }
@@ -592,7 +592,7 @@ export function build(ctx, root) {
     // A scatter of trees in the gaps.
     for (let i = 0; i < 40; i++) {
       const x = (rnd() - 0.5) * 340, z = 40 + rnd() * 125;
-      if (villageMask(x, z) > 0.5 && !noHouse(x, z) && Math.abs(((z - 57) % 40 + 40) % 40 - 20) > 8) tree(x, z, 8 + rnd() * 6, 3.4 + rnd() * 1.6, 0, false);
+      if (villageMask(x, z) > 0.5 && !noHouse(x, z) && rectDist(x, z) > 20 && Math.abs(((z - 57) % 40 + 40) % 40 - 20) > 8) tree(x, z, 8 + rnd() * 6, 3.4 + rnd() * 1.6, 0, false);
     }
   }
 
