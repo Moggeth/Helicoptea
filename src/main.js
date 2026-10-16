@@ -15,6 +15,7 @@ import { Audio } from './audio/audio.js';
 import { bindUi } from './audio/ui.js';
 import { Hud } from './ui/hud.js';
 import { Flow } from './game/flow.js';
+import { Tutorial } from './game/tutorial.js';
 import { Debug } from './debug.js';
 import { Autopilot } from './sim/autopilot.js';
 import { Post } from './render/post.js';
@@ -334,6 +335,30 @@ async function boot() {
     },
   });
   const flow = new Flow(sim, hud);
+  // The guided first flight: offered on first launch, and in the pause menu any time.
+  const tutorial = new Tutorial(sim, hud, {
+    begin() {
+      store.set('lesson', 'seen');
+      if (paused) setPaused(false);
+      if (hud.modalKind) hud.closeModal();
+      input.enabled = true;
+      if (sim.aircraft !== 'micro') setAircraft('micro'); else sim.restartFlight();
+      hud.hideCrash();
+      sim.assist = true; store.set('assist', '1'); hud.setAssist(true);
+      camRig.recenter(sim.heli ? sim.heli.heading() : camRig.yaw);
+      if (!IS_TOUCH) hud.toast('Guided first flight: Micro heli, Flight Assist on', 3);   // phones: the card says it, the top is busy
+    },
+    end(done) {
+      if (done) flow.skip();
+      else hud.toast('Lesson ended. It is in the pause menu whenever you like', 3);
+    },
+    ding() {
+      audio.ui('select');
+      hud.hint.classList.remove('ding');
+      void hud.hint.offsetWidth;   // restart the pop
+      hud.hint.classList.add('ding');
+    },
+  });
   bindUi(audio, [$('hud'), hud.modal, $('loading')]);
   { const toast = hud.toast.bind(hud); hud.toast = (text, secs) => { if (text !== hud.toastEl.textContent || !hud.toastEl.classList.contains('show')) audio.ui('toast'); toast(text, secs); }; }
   tuning.worldSpeedHooks = {
@@ -403,7 +428,7 @@ async function boot() {
     } else hud.openPause(pauseOpts());
   }
 
-  function pauseOpts() { return { quality: quality.setting, debug: debug.enabled, fpsMeter: fpsMeter.shown, aircraft: sim.aircraft, weight, view: fp.mode, camCycle: cam.cycle, camFeel: cam.feel, fpFov: fp.fov, fpMotion: fp.motion, fpVibration: fp.vibration, loadCam: fp.loadCam, cues: { ...depth.settings }, rotorStrikes: sim.damage.rotorStrikes, collectiveMode: CFG.collective.mode,
+  function pauseOpts() { return { lesson: tutorial.active, quality: quality.setting, debug: debug.enabled, fpsMeter: fpsMeter.shown, aircraft: sim.aircraft, weight, view: fp.mode, camCycle: cam.cycle, camFeel: cam.feel, fpFov: fp.fov, fpMotion: fp.motion, fpVibration: fp.vibration, loadCam: fp.loadCam, cues: { ...depth.settings }, rotorStrikes: sim.damage.rotorStrikes, collectiveMode: CFG.collective.mode,
     touch: IS_TOUCH, batterySaver: fpsCap === 30, haptics: haptics.supported ? haptics.enabled : null, fullscreen: document.fullscreenEnabled ? !!document.fullscreenElement : null, homeScreenTip: IS_IOS && !navigator.standalone, touchLayout: input.touchLayout, touchSize: input.touchSize, volume: audio.volume, muted: audio.muted }; }
 
   // Something to ride for the cargo cam: a load on a hook, or the skycrane's snorkel paid out.
@@ -446,6 +471,7 @@ async function boot() {
     if (mode === 'chase' || was === 'cockpit') camRig.recenter(sim.heli ? sim.heli.heading() : camRig.yaw);
     if (mode === 'chase') input.camOrbit.yaw = input.camOrbit.pitch = input.camOrbit.zoom = 0;
     if (started && input.source === 'gamepad') input.pads.rumble(0, 0.12, 22);   // a click through the grip
+    if (started && !quiet) tutorial.noteCamera();
     if (started && !quiet) {
       const how = input.source === 'gamepad' ? 'gamepad' : (input.source === 'touch' || IS_TOUCH ? 'touch' : 'keyboard');
       const next = how === 'gamepad' ? 'L3: next' : how === 'touch' ? '' : 'C: next';
@@ -580,7 +606,11 @@ async function boot() {
       case 'mute': audio.setMuted(!audio.muted); hud.setVolume(audio.volume, audio.muted); break;
       case 'debug': debug.enabled = !debug.enabled; store.set('debug', debug.enabled ? '1' : '0'); break;
       case 'fpsmeter': fpsMeter.shown = !fpsMeter.shown; store.set('fpsMeter', fpsMeter.shown ? '1' : '0'); break;
-      case 'skiphints': flow.skip(); break;
+      case 'skiphints': if (tutorial.active) tutorial.end(false); else flow.skip(); break;
+      case 'tutorial':
+        if (tutorial.active) { tutorial.end(false); if (paused) setPaused(false); } else tutorial.start();
+        break;
+      case 'lessonno': store.set('lesson', 'seen'); hud.closeModal(); input.enabled = true; break;
       case 'resethints': flow.replay(); setPaused(false); break;
       case 'controller': hud.openController(input.pads); break;
       case 'closecontroller':
@@ -613,6 +643,7 @@ async function boot() {
     if (hud.modalKind === 'tuning') tuningPanel.close();
     else if (hud.modalKind === 'controller') doAction('closecontroller');
     else if (hud.modalKind === 'help') doAction('closehelp');
+    else if (hud.modalKind === 'lesson') doAction('lessonno');
     else if (paused) setPaused(false);
   }
 
@@ -796,6 +827,14 @@ async function boot() {
     setTimeout(() => $('loading').classList.remove('show'), 500);
     $('hud').classList.remove('hidden');
     removeEventListener('keydown', keyStart);
+    // First launch offers the guided flight (automated test runs only when asked: ?lesson=offer).
+    const lesson = params.get('lesson');
+    if (lesson === '1') tutorial.start();
+    else if (lesson === 'offer' || (store.get('lesson', '') !== 'seen' && !navigator.webdriver && lesson !== '0')) {
+      hud.openLesson();
+      input.enabled = false;
+      if (input.source === 'gamepad') hud.focusFirst();   // keys: a Space keyup on a focused button would pick it
+    }
   };
   // Recover autoplay denial or a later browser/OS interruption on a real gesture.
   // Keep the listener: a one-shot retry can fail or be followed by another interruption.
@@ -991,6 +1030,7 @@ async function boot() {
     view.handleEvents(events, camera, camRig);
     if (fp.wasLive) for (const e of events) fpRig.kick(e, fp.motion);
     flow.handleEvents(events);
+    tutorial.handleEvents(events);
     audio.setListener(camera); // last frame's camera: events are placed (pan, distance) relative to it
     audio.handleEvents(events);
     for (const e of events) {
@@ -1180,7 +1220,9 @@ async function boot() {
     });
 
     // HUD.
+    flow.quiet = tutorial.active;
     if (started && !paused) flow.update(frameDt * worldSpeed);
+    if (started && !paused) tutorial.update(frameDt);
     if (!sim.assist && h) {
       const extra = sim.carriedCargo().reduce((m, b) => m + b.mass, 0);
       hud.setCollective(h.collective, Math.min(1, (h.def.mass + extra) / (h.def.mass * h.def.thrustToWeight)));
@@ -1267,7 +1309,7 @@ async function boot() {
   requestAnimationFrame(frame);
 
   // Expose a tiny handle for console debugging and automated checks.
-  window.__helicoptea = { THREE, freeCam, CFG, perf, gpuBudget, get fpsMeter() { return fpsMeter; }, shadowCache, cam, cycleView, get camMode() { return cam.eff; }, tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; } };
+  window.__helicoptea = { THREE, freeCam, CFG, perf, gpuBudget, get fpsMeter() { return fpsMeter; }, shadowCache, cam, cycleView, get camMode() { return cam.eff; }, tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; }, tutorial, flow };
 }
 
 boot().catch((err) => showError('Helicoptea failed to start. Please reload.', err));

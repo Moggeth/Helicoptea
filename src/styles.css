@@ -143,6 +143,16 @@ kbd {
 .hint.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .hint .step { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--terracotta); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 13px; }
 .hint .skip { flex: none; border: 0; background: none; color: var(--ink-soft); font-size: 12px; text-decoration: underline; padding: 4px; }
+.hint .body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+/* Guided flight: a thin fill under the step while you hold it, and a little pop when a step is done. */
+.hint .bar { display: block; height: 4px; border-radius: 2px; background: rgba(42, 29, 22, 0.12); overflow: hidden; }
+.hint .bar.off { display: none; }
+.hint .bar i { display: block; height: 100%; width: 0; border-radius: 2px; background: linear-gradient(90deg, var(--honey), var(--terracotta)); transition: width 0.12s linear; }
+.hint.lesson .step { background: var(--sage); }
+.hint.ding .step { animation: ding 0.5s ease; }
+@keyframes ding { 0% { transform: scale(1); } 40% { transform: scale(1.35); background: var(--honey); } 100% { transform: scale(1); } }
+.lesson-offer { width: min(440px, 100%); }
+.lesson-offer .lesson-note { font-size: 13px; color: var(--ink-soft); margin: 12px 0 0; }
 
 .prompt {
   position: absolute; left: 50%; bottom: calc(26px + var(--safe-b)); transform: translateX(-50%) scale(0.96); opacity: 0;
@@ -331,7 +341,7 @@ body:not(.touch-ui) .rotate-nudge { display: none !important; }
   .hint { top: auto; bottom: calc(10px + var(--safe-b)); font-size: 13px; max-width: min(420px, 44vw); }
   .prompt { bottom: auto; top: calc(62px + var(--safe-t)); }
 }
-@media (prefers-reduced-motion: reduce) { .steam path, .touch-btn.attach.ready { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .steam path, .touch-btn.attach.ready, .hint.ding .step { animation: none; } }
 
 /* controller panel */
 .pad-panel { width: min(560px, 100%); }

@@ -60,7 +60,7 @@ export class Hud {
       </div>
       <div class="collective hidden" aria-hidden="true"><div class="lvl"></div><div class="mark"></div></div>
       <div class="collective-label hidden">Collective</div>
-      <div class="hint"><span class="step">1</span><span class="txt"></span><button class="skip" data-act="skiphints">Skip tips</button></div>
+      <div class="hint"><span class="step">1</span><span class="body"><span class="txt"></span><span class="bar off"><i></i></span></span><button class="skip" data-act="skiphints">Skip tips</button></div>
       <div class="prompt"></div>
       <div class="toast"></div>
       <div class="rotate-nudge">Turn sideways for the best view</div>
@@ -83,6 +83,8 @@ export class Hud {
     this.hint = this.q('.hint');
     this.hintStep = this.hint.querySelector('.step');
     this.hintText = this.hint.querySelector('.txt');
+    this.hintBar = this.hint.querySelector('.bar');
+    this.hintSkip = this.hint.querySelector('.skip');
     this.prompt = this.q('.prompt');
     this.toastEl = this.q('.toast');
     this.crashEl = this.q('.crash');
@@ -180,6 +182,57 @@ export class Hud {
       lift: H?.profile.lift === 'lever' ? 'the throttle forward' : 'the throttle past half way', attach: k('attach'), assist: k('assist'), restart: k('restart'),
       pour: k('pour'), doors: k('pour'), salvo: `twice ${k('pour')}`, pump: k('pump'), autofill: '<kbd>unbound</kbd>', reel: `${k('reelIn')} ${k('reelOut')}`,
     };
+  }
+
+  // How to work a flight control on the device in use, for the guided flight: liftUp, liftDown, tilt, yaw.
+  flyName(what) {
+    const d = this.device;
+    if (d === 'touch') {
+      const st = (axis) => `the <b>${this.touchStick(axis)}</b> stick`;
+      return { liftUp: `${st('collective')} up`, liftDown: `${st('collective')} down a little`, tilt: st('pitch'), yaw: `${st('yaw')}, sideways` }[what];
+    }
+    if (d === 'gamepad') {
+      const A = activeAxes(this.pads ? mappingOf(this.pads.layout) : mappingOf(defaultLayout()), 'heli').axes;
+      const side = (src) => (src === 'none' ? '<kbd>unbound</kbd>' : src === 'trig' ? 'the triggers' : `the <b>${src[0] === 'l' ? 'left' : 'right'}</b> stick`);
+      const dir = (src, up) => (src === 'trig' ? (up ? ' (RT)' : ' (LT)') : src[1] === 'y' ? (up ? ' up' : ' down a little') : (up ? ' right' : ' left a little'));
+      const tilt = side(A.pitch) === side(A.roll) ? side(A.pitch) : `${side(A.pitch)} and ${side(A.roll)}`;
+      return { liftUp: side(A.collective) + dir(A.collective, true), liftDown: side(A.collective) + dir(A.collective, false), tilt, yaw: `${side(A.yaw)}${A.yaw === 'trig' ? '' : ', sideways'}` }[what];
+    }
+    if (d === 'hotas') return { liftUp: this.hotasKeys().lift, liftDown: 'the throttle back', tilt: 'the stick', yaw: 'a twist of the stick' }[what];
+    // Keyboard and mouse, as the player's keyboard layout has them.
+    const m = kbMappingOf(this.input ? this.input.kbLayout : defaultKbLayout());
+    const k = (id) => (m.keys[id].length ? `<kbd>${keyName(m.keys[id][0])}</kbd>` : '<kbd>unbound</kbd>');
+    const mouse = (axis) => m.mouse.x === axis || m.mouse.y === axis;
+    const tilt = mouse('pitch') && mouse('roll') ? 'the mouse (click the scene first)'
+      : `${k('pitchFwd')} ${k('pitchBack')} ${k('rollLeft')} ${k('rollRight')}${mouse('pitch') || mouse('roll') ? ' or the mouse' : ''}`;
+    return { liftUp: k('collUp'), liftDown: k('collDown'), tilt, yaw: `${k('yawLeft')} and ${k('yawRight')}${mouse('yaw') ? ' (or the mouse)' : ''}` }[what];
+  }
+
+  // The camera-cycle control on the device in use.
+  camKey() {
+    if (this.device === 'touch') return 'the camera button, top right';
+    if (this.device === 'gamepad') {
+      const v = activeButtons(this.pads ? mappingOf(this.pads.layout) : mappingOf(defaultLayout()), 'heli').view;
+      return v && v.length ? `a tap of <kbd>${buttonName(v[0])}</kbd>` : 'the camera button, top right';
+    }
+    const m = kbMappingOf(this.input ? this.input.kbLayout : defaultKbLayout());
+    return m.keys.camNext && m.keys.camNext.length ? `<kbd>${keyName(m.keys.camNext[0])}</kbd>` : 'the camera button, top right';
+  }
+
+  // First launch: offer the guided flight. Pad, keys and touch all reach the two buttons.
+  openLesson() {
+    this.modalKind = 'lesson';
+    this.modal.innerHTML = `
+      <div class="panel menu lesson-offer" role="dialog" aria-label="Guided first flight">
+        <h2>First time at the controls?</h2>
+        <p>A short guided flight, one thing at a time: lift, hover, drift, stop, land, then a bag in the tea and a splash of milk. It waits for you.</p>
+        <div class="row">
+          <button class="primary" style="margin-top:0" data-act="tutorial">Guided first flight</button>
+          <button class="secondary" data-act="lessonno">Just fly</button>
+        </div>
+        <p class="lesson-note">You can start it any time from the pause menu.</p>
+      </div>`;
+    this.modal.classList.add('show');
   }
 
   // Gamepad prompts follow the player's layout (set via hud.pads by the game).
@@ -310,8 +363,15 @@ export class Hud {
     this.coll.querySelector('.mark').style.bottom = `${Math.round(hoverEstimate * 100)}%`;
   }
 
-  showHint(step, html) {
+  // opts (the guided flight): progress 0..1 fills a bar under the text (null hides it); skip relabels Skip tips.
+  showHint(step, html, opts = {}) {
     if (!html) { if (this.hint.classList.contains('show')) this.hint.classList.remove('show'); return; }
+    const skip = opts.skip || 'Skip tips';
+    if (this.hintSkip.textContent !== skip) this.hintSkip.textContent = skip;
+    const p = opts.progress ?? null;
+    if ((p === null) !== this.hintBar.classList.contains('off')) this.hintBar.classList.toggle('off', p === null);
+    if (p !== null) { const w = `${Math.round(p * 100)}%`; if (this.hintBar.firstChild.style.width !== w) this.hintBar.firstChild.style.width = w; }
+    this.hint.classList.toggle('lesson', !!opts.skip);
     // Keep the existing nodes while flying; content can still change within a step when devices change.
     if (this.hintStepValue !== step) { this.hintStep.textContent = step; this.hintStepValue = step; }
     if (this.hintHTML !== html) { this.hintText.innerHTML = html; this.hintHTML = html; }
@@ -387,6 +447,7 @@ export class Hud {
           <button class="secondary" data-act="restart">Restart flight</button>
           <button class="secondary" data-act="reset">Reset sandbox</button>
           <button class="secondary" data-act="replay">Flight replay</button>
+          <button class="secondary" data-act="tutorial">${opts.lesson ? 'End guided flight' : 'Guided first flight'}</button>
         </div>
         ${opts.touch ? `<div class="row stack touch-opts">
           <label class="opt">Sticks

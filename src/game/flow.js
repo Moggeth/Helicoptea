@@ -14,6 +14,7 @@ export class Flow {
     try { this.assistToggled = localStorage.getItem('helicoptea.assistTried') === '1'; } catch { /* ignore */ }
     this.crashShownFor = 0;
     this.steepTimers = sim.cups.map(() => 0);
+    this.quiet = false;   // the guided flight (game/tutorial.js) owns the hint card while it runs
   }
 
   save() { try { localStorage.setItem('helicoptea.hint', String(this.step)); } catch { /* ignore */ } }
@@ -63,7 +64,7 @@ export class Flow {
       done: null,
     };
     const showHint = sim.state === 'flying' && s !== 'done' && !(s === 'hook' && sim.attachCandidate());
-    hud.showHint(this.step + 1, showHint ? texts[s] : null);
+    if (!this.quiet) hud.showHint(this.step + 1, showHint ? texts[s] : null);
 
     // Contextual prompt for attach/release.
     let prompt = null;
@@ -74,7 +75,7 @@ export class Flow {
     }
     if (!prompt && sim.state === 'flying') prompt = this.milkPrompt(k);
     hud.showPrompt(prompt);
-    hud.setInvite(!this.assistToggled && sim.assist && s !== 'assist');
+    hud.setInvite(!this.quiet && !this.assistToggled && sim.assist && s !== 'assist');
 
     for (let i = 0; i < sim.cups.length; i++) {
       if (sim.cups[i].steep > 0.05) this.steepTimers[i] = 2.5;
