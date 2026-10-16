@@ -564,14 +564,14 @@ function buildCat(scene, hi) {
   body.add(sph(0.068), furMat, at(0, 0.172, 0.035, 0.22, 0, 0, 0.98, 1.38, 0.92));
   body.add(sph(0.05), furMat, at(0, 0.252, 0.062, 0.3, 0, 0, 1.0, 1.05, 1.0));
   body.add(sph(0.046), softMat, at(0, 0.19, 0.088, 0.28, 0, 0, 0.88, 1.35, 0.55), CREAM);
-  // Forelegs: bands run round the leg (u and v swapped), and the top tucks up inside the chest.
-  const legGeo = new THREE.CylinderGeometry(0.0185, 0.0145, 0.16, 12, 1, true);
-  { const uv = legGeo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getY(i) * 0.35, 0.55 + uv.getX(i) * 0.35); }
-  body.add(legGeo, furMat, at(-0.03, 0.09, 0.084, 0.1));
+  // Forelegs: shaped (full at the elbow, slim at the wrist), plain ginger, the top tucked inside the chest.
+  const legGeo = new THREE.LatheGeometry([[0.0118, -0.08], [0.0112, -0.06], [0.0125, -0.035], [0.015, 0.0], [0.0168, 0.035], [0.0175, 0.065], [0.012, 0.08], [0.0001, 0.083]].map(([r, y]) => new THREE.Vector2(r, y)), 14);
+  const legMat = new THREE.MeshStandardMaterial({ map: plain, color: 0xe0924c, roughness: 0.9 });
+  body.add(legGeo, legMat, at(-0.03, 0.09, 0.08, 0.1));
   body.add(sph(0.021), softMat, at(-0.03, 0.011, 0.112, 0, 0, 0, 1, 0.6, 1.35), CREAM);
   body.build(g);
   // The right foreleg swipes: leg and paw stay separate meshes.
-  const rightLeg = new THREE.Mesh(legGeo, furMat); g.add(rightLeg);
+  const rightLeg = new THREE.Mesh(legGeo, legMat); g.add(rightLeg);
   const rightPaw = new THREE.Mesh(sph(0.021), new THREE.MeshStandardMaterial({ map: plain, color: CREAM, roughness: 0.9 }));
   rightPaw.scale.set(1, 0.6, 1.35); g.add(rightPaw);
 
@@ -625,7 +625,7 @@ function buildCat(scene, hi) {
   return { g, head, ears, eyes, rightLeg, rightPaw, tail, tailMesh, blink: 2, earT: 3, earK: -1, earSide: 0, look: new THREE.Vector3(), lookInit: false, inv: new THREE.Matrix4() };
 }
 
-const _shoulder = new THREE.Vector3(0.03, 0.17, 0.068), _restPaw = new THREE.Vector3(0.03, 0.011, 0.112), _up = new THREE.Vector3(0, 1, 0), _fwdZ = new THREE.Vector3(0, 0, 1), _d = new THREE.Vector3();
+const _shoulder = new THREE.Vector3(0.03, 0.17, 0.064), _restPaw = new THREE.Vector3(0.03, 0.011, 0.112), _up = new THREE.Vector3(0, 1, 0), _fwdZ = new THREE.Vector3(0, 0, 1), _d = new THREE.Vector3();
 function animateCat(cat, C, dt, time) {
   cat.g.updateMatrixWorld();
   cat.inv.copy(cat.g.matrixWorld).invert();
@@ -657,7 +657,7 @@ function animateCat(cat, C, dt, time) {
   if (C.t < 0) paw.copy(_restPaw);
   cat.rightPaw.position.copy(paw);
   cat.rightLeg.position.copy(_shoulder).add(paw).multiplyScalar(0.5);
-  cat.rightLeg.quaternion.setFromUnitVectors(_up, _d.copy(paw).sub(_shoulder).normalize());
+  cat.rightLeg.quaternion.setFromUnitVectors(_up, _d.copy(_shoulder).sub(paw).normalize());   // +y (the thick end) at the shoulder
   cat.rightLeg.scale.set(1, Math.max(0.6, _shoulder.distanceTo(paw) / 0.16), 1);
   // Tail: lies round the haunches to the front paws; the end lifts and flicks, and lashes when excited.
   const swish = Math.sin(time * (1.1 + 3 * C.alert)) * (0.12 + 0.35 * C.alert);
