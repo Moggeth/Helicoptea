@@ -407,6 +407,10 @@ let _atlas = null;     // the glass pages' SDF font, built once
 const STATIC_PX = { high: 4096, medium: 3072, low: 2048 };
 const _placeholder = new THREE.DataTexture(new Uint8Array([38, 40, 42, 255]), 1, 1);
 _placeholder.colorSpace = THREE.SRGBColorSpace; _placeholder.needsUpdate = true;
+// Stand-ins until the panel is painted. Every textured part has a map from the start: giving a material
+// its first map later changes its shader, a compile the moment the cockpit opens.
+const _clear = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1);
+_clear.colorSpace = THREE.SRGBColorSpace; _clear.needsUpdate = true;
 
 // A mipmapped texture with a small negative LOD bias: a panel seen at an angle keeps its fine print.
 function sharpen(mat, bias = -0.6) {
@@ -520,10 +524,10 @@ export class InstrumentPanel {
         group.add(ball);
         D.mat = mat;
       } else if (d.type === 'hdg') {
-        const card = new THREE.Mesh(new THREE.CircleGeometry(r * 0.82, 64), sharpen(new THREE.MeshStandardMaterial({ map: null, emissive: 0xffffff, emissiveIntensity: 0.2, roughness: 0.5 })));
+        const card = new THREE.Mesh(new THREE.CircleGeometry(r * 0.82, 64), sharpen(new THREE.MeshStandardMaterial({ map: _placeholder, emissiveMap: _placeholder, emissive: 0xffffff, emissiveIntensity: 0.2, roughness: 0.5 })));
         card.position.copy(c).setZ(0.0015 * h);
         group.add(card);
-        const sym = new THREE.Mesh(new THREE.PlaneGeometry(r * 0.62, r * 0.62), new THREE.MeshBasicMaterial({ map: null, transparent: true, toneMapped: false, depthWrite: false }));
+        const sym = new THREE.Mesh(new THREE.PlaneGeometry(r * 0.62, r * 0.62), new THREE.MeshBasicMaterial({ map: _clear, transparent: true, toneMapped: false, depthWrite: false }));
         sym.position.copy(c).setZ(0.004 * h);
         group.add(sym);
         const trk = new THREE.Mesh(this.bugGeo(r, 0.8, 0.95, 0.09), trackMat);
@@ -597,20 +601,25 @@ export class InstrumentPanel {
     for (const D of this.dials) {
       if (D.type !== 'hdg') continue;
       const ct = new THREE.CanvasTexture(cardTexture(cardPx)); ct.colorSpace = THREE.SRGBColorSpace; ct.anisotropy = this.aniso;
-      D.parts.card.material.map = ct; D.parts.card.material.emissiveMap = ct; D.parts.card.material.needsUpdate = true;
+      D.parts.card.material.map = ct; D.parts.card.material.emissiveMap = ct;
       const st = new THREE.CanvasTexture(symbolTexture(256)); st.colorSpace = THREE.SRGBColorSpace;
-      D.parts.sym.material.map = st; D.parts.sym.material.needsUpdate = true;
+      D.parts.sym.material.map = st;
       D.cardTex = ct; D.symTex = st;
     }
     this.glassAge = 9;
   }
+
+  textures() { return [this.staticTex, ...this.dials.flatMap((D) => (D.cardTex ? [D.cardTex, D.symTex] : []))].filter(Boolean); }
 
   release() {
     if (!this.active) return;
     this.active = false;
     this.staticTex.dispose();
     this.faceMat.map = _placeholder; this.faceMat.emissiveMap = _placeholder;
-    for (const D of this.dials) if (D.cardTex) { D.cardTex.dispose(); D.symTex.dispose(); }
+    for (const D of this.dials) if (D.cardTex) {
+      D.cardTex.dispose(); D.symTex.dispose();
+      D.parts.card.material.map = D.parts.card.material.emissiveMap = _placeholder; D.parts.sym.material.map = _clear;
+    }
   }
 
   paintFace(g, A) {

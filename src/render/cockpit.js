@@ -720,6 +720,15 @@ export class Cockpit {
     return it;
   }
 
+  // Build an aircraft's interior and paint its panel ahead of time (at load, or when the aircraft is picked)
+  // and upload the panel's textures, instead of in the first cockpit frame.
+  prepare(type) {
+    const it = this.ensureInterior(type);
+    if (!it) return;
+    it.panel.activate();
+    for (const t of it.panel.textures()) this.renderer.initTexture(t);
+  }
+
   // h: live aircraft (or null while the crash freeze plays), quat: drawn body orientation.
   update(dt, h, sim, quat, gearDrop, active) {
     const kind = h ? h.type : this.kind;

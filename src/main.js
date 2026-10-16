@@ -34,6 +34,7 @@ import { FpsMeter } from './ui/fpsMeter.js';
 import { ShadowCache } from './render/shadowCache.js';
 import { warmInSteps } from './render/warmup.js';
 import { gpuEstimate } from './render/gpuBudget.js';
+import { warmEverything } from './render/prewarm.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -224,6 +225,40 @@ async function boot() {
   for (const it of Object.values(cockpit.interiors)) it.group.visible = true;
   await warm(cockpit.scene, cockpit.camera, cockpit.scene, 0.96, 1);
   for (const it of Object.values(cockpit.interiors)) it.group.visible = false;
+  // compile() only reaches what is visible and in view, and never the shadow maps. On desktops, draw one
+  // real frame of everything instead, hidden effects and off-screen props included, through every path a
+  // flight uses (the shadow maps, the half-float target, the screen, the cockpit): otherwise each shader
+  // still compiles the first time its object shows up, a 100-300 ms freeze mid-flight. Wreck pieces are
+  // clones with variants of their own, so a sample of each is warmed too (its materials stay referenced
+  // so the programs aren't freed).
+  const wrecks = view.wreckSamples();
+  view.warmWrecks = wrecks;
+  if (stepped) {
+    // Phones compile only, a batch at a time (warmInSteps already reaches hidden objects): drawing
+    // everything would upload every hidden mesh and texture and about double the GPU memory, and the
+    // cockpit panel is painted when the cockpit first opens, as before.
+    const extra = new THREE.Group();
+    for (const w of wrecks) extra.add(w);
+    await warm(extra, camera, scene, 1, 1);
+    await warm(cockpit.pipScene, cockpit.pipCam, cockpit.pipScene, 1, 1);
+  } else {
+    setProgress(0.9, 'Warming the shaders…');
+    await tick();
+    cockpit.prepare(sim.aircraft);
+    for (const w of wrecks) scene.add(w);
+    warmEverything(renderer, [scene, cockpit.scene, cockpit.pipScene], () => {
+      const sc = shadowCache.enabled;
+      shadowCache.enabled = false;
+      renderer.shadowMap.needsUpdate = true;
+      post.viaTarget = true; post.render();
+      post.viaTarget = false; renderer.shadowMap.needsUpdate = true; post.render();
+      loadCam.render(scene, true);
+      cockpit.render();
+      cockpit.setPipRect({ x: 0, y: 0, s: 64 }, vw, vh); cockpit.renderPip(); cockpit.setPipRect(null, vw, vh);
+      shadowCache.enabled = sc;
+    });
+    for (const w of wrecks) scene.remove(w);
+  }
   // Without AO that full-screen, multisampled half-float target (~40 MB on a phone) was only needed to pick
   // the shader variants; it comes back when the hook camera first runs.
   if (!hadTarget && quality.lite) post.releaseTarget();
@@ -439,12 +474,42 @@ async function boot() {
     chinook: 'Chinook: tandem rotors, three hooks, a lot more mass to stop',
     skycrane: 'Skycrane: snorkel the milk up, drop it through the belly doors',
   };
+  // A cockpit built after load: compile its shaders now, in the background where the browser can (parallel
+  // shader compile), so opening the view later doesn't stall on them.
+  function warmCockpit(id) {
+    const it = cockpit.interiors[id];
+    if (!it) return;
+    const was = it.group.visible;
+    it.group.visible = true;
+    const ready = renderer.compileAsync ? renderer.compileAsync(cockpit.scene, cockpit.camera) : renderer.compile(cockpit.scene, cockpit.camera);
+    it.group.visible = was;
+    // Once the shaders are ready, one hidden draw of the cabin uploads its meshes (see frame()).
+    const upload = () => { cockpitUpload = id; };
+    if (ready && ready.then) ready.then(upload, upload); else upload();
+  }
+  let cockpitUpload = null;
+  // A cabin built after load, drawn once before this frame's picture (which covers it completely), so its
+  // vertex buffers and textures go up to the GPU now rather than in the first cockpit frame.
+  function uploadCockpit(id) {
+    const it = cockpit.interiors[id];
+    if (!it || it.group.visible || fp.wasLive) return;
+    warmEverything(renderer, [it.group], () => {
+      const sc = renderer.getScissorTest(), sun = renderer.shadowMap.needsUpdate;
+      renderer.setScissorTest(true); renderer.setScissor(0, 0, 1, 1);
+      cockpit.render();
+      renderer.setScissorTest(sc); renderer.setScissor(0, 0, vw, vh);
+      renderer.shadowMap.needsUpdate = sun;   // the world's sun still draws its shadows this frame
+    }, false);
+  }
   function setAircraft(id) {
     if (!AIRCRAFT_IDS.includes(id)) return;
     store.set('aircraft', id);
     updatePicker();
     if (sim.aircraft === id) return;
     sim.setAircraft(id);
+    // Its cockpit is built, painted and compiled now, not the first time the view opens (desktops: phones
+    // keep their GPU memory for the aircraft in use and paint the panel on first use, as before).
+    if (!stepped) { cockpit.prepare(id); warmCockpit(id); }
     hud.hideCrash();
     camRig.recenter(sim.heli ? sim.heli.heading() : camRig.yaw);
     if (started) hud.toast(AIRCRAFT_TOASTS[id]);
@@ -1157,6 +1222,7 @@ async function boot() {
     if (showPip && fp.readT <= 0) { fp.readT = 0.1; fp.readText = loadReadout(); }
     hud.setLoadCam(rect, fp.readText, h && h.type === 'skycrane' ? 'BELLY CAM' : 'HOOK CAM');
     boltOverlay(cam.eff === 'bolt' && !crashShown, frameDt);
+    if (cockpitUpload) { uploadCockpit(cockpitUpload); cockpitUpload = null; }
     post.render();
     if (fpView) cockpit.render();   // the cabin has its own sun and shadow map
     if (showPip) cockpit.renderPip();

@@ -315,6 +315,17 @@ export class View {
     }
   }
 
+  // One wreck piece of every part of every aircraft, for the load-time shader warm-up: a wreck's scorched
+  // materials are clones with shader variants of their own, otherwise compiled in the crash's first frame.
+  // The caller keeps their materials alive (so their programs are kept) but takes them out of the scene.
+  wreckSamples() {
+    const out = [];
+    for (const [model, clone] of [[this.heliModel, cloneHeliPart], [this.chinookModel, cloneChinookPart], [this.skycrane.model, cloneSkycranePart]]) {
+      for (const name of Object.keys(model.userData.parts)) out.push(clone(model, name));
+    }
+    return out;
+  }
+
   // Debris meshes for parts the sim has turned loose (the crash, or blades a rotor strike threw off).
   adoptDebris(parts, aircraft, cold = false) {
     const fp = this.firstPerson;

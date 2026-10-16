@@ -287,7 +287,8 @@ export function teabagAssets() {
         wet.uWetLine.value = wetLine;
         wet.uStain.value = stain;
         mat.roughness = 0.92 - 0.3 * wetness;
-        mat.sheen = 0.6 * (1 - Math.min(1, wetness * 1.5));
+        // Never quite zero: sheen 0 is a different shader, compiled mid-dip the first time a bag soaks through.
+        mat.sheen = Math.max(0.001, 0.6 * (1 - Math.min(1, wetness * 1.5)));
       };
       return g;
     },
