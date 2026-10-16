@@ -277,33 +277,51 @@ export function buildKitchen(scene, renderer, quality, progress, sim) {
     }
     const vase = new THREE.Mesh(vesselGeometry({ rOutBottom: VASE.r, rOut: VASE.r * 0.55, rIn: VASE.r * 0.45, rInBottom: VASE.r * 0.85, height: VASE.h, bottom: 0.008, belly: 0.006 }), glass);
     g.add(vase);
-    const stemMat = new THREE.MeshStandardMaterial({ color: 0x4d7a3a, roughness: 0.6 });
+    const stemMat = new THREE.MeshStandardMaterial({ color: 0x4d7a3a, roughness: 0.6, side: THREE.DoubleSide });
     const petal = [0xf2b6c6, 0xf6d36b, 0xf3efe8];
+    // Water a little over half way up, so the glass reads as a vase with the stems standing in it.
+    const water = new THREE.Mesh(new THREE.CircleGeometry(VASE.r * 0.66, 24).rotateX(-Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: 0xd6e8e2, roughness: 0.05, transparent: true, opacity: 0.4, depthWrite: false }));
+    water.position.y = VASE.h * 0.5;
+    g.add(water);
+    // Stems run down into the water; two leaves each. All one mesh.
+    const leafShape = new THREE.Shape();
+    leafShape.moveTo(0, 0); leafShape.quadraticCurveTo(0.009, 0.012, 0, 0.03); leafShape.quadraticCurveTo(-0.009, 0.012, 0, 0);
+    const leafGeo = new THREE.ShapeGeometry(leafShape, 4);
+    const stemGeos = [];
+    // Petals: eight slender ellipses round the disc, tipped up a little (cosmos and daisies).
+    const petalShape = new THREE.Shape();
+    petalShape.absellipse(0, 0.0115, 0.0042, 0.0105, 0, Math.PI * 2, false);
+    const petalGeo = new THREE.ShapeGeometry(petalShape, 6).rotateX(-Math.PI / 2 + 0.25);
     VASE.stems.forEach((st, i) => {
       const a = new THREE.Vector3(st[0], VASE.h - 0.02, st[1]);
       const b = new THREE.Vector3(st[0] + st[3], st[2], st[1] + st[4]);
       const mid = a.clone().lerp(b, 0.5).add(new THREE.Vector3(0.01, 0, 0.005));
-      const stem = new THREE.Mesh(new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(a, mid, b), 12, 0.0022, 6, false), stemMat);
-      g.add(stem);
+      const foot = new THREE.Vector3(st[0] * 0.4, 0.014, st[1] * 0.4);
+      const curve = new THREE.CatmullRomCurve3([foot, a, mid, b]);
+      stemGeos.push(new THREE.TubeGeometry(curve, 16, 0.0022, 5, false));
+      for (const [t, side] of [[0.5, 1], [0.66, -1]]) {
+        const p = curve.getPoint(t), tan = curve.getTangent(t);
+        const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), tan)
+          .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), i * 2 + side))
+          .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), side * 0.7));
+        stemGeos.push(leafGeo.clone().applyMatrix4(new THREE.Matrix4().compose(p, q, new THREE.Vector3(1, 1, 1))));
+      }
       const head = new THREE.Group();
       const pm = new THREE.MeshStandardMaterial({ color: petal[i], roughness: 0.6, side: THREE.DoubleSide });
-      // Seven petals, one mesh (they nod together; one draw call per pass instead of seven).
+      // Petals merged into one mesh (they nod together; one draw call per pass).
       const petals = [];
-      for (let k = 0; k < 7; k++) {
-        const ang = k / 7 * Math.PI * 2;
-        const pg = new THREE.SphereGeometry(0.012, 10, 6);
-        pg.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(Math.cos(ang) * 0.011, 0, Math.sin(ang) * 0.011),
-          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -ang), new THREE.Vector3(1, 0.3, 0.55)));
-        petals.push(pg);
-      }
+      for (let k = 0; k < 8; k++) petals.push(petalGeo.clone().rotateY(k / 8 * Math.PI * 2 + i));
       head.add(new THREE.Mesh(mergeGeometries(petals, false), pm));
-      const centre = new THREE.Mesh(new THREE.SphereGeometry(0.006, 10, 8), new THREE.MeshStandardMaterial({ color: 0xc98a1b, roughness: 0.8 }));
+      const centre = new THREE.Mesh(new THREE.SphereGeometry(0.0055, 10, 8).scale(1, 0.6, 1), new THREE.MeshStandardMaterial({ color: 0xc98a1b, roughness: 0.8 }));
+      centre.position.y = 0.002;
       head.add(centre);
-      head.position.copy(b).add(new THREE.Vector3(0, 0.008, 0));
+      head.position.copy(b).add(new THREE.Vector3(0, 0.004, 0));
       head.rotation.set(0.3 * (i - 1), i, 0.2);
       g.add(head);
       out.animated.push({ obj: head, base: head.rotation.clone(), phase: i * 1.7 });
     });
+    g.add(new THREE.Mesh(mergeGeometries(stemGeos.map((x) => { for (const k of Object.keys(x.attributes)) if (!['position', 'normal', 'uv'].includes(k)) x.deleteAttribute(k); return x.index ? x.toNonIndexed() : x; }), false), stemMat));
     g.position.set(VASE.x, 0, VASE.z);
     scene.add(shadowed(g));
   }
