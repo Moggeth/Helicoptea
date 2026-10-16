@@ -5,6 +5,7 @@ import { CockpitRig } from '../render/cockpitCam.js';
 import { LockedRig, BoltRig, TripodRig } from '../render/cameraModes.js';
 import { gearDrop } from '../sim/aircraft.js';
 import { CH } from './format.js';
+import { capture } from '../input/input.js';
 
 // Flight replay viewer: timeline scrubber, play / pause, slow motion, frame step, chase / orbit / cockpit
 // cameras, telemetry graphs synced to the playhead, and notes tagged good / bad at a moment.
@@ -129,6 +130,13 @@ export class ReplayViewer {
       if (e.clientX < r.left - 8 || e.clientX > r.right + 8 || e.clientY < r.top - 8 || e.clientY > r.bottom + 8) return;
       touchDone = { b, t: performance.now() };
       press(b);
+      // A touch that closed the replay: the click the browser sends after it would land on whatever is
+      // under the finger once the replay has gone (the pause button sits under Close on a phone).
+      if (!this.active) {
+        const swallow = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
+        window.addEventListener('click', swallow, { capture: true, once: true });
+        setTimeout(() => window.removeEventListener('click', swallow, { capture: true }), 700);
+      }
     });
     el.addEventListener('pointercancel', () => { touchDown = null; });
     el.addEventListener('click', (e) => {
@@ -154,7 +162,7 @@ export class ReplayViewer {
     for (const cv of [this.tl, this.gr]) {
       cv.addEventListener('pointerdown', (e) => {
         e.preventDefault();
-        cv.setPointerCapture(e.pointerId);
+        capture(cv, e.pointerId);
         this.scrubbing = { cv, wasPlaying: this.playing };
         this.playing = false;
         this.scrubTo(cv, e.clientX);
@@ -167,7 +175,7 @@ export class ReplayViewer {
     const stage = q('.rp-stage');
     const ptrs = new Map();
     let pinch = 0;
-    stage.addEventListener('pointerdown', (e) => { stage.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); pinch = 0; });
+    stage.addEventListener('pointerdown', (e) => { capture(stage, e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); pinch = 0; });
     stage.addEventListener('pointermove', (e) => {
       const p = ptrs.get(e.pointerId);
       if (!p) return;

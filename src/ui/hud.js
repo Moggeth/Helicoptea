@@ -502,7 +502,7 @@ export class Hud {
           ${opts.touch ? '' : `<div class="opt aircraft-row" role="radiogroup" aria-label="Aircraft">Aircraft
             <span>${[['micro', 'Micro heli'], ['chinook', 'Chinook'], ['skycrane', 'Skycrane']].map(([id, nm]) => `<button class="secondary${opts.aircraft === id ? ' on' : ''}" style="padding:6px 12px" role="radio" aria-checked="${opts.aircraft === id}" data-act="aircraft" data-id="${id}">${nm}</button>`).join(' ')}</span></div>`}
         </div>
-        <p class="help-note">Reset sandbox clears every cup and bag. Restart flight keeps your brewing. Switching aircraft starts a fresh flight on the pad. Quality changes reload the page. With rotor strikes off, blades pass through scenery instead of breaking. Every flight is recorded: <b>Flight replay</b> plays it back with its telemetry, and notes you add there (or marks you drop in flight with <kbd>N</kbd>) are saved to <code>logs/flights</code>.</p>
+        <p class="help-note">Reset sandbox clears every cup and bag. Restart flight keeps your brewing. Switching aircraft starts a fresh flight on the pad. Quality changes reload the page. With rotor strikes off, blades pass through scenery instead of breaking. Every flight is recorded: <b>Flight replay</b> plays it back with its telemetry, ${opts.touch ? 'with the notes you add there or the moments you mark here.' : 'and notes you add there (or marks you drop in flight with <kbd>N</kbd>) are saved to <code>logs/flights</code>.'}</p>
         </details>
       </div>`;
     this.modal.querySelector('[data-setting=quality]').addEventListener('change', (e) => this.h.setting('quality', e.target.value));

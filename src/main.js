@@ -62,7 +62,25 @@ function showError(msg, detail) {
   $('loading').classList.remove('show');
   $('error').classList.add('show');
 }
-window.addEventListener('error', (e) => showError('An unexpected error stopped the game. Reloading usually fixes it.', e.error || e.message));
+// Once the game is running, an error thrown by one input or menu handler (a phone's odd touch sequence, say)
+// is logged and the game carries on: the frame loop and the sim are untouched by it. An error inside the
+// frame itself, during loading, or several in quick succession still stop the game.
+let running = false, inFrame = false;
+const softErrors = [];
+function logError(message, detail) {
+  console.error('[Helicoptea] error (game continues):', message, detail || '');
+  try {
+    const history = JSON.parse(store.get('errors', '[]'));
+    const entry = { at: new Date().toISOString(), build: BUILD_ID, message: `(continued) ${message}`, detail: String(detail?.stack || detail || '').slice(0, 6000) };
+    store.set('errors', JSON.stringify([...(Array.isArray(history) ? history : []), entry].slice(-20)));
+  } catch { /* ignore */ }
+}
+window.addEventListener('error', (e) => {
+  const now = performance.now();
+  while (softErrors.length && now - softErrors[0] > 10000) softErrors.shift();
+  if (running && !inFrame && softErrors.push(now) <= 5) { logError(e.message, e.error); return; }
+  showError('An unexpected error stopped the game. Reloading usually fixes it.', e.error || e.message);
+});
 window.addEventListener('unhandledrejection', (e) => showError('Something failed while loading. Please reload.', e.reason));
 
 // ---------------------------------------------------------------- quality
@@ -956,6 +974,9 @@ async function boot() {
   function frame(now) {
     requestAnimationFrame(frame);
     if (fatal) return;
+    // Set for this frame's callback only: an error escaping it is reported before the microtask runs.
+    inFrame = true;
+    queueMicrotask(() => { inFrame = false; });
     if (fpsCap && now - lastRender < 1000 / fpsCap - 1) return;
     lastRender = now;
     const cpu0 = performance.now();
@@ -1311,6 +1332,7 @@ async function boot() {
   }
 
   requestAnimationFrame(frame);
+  running = true;
 
   // Expose a tiny handle for console debugging and automated checks.
   window.__helicoptea = { THREE, freeCam, CFG, perf, gpuBudget, get fpsMeter() { return fpsMeter; }, shadowCache, cam, cycleView, get camMode() { return cam.eff; }, tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, get world() { return kitchen.garden.world; }, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; }, tutorial, flow };

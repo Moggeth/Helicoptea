@@ -75,6 +75,8 @@ export class Audio {
     if (this.ctx) { this.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
+    // iPhone: play as media, so the ring / silent switch doesn't mute the game (Safari 16.4+).
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* older Safari */ }
     this.attach(new AC({ latencyHint: 'interactive' }));
   }
 

@@ -32,6 +32,9 @@ export const TOUCH_LAYOUTS = {
 export const TOUCH_LAYOUT_IDS = Object.keys(TOUCH_LAYOUTS);
 // Thumb travel from centre to full deflection, in CSS pixels.
 export const TOUCH_SIZES = { small: 48, medium: 64, large: 84 };
+// Pointer capture throws when the pointer is already gone (a very quick tap, or a touch the browser has
+// cancelled): nothing to capture then, and it must not stop the game.
+export function capture(el, id) { try { el.setPointerCapture(id); } catch { /* pointer already released */ } }
 // A short tick under the thumb where the phone can (phoneHaptics.js: Android vibration, iPhone switch tick).
 let haptics = null;
 export function setHaptics(h) { haptics = h; }
@@ -210,6 +213,7 @@ export class Input {
   isHeld(id) { const l = this.held[id]; return !!l && l.some((c) => this.keys.has(c)); }
 
   clearAll() {
+    this.pinch = null;
     this.pads.stopRumble();
     this.keys.clear();
     Object.assign(this.kb, { pitch: 0, roll: 0, yaw: 0, collective: 0 });
@@ -222,6 +226,12 @@ export class Input {
   // Mouse drag (or a finger on open screen, away from the sticks) orbits the chase camera or, in the
   // cockpit, turns the pilot's head. The wheel zooms either. When the keyboard layout flies with the mouse,
   // a click captures the pointer instead: then the mouse flies, and the free-look key makes it look.
+  // Zoom by mouse-wheel notches (+ out): the cockpit's field of view, or the chase camera's distance.
+  zoomBy(n) {
+    if (LOOK_MODES.has(this.viewMode)) this.look.zoom += n * 4;
+    else this.camOrbit.zoom += n * 0.08;
+  }
+
   bindCanvas(canvas) {
     this.canvas = canvas;
     const lookBy = (dx, dy, k) => {
@@ -241,9 +251,15 @@ export class Input {
         if (bind) { this.keys.add(code); this.pressBind(bind, code, e.shiftKey); if (bind !== 'freeLook') return; }
         if (this.locked || e.button === 2) return;
       }
+      // A second finger on the open screen pinches: zoom, as the mouse wheel does.
+      if (this.dragging && this.dragging.touch && e.pointerType === 'touch' && !this.pinch) {
+        this.pinch = { id: e.pointerId, x: e.clientX, y: e.clientY, d: Math.hypot(e.clientX - this.dragging.x, e.clientY - this.dragging.y) };
+        capture(canvas, e.pointerId);
+        return;
+      }
       if (this.dragging) return;
       this.dragging = { x: e.clientX, y: e.clientY, id: e.pointerId, touch: e.pointerType !== 'mouse' };
-      canvas.setPointerCapture(e.pointerId);
+      capture(canvas, e.pointerId);
       if (this.dragging.touch) {
         this.source = 'touch';
         // Double-tap the open screen to look ahead again.
@@ -258,11 +274,28 @@ export class Input {
         else if (!this.menuMode) this.mouseMove(e.movementX, e.movementY);
         return;
       }
+      const pin = this.pinch;
+      if (pin && this.dragging && (e.pointerId === pin.id || e.pointerId === this.dragging.id)) {
+        const p = e.pointerId === pin.id ? pin : this.dragging;
+        p.x = e.clientX; p.y = e.clientY;
+        const d = Math.hypot(pin.x - this.dragging.x, pin.y - this.dragging.y);
+        if (pin.d > 20 && d > 20) this.zoomBy(-Math.log(d / pin.d) / 0.15);   // a wheel notch per 15 % of spread
+        pin.d = d;
+        return;
+      }
       if (!this.dragging || e.pointerId !== this.dragging.id) return;
       lookBy(e.clientX - this.dragging.x, e.clientY - this.dragging.y, this.dragging.touch ? 0.006 : 0.004);
       this.dragging.x = e.clientX; this.dragging.y = e.clientY;
     });
-    const end = (e) => { if (this.dragging && e.pointerId === this.dragging.id) this.dragging = null; };
+    const end = (e) => {
+      if (this.pinch && (e.pointerId === this.pinch.id || (this.dragging && e.pointerId === this.dragging.id))) {
+        // The finger left on the glass carries on as a drag, from where it is now.
+        if (this.dragging && e.pointerId === this.dragging.id) this.dragging = { ...this.dragging, id: this.pinch.id, x: this.pinch.x, y: this.pinch.y };
+        this.pinch = null;
+        return;
+      }
+      if (this.dragging && e.pointerId === this.dragging.id) this.dragging = null;
+    };
     // A mouse button released over the HUD or outside the window still lets go (the GoPro on right mouse).
     window.addEventListener('pointerup', (e) => { if (e.pointerType === 'mouse') this.keys.delete(`Mouse${e.button}`); });
     canvas.addEventListener('pointerup', end);
@@ -270,8 +303,7 @@ export class Input {
     canvas.addEventListener('lostpointercapture', end);
     canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
-      if (LOOK_MODES.has(this.viewMode)) this.look.zoom += Math.sign(e.deltaY) * 4;
-      else this.camOrbit.zoom += Math.sign(e.deltaY) * 0.08;
+      this.zoomBy(Math.sign(e.deltaY));
     }, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     document.addEventListener('pointerlockchange', () => {
@@ -319,7 +351,7 @@ export class Input {
         if (this.id !== null) return;
         e.preventDefault();
         this.id = e.pointerId;
-        try { this.zone.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ }
+        capture(this.zone, e.pointerId);
         this.cx = e.clientX; this.cy = e.clientY;
         this.place();
         this.zone.classList.add('active');
@@ -377,7 +409,7 @@ export class Input {
       b.innerHTML = html;
       let last = 0;
       b.addEventListener('pointerdown', (e) => {
-        e.preventDefault(); e.stopPropagation(); this.source = 'touch'; set(true); b.classList.add('pressed'); b.setPointerCapture?.(e.pointerId); buzz(8);
+        e.preventDefault(); e.stopPropagation(); this.source = 'touch'; set(true); b.classList.add('pressed'); capture(b, e.pointerId); buzz(8);
         const now = e.timeStamp || performance.now();   // when the finger landed (see the keyboard combos)
         if (combo && now - last < DOUBLE_TAP) { this.actions.push(combo); last = 0; } else last = now;
       });

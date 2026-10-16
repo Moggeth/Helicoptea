@@ -519,3 +519,12 @@ body.fp .mstick { bottom: calc(150px + var(--safe-b, 0px)); }
 .ho-meter i { position: absolute; left: calc(50% - 3px); top: 0; width: 6px; height: 6px; border-radius: 3px; background: var(--ink); }
 .ho-teach { margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: rgba(242,184,75,0.18); }
 .ho-teach .ho-prompt { margin: 4px 0 0; font-size: 17px; color: var(--ink); }
+
+/* Touch: menu controls big enough for a thumb (they were 13-35 px tall: checkboxes, sliders, small buttons). */
+body.touch-ui .menu button, body.touch-ui .menu select, body.touch-ui .menu details.more > summary { min-height: 40px; }
+body.touch-ui .menu input[type=checkbox] { width: 24px; height: 24px; flex: none; accent-color: var(--terracotta); }
+body.touch-ui .menu input[type=range] { height: 32px; }
+body.touch-ui .pill { min-height: 40px; }
+body.touch-ui .crash button { min-height: 44px; }
+/* Touch: no keyboard hints beside menu options or on the replay's Close button. */
+body.touch-ui:not(.pad-nav) .menu label.opt > kbd, body.touch-ui .rp-close .k { display: none; }
