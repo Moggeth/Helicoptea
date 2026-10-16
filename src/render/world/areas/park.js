@@ -177,7 +177,7 @@ function paintGround(S) {
   const P = PK.paths;
   // Leaf-litter floor of the wood.
   const W = { x0: 6.4, x1: 19.5, z0: -47, z1: -32.6 };
-  g.rect(W.x0, W.z0, W.x1, W.z1, { type: 'grass', color: '#566235', alpha: 0.6 });
+  g.rect(W.x0, W.z0, W.x1, W.z1, { type: 'grass', color: '#5f7039', alpha: 0.6 });
   for (let i = 0; i < 70; i++) {
     const x = W.x0 + rnd() * (W.x1 - W.x0), z = W.z0 + rnd() * (W.z1 - W.z0);
     if (Math.abs(z - streamZ(x)) < 2.6) continue;

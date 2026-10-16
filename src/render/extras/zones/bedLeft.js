@@ -323,15 +323,23 @@ export function build(ctx) {
       const a = i * 1.05;
       put(tubeGeo([V(0, 0, 0), V(Math.cos(a) * 0.05, 0.26, Math.sin(a) * 0.05), V(Math.cos(a) * 0.12, 0.44, Math.sin(a) * 0.12)], 0.007, 0.004, 4), low, pl(0, 0, 0, 0, 0, 0, 1), 0x6a5a3e, false);
     }
-    // Florets: many small four-petalled stars over a dome, three blue-to-lilac tints and a pale eye in each.
+    // Florets: many small four-petalled stars over a dome, three soft blue-to-lilac tints and a small pale eye in
+    // each. Every floret is lit with the dome's own rounded normal (a little of its own mixed in), so a head
+    // reads as one soft, full mophead in the light rather than a heap of glinting flakes.
     const star = bloomGeo({ n: 4, r: 0.5, cup: 0.18, ruff: 0, lobe: 0.1, rings: 1, arcs: 4, over: 0.9 });   // rounded sepals with gaps
-    const eye = new THREE.CircleGeometry(0.075, 6).translate(0, 0, 0.06);
+    const eye = new THREE.CircleGeometry(0.05, 6).translate(0, 0, 0.06);
     const heads = [[0.1, 0.46, 0.0, 0.07], [0.0, 0.54, -0.07, 0.072], [-0.09, 0.44, 0.06, 0.064], [0.1, 0.4, 0.13, 0.06], [0.1, 0.55, -0.15, 0.058], [-0.02, 0.38, 0.17, 0.056], [0.17, 0.35, -0.09, 0.052], [0.0, 0.33, -0.17, 0.052]];
-    // Three overlapping tints graded by height: lilac-blue on top, deeper blue lower down (no hard band).
-    const tints = [0x9a9fe4, 0x7c93e0, 0x5f7dd2];
-    const o = new THREE.Object3D();
+    // Three overlapping tints graded by height: pale powder blue on top, deeper periwinkle lower down (no hard band).
+    const tints = [0xa2b3e6, 0x879dda, 0x6f85cc];
+    const o = new THREE.Object3D(), dn = new THREE.Vector3(), fn = new THREE.Vector3();
+    const domeLit = (g, nx, ny, nz) => {
+      const nm = g.attributes.normal;
+      dn.set(nx, ny / 0.8, nz).normalize();
+      for (let k = 0; k < nm.count; k++) { fn.fromBufferAttribute(nm, k).multiplyScalar(0.22).addScaledVector(dn, 0.78).normalize(); nm.setXYZ(k, fn.x, fn.y, fn.z); }
+      return g;
+    };
     heads.slice(0, lite ? 5 : 7).forEach(([hx2, hy, hz2, r], hi) => {
-      put(new THREE.IcosahedronGeometry(r * 0.8, 2), low, pl(hx2, hy - r * 0.08, hz2, 0, 0, 0, 1).multiply(new THREE.Matrix4().makeScale(1, 0.82, 1)), 0x34407a, false);
+      put(new THREE.IcosahedronGeometry(r * 0.8, 2), low, pl(hx2, hy - r * 0.08, hz2, 0, 0, 0, 1).multiply(new THREE.Matrix4().makeScale(1, 0.82, 1)), 0x4c5b8e, false);
       const m = Math.round((lite ? 70 : 125) * (r / 0.06) ** 2);
       const groups = [[], [], []], eyes = [];
       const ga = Math.PI * (3 - Math.sqrt(5));
@@ -345,11 +353,11 @@ export function build(ctx) {
         const sc = (0.046 + rnd() * 0.012) * (r / 0.06) ** 0.3;
         o.scale.set(sc, sc, sc); o.updateMatrix();
         const gv = Math.min(2, Math.max(0, Math.floor((f + (rnd() - 0.5) * 0.45) * 3)));
-        groups[gv].push(star.clone().applyMatrix4(o.matrix));
-        if (f < 0.8) eyes.push(eye.clone().applyMatrix4(o.matrix));
+        groups[gv].push(domeLit(star.clone().applyMatrix4(o.matrix), nx, ny, nz));
+        if (f < 0.8) eyes.push(domeLit(eye.clone().applyMatrix4(o.matrix), nx, ny, nz));
       }
       groups.forEach((gl, gi) => { if (gl.length) put(mergeAll(gl), low, pl(hx2, hy, hz2, 0, 0, 0, 1), jit(tints[gi], rnd, 0.03)); });
-      put(mergeAll(eyes), low, pl(hx2, hy, hz2, 0, 0, 0, 1), 0xdfe6f8, false);
+      put(mergeAll(eyes), low, pl(hx2, hy, hz2, 0, 0, 0, 1), 0xd6def4, false);
     });
   }
 

@@ -637,8 +637,8 @@ for (const [x, z, r, h] of NETTLES) fol(x, h * 0.5, z, Math.max(r, h * 0.35), { 
 for (const [x, z, r, h] of BRAMBLES) fol(x, h * 0.55, z, r, { kind: 'bramble', tall: h, seed: Math.round(x * 5 + z) });
 fol(BUDDLEIA.x, 1.55, BUDDLEIA.z, BUDDLEIA.r, { kind: 'buddleia' });
 fol(BUDDLEIA.x + 0.5, 2.0, BUDDLEIA.z - 0.3, 0.6, { kind: 'buddleia' });
-// Tidy borders and shrubs in p-1.
-for (const [x, h, z, r, k] of [[-3.8, 0.7, 2.0, 0.55, 'shrub'], [-3.85, 0.6, -3.7, 0.5, 'shrub'], [-10.2, 0.5, -3.2, 0.4, 'shrub'], [-3.8, 0.55, -5.6, 0.45, 'rose'], [-4.15, 0.5, 6.6, 0.45, 'shrub']]) fol(x, h, z, r, { kind: k });
+// Tidy borders and shrubs in p-1 (those along our fence stand clear of it: none of their leaves come through).
+for (const [x, h, z, r, k] of [[-4.1, 0.7, 2.0, 0.55, 'shrub'], [-4.1, 0.6, -3.7, 0.5, 'shrub'], [-10.2, 0.5, -3.2, 0.4, 'shrub'], [-4.05, 0.55, -5.6, 0.45, 'rose'], [-4.15, 0.5, 6.6, 0.45, 'shrub']]) fol(x, h, z, r, { kind: k });
 fol(-10.2, 0.9, 5.0, 0.5, { kind: 'shrub' });
 // Bushes on the strip.
 fol(-18.4, 1.0, 3.5, 0.6, { kind: 'bramble', tall: 1.0 });

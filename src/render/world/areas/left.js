@@ -368,7 +368,9 @@ function foliage(ctx, { add, rnd }) {
   const lumps = (f, r, tones, count = 3, flat = 0.85) => {
     for (let i = 0; i < count; i++) {
       const rr = r * (0.55 + rnd() * 0.3);
-      add(ctx.blobGeometry(rr, 1, Math.round(f.x * 13 + i * 7), 0.25), wk.leafy, T(f.x + (rnd() - 0.5) * r * 0.9, f.y + (rnd() - 0.4) * r * 0.5, f.z + (rnd() - 0.5) * r * 0.9, rnd() * 6, 0, 0, 1, flat, 1), tones[i % tones.length], 0);
+      // Never through the fence into our garden (x -3.4).
+      const lx = Math.min(f.x + (rnd() - 0.5) * r * 0.9, f.x < -3.4 ? -3.46 - rr * 1.2 : Infinity);
+      add(ctx.blobGeometry(rr, 1, Math.round(f.x * 13 + i * 7), 0.25), wk.leafy, T(lx, f.y + (rnd() - 0.4) * r * 0.5, f.z + (rnd() - 0.5) * r * 0.9, rnd() * 6, 0, 0, 1, flat, 1), tones[i % tones.length], 0);
     }
   };
   for (const f of L.FOLIAGE) {

@@ -18,7 +18,7 @@ import { ROOM, WALL_T, GARDEN } from '../../sim/layout.js';
 export const MAP = { x0: -26, x1: 26, z0: -54, z1: 38 };
 
 const TYPE_COLOR = {
-  grass: '#6f8a40', meadow: '#7f8a48', gravel: '#a39883', tarmac: '#4b4c4f', paving: '#a8a296', soil: '#56412f', dirt: '#7a664d',
+  grass: '#789843', meadow: '#86984c', gravel: '#a39883', tarmac: '#4b4c4f', paving: '#a8a296', soil: '#56412f', dirt: '#7a664d',
 };
 // Surface classes in the type map: R grass, G gravel, B hard (tarmac, paving); black is soil.
 const TYPE_RGB = {
@@ -278,6 +278,20 @@ export function buildGround(g, quality) {
   for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
     const a = base + j * (nx + 1) + i, b = a + 1, c = a + nx + 2, d = a + nx + 1;
     idx.push(a, d, c, a, c, b);
+  }
+  // A skirt hanging down all round the map's edge: where the far hills' coarser ground meets it, no crack shows
+  // the sky through the ground.
+  {
+    const per = [[MAP.x0, MAP.z0], [MAP.x1, MAP.z0], [MAP.x1, MAP.z1], [MAP.x0, MAP.z1], [MAP.x0, MAP.z0]];
+    for (let e = 0; e < 4; e++) {
+      const [x0, z0] = per[e], [x1, z1] = per[e + 1], n = Math.ceil(Math.hypot(x1 - x0, z1 - z0) / step);
+      for (let i = 0; i < n; i++) {
+        const xa = x0 + (x1 - x0) * i / n, za = z0 + (z1 - z0) * i / n, xb = x0 + (x1 - x0) * (i + 1) / n, zb = z0 + (z1 - z0) * (i + 1) / n;
+        const ha = groundHeight(xa, za), hb = groundHeight(xb, zb);
+        const a = vert(xa, ha, za), b = vert(xb, hb, zb), c = vert(xb, hb - 3, zb), d = vert(xa, ha - 3, za);
+        idx.push(a, c, b, a, d, c, a, b, c, a, c, d);   // both faces
+      }
+    }
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { makeNoise, fbm } from '../../gardenTextures.js';
-import { FY, BOUNDS, groundHeight, SUN_DIR } from '../../../sim/world/plan.js';
+import { FY, BOUNDS, groundHeight, SUN_DIR, streamZ } from '../../../sim/world/plan.js';
+import { SKY, HAZE_HEX } from '../../atmosphere.js';
 
 // The far distance beyond the walls of the world: a ring of English countryside from the edge of the painted
 // ground map (x +-26, z -54..38) out to 350 m. One ring of rolling hills carrying a painted patchwork of
@@ -94,7 +95,7 @@ export function build(ctx, root) {
 
   // ------------------------------------------------------------------ haze
   const NEAR = lite ? 12 : 28, FAR = lite ? 54 : 165, FINF = 0.93; // the scene's fog (garden.js)
-  const fogC = C(0xe4e0d4);
+  const fogC = C(HAZE_HEX);
   const f60 = clamp((60 - NEAR) / (FAR - NEAR), 0, 1);
   const hzc = [0, 0, 0];
   function hazeAt(x, y, z) {
@@ -104,8 +105,9 @@ export function build(ctx, root) {
     // Far haze takes the colour of the sky behind it (as seen from a nominal height), a touch bluer.
     const ex = x - CEN.x, ey = y - (FY + 10), ez = z - CEN.z, l = Math.hypot(ex, ey, ez) || 1, dy = ey / l;
     let sr, sg, sb;
-    if (dy >= 0) { const t = Math.pow(dy, 0.55); sr = 0.89 + (0.36 - 0.89) * t; sg = 0.88 + (0.55 - 0.88) * t; sb = 0.83 + (0.82 - 0.83) * t; }
-    else { const m = clamp(-dy * 4, 0, 1); sr = 0.89 + (0.42 - 0.89) * m; sg = 0.88 + (0.5 - 0.88) * m; sb = 0.83 + (0.36 - 0.83) * m; }
+    const [hr, hg, hb] = SKY.horizon, to = dy >= 0 ? SKY.zenith : SKY.below;
+    const t = dy >= 0 ? Math.pow(dy, 0.55) : clamp(-dy * 4, 0, 1);
+    sr = hr + (to[0] - hr) * t; sg = hg + (to[1] - hg) * t; sb = hb + (to[2] - hb) * t;
     const w = sm(110, 300, d) * 0.85;
     hzc[0] = fogC.r + (sr * 0.83 - fogC.r) * w;
     hzc[1] = fogC.g + (sg * 0.9 - fogC.g) * w;
@@ -439,6 +441,9 @@ export function build(ctx, root) {
     const angs = [];
     for (let i = 0; i < NA; i++) angs.push(i / NA * 6.2832 - 3.1416);
     for (const [x, z] of [[MAPR.x0, MAPR.z0], [MAPR.x1, MAPR.z0], [MAPR.x1, MAPR.z1], [MAPR.x0, MAPR.z1]]) angs.push(Math.atan2(z - CEN.z, x - CEN.x));
+    // Close round where the stream leaves the map at each side, so its channel carries on into the hills
+    // instead of the hills bridging it with a step and a gap.
+    for (const x of [MAPR.x0, MAPR.x1]) for (const dz of [-2.6, -1.8, -1.2, -0.7, -0.3, 0, 0.3, 0.7, 1.2, 1.8, 2.6]) angs.push(Math.atan2(streamZ(x) + dz - CEN.z, x - CEN.x));
     angs.sort((a, b) => a - b);
     const rings = [];       // rings[j][i] = [x, y, z]
     const edgeIn = (a) => {

@@ -25,8 +25,9 @@ export function worldKit(quality) {
     brick,
     // Clay roof tiles (tile 0.9 m); tint 0x8a8f98 for slate grey, 0xd09080 for bright new clay.
     roof,
-    // Dark window glass of houses you can't see into (reflects the sky).
-    window: new THREE.MeshStandardMaterial({ color: 0x1d252b, roughness: 0.06, metalness: 0.85, envMapIntensity: 1.2 }),
+    // Glass of houses you can't see into: a cool blue-grey that catches the sky, brighter at a glance than
+    // head on (tint it a little darker or lighter per pane; white is the base).
+    window: new THREE.MeshStandardMaterial({ color: 0x6d7c88, roughness: 0.08, metalness: 0.2, envMapIntensity: 1.1 }),
     // Dense foliage for canopies and hedges (tile ~0.6 m), and tree bark.
     leafy, bark,
     // Water you can see through a little (ponds, puddles): drawn last, no depth write.
@@ -133,8 +134,10 @@ export function windowAt(ctx, { x, y, z, ry = 0, w, h, style = 'sash', bars = 2,
   const k = ctx.kit, wk = ctx.wk;
   const at = (lx, ly, lz) => T(x + Math.cos(ry) * lx + Math.sin(ry) * lz, y + ly, z - Math.sin(ry) * lx + Math.cos(ry) * lz, ry);
   const f = 0.055;
-  if (glass) ctx.add(new THREE.PlaneGeometry(w, h), wk.window, at(0, h / 2, 0.004), 0xffffff, 0);
-  if (glass && curtains) for (const sx of [-1, 1]) ctx.add(new THREE.PlaneGeometry(w * 0.22, h * 0.92), k.fabric, at(sx * w * 0.37, h * 0.48, 0.006), [0xd9c9a8, 0xb9c4c9, 0xc9a8a0, 0xe0dccf][Math.abs(Math.round(x * 3 + z * 7)) % 4], 2);
+  // Panes differ a little (each catches a different patch of sky), and the curtains read from down the street.
+  const pick = Math.abs(Math.round(x * 3 + z * 7));
+  if (glass) ctx.add(new THREE.PlaneGeometry(w, h), wk.window, at(0, h / 2, 0.004), [0xffffff, 0xe2e6ea, 0xc8ced4, 0xf0f2f4, 0xd6dbe0][pick % 5], 0);
+  if (glass && curtains) for (const sx of [-1, 1]) ctx.add(new THREE.PlaneGeometry(w * 0.22, h * 0.92), k.fabric, at(sx * w * 0.37, h * 0.48, 0.006), [0xd9c9a8, 0xb9c4c9, 0xc9a8a0, 0xe0dccf][pick % 4], 1);
   // Frame and bars.
   ctx.add(new THREE.BoxGeometry(w + f * 2, f, 0.06), k.paint, at(0, h + f / 2, 0.02), trim, lod);
   ctx.add(new THREE.BoxGeometry(f, h + f * 2, 0.06), k.paint, at(-w / 2 - f / 2, h / 2, 0.02), trim, lod);
@@ -161,7 +164,7 @@ export function doorOnFace(ctx, s, d, trim = 0xf1ede4) {
 // ------------------------------------------------------------------ trees
 // A tree from a treeColliders spec, plus kind: 'oak' | 'birch' | 'apple' | 'ash' | 'conifer' and a seed.
 // Trunk and canopy lumps are lod 0 (seen from anywhere); limbs lod 1; leaf cards (swaying) lod 2.
-const _v = new THREE.Vector3();
+const _v = new THREE.Vector3(), _n = new THREE.Vector3();
 export function buildTree(ctx, s) {
   const wk = ctx.wk, y = s.y ?? ctx.groundY(s.x, s.z), rnd = mulberry(s.seed ?? Math.round(s.x * 97 + s.z * 13));
   const kind = s.kind || 'oak';
@@ -213,6 +216,14 @@ function blob(r, rnd, lite = false) {
     p.setXYZ(i, _v.x, _v.y, _v.z);
   }
   g.computeVertexNormals();
+  // Mostly the rounded normal of the whole lump, a little of each facet's: canopies and hedges read as soft
+  // masses of leaves in the light instead of cut gems.
+  const nm = g.attributes.normal;
+  for (let i = 0; i < p.count; i++) {
+    _v.set(p.getX(i), p.getY(i) / 0.72, p.getZ(i)).normalize();
+    _n.fromBufferAttribute(nm, i).multiplyScalar(0.3).addScaledVector(_v, 0.7).normalize();
+    nm.setXYZ(i, _n.x, _n.y, _n.z);
+  }
   return g;
 }
 

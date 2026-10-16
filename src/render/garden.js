@@ -10,6 +10,7 @@ import { buildDetail } from './detail.js';
 import { buildExtras } from './extras.js';
 import { buildWorld } from './world/index.js';
 import { HEDGE_GATE, groundHeight } from '../sim/world/plan.js';
+import { SKY, HAZE_HEX } from './atmosphere.js';
 
 const V2 = (x, y) => new THREE.Vector2(x, y);
 const _v = new THREE.Vector3(), _c = new THREE.Vector3();
@@ -31,7 +32,7 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
   const sunDir = kitchen.sun.position.clone().sub(kitchen.sun.target.position).normalize();
   const sky = skyDome(sunDir);
   scene.add(sky);
-  const horizon = new THREE.Color(0xe4e0d4);
+  const horizon = new THREE.Color(HAZE_HEX);
   // Haze over the neighbourhood: the world's far chunks stop drawing just beyond where it closes in.
   scene.fog = quality.lite ? new THREE.Fog(horizon, 12, 54) : new THREE.Fog(horizon, 28, 165);
   scene.background = horizon;
@@ -462,7 +463,7 @@ function skyDome(sunDir) {
       void main(){
         vec3 d = normalize(vDir);
         float y = max(d.y, 0.0);
-        vec3 zen = vec3(0.36, 0.55, 0.82), hor = vec3(0.89, 0.88, 0.83);
+        vec3 zen = vec3(${SKY.zenith.join(', ')}), hor = vec3(${SKY.horizon.join(', ')});
         vec3 col = mix(hor, zen, pow(y, 0.55));
         float sd = max(dot(d, normalize(uSun)), 0.0);
         col += vec3(1.0, 0.86, 0.62) * (pow(sd, 6.0) * 0.25 + pow(sd, 120.0) * 0.6) + vec3(1.0, 0.95, 0.85) * pow(sd, 2000.0) * 4.0;
@@ -471,7 +472,7 @@ function skyDome(sunDir) {
           float c = smoothstep(0.5, 0.78, fbm(uv + vec2(3.0, 1.0)));
           col = mix(col, vec3(1.0, 0.98, 0.95) * (0.92 + 0.12 * sd), c * 0.75 * smoothstep(0.02, 0.25, d.y));
         }
-        if (d.y < 0.0) col = mix(hor, vec3(0.42, 0.5, 0.36), clamp(-d.y * 4.0, 0.0, 1.0));
+        if (d.y < 0.0) col = mix(hor, vec3(${SKY.below.join(', ')}), clamp(-d.y * 4.0, 0.0, 1.0));
         gl_FragColor = vec4(col, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
