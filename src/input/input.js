@@ -201,10 +201,28 @@ export class Input {
     const k = Math.exp(-dt / CFG.input.mouse.spring);
     if (m.x !== 'none' && !this.mouseHolds(m.x)) this.mstick.x *= k;
     if (m.y !== 'none' && !this.mouseHolds(m.y)) this.mstick.y *= k;
+    this.levelMouse(dt);
     if (!this.locked) return;
     if (m.x !== 'none') o[m.x] += this.mstick.x;
     if (m.y !== 'none') o[m.y] += this.mstick.y;
   }
+  // Nose mode with Flight Assist on: a tilt left close to level drifts back to level by itself, so the
+  // helicopter settles upright and the assist's drift catch can stop it. Further out, the tilt stays where
+  // you put it. The pull is strongest at level and fades to nothing at the edge of the zone. Assist off,
+  // the virtual stick and yaw are untouched.
+  levelMouse(dt) {
+    const m = this.kbMap.mouse, L = CFG.input.mouse;
+    if (m.mode !== 'nose' || !this.assist || !(L.levelRate > 0) || !(L.levelZone > 0)) return;
+    const tilt = (t) => t === 'pitch' || t === 'roll';
+    const hx = tilt(m.x), hy = tilt(m.y);
+    if (!hx && !hy) return;
+    const r = Math.hypot(hx ? this.mstick.x : 0, hy ? this.mstick.y : 0);
+    if (r >= L.levelZone) return;
+    const k = Math.exp(-dt * L.levelRate * (1 - r / L.levelZone));
+    if (hx) { this.mstick.x *= k; if (Math.abs(this.mstick.x) < 0.01) this.mstick.x = 0; }
+    if (hy) { this.mstick.y *= k; if (Math.abs(this.mstick.y) < 0.01) this.mstick.y = 0; }
+  }
+
   // For the HUD: the mouse stick's dot, or a nudge to click in. Null when the mouse does not fly.
   mouseView() {
     if (!this.mouseFlies) return null;
@@ -242,11 +260,8 @@ export class Input {
         const code = `Mouse${e.button}`;
         if (this.kbCapture) { e.preventDefault(); this.finishCapture(code); return; }
         this.source = 'keyboard';
-        if (this.mouseFlies && !this.locked && e.button === 0 && !this.menuMode && canvas.requestPointerLock) {
-          this.wantLock = true;
-          try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => { this.wantLock = false; }); } catch { this.wantLock = false; }
-          return;
-        }
+        // A click (not a drag) captures the mouse for flying; a drag still orbits the camera first.
+        this.clickLock = this.mouseFlies && !this.locked && e.button === 0 && !this.menuMode && canvas.requestPointerLock ? { x: e.clientX, y: e.clientY, t: performance.now() } : null;
         const bind = this.kidx.get(code);
         if (bind) { this.keys.add(code); this.pressBind(bind, code, e.shiftKey); if (bind !== 'freeLook') return; }
         if (this.locked || e.button === 2) return;
@@ -295,6 +310,12 @@ export class Input {
         return;
       }
       if (this.dragging && e.pointerId === this.dragging.id) this.dragging = null;
+      const c = this.clickLock;
+      this.clickLock = null;
+      if (c && e.type === 'pointerup' && !this.menuMode && Math.hypot(e.clientX - c.x, e.clientY - c.y) < 6 && performance.now() - c.t < 500) {
+        this.wantLock = true;
+        try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => { this.wantLock = false; }); } catch { this.wantLock = false; }
+      }
     };
     // A mouse button released over the HUD or outside the window still lets go (the GoPro on right mouse).
     window.addEventListener('pointerup', (e) => { if (e.pointerType === 'mouse') this.keys.delete(`Mouse${e.button}`); });

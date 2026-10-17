@@ -160,7 +160,9 @@ export const CFG = {
     // flick. nosePx / noseYawPx: pixels for a full push. stickPx: pixels from centre to full deflection when
     // the mouse is a stick that stays put (virtual stick mode, and nose-mode tilt with Flight Assist on).
     // All three scale with the player's mouse sensitivity.
-    mouse: { spring: 0.08, nosePx: 250, noseYawPx: 120, stickPx: 400 },
+    // levelZone / levelRate: with Assist on, a nose-mode tilt under levelZone (of full tilt) eases back to level,
+    // at levelRate per second at level, fading to nothing at the zone's edge.
+    mouse: { spring: 0.08, nosePx: 250, noseYawPx: 120, stickPx: 400, levelZone: 0.3, levelRate: 2.5 },
   },
 
   // Tandem-rotor heavy lifter (CH-47 style), about 1:90 scale: 17 cm fuselage, two 20 cm rotors.

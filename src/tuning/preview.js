@@ -441,6 +441,30 @@ export class PreviewRig {
   }
 }
 
+// Mouse self-levelling: tilt over two seconds after letting go, from three starting tilts (of full tilt).
+// The same sums as Input.levelMouse, with the base rate 2.5 / s and zone 0.3 scaled by the knob.
+function drawLevelling(g, w, h, knobId, values, phase) {
+  const half = w / 2, dpr = devicePixelRatio || 1;
+  values.forEach((v, i) => {
+    const rate = 2.5 * (knobId === 'mouseLevel' ? v : 1), zone = 0.3 * (knobId === 'mouseLevelZone' ? v : 1);
+    const x0 = i * half + 18, y0 = h - 22, W = half - 36, H = h - 44;
+    g.strokeStyle = 'rgba(42,29,22,0.25)'; g.lineWidth = 1; g.strokeRect(x0, y0 - H, W, H);
+    g.setLineDash([4 * dpr, 4 * dpr]); g.beginPath(); g.moveTo(x0, y0 - H * Math.min(1, zone / 0.6)); g.lineTo(x0 + W, y0 - H * Math.min(1, zone / 0.6)); g.stroke(); g.setLineDash([]);
+    for (const start of [0.1, 0.25, 0.45]) {
+      g.strokeStyle = '#c8553d'; g.lineWidth = 2.5 * dpr; g.beginPath();
+      let r = start;
+      for (let k = 0; k <= 120; k++) {
+        const px = x0 + (k / 120) * W, py = y0 - H * Math.min(1, r / 0.6);
+        if (k === 0) g.moveTo(px, py); else g.lineTo(px, py);
+        if (r < zone && zone > 0) r *= Math.exp(-(2 / 120) * rate * (1 - r / zone));
+      }
+      g.stroke();
+    }
+    const t = (phase % 2) / 2;
+    g.fillStyle = '#2a1d16'; g.fillRect(x0 + t * W - dpr, y0 - H, 2 * dpr, H);
+  });
+}
+
 // Stick curves (deadzone, expo, rates) are clearer as an animated graph than as a flight.
 export function drawCurve(canvas, knobId, values, phase) {
   const g = canvas.getContext('2d');
@@ -448,6 +472,7 @@ export function drawCurve(canvas, knobId, values, phase) {
   const h = canvas.height = canvas.clientHeight * (devicePixelRatio || 1);
   g.fillStyle = '#f8f1e4'; g.fillRect(0, 0, w, h);
   const half = w / 2;
+  if (knobId.startsWith('mouseLevel')) { drawLevelling(g, w, h, knobId, values, phase); return; }
   const shape = (x, v) => {
     const d = knobId === 'deadzone' ? v : 0, e = knobId === 'expo' ? v : 0, r = knobId === 'rates' ? v : 1;
     const a = Math.abs(x);

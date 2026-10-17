@@ -104,7 +104,8 @@ export const KB_PRESETS = {
   },
 };
 export const KB_PRESET_ORDER = ['keyboard', 'battlefield', 'battlefieldYaw', 'mouseStick'];
-export const KB_DEFAULT_PRESET = 'keyboard';
+// Battlefield is the desktop default: click the scene and the mouse flies. Saved choices are kept.
+export const KB_DEFAULT_PRESET = 'battlefield';
 
 // ---------------------------------------------------------------- layout state
 

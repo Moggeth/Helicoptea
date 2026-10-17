@@ -1,6 +1,5 @@
 // Headless Chrome can confine the real Windows pointer. All local QA uses this launcher.
-import { chromium as nativeChromium, webkit } from 'playwright-core';
-export { webkit };
+import { chromium as nativeChromium, webkit as nativeWebkit } from 'playwright-core';
 
 export function blockNativePointerLock() {
   Element.prototype.requestPointerLock = function () {
@@ -43,3 +42,5 @@ export function desktopSafeChromium(browserType, platform = process.platform) {
 }
 
 export const chromium = desktopSafeChromium(nativeChromium);
+// WebKit (the iPhone Safari check) gets the same guard.
+export const webkit = desktopSafeChromium(nativeWebkit);
