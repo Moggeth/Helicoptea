@@ -5,7 +5,7 @@
 // --webkit it also runs in Playwright's WebKit (iPhone Safari's engine) when that is installed.
 //
 //   node tests/e2e-mobile-audit.mjs http://127.0.0.1:4199/ [--webkit]   (HELI_WEBKIT=path/to/Playwright.exe for another WebKit build)
-import { chromium, webkit } from 'playwright-core';
+import { chromium, webkit } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 const base = process.argv.find((a) => a.startsWith('http')) || 'http://127.0.0.1:4199/';
 const executablePath = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome'].find(fs.existsSync);
