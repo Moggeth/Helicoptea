@@ -6,6 +6,8 @@ import { CFG } from '../src/config.js';
 import { batchStaticMeshes, freezeWorldBranch, updateVisibleMatrices } from '../src/render/sceneWork.js';
 import { indexedCopy } from '../src/render/batch.js';
 import { LoadCamera } from '../src/render/cockpitCam.js';
+import { RippleField } from '../src/render/rippleField.js';
+import { resolutionPressure } from '../src/render/resolutionBudget.js';
 
 function fieldAt(x, y, z) {
   const heli = { pos: new THREE.Vector3(x, y, z), quat: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0), thrust: CFG.heli.mass * 9.81 };
@@ -115,4 +117,36 @@ test('rate-limited hook-camera frames do no world culling; render failure restor
   assert.throws(() => cam.render({}, true, () => before++, () => after++), /driver failure/);
   assert.equal(before, 2); assert.equal(after, 2);
   assert.equal(target, null); assert.equal(renderer.shadowMap.autoUpdate, true);
+});
+
+test('120 Hz resolution fallback reacts without GPU timers, preserves CPU-bound frames and battery cap', () => {
+  assert.equal(resolutionPressure(16.7, -1, 2, 120).slow, true);
+  assert.equal(resolutionPressure(16.7, -1, 10, 120).slow, false);
+  assert.equal(resolutionPressure(16.7, -1, 2, 60).slow, false);
+  assert.equal(resolutionPressure(33.3, -1, 2, 120, 30).slow, false);
+  assert.equal(resolutionPressure(16.7, 12, 2, 120).slow, true);
+  assert.equal(resolutionPressure(8.33, -1, 2, 120).roomy, true);
+});
+
+test('liquid footprint cache preserves the analytic blade forcing for every aircraft', () => {
+  for (const nb of [2, 3, 6]) {
+    const field = new RippleField(0.045, 32);
+    const f = { x: 0.002, z: -0.003, a: 0.0187, depth: 0.0033, I: 0, nb, omega: -17, phase: 0.6 };
+    field.step(1 / 240, [f]);
+    for (let k = 0; k < field.n ** 2; k++) {
+      if (!field.shape[0][k]) continue;
+      const dx = field.cx[k] - f.x, dz = field.cz[k] - f.z, r2 = dx * dx + dz * dz;
+      const pulse = 0.35 * Math.sin(field.t * f.omega * nb + f.phase);
+      const exact = -field.k * f.depth * Math.exp(-r2 / (f.a ** 2)) * (1 + pulse + 0.6 * Math.min(1, r2 / (f.a ** 2) * 2.5) * Math.cos(nb * (Math.atan2(dz, dx) - field.t * f.omega - f.phase)));
+      assert.ok(Math.abs(field.F[k] - exact) < 2e-7, `${nb} blades, cell ${k}`);
+    }
+    for (let i = 0; i < 20; i++) field.step(1 / 120, [f]);
+    assert.equal(field.shapeBuilds, 1);
+    f.x += 0.001; field.step(1 / 120, [f]);
+    assert.equal(field.shapeBuilds, 2);
+    const version = field.texture.version;
+    assert.equal(field.step(0, [f]), false);
+    assert.equal(field.texture.version, version);
+    field.texture.dispose();
+  }
 });

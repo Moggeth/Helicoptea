@@ -53,6 +53,26 @@ render target, shadow settings and world visibility. The inset's projection matr
 `tests/e2e-performance.mjs` checks idle DOM mutation counts, hidden-aircraft matrix work, kitchen batches,
 all three cockpit switches, and hook-camera culling cadence using work counts instead of GPU-dependent FPS.
 
+## Liquid and refresh budgets
+
+The ripple solver caches each rotor footprint until its position, width or blade count changes. Its
+rotating lobe uses the cosine difference identity, so trigonometry is computed per rotor/substep instead
+of per forced cell. Frames without a fixed wave step do not encode/upload an unchanged field. Tests
+compare forcing against the analytic formula for 2, 3 and 6 blades and retain the existing dimple,
+volume, boundedness, ringing and settling checks. The wave grid and 240 Hz integration remain intact.
+
+Dynamic resolution now uses the fastest observed display cadence when GPU timer queries are unavailable,
+instead of a fixed 19.5 ms slowdown threshold. A rendering-limited 16.7 ms frame can therefore request
+less pixel work after 120 Hz has been observed. Simulation/UI-bound frames retain their resolution,
+and an explicit frame cap (including 30 Hz Battery saver) sets the effective target. The browser cannot
+reliably discover a display mode the game has never reached; physical S24 acceptance must check that
+Chrome and Android actually provide 120 Hz, as well as GPU time and thermals.
+
+Measurement lessons: benchmark serially, with no acceptance suite sharing its GPU window. The first
+candidate sample overlapped the rotor-wash suite and is retained only as diagnostic evidence. Wait for
+the loading screen's 500 ms dismissal before asserting zero idle DOM mutations; the first work-count
+run caught that one legitimate lifecycle mutation, then passed after the fixture waited for it.
+
 Lesson: verify that a computed texture or uniform has a live consumer before optimizing its update
 frequency. The first revision throttled the legacy cloth texture; source inspection then showed the
 whole producer could safely be removed.

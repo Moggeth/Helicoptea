@@ -37,6 +37,7 @@ import { warmInSteps } from './render/warmup.js';
 import { gpuEstimate } from './render/gpuBudget.js';
 import { warmEverything } from './render/prewarm.js';
 import { updateVisibleMatrices } from './render/sceneWork.js';
+import { resolutionPressure } from './render/resolutionBudget.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -1306,11 +1307,9 @@ async function boot() {
     frameEMA = frameEMA * 0.95 + (frameDt * 1000) * 0.05;
     if (started && !paused && dynRes) {
       // Aim at the display's own refresh rate (120 Hz on a 120 Hz screen), and only trade resolution when the
-      // GPU is the bottleneck: a CPU-bound frame (a slow phone) gains nothing from fewer pixels. Browsers that
-      // don't report GPU time keep the old 60 Hz rule.
-      const budget = 1000 / (fpsMeter.refreshHz || 60), gpu = perf.gpuMs;
-      const slow = gpu >= 0 ? frameEMA > budget * 1.2 + 0.5 && gpu > budget * 0.8 : frameEMA > 19.5;
-      const roomy = gpu >= 0 ? gpu < budget * 0.5 && frameEMA < budget * 1.1 + 0.5 : frameEMA < 14;
+      // GPU is the bottleneck: a CPU-bound frame gains nothing from fewer pixels. Without timer queries,
+      // infer rendering pressure from the display cadence and simulation/UI time; respect Battery saver.
+      const { slow, roomy } = resolutionPressure(frameEMA, perf.gpuMs, tR - cpu0, fpsMeter.refreshHz, fpsCap);
       if (slow) { lowFrames++; highFrames = 0; } else if (roomy) { highFrames++; lowFrames = 0; } else { lowFrames = highFrames = 0; }
       if (lowFrames > 90 && dprScale > 0.55) { dprScale = Math.max(0.55, dprScale - 0.1); lowFrames = 0; resize(); }
       if (highFrames > 240 && dprScale < 1) { dprScale = Math.min(1, dprScale + 0.1); highFrames = 0; resize(); }
