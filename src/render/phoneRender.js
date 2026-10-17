@@ -174,7 +174,7 @@ export class PhoneRender {
         bm.setMatrixAt(id, o.matrixWorld);
         const c = o.material.color;
         bm.setColorAt(id, c);
-        const mem = { o, bm, id, m: new Float32Array(o.matrixWorld.elements), vis: true, mat: o.material, key: this.matKey(o.material), r: c.r, g: c.g, b: c.b, dead: false };
+        const mem = { o, bm, id, m: new Float32Array(o.matrixWorld.elements), vis: true, mat: o.material, key: this.matKey(o.material), r: c.r, g: c.g, b: c.b, dead: false, scene };
         o.layers.set(HIDDEN_LAYER);
         this.members.push(mem);
       }
@@ -188,7 +188,7 @@ export class PhoneRender {
     }
     this.stats.batches = this.batches.length;
     this.stats.members = this.members.length;
-    this.scene = scene;
+    this.scene ??= scene;   // the first one batched: the world
   }
 
   // A member that changed material (or anything else batching can't follow) goes back to drawing alone.
@@ -203,7 +203,6 @@ export class PhoneRender {
   update() {
     for (let i = 0; i < this.synced.length; i++) syncMaterial(this.synced[i][0], this.synced[i][1]);
     if (++this.frame % WALK_EVERY === 0) for (const s of this.scenes) this.convert(s);
-    const scene = this.scene;
     for (let i = 0; i < this.members.length; i++) {
       const mem = this.members[i];
       if (mem.dead) continue;
@@ -212,8 +211,8 @@ export class PhoneRender {
       if (mat !== mem.mat) { this.eject(mem); continue; }
       // Drawn only when it, its material and every ancestor are visible and it is still in the scene.
       let vis = o.visible && mat.visible, p = o.parent;
-      while (vis && p && p !== scene) { vis = p.visible; p = p.parent; }
-      if (p !== scene) vis = false;
+      while (vis && p && p !== mem.scene) { vis = p.visible; p = p.parent; }
+      if (p !== mem.scene) vis = false;
       if (vis !== mem.vis) { mem.vis = vis; mem.bm.setVisibleAt(mem.id, vis); }
       if (!vis) continue;
       const c = mat.color;

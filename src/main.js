@@ -976,6 +976,9 @@ async function boot() {
   let last = performance.now();
   let frameEMA = 16.7;
   let lowFrames = 0, highFrames = 0;
+  // Without a GPU timer (phones): main-thread time per frame, and the highest resolution scale known to keep
+  // up (a scale that was too slow once is not stepped back up to this session, so it doesn't see-saw).
+  let cpuEMA = 8, dprCeil = 1;
   // ?fps=30 caps rendering for tests; on phones Pause → Battery saver caps it at 30 (physics stays at 240 Hz).
   let fpsCap = parseFloat(params.get('fps')) || (IS_TOUCH && store.get('batterySaver', '0') === '1' ? 30 : 0);
   const dynRes = params.get('dynres') !== '0';
@@ -1329,12 +1332,15 @@ async function boot() {
     if (started && !paused && dynRes) {
       // Aim at the display's own refresh rate (120 Hz on a 120 Hz screen), and only trade resolution when the
       // GPU is the bottleneck: a CPU-bound frame (a slow phone) gains nothing from fewer pixels. Browsers that
-      // don't report GPU time keep the old 60 Hz rule.
+      // don't report GPU time (Android Chrome and Edge) judge it from the main thread instead: frames slower
+      // than the display while the main thread is mostly idle are waiting on the GPU.
       const budget = 1000 / (fpsMeter.refreshHz || 60), gpu = perf.gpuMs;
-      const slow = gpu >= 0 ? frameEMA > budget * 1.2 + 0.5 && gpu > budget * 0.8 : frameEMA > 19.5;
-      const roomy = gpu >= 0 ? gpu < budget * 0.5 && frameEMA < budget * 1.1 + 0.5 : frameEMA < 14;
+      // (The previous frame's: this one's main-thread time is written at its end.)
+      cpuEMA = cpuEMA * 0.95 + perf.cpu[(perf.i - 2 + perf.cpu.length) % perf.cpu.length] * 0.05;
+      const slow = frameEMA > budget * 1.2 + 0.5 && (gpu >= 0 ? gpu > budget * 0.8 : cpuEMA < frameEMA * 0.6);
+      const roomy = gpu >= 0 ? gpu < budget * 0.5 && frameEMA < budget * 1.1 + 0.5 : frameEMA < budget * 1.08 + 0.3 && dprScale + 0.1 < dprCeil - 0.001;
       if (slow) { lowFrames++; highFrames = 0; } else if (roomy) { highFrames++; lowFrames = 0; } else { lowFrames = highFrames = 0; }
-      if (lowFrames > 90 && dprScale > 0.55) { dprScale = Math.max(0.55, dprScale - 0.1); lowFrames = 0; resize(); }
+      if (lowFrames > 90 && dprScale > 0.55) { if (gpu < 0) dprCeil = dprScale; dprScale = Math.max(0.55, dprScale - 0.1); lowFrames = 0; resize(); }
       if (highFrames > 240 && dprScale < 1) { dprScale = Math.min(1, dprScale + 0.1); highFrames = 0; resize(); }
     }
     if (debug.enabled) hud.setDebug(debug.text({ frameDt, frameEMA, physMs, steps, renderMs, ctl, dprScale, dpr: renderer.getPixelRatio(), quality, source: input.source, gamepad: input.gp }));
