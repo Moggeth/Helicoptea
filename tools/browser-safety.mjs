@@ -13,6 +13,9 @@ export function blockNativePointerLock() {
 export function desktopSafeChromium(browserType, platform = process.platform, ci = process.env.GITHUB_ACTIONS === 'true') {
   return {
     async launch(options) {
+      if (ci) {
+        options = { ...options, args: [...new Set([...(options?.args || []), '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'])] };
+      }
       if (process.env.HELICOPTEA_SOFTWARE_GL === '1') {
         options = { ...options, args: [...(options?.args || []).filter(arg => !arg.startsWith('--use-angle=')), '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] };
       }

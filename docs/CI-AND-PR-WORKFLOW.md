@@ -78,6 +78,12 @@ status, anonymous HTML/assets and build marker separately after merging.
   after the short slow-motion beat had ended. Observe the minimum scale in the existing in-page frame
   instrumentation while the damaged aircraft is still flying. Keep debris/shard thresholds unchanged;
   this tests the actual transient rather than the timing of the automation round trip.
+- Run `38994183839`'s Linux job timed out before the start screen (**120 s**), so it did not verify the
+  revised collective case. Browser errors were absent from that log; the startup cause was not yet
+  established. Native failures now retain loading text, focus/visibility, aircraft/control state and a
+  screenshot. CI browsers disable background timer/renderer throttling (as several existing suites
+  already did). The self-contained Linux job runs alongside headless checks, rather than waiting for
+  them; the aggregate still requires both. Do not describe a pre-start timeout as a control failure.
 
 ## Inspection and recovery
 

@@ -94,6 +94,10 @@ try {
   check('no page errors', errors.length === 0, errors.slice(0, 3));
 } catch (e) {
   check('suite ran', false, String(e && e.stack || e));
+  for (const ctx of browser.contexts()) for (const page of ctx.pages()) {
+    console.log('INFO mouse failure state', JSON.stringify(await page.evaluate(() => ({ visibility: document.visibilityState, focus: document.hasFocus(), load: document.getElementById('load-status')?.textContent, error: document.getElementById('error-msg')?.textContent, ready: !!window.__helicoptea, paused: window.__helicoptea?.paused, state: window.__helicoptea?.sim.state, keys: [...(window.__helicoptea?.input.keys || [])], collective: window.__helicoptea?.sim.heli?.collective })).catch(() => ({}))));
+    await page.screenshot({ path: path.join(out, 'failure.png'), timeout: 5000 }).catch(() => {});
+  }
 } finally {
   await browser.close();
 }
