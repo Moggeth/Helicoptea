@@ -34,6 +34,14 @@ it fails if build/headless checks or any browser job fails or is cancelled. Wind
 capture is explicitly skipped; the separate Linux native-mouse job must also pass `CI ready`.
 Subcontracted Claude commissions retain their existing no-publication boundary.
 
+Other projects can switch the shared active `gh` account while a long review runs. Before every network
+Git operation, verify the project identity again. Prefer binding the existing `Moggeth` credential in
+the child process (`GH_TOKEN` from `gh auth token --hostname github.com --user Moggeth`) and confirming
+`gh api user --jq .login`. For HTTPS Git, use an empty credential-helper entry followed by
+`!gh auth git-credential` for that invocation so a work-account credential manager cannot win. Never
+print or persist the token, change another project's login, or assume a successful earlier identity
+check still applies. This is reuse of existing credentials, not account provisioning.
+
 Read `README.md` and `docs/OPTIMIZATION-2026-10-14.md` for commands, measured results and known limits.
 Use an unused test-server port and require the spawned server to announce readiness. Do not rebuild a
 shared `dist/` while another browser suite uses it; a separate Vite `--outDir` avoids that conflict.

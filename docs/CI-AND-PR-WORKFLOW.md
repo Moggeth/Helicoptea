@@ -53,12 +53,19 @@ status, anonymous HTML/assets and build marker separately after merging.
 - The first frame-wait candidate failed locally at the later Help setup. A screenshot showed a healthy
   flying scene, not a crash. Bounded pointer/click tracing showed Pause pointerdown/up with no synthesized
   click after the CDP drag. Increasing/reordering gesture timestamps did not fix that. Keep timestamps
-  chronological and no later than wall time, retain real Pause/Resume tap assertions, and isolate Help
-  wording with the game pause action plus ordinary browser clicks. Rapid post-drag menu taps still need
-  physical-device acceptance; no game-side fix or touch acceptance is claimed here.
+  chronological and no later than wall time. An attempted Help-only setup using game actions/browser
+  clicks progressed further but then failed at a later portrait tap, so that workaround was rejected.
+  The accepted fix keeps the original 60 ms minimum gesture duration in addition to waiting for input
+  frames, and retains actual touch Pause, Resume, Help and portrait-menu taps. All **40 local touch checks
+  passed** afterward. Rapid physical-device post-drag taps still need hands-on acceptance; no game-side
+  control fix or physical touch acceptance is claimed here.
 - Syntax checks alone do not detect a helper used without an import. After a multi-file readiness edit,
   explicitly inspect imports (including compact `{chromium}` spellings) and run those browser suites
   before pushing. The five compact-import suites passed 82 local checks after the readiness refactor.
+- A later push was denied as `mitch-dromeda` after another process changed the shared active account.
+  Do not switch accounts back and forth across projects. Bind the cached Moggeth token only in this
+  child process, verify `gh api user`, and override HTTPS Git's helper for that invocation as described
+  in `AGENTS.md`. A prior successful identity check is not sufficient for a long concurrent session.
 
 ## Inspection and recovery
 

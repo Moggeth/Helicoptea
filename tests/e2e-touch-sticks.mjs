@@ -48,7 +48,7 @@ async function open(viewport, query = '', { ios = false } = {}) {
 // Coalesced pointer moves are delivered with a frame. A fixed 60 ms can fall between software-GPU
 // frames and lose the intermediate leash movement, so wait for the browser's input/frame cycle.
 const inputFrame = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-const T = async (page) => { await inputFrame(page); return page.evaluate(() => ({ ...window.__helicoptea.input.touch })); };
+const T = async (page) => { await inputFrame(page); await sleep(60); return page.evaluate(() => ({ ...window.__helicoptea.input.touch })); };
 const zoneBox = (page, side) => page.locator(`.stick-zone.${side}`).boundingBox();
 
 try {
@@ -145,6 +145,7 @@ try {
     check('layout and size are saved and applied', stored[0] === 'aim' && stored[1] === '84px', stored);
     await page.tap('.overlay [data-act=resume]');
     await page.waitForFunction(() => !window.__helicoptea.paused);
+    await sleep(150);
     check('the touch Resume button returns to flight', await page.evaluate(() => !window.__helicoptea.paused));
     const R2 = await zoneBox(page, 'right');
     await touch('touchStart', [{ x: R2.x + R2.width * 0.6, y: R2.y + R2.height * 0.6, id: 7 }]);
@@ -155,15 +156,15 @@ try {
     const labels2 = await page.evaluate(() => [...document.querySelectorAll('.stick-label')].map((l) => l.textContent));
     check('stick labels follow the layout', labels2[0] === 'LiftRoll' && labels2[1] === 'PitchTurn', labels2);
 
-    // Help wording is independent of the preceding CDP drag. Chrome can suppress a synthesized
-    // click immediately after that gesture; actual Pause and Resume taps were checked above.
-    await page.evaluate(() => window.__helicoptea.doAction('pause'));
+    // Help sheet follows the layout; retain the original human-scale gap after the drag gesture.
+    await sleep(150);
+    await page.tap('.hud-tr [data-act=pause]');
     await page.waitForSelector('.overlay.show [data-act=help]', { timeout: 5000 });
-    await page.click('.overlay.show [data-act=help]');
+    await page.tap('.overlay.show [data-act=help]');
     const help = await page.locator('.overlay.show .help-grid').textContent();
     check('touch help describes the chosen layout', help.includes('tilt left / tilt right') && help.includes('Double-tap'), help.slice(0, 120));
-    await page.click('.overlay.show [data-act=closehelp]');
-    await page.click('.overlay.show [data-act=resume]');
+    await page.tap('.overlay.show [data-act=closehelp]');
+    await page.tap('.overlay.show [data-act=resume]');
 
     // Frame rate on the emulated phone (Chrome on this PC, not a phone GPU).
     const fps = await page.evaluate(async () => { const H = window.__helicoptea; const f0 = H.frames, t0 = performance.now(); await new Promise((r) => setTimeout(r, 3000)); return +((H.frames - f0) / ((performance.now() - t0) / 1000)).toFixed(1); });
