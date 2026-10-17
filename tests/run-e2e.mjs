@@ -64,7 +64,7 @@ let gpu = 'unknown';
 try {
   const { chromium } = await import('../tools/browser-safety.mjs');
   const CHROME = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome'].find((p) => fs.existsSync(p));
-  const b = await chromium.launch({ executablePath: CHROME, headless: !headed, args: ['--ignore-gpu-blocklist', '--use-angle=d3d11'] });
+  const b = await chromium.launch({ executablePath: CHROME, headless: !headed, args: ['--ignore-gpu-blocklist', process.platform === 'win32' ? '--use-angle=d3d11' : '--use-angle=swiftshader', ...(process.platform === 'win32' ? [] : ['--enable-unsafe-swiftshader'])] });
   const p = await b.newPage();
   gpu = `${b.version()} · ` + await p.evaluate(() => {
     const gl = document.createElement('canvas').getContext('webgl2');

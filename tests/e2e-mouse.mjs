@@ -12,7 +12,7 @@ if (process.platform === 'win32') {
   console.log('SKIP Native pointer-lock acceptance requires an isolated Linux runner; Windows desktop capture is blocked.');
   process.exit(0);
 }
-const browser = await chromium.launch({ executablePath, headless: !process.argv.includes('--headed'), args: ['--ignore-gpu-blocklist', '--use-angle=d3d11'] });
+const browser = await chromium.launch({ executablePath, headless: !process.argv.includes('--headed'), args: ['--ignore-gpu-blocklist', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const checks = [];
 const check = (name, ok, detail = '') => { checks.push({ name, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name} ${detail ? JSON.stringify(detail) : ''}`); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

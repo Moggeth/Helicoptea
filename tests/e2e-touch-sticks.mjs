@@ -30,7 +30,7 @@ async function open(viewport, query = '', { ios = false } = {}) {
   await page.goto(`${base}?record=0&dynres=0${query}`);
   await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 90000 });
   const cdp = await ctx.newCDPSession(page);
-  const touch = (type, touchPoints) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints });
+  const touch = (type, touchPoints, timestamp) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints, ...(timestamp === undefined ? {} : { timestamp }) });
   return { ctx, page, errors, touch };
 }
 // Pointer moves are delivered with the next frame, so let one pass before reading the sticks.
@@ -85,12 +85,21 @@ try {
     check('the stick ring goes back to its resting spot', base0 === '', base0);
 
     // Double-tap open screen (between the sticks, below the top bar) to look ahead again.
-    await page.evaluate(() => { window.__helicoptea.input.camOrbit.yaw = 1.2; });
+    await page.evaluate(() => { window.__helicoptea.input.camOrbit.yaw = 1.2; window.__helicoptea.input.lastOpenTap = null; });
     const ox = 422, oy = 180;
-    for (let i = 0; i < 2; i++) { await touch('touchStart', [{ x: ox, y: oy, id: 5 }]); await touch('touchEnd', []); await sleep(90); }
-    await sleep(100);
+    // CDP transport can take longer than the double-tap window on a software GPU. Timestamp the
+    // actual gesture (120 ms between taps) instead of measuring renderer/automation round-trip delay.
+    const tapAt = Date.now() / 1000;
+    for (let i = 0; i < 2; i++) { await touch('touchStart', [{ x: ox, y: oy, id: 5 }], tapAt + i * 0.12); await touch('touchEnd', [], tapAt + i * 0.12 + 0.02); }
+    await page.waitForFunction(() => window.__helicoptea.input.camOrbit.yaw === 0);
     const orbit = await page.evaluate(() => window.__helicoptea.input.camOrbit.yaw);
     check('double-tap the open screen looks ahead again', orbit === 0, orbit);
+
+    await page.evaluate(() => { window.__helicoptea.input.camOrbit.yaw = 1.2; window.__helicoptea.input.lastOpenTap = null; });
+    const slowTapAt = Date.now() / 1000;
+    for (let i = 0; i < 2; i++) { await touch('touchStart', [{ x: ox, y: oy, id: 5 }], slowTapAt + i * 0.7); await touch('touchEnd', [], slowTapAt + i * 0.7 + 0.02); }
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    check('two separate taps do not recenter the camera', await page.evaluate(() => window.__helicoptea.input.camOrbit.yaw === 1.2));
 
     // Assist switch top left toggles assist (the old Assist button is gone).
     const a0 = await page.evaluate(() => window.__helicoptea.sim.assist);

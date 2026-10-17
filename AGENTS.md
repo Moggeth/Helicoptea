@@ -31,7 +31,7 @@ Both local agents currently use GitHub account `Moggeth`. Record the reviewing a
 the PR; this is not a GitHub approval from a separate account. Do not require an independent GitHub
 approval unless separate reviewer identities are configured. The stable aggregate check is `CI ready`;
 it fails if build/headless checks or any browser job fails or is cancelled. Windows native mouse
-capture is explicitly skipped, so green Windows CI does not establish Linux capture acceptance.
+capture is explicitly skipped; the separate Linux native-mouse job must also pass `CI ready`.
 Subcontracted Claude commissions retain their existing no-publication boundary.
 
 Read `README.md` and `docs/OPTIMIZATION-2026-10-14.md` for commands, measured results and known limits.

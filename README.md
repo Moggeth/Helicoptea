@@ -185,7 +185,8 @@ template. Review the current revision and wait for **CI ready**, which aggregate
 checks and every browser matrix job. Hosted CI contexts allow 120 seconds for implicit browser actions
 and navigation; explicit behavior deadlines remain unchanged. Feature pushes rely on the PR trigger
 instead of starting a duplicate full suite. Windows mouse-capture acceptance is reported as skipped;
-it still needs an isolated Linux runner. Vercel deploys independently of CI, so inspect both results.
+the separate Linux native-mouse job exercises capture without touching the Windows desktop and is
+also required by `CI ready`. Vercel deploys independently of CI, so inspect both results.
 
 **Play online: [helicoptea.vercel.app](https://helicoptea.vercel.app/)** — public, no sign-in required.
 
