@@ -52,6 +52,20 @@ try {
     check(`${aircraft}: hook camera culls only when drawing`, cockpit.insets <= Math.ceil(cockpit.seconds * 18) + 1 && cockpit.insets < cockpit.frames, cockpit);
     await page.evaluate(() => { const H = window.__helicoptea; H.setView('chase'); H.doAction('restart'); });
   }
+  await page.evaluate(() => { const H = window.__helicoptea; H.setView('cockpit'); H.doAction('pause'); });
+  await page.waitForTimeout(300);
+  const cached = await page.evaluate(async () => {
+    const H = window.__helicoptea, hidden = new Set();
+    for (const it of Object.values(H.cockpit.interiors)) if (!it.group.visible) it.group.traverse((o) => hidden.add(o));
+    const proto = H.THREE.Object3D.prototype, original = proto.updateMatrix;
+    let transforms = 0;
+    proto.updateMatrix = function () { if (hidden.has(this)) transforms++; return original.call(this); };
+    const start = H.frames;
+    try { await new Promise((resolve) => { const next = () => H.frames - start >= 30 ? resolve() : requestAnimationFrame(next); requestAnimationFrame(next); }); }
+    finally { proto.updateMatrix = original; }
+    return { interiors: Object.keys(H.cockpit.interiors).length, hiddenNodes: hidden.size, hiddenTransforms: transforms };
+  });
+  check('cached inactive cockpit interiors do no transform work', cached.interiors === 3 && cached.hiddenNodes > 0 && cached.hiddenTransforms === 0, cached);
   check('scene and aircraft shaders compile without browser errors', errors.length === 0, errors);
 } finally {
   await browser.close();
