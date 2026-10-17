@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { indexedCopy } from './batch.js';
 import { HELI_PARTS } from '../sim/helicopter.js';
 import { CFG } from '../config.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -504,7 +505,7 @@ function mergeStatic(part, keep) {
     for (let a = o.parent; a && a !== part; a = a.parent) if (keep.includes(a)) return;
     if (keep.includes(o)) return;
     if (o.material.emissiveIntensity !== undefined && o.material.emissive && o.material.emissive.getHex() === 0xff1a0a) return; // beacon animates
-    const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    const g = indexedCopy(o.geometry);
     for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
     if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
     g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
@@ -516,6 +517,7 @@ function mergeStatic(part, keep) {
   for (const o of victims) o.parent.remove(o);
   for (const [mat, geos] of byMat) {
     const merged = mergeGeometries(geos, false);
+    for (const g of geos) g.dispose();
     if (!merged) continue;
     const m = new THREE.Mesh(merged, mat);
     m.castShadow = true; m.receiveShadow = true;

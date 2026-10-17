@@ -2,11 +2,15 @@ import * as THREE from 'three';
 
 // Thin tube rebuilt in place each frame from the string's verlet points (no allocation per frame).
 const RADIAL = 5;
+const COS = Array.from({ length: RADIAL }, (_, r) => Math.cos(r / RADIAL * Math.PI * 2));
+const SIN = Array.from({ length: RADIAL }, (_, r) => Math.sin(r / RADIAL * Math.PI * 2));
 
 export class StringMesh {
   constructor(nPoints, radius, material) {
     this.n = nPoints;
     this.radius = radius;
+    this.lastPts = new Float64Array(nPoints * 3).fill(NaN);
+    this.lastRadius = radius;
     const verts = nPoints * RADIAL;
     const geo = new THREE.BufferGeometry();
     this.pos = new Float32Array(verts * 3);
@@ -43,6 +47,11 @@ export class StringMesh {
 
   update(pts) {
     const n = this.n, t = this.t, nA = this.nA, bA = this.bA, tmp = this.tmp;
+    let changed = this.radius !== this.lastRadius;
+    if (!changed) for (let i = 0; i < n * 3; i++) if (pts[i] !== this.lastPts[i]) { changed = true; break; }
+    if (!changed) return;
+    this.lastPts.set(pts);
+    this.lastRadius = this.radius;
     nA.set(1, 0, 0);
     for (let i = 0; i < n; i++) {
       const i0 = Math.max(0, i - 1) * 3, i1 = Math.min(n - 1, i + 1) * 3;
@@ -56,7 +65,7 @@ export class StringMesh {
       nA.normalize();
       bA.crossVectors(t, nA);
       for (let r = 0; r < RADIAL; r++) {
-        const a = (r / RADIAL) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+        const ca = COS[r], sa = SIN[r];
         const nx = nA.x * ca + bA.x * sa, ny = nA.y * ca + bA.y * sa, nz = nA.z * ca + bA.z * sa;
         const k = (i * RADIAL + r) * 3;
         this.pos[k] = pts[i * 3] + nx * this.radius;

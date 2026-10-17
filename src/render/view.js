@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { CFG } from '../config.js';
 import { RAPIER, GROUPS } from '../sim/physics.js';
 import { TABLE, surfaceY, BIRDBATH } from '../sim/layout.js';
-import { cloneHeliPart, makeMaterials, teabagAssets } from './models.js';
+import { cloneHeliPart, teabagAssets } from './models.js';
 import { buildRealisticHelicopter } from './heliModel.js';
 import { TeaSurface, teaColor, setLiquidEnvironment } from './water.js';
 import { LiquidWash } from './rotorwash.js';
@@ -18,6 +18,7 @@ import { AircraftFxSet } from './aircraftFx.js';
 import { cloneSkycranePart } from './skycraneModel.js';
 import { CrashFx } from './crashFx.js';
 import { disposeTree } from './dispose.js';
+import { indexedCopy } from './batch.js';
 
 const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _c = new THREE.Color();
 const _pinA = new THREE.Vector3(), _pinL = new THREE.Vector3(), _pinQ = new THREE.Quaternion();
@@ -38,7 +39,6 @@ export class View {
     this.quality = quality;
     this.kitchenCups = kitchen ? kitchen.cups : null;
     this.time = 0;
-    this.M = makeMaterials(quality);
     this.heliModel = buildRealisticHelicopter(quality);
     scene.add(this.heliModel);
     this.chinookModel = buildChinook();
@@ -106,13 +106,6 @@ export class View {
     scene.add(this.guide);
 
     this.animated = kitchen.animated;
-    // Air field -> texture for the cloth shader.
-    const air = sim.air;
-    this.airData = new Uint8Array(air.nx * air.nz * 4);
-    this.airTex = new THREE.DataTexture(this.airData, air.nx, air.nz, THREE.RGBAFormat);
-    this.airTex.magFilter = this.airTex.minFilter = THREE.LinearFilter;
-    this.clothUniforms = kitchen.clothUniforms;
-    this.clothUniforms.uAir.value = this.airTex;
     this.windFn = (x, y, z, o) => sim.air.sample(x, y, z, o);
     this.dustAcc = 0;
     this.flowerWind = new THREE.Vector3();
@@ -174,13 +167,14 @@ export class View {
         root.updateMatrixWorld(true);
         _inv.copy(root.matrixWorld).invert();
         const geos = casters.map((o) => {
-          const g = new THREE.BufferGeometry();
-          const src = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry;
-          g.setAttribute('position', src.attributes.position.clone());
+          const g = indexedCopy(o.geometry);
+          for (const name of Object.keys(g.attributes)) if (name !== 'position') g.deleteAttribute(name);
+          g.clearGroups();
           g.applyMatrix4(_rel.multiplyMatrices(_inv, o.matrixWorld));
           return g;
         });
         const merged = geos.length ? mergeGeometries(geos, false) : null;
+        for (const g of geos) g.dispose();
         if (merged) {
           const proxy = new THREE.Mesh(merged, SHADOW_ONLY);
           proxy.castShadow = true;
@@ -656,16 +650,9 @@ export class View {
     }
   }
 
-  // Rotor wash presentation: cloth texture, flowers and dust (liquids: LiquidWash).
+  // Rotor wash presentation: flowers and dust (cloth samples the CPU field; liquids: LiquidWash).
   updateAir(dt) {
-    const air = this.sim.air, d = this.airData, R = 4;
-    for (let k = 0, n = air.nx * air.nz; k < n; k++) {
-      d[k * 4] = Math.max(0, Math.min(255, (air.u[k] / R * 0.5 + 0.5) * 255));
-      d[k * 4 + 1] = Math.max(0, Math.min(255, (air.w[k] / R * 0.5 + 0.5) * 255));
-      d[k * 4 + 2] = 0; d[k * 4 + 3] = 255;
-    }
-    this.airTex.needsUpdate = true;
-    this.clothUniforms.uTime.value = this.time;
+    const air = this.sim.air;
     // Flowers nod and shiver in the wash.
     for (const a of (this.animated || [])) {
       a.obj.getWorldPosition(_p);
@@ -747,11 +734,16 @@ export class View {
   }
 
   // Screen positions of cups (for the subtle brew indicator in the HUD).
-  projectCups(camera, w, h) {
-    this.cupScreen.length = 0;
-    for (const c of this.sim.cups) {
+  projectCups(camera, w, h, steepTimers = null) {
+    this.cupScreen.length = this.sim.cups.length;
+    for (let i = 0; i < this.sim.cups.length; i++) {
+      const c = this.sim.cups[i];
+      const screen = this.cupScreen[i] || (this.cupScreen[i] = { cup: c });
+      screen.visible = false;
+      if (steepTimers && !(steepTimers[i] > 0)) continue;
       _p.set(c.x, c.topY + 0.03, c.z).project(camera);
-      this.cupScreen.push({ x: (_p.x * 0.5 + 0.5) * w, y: (-_p.y * 0.5 + 0.5) * h, visible: _p.z < 1, cup: c });
+      screen.x = (_p.x * 0.5 + 0.5) * w; screen.y = (-_p.y * 0.5 + 0.5) * h;
+      screen.visible = _p.z > -1 && _p.z < 1;
     }
     return this.cupScreen;
   }

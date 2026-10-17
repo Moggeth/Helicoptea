@@ -1,6 +1,19 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
+// Keep the vertex reuse authored into spheres/tubes when combining rigid aircraft parts. Expanding an
+// indexed part to triangle soup repeats its vertex shader and attributes up to six times per vertex.
+export function indexedCopy(geometry) {
+  const g = geometry.clone();
+  if (!g.index) {
+    const n = g.attributes.position.count;
+    const index = n > 65535 ? new Uint32Array(n) : new Uint16Array(n);
+    for (let i = 0; i < n; i++) index[i] = i;
+    g.setIndex(new THREE.BufferAttribute(index, 1));
+  }
+  return g;
+}
+
 // Collects static meshes and merges them by material (one draw call per material and shadow flag),
 // with a per-piece vertex colour so one material can carry many tints.
 export class Batcher {

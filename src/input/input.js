@@ -423,6 +423,7 @@ export class Input {
       return b;
     };
     this.attachBtn = btn('attach', '<span class="ico">⚓</span><span class="lbl">Hook</span>', 'attach');
+    this.attachLabel = this.attachBtn.querySelector('.lbl');
     // Held buttons; a double-tap fires a combo.
     const hold = (cls, html, set, combo) => {
       const b = document.createElement('button');
@@ -480,6 +481,9 @@ export class Input {
   // Which touch buttons fit the aircraft and cargo (called by the game each frame).
   setTouchMode(sky, carryingBucket) {
     if (!this.pourBtn) return;
+    const mode = `${!!sky}:${!!carryingBucket}`;
+    if (this.touchMode === mode) return;
+    this.touchMode = mode;
     this.pourBtn.classList.toggle('hidden', !carryingBucket || sky);
     for (const b of Object.values(this.tankBtns)) b.classList.toggle('hidden', !sky);
   }

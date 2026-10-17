@@ -13,6 +13,7 @@ import * as street from './areas/street.js';
 import * as allotments from './areas/allotments.js';
 import * as park from './areas/park.js';
 import * as horizon from './areas/horizon.js';
+import { freezeWorldBranch } from '../sceneWork.js';
 
 // Draws the neighbourhood (src/sim/world/plan.js) and streams its detail by distance.
 //
@@ -180,7 +181,7 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
     c.group.updateMatrixWorld(true);
     c.on = true;
     // A chunk of merged statics never moves: skip it in the per-frame matrix walk altogether.
-    if (!c.live) c.group.matrixWorldAutoUpdate = false;
+    if (!c.live) { c.group.matrixWorldAutoUpdate = false; freezeWorldBranch(c.group); }
     for (const o of c.group.children) if (o.userData.static !== false && o.matrixAutoUpdate === false) o.matrixWorldAutoUpdate = false;
   }
   root.matrixAutoUpdate = false;

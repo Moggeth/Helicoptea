@@ -338,8 +338,8 @@ export class Hud {
   // The hook-camera inset: a frame and a readout laid over the picture the renderer draws.
   setLoadCam(rect, text, name = 'HOOK CAM') {
     document.body.classList.toggle('pip-top', !!(rect && rect.top));
-    if (!rect) { this.loadcam.classList.add('hidden'); return; }
-    this.loadcam.classList.remove('hidden');
+    this.loadcam.classList.toggle('hidden', !rect);
+    if (!rect) return;
     if (rect.top) document.body.style.setProperty('--pip-bottom', `${rect.y + rect.s}px`);
     const st = this.loadcam.style;
     const v = `${rect.x}px|${rect.y}px|${rect.s}px`;
@@ -367,7 +367,8 @@ export class Hud {
   }
 
   flash(strength) {
-    this.fpFlash.style.opacity = String(Math.max(0, Math.min(1, strength)));
+    const value = String(Math.max(0, Math.min(1, strength)));
+    if (this.flashValue !== value) { this.flashValue = value; this.fpFlash.style.opacity = value; }
   }
 
   setInvite(show) { this.invite.classList.toggle('hidden', !show); }
@@ -379,14 +380,17 @@ export class Hud {
       el.className = 'tank-gauge hidden';
       el.innerHTML = '<div class="tg-bar"><div class="tg-fill"></div><div class="tg-door"></div></div><div class="tg-txt"><b>Milk</b><span class="tg-pct"></span><span class="tg-state"></span></div>';
       this.root.appendChild(el);
+      this.tankParts = { fill: el.querySelector('.tg-fill'), door: el.querySelector('.tg-door'), pct: el.querySelector('.tg-pct'), state: el.querySelector('.tg-state') };
     }
     const el = this.tankEl;
     el.classList.toggle('hidden', !t);
     if (!t) return;
-    el.querySelector('.tg-fill').style.height = `${Math.round(t.fill * 100)}%`;
-    el.querySelector('.tg-door').style.opacity = String(Math.min(1, t.doors * 1.5));
-    el.querySelector('.tg-pct').textContent = `${Math.round(t.fill * 100)}%`;
-    el.querySelector('.tg-state').textContent = t.state;
+    const parts = this.tankParts, pct = `${Math.round(t.fill * 100)}%`;
+    if (parts.fill.style.height !== pct) parts.fill.style.height = pct;
+    const opacity = String(Math.min(1, t.doors * 1.5));
+    if (parts.door.style.opacity !== opacity) parts.door.style.opacity = opacity;
+    if (parts.pct.textContent !== pct) parts.pct.textContent = pct;
+    if (parts.state.textContent !== t.state) parts.state.textContent = t.state;
     el.classList.toggle('pumping', t.state === 'pumping' || t.state.startsWith('auto'));
   }
 
@@ -450,14 +454,15 @@ export class Hud {
       const col = milkyTea(c.cup.brew, c.cup.milk || 0);
       el.querySelector('.dot').style.background = `rgb(${col.r * 255 | 0},${col.g * 255 | 0},${col.b * 255 | 0})`;
       const m = c.cup.milk || 0;
-      el.querySelector('.nm').textContent = brewName(c.cup.brew) + (m > 0.2 ? ', very milky' : m > 0.07 ? ', milky' : m > 0.015 ? ', splash of milk' : '');
+      const name = brewName(c.cup.brew) + (m > 0.2 ? ', very milky' : m > 0.07 ? ', milky' : m > 0.015 ? ', splash of milk' : '');
+      const label = el.querySelector('.nm');
+      if (label.textContent !== name) label.textContent = name;
     });
   }
 
   setDebug(text) {
-    if (text === null) { this.debugEl.classList.add('hidden'); return; }
-    this.debugEl.classList.remove('hidden');
-    this.debugEl.textContent = text;
+    this.debugEl.classList.toggle('hidden', text === null);
+    if (text !== null && this.debugEl.textContent !== text) this.debugEl.textContent = text;
   }
 
   // ---------------------------------------------------------------- modals

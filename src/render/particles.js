@@ -46,6 +46,7 @@ export class ParticlePool {
         }`,
     });
     this.points = new THREE.Points(geo, this.material);
+    this.points.visible = false;
     this.points.frustumCulled = false;
     this.points.renderOrder = additive ? 4 : 3;
   }
@@ -71,6 +72,7 @@ export class ParticlePool {
 
   // onLand(x, y, z): if given, heavy particles (drops) that reach the floor are absorbed and reported.
   update(dt, floorFn, windFn, onLand) {
+    if (!this.count) return; // idle effect pools do no integration, uploads or render-list work
     const wv = this._wv || (this._wv = { x: 0, y: 0, z: 0, set(a, b, c) { this.x = a; this.y = b; this.z = c; return this; }, addScaledVector(v, s) { this.x += v.x * s; this.y += v.y * s; this.z += v.z * s; return this; } });
     let n = this.count;
     for (let i = 0; i < n; i++) {
@@ -111,9 +113,12 @@ export class ParticlePool {
     }
     this.count = n;
     this.points.geometry.setDrawRange(0, n);
-    this.posAttr.needsUpdate = true;
-    this.colAttr.needsUpdate = true;
-    this.sizeAttr.needsUpdate = true;
+    this.points.visible = n > 0;
+    if (n) for (const a of [this.posAttr, this.colAttr, this.sizeAttr]) {
+      a.clearUpdateRanges();
+      a.addUpdateRange(0, n * a.itemSize);
+      a.needsUpdate = true;
+    }
   }
 
   copy(from, to) {
@@ -128,5 +133,5 @@ export class ParticlePool {
     this.grav[to] = this.grav[from]; this.drag[to] = this.drag[from]; this.kind[to] = this.kind[from];
   }
 
-  clear() { this.count = 0; this.points.geometry.setDrawRange(0, 0); }
+  clear() { this.count = 0; this.points.geometry.setDrawRange(0, 0); this.points.visible = false; }
 }

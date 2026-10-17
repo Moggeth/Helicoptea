@@ -22,7 +22,7 @@ const STOCK_OBC = THREE.Material.prototype.onBeforeCompile;
 // Shader hooks that are only looks, dropped on phones: the aircraft's grime and soot (render/aircraftFx.js),
 // the garden's swaying foliage (the world's is already still on phones), and the world kit's per-vertex
 // roughness and metalness (Lambert has neither). Each sway material was a shader program of its own.
-const COSMETIC = /^(grime|sway||world-kit-rm$)/;
+const COSMETIC = /^(?:grime$|sway\||world-kit-rm$)/;
 const plain = (m) => m.onBeforeCompile === STOCK_OBC || COSMETIC.test(m.customProgramCacheKey?.() || '');
 const WALK_EVERY = 30;      // frames between walks for new materials
 function releaseArray() { this.array = null; }
@@ -120,6 +120,9 @@ export class PhoneRender {
     // Big meshes (the world's merged chunks, terrain) are one draw already: batching would only copy them.
     if (g.attributes.position && g.attributes.position.count > MAX_VERTS) return 'big';
     if (g.morphAttributes.position) return 'morph';
+    // BatchedMesh copies vertices once; changing sight-glass milk levels and other deforming meshes
+    // must keep drawing from their live buffers.
+    if (Object.values(g.attributes).some((a) => a.usage !== THREE.StaticDrawUsage)) return 'dynamic geometry';
     if (g.drawRange.count !== Infinity || g.drawRange.start !== 0) return 'draw range';
     if (o.onBeforeRender !== THREE.Object3D.prototype.onBeforeRender) return 'onBeforeRender';
     if (o.frustumCulled === false) return 'not culled';
@@ -174,7 +177,9 @@ export class PhoneRender {
         bm.setMatrixAt(id, o.matrixWorld);
         const c = o.material.color;
         bm.setColorAt(id, c);
-        const mem = { o, bm, id, m: new Float32Array(o.matrixWorld.elements), vis: true, mat: o.material, key: this.matKey(o.material), r: c.r, g: c.g, b: c.b, dead: false };
+        // Compare doubles with doubles: a Float32 snapshot rounds stationary rotations/translations,
+        // making them look changed every frame and repeatedly uploading the instance matrix texture.
+        const mem = { o, bm, id, m: new Float64Array(o.matrixWorld.elements), vis: true, mat: o.material, key: this.matKey(o.material), r: c.r, g: c.g, b: c.b, dead: false };
         o.layers.set(HIDDEN_LAYER);
         this.members.push(mem);
       }
@@ -208,8 +213,19 @@ export class PhoneRender {
       const mem = this.members[i];
       if (mem.dead) continue;
       const o = mem.o;
-      const mat = o.material;
-      if (mat !== mem.mat) { this.eject(mem); continue; }
+      let mat = o.material;
+      // Aircraft effects can restore an original PBR material after a camera/damage transition. Reuse
+      // its existing phone stand-in before deciding whether this is a genuine material replacement.
+      if (mat !== mem.mat && this.lambert.get(mat) === mem.mat) { mat = o.material = mem.mat; }
+      if (mat !== mem.mat) {
+        // First person temporarily replaces the surrounding airframe with an invisible material. Keep
+        // its instance reserved so returning to chase restores batching instead of losing it forever.
+        if (mat && !Array.isArray(mat) && !mat.visible) {
+          if (mem.vis) { mem.vis = false; mem.bm.setVisibleAt(mem.id, false); }
+          continue;
+        }
+        this.eject(mem); continue;
+      }
       // Drawn only when it, its material and every ancestor are visible and it is still in the scene.
       let vis = o.visible && mat.visible, p = o.parent;
       while (vis && p && p !== scene) { vis = p.visible; p = p.parent; }

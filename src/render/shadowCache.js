@@ -110,7 +110,10 @@ export class ShadowCache {
     // target; do the same here first so a moved light invalidates the cache this frame.
     light.updateMatrixWorld(); light.target.updateMatrixWorld();
     light.shadow.updateMatrices(light);
-    const dirty = this.classify() || this.cameraMoved();
+    // Both update cached state. Short-circuiting on a changed caster leaves the camera key stale,
+    // causing another full static-shadow rebuild on the next frame even if nothing else changed.
+    const castersChanged = this.classify();
+    const dirty = this.cameraMoved() || castersChanged;
     const vis = this.visible;
     let statics = 0;
     for (let i = 0; i < vis.length; i++) if (vis[i].__shadowTrack.still >= STILL_FRAMES) statics++;

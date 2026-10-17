@@ -37,6 +37,8 @@ import { warmInSteps } from './render/warmup.js';
 import { PhoneRender } from './render/phoneRender.js';
 import { gpuEstimate } from './render/gpuBudget.js';
 import { warmEverything } from './render/prewarm.js';
+import { updateVisibleMatrices } from './render/sceneWork.js';
+import { resolutionPressure } from './render/resolutionBudget.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -230,6 +232,8 @@ async function boot() {
   depth.linearBlend = post.enabled;
   // First person: pilot's-eye rig, cockpit interiors drawn over the world, and the belly hook camera.
   const loadCam = new LoadCamera(renderer, quality);
+  const prepareLoadScene = () => kitchen.garden.world?.inset(loadCam.camera, loadCam.camera.far);
+  const restoreLoadScene = () => kitchen.garden.world?.restore();
   const cockpit = new Cockpit(renderer, scene, quality, kitchen, loadCam, sim.aircraft);
   const fpRig = new CockpitRig();
   // Phones: cheap materials now (so the warm-up below compiles those), batched draws once it is all built.
@@ -1039,7 +1043,8 @@ async function boot() {
       input.attachBtn.classList.toggle('ready', !!cand);
       input.attachBtn.classList.toggle('idle', !cand && !sim.carriedCargo().length);
       input.touchRoot.classList.toggle('down', crashShown);   // nothing to press after a crash but Restart
-      input.attachBtn.querySelector('.lbl').textContent = !cand && sim.carriedCargo().length ? 'Drop' : 'Hook';
+      const label = !cand && sim.carriedCargo().length ? 'Drop' : 'Hook';
+      if (input.attachLabel.textContent !== label) input.attachLabel.textContent = label;
       const bk = sim.milk.bucket, carryingBucket = !!(bk && sim.carriedCargo().includes(bk));
       input.setTouchMode(sim.aircraft === 'skycrane', carryingBucket);
       input.pourBtn.classList.toggle('empty', carryingBucket && bk.vol < 1e-7);
@@ -1274,7 +1279,7 @@ async function boot() {
       const extra = sim.carriedCargo().reduce((m, b) => m + b.mass, 0);
       hud.setCollective(h.collective, Math.min(1, (h.def.mass + extra) / (h.def.mass * h.def.thrustToWeight)));
     }
-    hud.updateBrew(view.projectCups(camera, vw, vh), flow.steepTimers);
+    hud.updateBrew(view.projectCups(camera, vw, vh, flow.steepTimers), flow.steepTimers);
     const tk = h && h.tank;
     hud.setTank(tk && started ? { fill: tk.vol / tk.capacity, doors: tk.doors,
       state: tk.auto ? `auto: ${tk.auto.phase === 'down' ? 'lowering' : tk.auto.phase === 'pump' ? 'pumping' : 'reeling in'}` : tk.salvo ? 'salvo' : tk.pumping ? 'pumping' : tk.flowOut > 0 ? 'dropping' : h.hose.submerged ? 'intake in' : '' } : null);
@@ -1290,7 +1295,7 @@ async function boot() {
     renderer.shadowMap.needsUpdate = !quality.lite || (renderedFrames & 1) === 0;
     // World matrices once per frame: every renderer.render() of the scene (hook camera, main view, AO
     // normals) would otherwise walk and update the whole scene graph again.
-    scene.updateMatrixWorld();
+    updateVisibleMatrices(scene);
     phone?.update();
     // The hook camera feeds the cockpit display and, when shown, the inset.
     const looksDown = cam.eff === 'bolt' || cam.eff === 'cargo';
@@ -1304,10 +1309,7 @@ async function boot() {
       // The skycrane's camera sits under the front of the tank, between the snorkel and the doors.
       const mount = h.type === 'skycrane' ? [0.004, -0.0335, -0.012] : hooks[hooks.length === 3 ? 1 : 0];
       loadCam.update(view.heliPos, view.heliQuat, mount, heading);
-      const world = kitchen.garden.world;
-      if (world) world.inset(loadCam.camera, loadCam.camera.far);
-      loadCam.render(scene);
-      if (world) world.restore();
+      loadCam.render(scene, false, prepareLoadScene, restoreLoadScene);
     }
     const rect = showPip ? pipRect() : null;
     cockpit.setPipRect(rect, vw, vh);
@@ -1328,11 +1330,9 @@ async function boot() {
     frameEMA = frameEMA * 0.95 + (frameDt * 1000) * 0.05;
     if (started && !paused && dynRes) {
       // Aim at the display's own refresh rate (120 Hz on a 120 Hz screen), and only trade resolution when the
-      // GPU is the bottleneck: a CPU-bound frame (a slow phone) gains nothing from fewer pixels. Browsers that
-      // don't report GPU time keep the old 60 Hz rule.
-      const budget = 1000 / (fpsMeter.refreshHz || 60), gpu = perf.gpuMs;
-      const slow = gpu >= 0 ? frameEMA > budget * 1.2 + 0.5 && gpu > budget * 0.8 : frameEMA > 19.5;
-      const roomy = gpu >= 0 ? gpu < budget * 0.5 && frameEMA < budget * 1.1 + 0.5 : frameEMA < 14;
+      // GPU is the bottleneck: a CPU-bound frame gains nothing from fewer pixels. Without timer queries,
+      // infer rendering pressure from the display cadence and simulation/UI time; respect Battery saver.
+      const { slow, roomy } = resolutionPressure(frameEMA, perf.gpuMs, tR - cpu0, fpsMeter.refreshHz, fpsCap);
       if (slow) { lowFrames++; highFrames = 0; } else if (roomy) { highFrames++; lowFrames = 0; } else { lowFrames = highFrames = 0; }
       if (lowFrames > 90 && dprScale > 0.55) { dprScale = Math.max(0.55, dprScale - 0.1); lowFrames = 0; resize(); }
       if (highFrames > 240 && dprScale < 1) { dprScale = Math.min(1, dprScale + 0.1); highFrames = 0; resize(); }
@@ -1351,7 +1351,7 @@ async function boot() {
     const out = replay.update(frameDt);
     renderer.info.reset();
     renderer.shadowMap.needsUpdate = true;
-    scene.updateMatrixWorld();
+    updateVisibleMatrices(scene);
     phone?.update();
     post.render();
     if (out.cockpit) cockpit.render();

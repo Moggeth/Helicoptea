@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { indexedCopy } from './batch.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { SKYCRANE_PARTS } from '../sim/skycrane.js';
@@ -628,7 +629,7 @@ function mergeStatic(part, keep) {
     if (!o.isMesh || Array.isArray(o.material) || keep.includes(o)) return;
     if (o.userData.keep) return;
     for (let a = o.parent; a && a !== part; a = a.parent) if (keep.includes(a)) return;
-    const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    const g = indexedCopy(o.geometry);
     for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
     if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
     g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
@@ -640,6 +641,7 @@ function mergeStatic(part, keep) {
   for (const o of victims) o.parent.remove(o);
   for (const [mat, geos] of byMat) {
     const merged = mergeGeometries(geos, false);
+    for (const g of geos) g.dispose();
     if (merged) part.add(new THREE.Mesh(merged, mat));
   }
 }
