@@ -4,7 +4,7 @@
 // with real devices: keyboard (T pump, Z/X reel, G doors, double-tap G salvo, double-tap T auto-fill),
 // an emulated standard gamepad (default layout: RT analog doors, LB pump, double LB auto-fill, d-pad reel,
 // double RT salvo; Classic: LT analog pump, both bumpers auto-fill) and touch (Doors, Pump, Hose buttons). Screenshots and a report go to test-results/sky-*.
-import { chromium } from '../tools/browser-safety.mjs';
+import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -32,7 +32,7 @@ async function open(viewport, opts = {}) {
   page.on('console', (m) => logs.push(`[${m.type()}] ${m.text()}`));
   page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
   await page.goto(base + (opts.query || '?worldSpeed=1&aircraft=skycrane'), { waitUntil: 'load' });
-  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
   return { ctx, page, logs };
 }
 const start = async (page) => { await page.click('#start-btn'); await page.waitForFunction(() => window.__helicoptea?.started); await sleep(600); };

@@ -4,7 +4,7 @@
 // puts everything back; the Rotor strikes setting (default on) persists and makes blades pass through; the
 // replay shows the lost rotor and plays each crash's effects; the measured cost of the effects; console errors.
 // Usage: npm run build && npx vite preview --port 4201, then node tests/e2e-crashes.mjs [baseUrl]
-import { chromium } from '../tools/browser-safety.mjs';
+import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -26,7 +26,7 @@ async function open(query, viewport = { width: 1280, height: 720 }) {
   page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') logs.push(`[${m.type()}] ${m.text()}`); });
   page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
   await page.goto(base + query, { waitUntil: 'load' });
-  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
   await page.click('#start-btn');
   await page.waitForFunction(() => window.__helicoptea?.started);
   await page.evaluate(() => window.__helicoptea.doAction('skiphints'));
@@ -150,7 +150,7 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
   let s = await state(page);
   check('rotor strikes off: blades pass through the wall', s.sim === 'flying' && s.shed === 0, JSON.stringify({ sim: s.sim, shed: s.shed, reason: s.reason }));
   await page.reload({ waitUntil: 'load' });
-  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
   const persisted = await H(page, () => window.__helicoptea.sim.damage.rotorStrikes);
   check('rotor strikes setting survives a reload', persisted === false);
   await page.click('#start-btn');

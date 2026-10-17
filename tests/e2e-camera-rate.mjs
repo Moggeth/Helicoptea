@@ -1,6 +1,6 @@
 // D-pad camera movement must depend on elapsed time, not display refresh rate.
 // Real browser/pad input pipeline; emulated controller is not physical device acceptance.
-import { chromium } from '../tools/browser-safety.mjs';
+import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -20,10 +20,10 @@ try {
       navigator.getGamepads = () => [{...window.__pad, id: 'Xbox 360 Controller (XInput STANDARD GAMEPAD)', index: 0, mapping: 'standard', connected: true, timestamp: performance.now()}];
     });
     const page = await context.newPage(), errors = [];
-    page.setDefaultTimeout(60000); // a software renderer can take over 30 s to load and to screenshot
+    page.setDefaultTimeout(startupTimeout(60000)); // a software renderer can take over 30 s to load and to screenshot
     page.on('pageerror', e => errors.push(e.message));
     await page.goto(`${base}?fps=${fps}&quality=low&dynres=0&view=chase`);
-    await page.locator('#start-btn:not(.hidden)').click({ timeout: 60000 });
+    await page.locator('#start-btn:not(.hidden)').click({ timeout: startupTimeout(60000) });
     await page.waitForFunction(() => window.__helicoptea?.started);
     if (process.env.CAMERA_RATE_CAPTURE) await page.evaluate(() => {
       const stream = window.__helicoptea.renderer.domElement.captureStream(30);

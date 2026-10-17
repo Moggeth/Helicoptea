@@ -2,7 +2,7 @@
 // the tea, the plumb line and height readout, the rim glint over a cup, the lower chase camera, the
 // pause-menu toggles (and that they persist), on all three aircraft in chase and cockpit views.
 // Usage: npm run build && npx vite preview --port 4192, then node tests/e2e-depth.mjs [baseUrl] [--headed]
-import { chromium } from '../tools/browser-safety.mjs';
+import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -23,7 +23,7 @@ async function open(query, viewport = { width: 1600, height: 900 }, opts = {}) {
   page.on('console', (m) => { if (m.type() === 'error') logs.push(`[error] ${m.text()}`); });
   page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
   await page.goto(base + query, { waitUntil: 'load' });
-  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
   await page.click('#start-btn');
   await page.waitForFunction(() => window.__helicoptea?.started);
   await page.evaluate(() => window.__helicoptea.doAction('skiphints'));
@@ -123,7 +123,7 @@ try {
     check('cockpit: load shadow and glint still drawn', c.shadows >= 1 && c.ring > 0.1, JSON.stringify(c));
     await shot(page, '06-micro-cockpit-look-down');
     await page.reload({ waitUntil: 'load' });
-    await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+    await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
     const persisted = await page.evaluate(() => ({ ...window.__helicoptea.depth.settings }));
     check('toggles persist across reload', persisted.shadows && persisted.cupHint && !persisted.plumb, JSON.stringify(persisted));
     await page.evaluate(() => { localStorage.setItem('helicoptea.view', 'chase'); });

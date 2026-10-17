@@ -1,6 +1,8 @@
 // Headless Chrome can confine the real Windows pointer. All local QA uses this launcher.
 import { chromium as nativeChromium } from 'playwright-core';
 
+export const startupTimeout = (local = 60000) => process.env.GITHUB_ACTIONS === 'true' ? 120000 : local;
+
 export function blockNativePointerLock() {
   Element.prototype.requestPointerLock = function () {
     document.dispatchEvent(new Event('pointerlockerror'));
@@ -11,6 +13,9 @@ export function blockNativePointerLock() {
 export function desktopSafeChromium(browserType, platform = process.platform, ci = process.env.GITHUB_ACTIONS === 'true') {
   return {
     async launch(options) {
+      if (process.env.HELICOPTEA_SOFTWARE_GL === '1') {
+        options = { ...options, args: [...(options?.args || []).filter(arg => !arg.startsWith('--use-angle=')), '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] };
+      }
       const browser = await browserType.launch(options);
       if (platform !== 'win32' && !ci) return browser;
       const guarded = new WeakSet();
@@ -23,6 +28,13 @@ export function desktopSafeChromium(browserType, platform = process.platform, ci
           if (ci) {
             context.setDefaultTimeout(120000);
             context.setDefaultNavigationTimeout(120000);
+            const diagnose = (page) => {
+              page.on('pageerror', error => console.error(`[browser pageerror] ${page.url()}: ${error.message}`));
+              page.on('crash', () => console.error(`[browser crash] ${page.url()}`));
+              page.on('console', message => { if (message.type() === 'error') console.error(`[browser console] ${page.url()}: ${message.text()}`); });
+            };
+            context.on?.('page', diagnose);
+            for (const page of context.pages?.() || []) diagnose(page);
           }
           guarded.add(context);
         } catch (error) {

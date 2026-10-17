@@ -1,4 +1,4 @@
-import {chromium} from '../tools/browser-safety.mjs';
+import {chromium, startupTimeout} from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 const base=process.argv.find(a=>a.startsWith('http'))||'http://127.0.0.1:4243/';
@@ -9,7 +9,7 @@ try{
  for(const aircraft of ['micro','chinook','skycrane'])for(const fps of [30,120]){
   const ctx=await browser.newContext({viewport:{width:1280,height:720}}),page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(`${base}?aircraft=${aircraft}&fps=${fps}&worldSpeed=0.4&quality=low&dynres=0`);
-  await page.locator('#start-btn:not(.hidden)').click({ timeout: 60000 });await page.waitForTimeout(500);
+  await page.locator('#start-btn:not(.hidden)').click({ timeout: startupTimeout(60000) });await page.waitForTimeout(500);
   const before=await page.evaluate(()=>({step:document.querySelector('.hint .step').textContent,text:document.querySelector('.hint .txt').textContent,grounded:window.__helicoptea.sim.heli.grounded,height:window.__helicoptea.sim.heli.pos.y}));
   check(`${aircraft} cap${fps}: lift instruction remains on pad`,before.step==='1'&&before.grounded,before);
   await page.screenshot({path:path.join(out,`${aircraft}-${fps}-pad.png`)});

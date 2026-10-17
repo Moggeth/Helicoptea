@@ -1,6 +1,6 @@
 // Browser audio state and signal checks. No autoplay bypass; emulated pads cannot grant activation.
 // Waveforms establish signal routing, not speaker quality or human listening acceptance.
-import {chromium} from '../tools/browser-safety.mjs';
+import {chromium, startupTimeout} from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 const base = process.argv.find(a => a.startsWith('http')) || 'http://127.0.0.1:4236/';
@@ -21,8 +21,8 @@ async function open({pad=false,touch=false}={}) {
   await page.goto(`${base}?quality=low&dynres=0`);
   if(pad) {
     const cdp=await ctx.newCDPSession(page);
-    await cdp.send('Runtime.evaluate',{expression:'new Promise((resolve,reject) => { const timeout=setTimeout(()=>{clearInterval(id);reject(new Error("Start screen timeout"));},60000); const id=setInterval(()=>{if(window.__helicoptea && document.querySelector("#start-btn:not(.hidden)")){clearInterval(id);clearTimeout(timeout);resolve();}},20); })',awaitPromise:true,userGesture:false});
-  } else await page.locator('#start-btn:not(.hidden)').waitFor({ timeout: 60000 });
+    await cdp.send('Runtime.evaluate',{expression:`new Promise((resolve,reject) => { const timeout=setTimeout(()=>{clearInterval(id);reject(new Error("Start screen timeout"));},${startupTimeout(60000)}); const id=setInterval(()=>{if(window.__helicoptea && document.querySelector("#start-btn:not(.hidden)")){clearInterval(id);clearTimeout(timeout);resolve();}},20); })`,awaitPromise:true,userGesture:false});
+  } else await page.locator('#start-btn:not(.hidden)').waitFor({ timeout: startupTimeout(60000) });
   return {ctx,page,errors};
 }
 const state=page=>page.evaluate(()=>({paused:window.__helicoptea.paused, audio:window.__helicoptea.audio.ctx?.state, time:window.__helicoptea.audio.ctx?.currentTime, toast:document.querySelector('#hud .toast')?.textContent}));
@@ -108,7 +108,7 @@ try {
       // is essential here: a real polled gamepad does not unlock browser autoplay.
       const cdp=await ctx.newCDPSession(page);
       await cdp.send('Runtime.evaluate',{expression:'window.__pad.buttons[0]={pressed:true,value:1}',userGesture:false});
-      await cdp.send('Runtime.evaluate',{expression:'new Promise(resolve => { const id=setInterval(()=>{if(window.__helicoptea.started){clearInterval(id);window.__pad.buttons[0]={pressed:false,value:0};resolve();}},20); })',awaitPromise:true,userGesture:false});
+      await cdp.send('Runtime.evaluate',{expression:`new Promise(resolve => { const id=setInterval(()=>{if(window.__helicoptea.started){clearInterval(id);window.__pad.buttons[0]={pressed:false,value:0};resolve();}},20); })`,awaitPromise:true,userGesture:false});
     }
     await page.waitForTimeout(650);
     const cdp=await ctx.newCDPSession(page);

@@ -34,6 +34,31 @@ status, anonymous HTML/assets and build marker separately after merging.
   evidence; a green hosted run does not establish a target frame rate or target CPU budget.
 - Batch documentation before freezing the candidate revision. Updating the PR branch repeatedly cancels
   expensive full CI runs. Body/review updates can record evidence without changing the tested revision.
+- Run `38991041206` passed the full headless job in **352 s**, with the milk benchmark at **0.819 ms**,
+  confirming variation across hosted runs without a gameplay source change. Browser jobs exposed explicit
+  60-second startup deadlines overriding the shared CI allowance; `startupTimeout()` now gives only those
+  startup waits the same bounded 120 seconds while preserving local values. CI logs browser page errors,
+  console errors and renderer crashes so a startup failure is diagnosable rather than just a timeout.
+- Linux native capture passed capture, movement and airframe roll, then sampled Escape release after
+  300 ms and continued its collective test on a crashed aircraft. Await release/paused state and restart
+  the independent collective case. Touch leash input similarly used a 60 ms sleep between CDP moves:
+  software-GPU frames could coalesce away the intermediate move. Wait for delivered frames. These are
+  test synchronization changes, not changes to the flight or pointer-control implementation.
+- The phone context-loss test then waited 120 s for a reload while Auto was already low. The game
+  correctly shows an error at its lowest tier. Test that path explicitly. For the separate medium-to-low
+  recovery policy case, CI sets the debug quality-name precondition when its real software tier is low;
+  the earlier memory case still renders medium quality. Local GPU runs reach medium naturally. This is
+  emulated policy coverage, not physical-phone acceptance. Restart independent touch menu/layout cases
+  after their flying cases so a legitimate crash does not change which menu a later tap opens.
+- The first frame-wait candidate failed locally at the later Help setup. A screenshot showed a healthy
+  flying scene, not a crash. Bounded pointer/click tracing showed Pause pointerdown/up with no synthesized
+  click after the CDP drag. Increasing/reordering gesture timestamps did not fix that. Keep timestamps
+  chronological and no later than wall time, retain real Pause/Resume tap assertions, and isolate Help
+  wording with the game pause action plus ordinary browser clicks. Rapid post-drag menu taps still need
+  physical-device acceptance; no game-side fix or touch acceptance is claimed here.
+- Syntax checks alone do not detect a helper used without an import. After a multi-file readiness edit,
+  explicitly inspect imports (including compact `{chromium}` spellings) and run those browser suites
+  before pushing. The five compact-import suites passed 82 local checks after the readiness refactor.
 
 ## Inspection and recovery
 
@@ -41,6 +66,10 @@ Use `gh pr view <number> --json headRefOid,mergeable,mergeStateStatus,statusChec
 exact head's run. Download failed job logs rather than rerunning blindly. Resolve actual conflicts in
 the owned branch, then rerun affected checks and require fresh aggregate CI. Keep measured timings and
 raw logs under ignored `logs/reviews/`; local suites use isolated build outputs and unused ports.
+To reproduce software-GPU policies locally, set `HELICOPTEA_SOFTWARE_GL=1` in the child process and run
+the relevant suite through the normal runner. The shared launcher selects SwiftShader while retaining
+the Windows pointer guard. This emulates software rendering; it does not reproduce the hosted WARP
+driver or establish physical-device performance. Unset the variable for ordinary hardware checks.
 
 The three completed Helicoptea Codex automations were checked and remain paused. They are historical
 overnight/integration jobs, not PR monitors. No recurring reviewer was silently created.

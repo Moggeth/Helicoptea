@@ -71,7 +71,7 @@ try {
     check('the airframe actually rolled', Math.abs(after.z - before.z) + Math.abs(after.x - before.x) > 1e-3, { before, after });
     await page.screenshot({ path: path.join(out, 'mouse-flying.png') });
     await page.keyboard.press('Escape');
-    await sleep(300);
+    await page.waitForFunction(() => !window.__helicoptea.input.locked && window.__helicoptea.paused);
     const s = await H(() => ({ locked: window.__helicoptea.input.locked, paused: window.__helicoptea.paused }));
     check('Esc lets go of the mouse and pauses', !s.locked && s.paused, s);
     await page.keyboard.press('Escape');
@@ -79,6 +79,11 @@ try {
   }
 
   // Spring-return lift with Assist off.
+  // The preceding held-bank flight may legitimately have crashed. Restart this independent control
+  // case rather than dereferencing a retired airframe or depending on a software GPU's flight pace.
+  await H(() => window.__helicoptea.doAction('restart'));
+  await page.waitForFunction(() => window.__helicoptea.sim.heli && window.__helicoptea.sim.state === 'flying');
+  await H(() => window.__helicoptea.input.centreMouse());
   await H(() => { const g = window.__helicoptea; if (g.sim.assist) g.doAction('assist'); });
   await page.keyboard.down('w'); await sleep(500);
   const held = await H(() => window.__helicoptea.sim.heli.collective);

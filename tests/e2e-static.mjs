@@ -3,7 +3,7 @@
 // flights and notes save in the browser, survive a reload, load back in the viewer, download as one
 // self-contained file that tools/flight-notes.mjs reads, and that nothing logs a console error.
 // Usage: npm run build, then node tests/e2e-static.mjs [--headed]   (any base URL argument is ignored)
-import { chromium } from '../tools/browser-safety.mjs';
+import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -48,7 +48,7 @@ const H = (fn, arg) => page.evaluate(fn, arg);
 const hold = async (keys, ms) => { for (const k of keys) await page.keyboard.down(k); await sleep(ms); for (const k of keys) await page.keyboard.up(k); };
 const open = async () => {
   await page.goto(base + '?aircraft=micro&view=chase', { waitUntil: 'load' });
-  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
   await page.click('#start-btn');
   await page.waitForFunction(() => window.__helicoptea?.started);
   await H(() => window.__helicoptea.doAction('skiphints'));
@@ -120,7 +120,7 @@ await ctx.close();
   const l2 = [];
   p2.on('pageerror', (e) => l2.push(e.message));
   await p2.goto(base + '?aircraft=micro', { waitUntil: 'load' });
-  await p2.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+  await p2.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
   await p2.click('#start-btn');
   await p2.waitForFunction(() => window.__helicoptea?.started);
   await p2.evaluate(() => window.__helicoptea.doAction('skiphints'));

@@ -1,7 +1,7 @@
 // End-to-end browser checks using the locally installed Chrome (no browser download).
 // Usage: start the dev server (npm run dev) or preview, then: node tests/e2e.mjs [baseUrl] [--headed]
 // Writes screenshots and a JSON report to test-results/.
-import { chromium } from '../tools/browser-safety.mjs';
+import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -46,7 +46,7 @@ async function open(viewport, opts = {}) {
     navigator.getGamepads = () => (window.__pad.present ? [pad(), null, null, null] : [null, null, null, null]);
   }, opts.gamepad);
   const page = await ctx.newPage();
-  page.setDefaultTimeout(60000); // a software renderer can take over 30 s to load and to screenshot
+  page.setDefaultTimeout(startupTimeout(60000)); // a software renderer can take over 30 s to load and to screenshot
   const logs = [];
   page.on('console', (m) => logs.push(`[${m.type()}] ${m.text()}`));
   page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
@@ -54,7 +54,7 @@ async function open(viewport, opts = {}) {
   const q = opts.query || '';
   const query = opts.defaultSpeed ? q : (q ? q + '&' : '?') + 'worldSpeed=1';
   await page.goto(base + query, { waitUntil: 'load' });
-  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
   return { ctx, page, logs };
 }
 const start = async (page) => { await page.click('#start-btn'); await page.waitForFunction(() => window.__helicoptea?.started); await sleep(600); };
