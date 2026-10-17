@@ -306,7 +306,26 @@ export function buildCharm(scene, quality, kitchen, sim) {
   // ---------------------------------------------------------------- loose props
   const propMeshes = new Map();
   const mk = {
-    napkin: (d) => { const t = canvasTex(128, 128, (c, W) => { c.fillStyle = '#f6f1e6'; c.fillRect(0, 0, W, W); c.fillStyle = `#${new THREE.Color(d.color).getHexString()}99`; for (let i = 0; i < 8; i++) { c.fillRect(i * 16, 0, 8, W); c.fillRect(0, i * 16, W, 8); } }); const m = new THREE.Mesh(new THREE.BoxGeometry(d.half[0] * 2, d.half[1] * 2, d.half[2] * 2), new THREE.MeshStandardMaterial({ map: t, roughness: 1 })); return m; },
+    napkin: (d) => {
+      // Cotton gingham folded in four: woven stripes that darken where they cross, a stitched hem and the
+      // fold creases. Drawn a little thinner than its collider, lying on the collider's underside.
+      const col = new THREE.Color(d.color), rgb = `${Math.round(col.r * 255)},${Math.round(col.g * 255)},${Math.round(col.b * 255)}`;
+      const t = canvasTex(256, 256, (c, W) => {
+        c.fillStyle = '#f7f2e8'; c.fillRect(0, 0, W, W);
+        c.fillStyle = `rgba(${rgb},0.5)`;
+        for (let i = 0; i < 12; i++) { c.fillRect(8 + i * 20, 0, 10, W); c.fillRect(0, 8 + i * 20, W, 10); }
+        for (let i = 0; i < W; i += 2) { c.fillStyle = `rgba(0,0,0,${0.03 + ((i * 7) % 5) / 200})`; c.fillRect(0, i, W, 1); c.fillRect(i, 0, 1, W); }
+        c.strokeStyle = `rgba(${rgb},0.9)`; c.lineWidth = 1.5; c.setLineDash([4, 3]); c.strokeRect(5, 5, W - 10, W - 10); c.setLineDash([]);
+        c.fillStyle = 'rgba(80,60,40,0.12)'; c.fillRect(0, 0, W, 3); c.fillRect(0, W - 3, W, 3); c.fillRect(0, 0, 3, W); c.fillRect(W - 3, 0, 3, W);
+        const crease = c.createLinearGradient(W / 2 - 6, 0, W / 2 + 6, 0);
+        crease.addColorStop(0, 'rgba(255,255,255,0)'); crease.addColorStop(0.45, 'rgba(255,255,255,0.22)'); crease.addColorStop(0.55, 'rgba(60,40,30,0.14)'); crease.addColorStop(1, 'rgba(60,40,30,0)');
+        c.fillStyle = crease; c.fillRect(W / 2 - 6, 0, 12, W);
+        c.save(); c.translate(W / 2, W / 2); c.rotate(Math.PI / 2); c.translate(-W / 2, -W / 2); c.fillStyle = crease; c.fillRect(W / 2 - 6, 0, 12, W); c.restore();
+      });
+      const h = Math.min(d.half[1] * 2, 0.0012);
+      const geo = new RoundedBoxGeometry(d.half[0] * 2, h, d.half[2] * 2, 1, h * 0.45).translate(0, -d.half[1] + h / 2, 0);
+      return new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: t, roughness: 0.95 }));
+    },
     spoon: () => {
       const metal = new THREE.MeshStandardMaterial({ color: 0xd8dadf, metalness: 1, roughness: 0.18 });
       const g = new THREE.Group();

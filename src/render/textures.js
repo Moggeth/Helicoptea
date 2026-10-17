@@ -61,38 +61,51 @@ function fbm(n, x, y, oct = 4) {
   return s;
 }
 
-// Oak table: four planks running along x, with figure, rays and seams. Returns colour + roughness.
+// Oak table: six planks running along x (the texture spans the whole top), flat-sawn so the growth rings
+// show as arches, with ray flecks, open pores, a butt joint in two planks and darker seams. Returns colour +
+// roughness (a waxed finish: satin, rougher in the seams).
 export function woodTextures(maxSize = 2048) {
   const W = Math.min(2048, maxSize), H = W / 2;
   const [c, ctx] = canvas(W, H);
   const [rc, rctx] = canvas(W / 2, H / 2);
   const img = ctx.createImageData(W, H);
   const rimg = rctx.createImageData(W / 2, H / 2);
-  const n = makeNoise(7), n2 = makeNoise(19);
-  const planks = 4;
+  const n = makeNoise(7), n2 = makeNoise(19), n3 = makeNoise(31);
+  const planks = 6;
+  const shade = [1.0, 0.93, 1.05, 0.96, 1.02, 0.94];
+  const hue = [0, 0.04, -0.03, 0.02, -0.02, 0.05];       // a little redder or yellower per plank
+  const centre = [0.45, 0.6, 0.38, 0.52, 0.66, 0.42];    // where each plank's heart line runs
+  const joint = [-1, 0.37, -1, -1, 0.71, -1];             // butt joint position along x (fraction), or none
+  const light = [198, 150, 100], dark = [100, 64, 36];
   for (let y = 0; y < H; y++) {
-    const pi = Math.floor(y / H * planks);
+    const pi = Math.min(planks - 1, Math.floor(y / H * planks));
     const py = (y / H * planks) - pi;
-    const shade = [1.0, 0.94, 1.03, 0.97][pi];
     for (let x = 0; x < W; x++) {
-      const u = x / W * 6 + pi * 13.1, v = py * 2.2 + pi * 3.7;
-      const warp = fbm(n, u * 0.6, v * 1.5, 3) * 3.0;
-      const ring = Math.sin((v * 9 + warp * 4 + fbm(n2, u * 0.3, v, 2) * 2) * Math.PI);
-      const grain = Math.pow(Math.abs(ring), 0.35);
-      const fleck = fbm(n2, u * 14, v * 60, 2);
-      let t = 0.55 + 0.25 * grain + 0.18 * (fleck - 0.5);
-      // seam darkening
-      const seam = Math.min(py, 1 - py);
-      if (seam < 0.012) t *= 0.45 + seam / 0.012 * 0.55;
-      t *= shade;
+      const fx = x / W, u = fx * 6 + pi * 13.1;
+      const warp = fbm(n, u * 0.5, py * 1.4 + pi * 3.7, 3);
+      // Arched rings: distance from the plank's (wandering) heart line, squared, plus a drift along x.
+      const cy = centre[pi] + (warp - 0.5) * 0.35;
+      const ringc = (py - cy) * (py - cy) * 22 + u * 0.45 + warp * 2.4 + fbm(n2, u * 0.35, py * 3 + pi, 3) * 1.4;
+      const rf = ringc * 6.5, l = rf - Math.floor(rf);
+      const strength = 0.4 + 0.6 * n3(Math.floor(rf) * 3.1 + pi * 17, 0.5);   // some rings bold, some faint
+      const lateBand = (l < 0.74 ? 0 : l < 0.93 ? (l - 0.74) / 0.19 : (1 - l) / 0.07) * strength; // the dark latewood line
+      const pores = fbm(n3, u * 1.4, py * 60 + pi * 40, 2);
+      const fleck = n2(u * 9 + pi * 7, py * 34);
+      let t = 0.6 - 0.42 * lateBand - 0.06 * Math.max(0, pores - 0.55) * 2 + 0.08 * (warp - 0.5) + (fleck > 0.83 ? (fleck - 0.83) * 1.6 : 0);
+      // seams between planks, and the butt joints
+      const seam = Math.min(py, 1 - py) * H / planks;  // px to the nearest seam
+      let gap = seam < 1.6 ? 0.35 + 0.4 * seam / 1.6 : seam < 3 ? 0.92 + 0.08 * (seam - 1.6) / 1.4 : 1;
+      if (joint[pi] > 0) { const d = Math.abs(fx - joint[pi]) * W; if (d < 1.4) gap = Math.min(gap, 0.4 + 0.4 * d / 1.4); }
+      t = Math.max(0, Math.min(1, t)) * shade[pi] * gap;
       const i = (y * W + x) * 4;
-      img.data[i] = Math.min(255, 168 * t + 40);
-      img.data[i + 1] = Math.min(255, 112 * t + 26);
-      img.data[i + 2] = Math.min(255, 66 * t + 14);
+      const h = hue[pi];
+      img.data[i] = Math.min(255, dark[0] + (light[0] - dark[0]) * t * (1 + h));
+      img.data[i + 1] = Math.min(255, dark[1] + (light[1] - dark[1]) * t);
+      img.data[i + 2] = Math.min(255, dark[2] + (light[2] - dark[2]) * t * (1 - h * 1.5));
       img.data[i + 3] = 255;
       if ((x & 1) === 0 && (y & 1) === 0) {
         const j = ((y >> 1) * (W >> 1) + (x >> 1)) * 4;
-        const r = 150 + (1 - grain) * 50 + (seam < 0.012 ? 50 : 0);
+        const r = 112 + lateBand * 22 + Math.max(0, pores - 0.5) * 60 + (gap < 0.9 ? 70 : 0) + (n(u * 0.7 + 40, py * 0.8 + pi) - 0.5) * 40;
         rimg.data[j] = rimg.data[j + 1] = rimg.data[j + 2] = r; rimg.data[j + 3] = 255;
       }
     }
@@ -102,49 +115,79 @@ export function woodTextures(maxSize = 2048) {
   return { map: toTexture(c), roughnessMap: toTexture(rc, { srgb: false }) };
 }
 
-// Linen table runner: woven oatmeal with terracotta border stripes.
+// Linen table runner: oatmeal linen with slubby threads, a folded and stitched hem along each long edge, a
+// drawn-thread hemstitch and two terracotta stripes.
 export function linenTexture() {
-  const [c, ctx] = canvas(512, 512);
-  ctx.fillStyle = '#e9dfcc';
-  ctx.fillRect(0, 0, 512, 512);
-  const r = rng(3);
-  for (let i = 0; i < 512; i += 2) {
-    ctx.fillStyle = `rgba(120,100,70,${0.05 + r() * 0.07})`;
-    ctx.fillRect(0, i, 512, 1);
-    ctx.fillStyle = `rgba(255,255,240,${0.04 + r() * 0.06})`;
-    ctx.fillRect(i, 0, 1, 512);
+  const S = 512;
+  const [c, ctx] = canvas(S, S);
+  const img = ctx.createImageData(S, S);
+  const r = rng(3), n = makeNoise(41);
+  // Per-thread darkness: warp threads run along the runner (rows), weft across it (columns).
+  const warp = new Float32Array(S), weft = new Float32Array(S);
+  for (let i = 0; i < S; i++) { warp[i] = (r() - 0.5) * 0.09; weft[i] = (r() - 0.5) * 0.06; }
+  for (let k = 0; k < 28; k++) { const row = Math.floor(r() * S); warp[row] -= 0.05 + r() * 0.05; } // thicker, darker slub threads
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const over = ((x + y) & 1) ? warp[y] : weft[x];                 // plain weave: which thread is on top
+    const slub = Math.max(0, n(x * 0.06, y * 1.3) - 0.72) * 0.5;    // short thick lumps along a thread
+    const cloud = (n(x * 0.012 + 9, y * 0.012) - 0.5) * 0.05;       // faint uneven colour
+    const t = 1 + over + cloud - slub;
+    const i = (y * S + x) * 4;
+    img.data[i] = Math.min(255, 228 * t); img.data[i + 1] = Math.min(255, 216 * t); img.data[i + 2] = Math.min(255, 194 * t); img.data[i + 3] = 255;
   }
-  for (let i = 0; i < 2600; i++) {
-    ctx.fillStyle = `rgba(110,90,60,${r() * 0.12})`;
-    ctx.fillRect(r() * 512, r() * 512, 1 + r() * 6, 1);
+  ctx.putImageData(img, 0, 0);
+  // Each long edge (v = 0 and 1, the canvas top and bottom): a folded hem with its stitching, a hemstitch,
+  // then the stripes.
+  for (const flip of [false, true]) {
+    const Y = (y) => (flip ? S - y : y);
+    const band = (y, h, col) => { ctx.fillStyle = col; ctx.fillRect(0, flip ? S - y - h : y, S, h); };
+    band(0, 9, 'rgba(120,96,64,0.1)');
+    band(9, 1, 'rgba(90,70,45,0.28)');                            // the hem's folded edge
+    ctx.fillStyle = 'rgba(150,128,96,0.5)';
+    for (let x = 2; x < S; x += 7) ctx.fillRect(x, Y(5) - (flip ? 1 : 0), 4, 1); // running stitch
+    ctx.fillStyle = 'rgba(105,85,58,0.32)';
+    for (let x = 1; x < S; x += 4) ctx.fillRect(x, flip ? S - 15 : 12, 2, 3);  // hemstitch: little bundles of threads
+    band(24, 9, 'rgba(176,84,56,0.82)');
+    band(38, 3, 'rgba(176,84,56,0.7)');
   }
-  // border stripes along the runner's long edges (v = 0 and 1)
-  const stripe = (y, h, col) => { ctx.fillStyle = col; ctx.fillRect(0, y, 512, h); };
-  stripe(18, 10, 'rgba(178,86,58,0.85)'); stripe(34, 3, 'rgba(178,86,58,0.75)');
-  stripe(512 - 28, 10, 'rgba(178,86,58,0.85)'); stripe(512 - 37, 3, 'rgba(178,86,58,0.75)');
   return toTexture(c, { repeat: [4, 1] });
 }
 
+// Agglomerated cork: packed granules of slightly different tans (a jittered cell pattern), darker pits
+// between them, and the landing mark painted on top.
 export function corkTexture() {
-  const [c, ctx] = canvas(512, 512);
-  ctx.fillStyle = '#b98b5a';
-  ctx.fillRect(0, 0, 512, 512);
+  const S = 512, G = 4;                                   // granules under 2 mm across (S / G whole)
+  const [c, ctx] = canvas(S, S);
+  const img = ctx.createImageData(S, S);
   const r = rng(11);
-  for (let i = 0; i < 9000; i++) {
-    const s = 1 + r() * 3.5, l = r();
-    ctx.fillStyle = l < 0.5 ? `rgba(90,58,30,${0.25 + r() * 0.4})` : `rgba(230,190,140,${0.2 + r() * 0.3})`;
-    ctx.beginPath(); ctx.arc(r() * 512, r() * 512, s, 0, Math.PI * 2); ctx.fill();
+  const cells = S / G, jx = new Float32Array(cells * cells), jy = new Float32Array(cells * cells), tone = new Float32Array(cells * cells);
+  for (let i = 0; i < cells * cells; i++) { jx[i] = r(); jy[i] = r(); tone[i] = r(); }
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const gx = x / G, gy = y / G, cx = Math.floor(gx), cy = Math.floor(gy);
+    let d1 = 9, d2 = 9, id = 0;
+    for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+      const ix = (cx + ox + cells) % cells, iy = (cy + oy + cells) % cells, k = iy * cells + ix;
+      const dx = cx + ox + jx[k] - gx, dy = cy + oy + jy[k] - gy, d = dx * dx + dy * dy;
+      if (d < d1) { d2 = d1; d1 = d; id = k; } else if (d < d2) d2 = d;
+    }
+    const edge = Math.min(1, (Math.sqrt(d2) - Math.sqrt(d1)) * 7);   // 0 on a boundary between granules
+    let t = 0.8 + tone[id] * 0.3 - (1 - edge) * 0.16;
+    if (tone[id] > 0.94) t -= 0.28;                                   // the odd dark granule
+    const i = (y * S + x) * 4;
+    img.data[i] = Math.min(255, 196 * t); img.data[i + 1] = Math.min(255, 150 * t); img.data[i + 2] = Math.min(255, 102 * t); img.data[i + 3] = 255;
   }
-  // painted landing mark
-  ctx.strokeStyle = 'rgba(250,244,230,0.92)';
+  ctx.putImageData(img, 0, 0);
+  // painted landing mark (the paint lies a little thin over the granules)
+  ctx.globalAlpha = 0.9;
+  ctx.strokeStyle = 'rgb(250,244,230)';
   ctx.lineWidth = 16;
   ctx.beginPath(); ctx.arc(256, 256, 205, 0, Math.PI * 2); ctx.stroke();
   ctx.lineWidth = 5;
   ctx.setLineDash([18, 14]);
   ctx.beginPath(); ctx.arc(256, 256, 176, 0, Math.PI * 2); ctx.stroke();
   ctx.setLineDash([]);
-  ctx.fillStyle = 'rgba(250,244,230,0.94)';
+  ctx.fillStyle = 'rgb(250,244,230)';
   ctx.fillRect(176, 150, 36, 212); ctx.fillRect(300, 150, 36, 212); ctx.fillRect(176, 238, 160, 36);
+  ctx.globalAlpha = 1;
   return toTexture(c);
 }
 

@@ -6,6 +6,7 @@ import * as TX from './textures.js';
 import { buildGarden } from './garden.js';
 import { TableCloth } from './cloth.js';
 import { cupModel, glazeMaterial, vesselGeometry, saucerGeometry, handleGeometry } from './models.js';
+import { teapotGeometry, buildTeaStand, tableTopGeometry, buildBookStack } from './tableware.js';
 
 const V2 = (x, y) => new THREE.Vector2(x, y);
 
@@ -47,12 +48,11 @@ export function buildKitchen(scene, renderer, quality, progress, sim) {
   out.lamp = lamp;
   progress?.('Lighting the kitchen');
 
-  // Table: oak planks, chamfered edge, legs.
+  // Table: oak planks, rounded edges and corners, legs.
   const wood = TX.woodTextures(quality.textureSize);
   const woodMat = new THREE.MeshStandardMaterial({ map: wood.map, roughnessMap: wood.roughnessMap, roughness: 1.0, metalness: 0, envMapIntensity: 0.7 });
   {
-    const top = new THREE.Mesh(new THREE.BoxGeometry(TABLE.halfX * 2, TABLE.thickness, TABLE.halfZ * 2), woodMat);
-    top.position.y = -TABLE.thickness / 2;
+    const top = new THREE.Mesh(tableTopGeometry(TABLE.halfX, TABLE.halfZ, TABLE.thickness), woodMat);
     top.receiveShadow = true; top.castShadow = true;
     scene.add(top);
     const darkWood = woodMat.clone();
@@ -210,35 +210,10 @@ export function buildKitchen(scene, renderer, quality, progress, sim) {
     scene.add(ring);
   }
 
-  // Brown Betty teapot.
+  // Brown Betty teapot (tableware.js): one merged mesh, its glaze coloured per vertex.
   {
     const T = TEAPOT;
-    const g = new THREE.Group();
-    const potMat = glazeMaterial(0x5a2e1a, { roughness: 0.14 });
-    const prof = [];
-    for (let i = 0; i <= 24; i++) {
-      const t = i / 24;
-      const r = T.bodyR * (0.72 + 0.28 * Math.sin(Math.PI * (0.15 + 0.75 * t)));
-      prof.push(V2(i === 0 ? 0.0001 : r, t * T.bodyH));
-    }
-    prof.push(V2(T.bodyR * 0.6, T.bodyH + 0.004));
-    prof.push(V2(0.0001, T.bodyH + 0.004));
-    const body = new THREE.Mesh(new THREE.LatheGeometry(prof, 48), potMat);
-    g.add(body);
-    const lid = new THREE.Mesh(new THREE.SphereGeometry(T.bodyR * 0.6, 32, 12, 0, Math.PI * 2, 0, Math.PI * 0.32), potMat);
-    lid.position.y = T.bodyH - 0.035;
-    g.add(lid);
-    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.013, 16, 12), potMat);
-    knob.position.y = T.knobY;
-    g.add(knob);
-    const curve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(T.bodyR * 0.8, 0.045, 0), new THREE.Vector3(T.bodyR + 0.03, 0.07, 0), new THREE.Vector3(T.bodyR + 0.055, 0.12, 0), new THREE.Vector3(T.bodyR + 0.07, 0.15, 0)]);
-    const spout = new THREE.Mesh(new THREE.TubeGeometry(curve, 20, 0.012, 12, false), potMat);
-    g.add(spout);
-    const handle = new THREE.Mesh(handleGeometry(0.045, 0.008, Math.PI * 1.15), potMat);
-    handle.position.set(-T.bodyR - 0.005, 0.085, 0);
-    handle.rotation.y = Math.PI;
-    g.add(handle);
+    const g = new THREE.Mesh(teapotGeometry(T), glazeMaterial(0xffffff, { roughness: 0.16, extra: { vertexColors: true, clearcoatRoughness: 0.06 } }));
     g.rotation.y = T.spoutYaw;
     g.position.set(T.x, 0, T.z);
     scene.add(shadowed(g));
@@ -355,69 +330,11 @@ export function buildKitchen(scene, renderer, quality, progress, sim) {
     }
   }
 
-  // Stack of books with a pair of reading glasses.
-  {
-    let y = 0;
-    const cols = [0x7a3b2e, 0x2f5866, 0xc9a24a];
-    BOOKS.books.forEach(([hx, hh, hz, yaw], i) => {
-      const g = new THREE.Group();
-      const cover = new THREE.Mesh(new THREE.BoxGeometry(hx * 2, hh, hz * 2), new THREE.MeshStandardMaterial({ color: cols[i], roughness: 0.7 }));
-      g.add(cover);
-      const pages = new THREE.Mesh(new THREE.BoxGeometry(hx * 2 - 0.006, hh - 0.004, hz * 2 + 0.0005), new THREE.MeshStandardMaterial({ color: 0xf1e8d4, roughness: 0.9 }));
-      pages.position.x = 0.004;
-      g.add(pages);
-      g.position.set(BOOKS.x, y + hh / 2, BOOKS.z);
-      g.rotation.y = yaw;
-      y += hh;
-      scene.add(shadowed(g));
-    });
-  }
+  // Stack of hardbacks (tableware.js).
+  scene.add(shadowed(buildBookStack(BOOKS, [0x7a3b2e, 0x2f5866, 0xc9a24a])));
 
   // (The teaspoon is loose: see props.js and charm.js.)
   progress?.('Setting out the china');
   out.garden = buildGarden(scene, quality, out, teaStand, sim);
   return out;
-}
-
-// Tea stand: oak base, two posts, crossbar and brass pegs.
-function buildTeaStand(S, wood) {
-  const g = new THREE.Group();
-  const standWood = new THREE.MeshStandardMaterial({ color: 0x9a6a42, roughness: 0.55, map: wood.map });
-  const base = new THREE.Mesh(new THREE.BoxGeometry(S.baseHalf[0] * 2, S.baseHalf[1] * 2, S.baseHalf[2] * 2), standWood);
-  base.position.set(0, S.baseHalf[1], 0);
-  g.add(base);
-  for (const sx of [-1, 1]) {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(S.postHalf, S.postHalf * 1.15, S.postHeight, 16), standWood);
-    post.position.set(sx * S.postX, S.postHeight / 2, 0);
-    g.add(post);
-    const knob = new THREE.Mesh(new THREE.SphereGeometry(S.postHalf * 1.5, 16, 12), standWood);
-    knob.position.set(sx * S.postX, S.postHeight + 0.004, 0);
-    g.add(knob);
-  }
-  const bar = new THREE.Mesh(new THREE.CylinderGeometry(S.barHalf, S.barHalf, S.postX * 2, 16), standWood);
-  bar.rotation.z = Math.PI / 2;
-  bar.position.y = S.barY;
-  g.add(bar);
-  const brass = new THREE.MeshStandardMaterial({ color: 0xd4a548, roughness: 0.28, metalness: 1 });
-  for (const px of S.pegXs) {
-    const peg = new THREE.Mesh(new THREE.CylinderGeometry(0.0018, 0.0022, S.pegReach, 10), brass);
-    peg.rotation.x = Math.PI / 2;
-    peg.position.set(px, S.pegY, S.pegReach / 2);
-    g.add(peg);
-    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.0034, 12, 8), brass);
-    tip.position.set(px, S.pegY + 0.002, S.pegReach);
-    g.add(tip);
-  }
-  // little sign
-  const c = document.createElement('canvas'); c.width = 256; c.height = 64;
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = '#efe4cf'; ctx.fillRect(0, 0, 256, 64);
-  ctx.fillStyle = '#7a3b26'; ctx.font = 'bold 34px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText('TEA BAGS', 128, 45);
-  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.025), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 }));
-  sign.position.set(0, S.baseHalf[1] * 2 + 0.0002, 0.02);
-  sign.rotation.x = -Math.PI / 2;
-  g.add(sign);
-  g.position.set(S.x, S.y, S.z);
-  return g;
 }
