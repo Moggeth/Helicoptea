@@ -79,12 +79,14 @@ try {
   // Spring-return lift with Assist off.
   // The preceding held-bank flight may legitimately have crashed. Restart this independent control
   // case rather than dereferencing a retired airframe or depending on a software GPU's flight pace.
-  await H(() => window.__helicoptea.doAction('restart'));
-  await page.waitForFunction(() => !window.__helicoptea.paused && window.__helicoptea.sim.heli && window.__helicoptea.sim.state === 'flying');
+  const restartFrame = await H(() => { const g = window.__helicoptea; g.doAction('restart'); return g.frames; });
+  await page.waitForFunction(frame => { const g = window.__helicoptea; return g.frames > frame && !g.paused && g.sim.heli && g.sim.state === 'flying'; }, restartFrame);
   await H(() => window.__helicoptea.input.centreMouse());
   await H(() => { const g = window.__helicoptea; if (g.sim.assist) g.doAction('assist'); });
+  const idle = await H(() => window.__helicoptea.sim.heli.collective);
   await page.keyboard.down('w');
-  await page.waitForFunction(() => window.__helicoptea.sim.heli?.collective > 0.8, null, { timeout: 5000 });
+  // Full user input is not 100% rotor collective: spring levels depend on aircraft thrust-to-weight.
+  await page.waitForFunction(idle => { const g = window.__helicoptea; return g.input.ctl.collective > 0.9 && g.sim.heli?.collective > idle + 0.05; }, idle, { timeout: 5000 });
   const held = await H(() => window.__helicoptea.sim.heli.collective);
   await page.keyboard.up('w');
   await page.waitForFunction(held => window.__helicoptea.sim.heli && window.__helicoptea.sim.heli.collective < held - 0.05, held, { timeout: 5000 });

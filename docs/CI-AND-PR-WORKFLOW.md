@@ -84,6 +84,11 @@ status, anonymous HTML/assets and build marker separately after merging.
   screenshot. CI browsers disable background timer/renderer throttling (as several existing suites
   already did). The self-contained Linux job runs alongside headless checks, rather than waiting for
   them; the aggregate still requires both. Do not describe a pre-start timeout as a control failure.
+- Inspection caught an overstrict intermediate mouse-fixture precondition: it waited for **0.8 rotor
+  collective**, but the shipped micro's full-up spring level is **0.675** (neutral **0.475**). Require a
+  full user command and a positive motor response above that run's idle, then assert the original
+  release drop. Do not change aircraft power or spring tuning to satisfy a test's arbitrary percentage.
+  Wait for a completed post-restart frame before sending the independent keyboard input.
 
 ## Inspection and recovery
 
