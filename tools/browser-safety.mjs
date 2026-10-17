@@ -8,16 +8,22 @@ export function blockNativePointerLock() {
   };
 }
 
-export function desktopSafeChromium(browserType, platform = process.platform) {
+export function desktopSafeChromium(browserType, platform = process.platform, ci = process.env.GITHUB_ACTIONS === 'true') {
   return {
     async launch(options) {
       const browser = await browserType.launch(options);
-      if (platform !== 'win32') return browser;
+      if (platform !== 'win32' && !ci) return browser;
       const guarded = new WeakSet();
       const protect = async (context) => {
         if (guarded.has(context)) return;
         try {
-          await context.addInitScript(blockNativePointerLock);
+          if (platform === 'win32') await context.addInitScript(blockNativePointerLock);
+          // Hosted software renderers take longer to construct the neighbourhood. Keep explicit
+          // behavioural deadlines intact; only Playwright's implicit 30 s action/navigation limit grows.
+          if (ci) {
+            context.setDefaultTimeout(120000);
+            context.setDefaultNavigationTimeout(120000);
+          }
           guarded.add(context);
         } catch (error) {
           await context.close();
