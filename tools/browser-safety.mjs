@@ -1,5 +1,6 @@
 // Headless Chrome can confine the real Windows pointer. All local QA uses this launcher.
-import { chromium as nativeChromium } from 'playwright-core';
+import { chromium as nativeChromium, webkit } from 'playwright-core';
+export { webkit };
 
 export function blockNativePointerLock() {
   Element.prototype.requestPointerLock = function () {
