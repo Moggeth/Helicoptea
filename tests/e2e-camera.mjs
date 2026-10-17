@@ -206,6 +206,7 @@ try {
     await page.keyboard.press('KeyU'); await sleep(300);
     // Pause menu: picker and cycle toggles, persisted.
     await page.keyboard.press('Escape'); await sleep(200);
+    await page.click('.overlay [data-tab=camera]'); await sleep(100);
     await page.click('.overlay [data-act=view][data-id=tripod]'); await sleep(150);
     s = await state(page);
     check('pause menu picks a camera and stays paused', s.mode === 'tripod' && await H(page, () => window.__helicoptea.paused));

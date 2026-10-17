@@ -27,6 +27,7 @@ try {
 
   // Pick Battlefield in Controls, and remap Hook to O.
   await page.keyboard.press('Escape');
+  await page.click('.overlay.show [data-tab=controls]');
   await page.click('[data-act=controller]');
   check('Controls opens on the Keyboard and mouse tab', await page.locator('.kb-tab:not(.hidden) [data-kb=preset]').isVisible());
   await page.selectOption('[data-kb=preset]', 'battlefield');

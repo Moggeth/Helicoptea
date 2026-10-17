@@ -17,6 +17,7 @@ try {
   await page.waitForTimeout(600);
   await page.keyboard.down('w');await page.waitForTimeout(700);await page.keyboard.up('w');
   await page.keyboard.press('Escape');
+  await page.click('.overlay.show [data-tab=controls]');
   await page.click('[data-act=tuning]');
   await page.click('[data-act=tuneImport]');
   const text='{"version":1,"global":{"coasting":0.8},"aircraft":{}}';

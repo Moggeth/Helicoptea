@@ -65,7 +65,7 @@ try {
     check('ending it from the pause menu hides the card and resumes', !c.active && !c.shown && !(await page.evaluate(() => window.__helicoptea.paused)), c);
     await page.keyboard.press('Escape'); await page.waitForTimeout(200);
     const again = await page.locator('.overlay.show [data-act=tutorial]').textContent();
-    check('and offers it again afterwards', again === 'Guided first flight', again);
+    check('and offers it again afterwards', again === 'Start', again);
     await page.locator('.overlay.show [data-act=tutorial]').click(); await page.waitForTimeout(400);
     c = await card(page);
     check('restarting it from the pause menu begins at lift on the pad', c.active && c.tut === 'lift' && c.shown && (await page.evaluate(() => window.__helicoptea.sim.heli.grounded)), c);

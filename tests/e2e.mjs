@@ -310,9 +310,12 @@ try {
     await press(8);
     let u = await ui();
     check('pad: Back/View opens the pause menu', u.paused && u.modal === 'Paused', JSON.stringify(u));
-    for (let i = 0; i < 8; i++) await press(13); // past Resume, Restart, Reset, Flight replay, Guided first flight, quality, weight, debug
+    await press(5); await press(5); // RB, RB: Flight, Camera, Controls
     u = await ui();
-    check('pad: d-pad moves menu focus', /Settings/.test(u.focus), `focus "${u.focus}"`);
+    check('pad: RB flips the pause menu tabs', u.focus === 'Controls', `focus "${u.focus}"`);
+    for (let i = 0; i < 8 && !(await page.evaluate(() => document.activeElement?.dataset?.act === 'controller')); i++) await press(13);
+    u = await ui();
+    check('pad: d-pad moves menu focus down into the tab', await page.evaluate(() => document.activeElement?.dataset?.act === 'controller'), `focus "${u.focus}"`);
     await press(0);
     u = await ui();
     check('pad: A opens Controller settings', u.modal === 'Controls', JSON.stringify(u));

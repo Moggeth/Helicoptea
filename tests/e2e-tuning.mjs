@@ -33,6 +33,7 @@ async function openBoard() {
   await page.keyboard.press('Escape');
   await sleep(250);
   if (process.env.DBG) console.log('DBG', await H(() => ({ paused: window.__helicoptea.paused, modal: document.querySelector('#modal, .modal')?.className, act: document.activeElement?.outerHTML?.slice(0, 80), btn: !!document.querySelector('[data-act=tuning]') })).then(JSON.stringify));
+  await page.click('.overlay.show [data-tab=controls]');
   await page.click('[data-act=tuning]');
   await page.waitForSelector('.tune-panel', { timeout: 5000 });
 }

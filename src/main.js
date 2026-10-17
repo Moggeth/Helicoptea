@@ -643,6 +643,7 @@ async function boot() {
       case 'resume': setPaused(false); break;
       case 'help': if (hud.modalKind === 'help') hud.closeModal(); else { hud.openHelp(); } break;
       case 'closehelp': hud.closeModal(); if (paused) hud.openPause(pauseOpts()); break;
+      case 'pausetab': hud.setPauseTab(el.dataset.tab); break;
       case 'helptab': hud.setHelpTab(el.dataset.tab); break;
       case 'ctltab': hud.setCtlTab(el.dataset.tab); break;
       case 'mute': audio.setMuted(!audio.muted); hud.setVolume(audio.volume, audio.muted); break;
@@ -1019,6 +1020,7 @@ async function boot() {
     for (const a of input.takeActions()) {
       if (replay.active) continue;   // the viewer reads keys and the pad itself
       if (a.startsWith('nav-')) { hud.nav(a.slice(4)); continue; }
+      if (a.startsWith('tab-')) { hud.stepTab(a === 'tab-next' ? 1 : -1); continue; }
       if (a === 'confirm') { if (!hud.confirm() && !started) begin(); continue; }
       if (a === 'back') { if (started) back(); continue; }
       if (a === 'padLost') { if (started && input.source === 'gamepad') setPaused(true); continue; }

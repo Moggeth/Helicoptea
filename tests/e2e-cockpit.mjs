@@ -103,6 +103,7 @@ const state = (page) => H(page, () => {
   check('pause menu switches to the cockpit and stays paused', s.mode === 'cockpit' && paused);
   const sliders = await H(page, () => !!document.querySelector('[data-setting=fpMotion]') && !!document.querySelector('[data-setting=fpVibration]') && !!document.querySelector('[data-setting=fpFov]') && !!document.querySelector('[data-setting=loadCam]'));
   check('pause menu has cockpit field of view, head motion, vibration and hook camera settings', sliders);
+  await page.click('.overlay.show [data-tab=camera]');
   await page.selectOption('[data-setting=loadCam]', 'off');
   await page.keyboard.press('Digit1');   // works from the pause menu too
   await sleep(150);
@@ -115,6 +116,7 @@ const state = (page) => H(page, () => {
   check('hook camera setting Off hides the inset', s.mode === 'cockpit' && !s.pip);
   await H(page, () => { document.querySelector('.overlay')?.classList.remove('show'); });
   await page.keyboard.press('Escape'); await sleep(150);
+  await page.click('.overlay.show [data-tab=camera]');
   await page.selectOption('[data-setting=loadCam]', 'auto');
   await page.keyboard.press('Escape'); await sleep(200);
 

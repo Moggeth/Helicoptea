@@ -55,6 +55,7 @@ try {
 
   // Flight stick tab.
   await page.keyboard.press('Escape');
+  await page.click('.overlay.show [data-tab=controls]');
   await page.click('[data-act=controller]');
   await page.click('[data-act=ctltab][data-tab=hotas]');
   check('Controls has a Flight stick tab', await page.locator('.ho-tab:not(.hidden) [data-ho=teach]').isVisible());

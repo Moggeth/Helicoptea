@@ -461,80 +461,82 @@ export class Hud {
   }
 
   // ---------------------------------------------------------------- modals
+  // The pause menu: resume, restart and replay up top, the settings on four tabs.
   openPause(opts) {
+    const back = this.modalKind === 'pause' ? this.focusKey(document.activeElement) : null;
     this.modalKind = 'pause';
+    const tab = this.pauseTab || 'flight';
+    const lbl = (name, hint) => `<span class="opt-l">${name}${hint ? `<small>${hint}</small>` : ''}</span>`;
+    const sel = (attrs, list, cur) => `<select ${attrs}>${list.map(([v, nm]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${nm}</option>`).join('')}</select>`;
+    const toggle = (name, attrs, on, hint) => `<label class="opt">${lbl(name, hint)}<input type="checkbox" class="switch" ${attrs} ${on ? 'checked' : ''}/></label>`;
+    const slider = (name, attrs, lo, hi) => `<label class="opt">${lbl(name)}<span class="weight-row">${lo === undefined ? '' : `<small>${lo}</small>`}<input type="range" ${attrs} />${hi ? `<small>${hi}</small>` : ''}</span></label>`;
+    const go = (name, act, verb, hint) => `<div class="opt">${lbl(name, hint)}<button class="secondary small" data-act="${act}">${verb}</button></div>`;
+    const seg = (name, aria, role, items) => `<div class="opt seg-row ${role === 'group' ? '' : 'aircraft-row'}" role="${role}" aria-label="${aria}">${lbl(name)}<span class="seg">${items}</span></div>`;
+    const radio = (act, id, nm, on, title) => `<button class="secondary${on ? ' on' : ''}" role="radio" aria-checked="${on}" data-act="${act}" data-id="${id}"${title ? ` title="${title}"` : ''}>${nm}</button>`;
+    const pages = {
+      flight: [
+        seg('Aircraft', 'Aircraft', 'radiogroup', [['micro', 'Micro heli'], ['chinook', 'Chinook'], ['skycrane', 'Skycrane']].map(([id, nm]) => radio('aircraft', id, nm, opts.aircraft === id)).join('')),
+        opts.lesson ? '' : go('Guided first flight', 'tutorial', 'Start'),
+        go('Tips', 'resethints', 'Show again'),
+        slider('World weight', `min="0" max="1" step="0.05" value="${opts.weight ?? 0.75}" data-setting="weight" aria-label="World weight"`, 'light', 'heavy'),
+        toggle('Blades break on a strike', 'data-setting="rotorStrikes"', opts.rotorStrikes !== false),
+        opts.touch ? go('Mark this moment', 'markNow', 'Mark', 'Find it later in Flight replay') : '',
+        go('Reset sandbox', 'reset', 'Reset', 'Clears every cup and bag'),
+      ],
+      camera: [
+        seg('Camera', 'Camera', 'radiogroup', CAM_MODES.map(({ id, name, blurb }) => radio('view', id, name, opts.view === id, blurb)).join('')),
+        `<div class="opt seg-row cam-row" role="group" aria-label="Cameras in the C / L3 cycle">${lbl(opts.touch ? 'Camera button cycles' : 'Next camera cycles', opts.touch ? '' : '<kbd>C</kbd> or L3')}<span class="seg">${CAM_MODES.map(({ id, name }) => { const on = (opts.camCycle || []).includes(id); return `<button class="secondary chk${on ? ' on' : ''}" aria-pressed="${on}" data-act="camcycle" data-id="${id}">${name}</button>`; }).join('')}</span></div>`,
+        slider('Speed feel', `min="0" max="1" step="0.05" value="${opts.camFeel ?? 0.5}" data-setting="camFeel" aria-label="Speed feel on the locked and nose cameras"`, 'rigid', 'lots'),
+        slider('Cockpit field of view', `min="60" max="110" step="1" value="${opts.fpFov}" data-setting="fpFov" aria-label="Cockpit field of view"`, `${opts.fpFov}°`),
+        slider('Head motion', `min="0" max="1" step="0.05" value="${opts.fpMotion}" data-setting="fpMotion" aria-label="Head motion in the cockpit"`, 'off', 'lots'),
+        slider('Rotor vibration', `min="0" max="1" step="0.05" value="${opts.fpVibration}" data-setting="fpVibration" aria-label="Rotor vibration in the cockpit"`, 'off', 'lots'),
+        `<label class="opt">${lbl('Hook camera')}${sel('data-setting="loadCam"', [['auto', 'In the cockpit'], ['always', 'Always'], ['off', 'Off']], opts.loadCam)}</label>`,
+        toggle('Close-in camera over a cup', 'data-cue="dipCam"', opts.cues && opts.cues.dipCam),
+      ],
+      controls: [
+        opts.touch ? `<label class="opt">${lbl('Sticks')}${sel('data-setting="touchLayout" aria-label="Touch stick layout"', Object.entries(TOUCH_LAYOUTS).map(([id, l]) => [id, l.name]), opts.touchLayout)}</label>` : '',
+        opts.touch ? `<label class="opt">${lbl('Stick size')}${sel('data-setting="touchSize" aria-label="Touch stick size"', Object.keys(TOUCH_SIZES).map((id) => [id, `${id[0].toUpperCase() + id.slice(1)}${id === 'small' ? ': quick' : id === 'large' ? ': fine' : ''}`]), opts.touchSize)}</label>` : '',
+        opts.touch ? '' : `<label class="opt">${lbl('Keyboard and mouse')}${sel('data-setting="kbPreset" aria-label="Keyboard and mouse scheme"', [...KB_PRESET_ORDER.map((id) => [id, KB_PRESETS[id].name]), ...(this.input?.kbLayout.custom ? [['custom', 'Custom (yours)']] : [])], this.input?.kbLayout.preset)}</label>`,
+        liftSelect(opts.collectiveMode),
+        !opts.touch || opts.haptics === null || opts.haptics === undefined ? '' : toggle('Vibration', 'data-setting="haptics"', opts.haptics),
+        go('Controls and remapping', 'controller', 'Open'),
+        go('Control sheet', 'help', 'Show', opts.touch ? '' : '<kbd>H</kbd>'),
+        go('Flight tuning', 'tuning', 'Open'),
+      ],
+      display: [
+        `<label class="opt">${lbl('Graphics quality', 'Reloads the page')}${sel('data-setting="quality"', ['auto', 'ultra', 'high', 'medium', 'low'].map((q) => [q, q[0].toUpperCase() + q.slice(1)]), opts.quality)}</label>`,
+        slider('Sound', `min="0" max="1" step="0.01" value="${opts.muted ? 0 : opts.volume}" data-setting="volume" aria-label="Volume"`),
+        opts.touch ? toggle('Battery saver', 'data-setting="batterySaver"', opts.batterySaver, '30 fps') : '',
+        !opts.touch || opts.fullscreen === null || opts.fullscreen === undefined ? '' : toggle('Full screen', 'data-setting="fullscreen"', opts.fullscreen),
+        opts.homeScreenTip ? `<div class="opt home-tip">${lbl('Full screen', 'Share, then Add to Home Screen, and open it from there')}</div>` : '',
+        toggle('Load shadows', 'data-cue="shadows"', opts.cues && opts.cues.shadows),
+        toggle('Plumb line and height', 'data-cue="plumb"', opts.cues && opts.cues.plumb),
+        toggle('Glint over a cup', 'data-cue="cupHint"', opts.cues && opts.cues.cupHint),
+        toggle('Frame rate', 'data-setting="fpsMeter"', opts.fpsMeter, opts.touch ? '' : '<kbd>F2</kbd>'),
+        toggle('Debug overlay', 'data-setting="debug"', opts.debug),
+      ],
+    };
+    const TABS = [['flight', 'Flight'], ['camera', 'Camera'], ['controls', 'Controls'], ['display', 'Display']];
     this.modal.innerHTML = `
-      <div class="panel menu" role="dialog" aria-label="Paused">
-        <h2>Paused</h2>
-        <p>The kettle can wait.</p>
-        <div class="row">
-          <button class="primary" style="margin-top:0" data-act="resume">Resume</button>
-          <button class="secondary" data-act="restart">Restart flight</button>
-          <button class="secondary" data-act="reset">Reset sandbox</button>
-          <button class="secondary" data-act="replay">Flight replay</button>
-          <button class="secondary" data-act="tutorial">${opts.lesson ? 'End guided flight' : 'Guided first flight'}</button>
+      <div class="panel menu pause" role="dialog" aria-label="Paused">
+        <div class="pause-head">
+          <h2>Paused</h2>
+          <div class="pause-actions">
+            <button class="primary" data-act="resume">Resume</button>
+            <button class="secondary" data-act="restart">Restart flight</button>
+            <button class="secondary" data-act="replay">Flight replay</button>
+            ${opts.lesson ? '<button class="secondary" data-act="tutorial">End guided flight</button>' : ''}
+          </div>
         </div>
-        ${opts.touch ? `<div class="row stack touch-opts">
-          <label class="opt">Sticks
-            <select data-setting="touchLayout" aria-label="Touch stick layout">
-              ${Object.entries(TOUCH_LAYOUTS).map(([id, l]) => `<option value="${id}" ${opts.touchLayout === id ? 'selected' : ''}>${l.name}</option>`).join('')}
-            </select></label>
-          <label class="opt">Stick size
-            <select data-setting="touchSize" aria-label="Touch stick size">
-              ${Object.keys(TOUCH_SIZES).map((id) => `<option value="${id}" ${opts.touchSize === id ? 'selected' : ''}>${id[0].toUpperCase() + id.slice(1)}${id === 'small' ? ': quick' : id === 'large' ? ': fine' : ''}</option>`).join('')}
-            </select></label>
-          ${liftSelect(opts.collectiveMode)}
-          ${opts.fullscreen === null || opts.fullscreen === undefined ? '' : `<label class="opt">Full screen <input type="checkbox" data-setting="fullscreen" ${opts.fullscreen ? 'checked' : ''}/></label>`}
-          ${opts.homeScreenTip ? '<div class="opt home-tip">Full screen <small>Share → Add to Home Screen, then open it from there</small></div>' : ''}
-          ${opts.haptics === null || opts.haptics === undefined ? '' : `<label class="opt">Vibration <input type="checkbox" data-setting="haptics" ${opts.haptics ? 'checked' : ''}/></label>`}
-          <label class="opt">Battery saver <small class="opt-note">30 fps</small><input type="checkbox" data-setting="batterySaver" ${opts.batterySaver ? 'checked' : ''}/></label>
-          <label class="opt">Sound <span class="weight-row"><input type="range" min="0" max="1" step="0.01" value="${opts.muted ? 0 : opts.volume}" data-setting="volume" aria-label="Volume" /></span></label>
-          <div class="opt aircraft-row" role="radiogroup" aria-label="Aircraft">Aircraft
-            <span>${[['micro', 'Micro'], ['chinook', 'Chinook'], ['skycrane', 'Skycrane']].map(([id, nm]) => `<button class="secondary${opts.aircraft === id ? ' on' : ''}" role="radio" aria-checked="${opts.aircraft === id}" data-act="aircraft" data-id="${id}">${nm}</button>`).join(' ')}</span></div>
-          <div class="opt touch-links"><button class="secondary" data-act="help">Controls</button><button class="secondary" data-act="markNow">⚑ Mark this moment</button></div>
-        </div>` : ''}
-        <details class="more" ${opts.touch ? '' : 'open'}><summary>${opts.touch ? 'More settings' : 'Settings'}</summary>
-        <div class="row stack">
-          <label class="opt">Graphics quality
-            <select data-setting="quality">
-              ${['auto', 'ultra', 'high', 'medium', 'low'].map((q) => `<option value="${q}" ${opts.quality === q ? 'selected' : ''}>${q[0].toUpperCase() + q.slice(1)}</option>`).join('')}
-            </select></label>
-          <label class="opt">World weight <span class="weight-row"><small>light</small><input type="range" min="0" max="1" step="0.05" value="${opts.weight ?? 0.75}" data-setting="weight" aria-label="World weight" /><small>heavy</small></span></label>
-          <label class="opt">Debug overlay <input type="checkbox" data-setting="debug" ${opts.debug ? 'checked' : ''}/></label>
-          <label class="opt">Controls and remapping <button class="secondary" style="padding:6px 12px" data-act="controller">Settings</button></label>
-          ${opts.touch ? '' : `<label class="opt">Keyboard and mouse
-            <select data-setting="kbPreset" aria-label="Keyboard and mouse scheme">
-              ${[...KB_PRESET_ORDER.map((id) => [id, KB_PRESETS[id].name]), ...(this.input?.kbLayout.custom ? [['custom', 'Custom (yours)']] : [])].map(([id, nm]) => `<option value="${id}" ${this.input?.kbLayout.preset === id ? 'selected' : ''}>${nm}</option>`).join('')}
-            </select></label>`}
-          ${opts.touch ? '' : liftSelect(opts.collectiveMode)}
-          <label class="opt">Flight tuning <button class="secondary" style="padding:6px 12px" data-act="tuning">Open board</button></label>
-          <label class="opt">Show tips again <button class="secondary" style="padding:6px 12px" data-act="resethints">Replay</button></label>
-          <div class="opt aircraft-row cam-row" role="radiogroup" aria-label="Camera">Camera
-            <span>${CAM_MODES.map(({ id, name, blurb }) => `<button class="secondary${opts.view === id ? ' on' : ''}" style="padding:6px 12px" role="radio" aria-checked="${opts.view === id}" title="${blurb}" data-act="view" data-id="${id}">${name}</button>`).join(' ')}</span></div>
-          <div class="opt aircraft-row cam-row" role="group" aria-label="Cameras in the C / L3 cycle">In the <kbd>C</kbd> / L3 cycle
-            <span>${CAM_MODES.map(({ id, name }) => { const on = (opts.camCycle || []).includes(id); return `<button class="secondary chk${on ? ' on' : ''}" style="padding:6px 12px" aria-pressed="${on}" data-act="camcycle" data-id="${id}">${name}</button>`; }).join(' ')}</span></div>
-          <label class="opt">Speed feel <span class="weight-row"><small>rigid</small><input type="range" min="0" max="1" step="0.05" value="${opts.camFeel ?? 0.5}" data-setting="camFeel" aria-label="Speed feel on the locked and nose cameras" /><small>lots</small></span></label>
-          <label class="opt">Cockpit field of view <span class="weight-row"><small>${opts.fpFov}°</small><input type="range" min="60" max="110" step="1" value="${opts.fpFov}" data-setting="fpFov" aria-label="Cockpit field of view" /></span></label>
-          <label class="opt">Head motion <span class="weight-row"><small>off</small><input type="range" min="0" max="1" step="0.05" value="${opts.fpMotion}" data-setting="fpMotion" aria-label="Head motion in the cockpit" /><small>lots</small></span></label>
-          <label class="opt">Rotor vibration <span class="weight-row"><small>off</small><input type="range" min="0" max="1" step="0.05" value="${opts.fpVibration}" data-setting="fpVibration" aria-label="Rotor vibration in the cockpit" /><small>lots</small></span></label>
-          <label class="opt">Hook camera
-            <select data-setting="loadCam">
-              ${[['auto', 'In the cockpit'], ['always', 'Always'], ['off', 'Off']].map(([v, nm]) => `<option value="${v}" ${opts.loadCam === v ? 'selected' : ''}>${nm}</option>`).join('')}
-            </select></label>
-          ${[['shadows', 'Load shadows'], ['plumb', 'Plumb line and height'], ['cupHint', 'Glint when over a cup'], ['dipCam', 'Close-in camera over a cup']].map(([k, nm]) => `<label class="opt">${nm} <input type="checkbox" data-cue="${k}" ${opts.cues && opts.cues[k] ? 'checked' : ''}/></label>`).join('')}
-          <label class="opt">Rotor strikes break the blades <input type="checkbox" data-setting="rotorStrikes" ${opts.rotorStrikes !== false ? 'checked' : ''}/></label>
-          <label class="opt">Frame rate readout <kbd>F2</kbd> <input type="checkbox" data-setting="fpsMeter" ${opts.fpsMeter ? 'checked' : ''}/></label>
-          ${opts.touch ? '' : `<div class="opt aircraft-row" role="radiogroup" aria-label="Aircraft">Aircraft
-            <span>${[['micro', 'Micro heli'], ['chinook', 'Chinook'], ['skycrane', 'Skycrane']].map(([id, nm]) => `<button class="secondary${opts.aircraft === id ? ' on' : ''}" style="padding:6px 12px" role="radio" aria-checked="${opts.aircraft === id}" data-act="aircraft" data-id="${id}">${nm}</button>`).join(' ')}</span></div>`}
+        <div class="pause-tabs" role="tablist" aria-label="Settings">
+          ${TABS.map(([id, nm]) => `<button role="tab" aria-selected="${id === tab}" class="${id === tab ? 'on' : ''}" data-act="pausetab" data-tab="${id}">${nm}</button>`).join('')}
         </div>
-        <p class="help-note">Reset sandbox clears every cup and bag. Restart flight keeps your brewing. Switching aircraft starts a fresh flight on the pad. Quality changes reload the page. With rotor strikes off, blades pass through scenery instead of breaking. Every flight is recorded: <b>Flight replay</b> plays it back with its telemetry, ${opts.touch ? 'with the notes you add there or the moments you mark here.' : 'and notes you add there (or marks you drop in flight with <kbd>N</kbd>) are saved to <code>logs/flights</code>.'}</p>
-        </details>
+        ${TABS.map(([id, nm]) => `<div class="pause-page ${id === tab ? '' : 'hidden'}" role="tabpanel" aria-label="${nm}" data-page="${id}">${pages[id].join('')}</div>`).join('')}
       </div>`;
-    this.modal.querySelector('[data-setting=quality]').addEventListener('change', (e) => this.h.setting('quality', e.target.value));
-    this.modal.querySelector('[data-setting=debug]').addEventListener('change', (e) => this.h.setting('debug', e.target.checked));
-    this.modal.querySelector('[data-setting=fpsMeter]').addEventListener('change', (e) => this.h.setting('fpsMeter', e.target.checked));
-    this.modal.querySelector('[data-setting=rotorStrikes]').addEventListener('change', (e) => this.h.setting('rotorStrikes', e.target.checked));
-    this.modal.querySelector('[data-setting=weight]').addEventListener('input', (e) => this.h.setting('weight', parseFloat(e.target.value)));
+    const on = (sel, ev, fn) => this.modal.querySelector(sel)?.addEventListener(ev, fn);
+    on('[data-setting=quality]', 'change', (e) => this.h.setting('quality', e.target.value));
+    for (const k of ['debug', 'fpsMeter', 'rotorStrikes', 'batterySaver', 'haptics', 'fullscreen']) on(`[data-setting=${k}]`, 'change', (e) => this.h.setting(k, e.target.checked));
+    on('[data-setting=weight]', 'input', (e) => this.h.setting('weight', parseFloat(e.target.value)));
     for (const k of ['fpMotion', 'fpVibration', 'fpFov', 'camFeel']) {
       const el = this.modal.querySelector(`[data-setting=${k}]`);
       el.addEventListener('input', () => {
@@ -542,17 +544,45 @@ export class Hud {
         if (k === 'fpFov') el.previousElementSibling.textContent = `${el.value}°`;
       });
     }
-    this.modal.querySelector('[data-setting=loadCam]').addEventListener('change', (e) => this.h.setting('loadCam', e.target.value));
-    this.modal.querySelector('[data-setting=collectiveMode]').addEventListener('change', (e) => this.h.setting('collectiveMode', e.target.value));
-    this.modal.querySelector('[data-setting=kbPreset]')?.addEventListener('change', (e) => { this.input?.chooseKbPreset(e.target.value); this.refreshKeys(); });
+    on('[data-setting=loadCam]', 'change', (e) => this.h.setting('loadCam', e.target.value));
+    on('[data-setting=collectiveMode]', 'change', (e) => this.h.setting('collectiveMode', e.target.value));
+    on('[data-setting=kbPreset]', 'change', (e) => { this.input?.chooseKbPreset(e.target.value); this.refreshKeys(); });
     for (const el of this.modal.querySelectorAll('[data-cue]')) el.addEventListener('change', () => this.h.setting(`cue.${el.dataset.cue}`, el.checked));
-    for (const k of ['touchLayout', 'touchSize']) this.modal.querySelector(`[data-setting=${k}]`)?.addEventListener('change', (e) => this.h.setting(k, e.target.value));
-    this.modal.querySelector('[data-setting=batterySaver]')?.addEventListener('change', (e) => this.h.setting('batterySaver', e.target.checked));
-    this.modal.querySelector('[data-setting=haptics]')?.addEventListener('change', (e) => this.h.setting('haptics', e.target.checked));
-    this.modal.querySelector('[data-setting=fullscreen]')?.addEventListener('change', (e) => this.h.setting('fullscreen', e.target.checked));
-    this.modal.querySelector('[data-setting=volume]')?.addEventListener('input', (e) => this.h.volume(parseFloat(e.target.value)));
+    for (const k of ['touchLayout', 'touchSize']) on(`[data-setting=${k}]`, 'change', (e) => this.h.setting(k, e.target.value));
+    on('[data-setting=volume]', 'input', (e) => this.h.volume(parseFloat(e.target.value)));
     this.modal.classList.add('show');
-    this.focusFirst();
+    // A choice that redraws the menu (a camera, an aircraft) keeps the pad's place in it.
+    const again = back && this.modal.querySelector(back);
+    if (again && this.focusables(this.modal).includes(again)) again.focus({ preventScroll: true });
+    else this.focusFirst();
+  }
+
+  setPauseTab(tab) {
+    if (this.modalKind !== 'pause') return;
+    this.pauseTab = tab;
+    for (const b of this.modal.querySelectorAll('.pause-tabs button')) { const on = b.dataset.tab === tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); }
+    for (const p of this.modal.querySelectorAll('.pause-page')) { p.classList.toggle('hidden', p.dataset.page !== tab); p.scrollTop = 0; }
+  }
+
+  // Bumpers on a pad: the next or previous tab of whichever menu is open.
+  stepTab(d) {
+    if (!this.modal.classList.contains('show')) return;
+    const tabs = [...this.modal.querySelectorAll('.pause-tabs button, .help-tabs button')].filter((b) => b.offsetParent !== null);
+    if (!tabs.length) return;
+    const i = tabs.findIndex((b) => b.classList.contains('on'));
+    const next = tabs[(Math.max(0, i) + d + tabs.length) % tabs.length];
+    next.click();
+    next.focus({ preventScroll: true });
+  }
+
+  // A selector that finds the same control again after the menu is redrawn.
+  focusKey(el) {
+    if (!el || !this.modal.contains(el) || !el.dataset) return null;
+    const d = el.dataset;
+    if (d.setting) return `[data-setting="${d.setting}"]`;
+    if (d.cue) return `[data-cue="${d.cue}"]`;
+    if (d.act) return `[data-act="${d.act}"]${d.id ? `[data-id="${d.id}"]` : d.tab ? `[data-tab="${d.tab}"]` : ''}`;
+    return null;
   }
 
   openHelp() {
@@ -1034,6 +1064,19 @@ export class Hud {
       if (cur.tagName === 'SELECT') { cur.selectedIndex = Math.max(0, Math.min(cur.options.length - 1, cur.selectedIndex + d)); cur.dispatchEvent(new Event('change')); return; }
     }
     const step = dir === 'up' || dir === 'left' ? -1 : 1;
+    // A tab bar is one stop going up and down; left and right on it flip the tab.
+    const tabs = f.filter((e) => e.closest('[role=tablist]'));
+    if (tabs.length && i >= 0) {
+      const first = f.indexOf(tabs[0]), last = f.indexOf(tabs[tabs.length - 1]);
+      if (tabs.includes(cur)) {
+        if (dir === 'left' || dir === 'right') { const t = tabs[(tabs.indexOf(cur) + step + tabs.length) % tabs.length]; t.click(); t.focus(); return; }
+        i = dir === 'down' ? last : first;
+      } else if ((i + step + f.length) % f.length >= first && (i + step + f.length) % f.length <= last) {
+        const t = tabs.find((e) => e.classList.contains('on')) || tabs[0];
+        t.focus(); t.scrollIntoView?.({ block: 'nearest' });
+        return;
+      }
+    }
     i = i < 0 ? 0 : (i + step + f.length) % f.length;
     f[i].focus();
     f[i].scrollIntoView?.({ block: 'nearest' });

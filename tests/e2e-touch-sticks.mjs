@@ -100,9 +100,10 @@ try {
 
     // Pause: layout and stick size.
     await page.tap('.hud-tr [data-act=pause]');
-    await page.waitForSelector('.overlay.show .touch-opts');
+    await page.waitForSelector('.overlay.show .pause');
     const fit = await page.evaluate(() => { const p = document.querySelector('.overlay.show .panel'); return { cw: p.clientWidth, sw: p.scrollWidth }; });
     check('landscape pause menu has no sideways scroll', fit.sw <= fit.cw, fit);
+    await page.tap('.overlay.show [data-tab=controls]');
     await page.selectOption('[data-setting=touchLayout]', 'aim');
     await page.selectOption('[data-setting=touchSize]', 'large');
     const stored = await page.evaluate(() => [localStorage.getItem('helicoptea.touchLayout') ?? Object.entries(localStorage).find(([k]) => k.endsWith('touchLayout'))?.[1], getComputedStyle(document.getElementById('touch')).getPropertyValue('--stick-r').trim()]);
@@ -121,7 +122,8 @@ try {
     // Help sheet follows the layout.
     await sleep(150);
     await page.tap('.hud-tr [data-act=pause]');
-    await page.waitForSelector('.overlay.show [data-act=help]', { timeout: 5000 });
+    await page.waitForSelector('.overlay.show .pause', { timeout: 5000 });
+    await page.tap('.overlay.show [data-tab=controls]');
     await page.tap('.overlay.show [data-act=help]');
     const help = await page.locator('.overlay.show .help-grid').textContent();
     check('touch help describes the chosen layout', help.includes('tilt left / tilt right') && help.includes('Double-tap'), help.slice(0, 120));
@@ -158,11 +160,12 @@ try {
     b = await buzz();
     check(`${tag}: touchdown gives a tap`, b.length >= 1, b);
     await page.tap('.hud-tr [data-act=pause]');
-    await page.waitForSelector('.overlay.show .touch-opts');
+    await page.waitForSelector('.overlay.show .pause');
     const opts = await page.evaluate(() => ({ vib: !!document.querySelector('[data-setting=haptics]'), saver: !!document.querySelector('[data-setting=batterySaver]'), home: !!document.querySelector('.home-tip'), fs: !!document.querySelector('[data-setting=fullscreen]') }));
     check(`${tag}: pause offers Vibration and Battery saver`, opts.vib && opts.saver, opts);
     if (ios) check('iPhone: Add to Home Screen tip instead of a full screen switch', opts.home, opts);
     await page.evaluate(() => { const c = document.querySelector('[data-setting=haptics]'); c.click(); });
+    await page.tap('.overlay.show [data-tab=display]');
     await page.evaluate(() => { document.querySelector('[data-setting=batterySaver]').scrollIntoView(); });
     await page.tap('[data-setting=batterySaver]');
     await page.tap('.overlay.show [data-act=resume]');
@@ -195,7 +198,7 @@ try {
     check(`${vp.width}x${vp.height}: left stick turns`, t.yaw > 0.95, t);
     await touch('touchEnd', []);
     await page.tap('.hud-tr [data-act=pause]');
-    await page.waitForSelector('.overlay.show .touch-opts');
+    await page.waitForSelector('.overlay.show .pause');
     const fit = await page.evaluate(() => { const p = document.querySelector('.overlay.show .panel'); const r = p.getBoundingClientRect(); return { cw: p.clientWidth, sw: p.scrollWidth, inView: r.left >= 0 && r.right <= innerWidth }; });
     check(`${vp.width}x${vp.height}: pause menu fits the width`, fit.sw <= fit.cw && fit.inView, fit);
     check(`${vp.width}x${vp.height}: no page errors`, errors.length === 0, errors.slice(0, 3).join(' | '));

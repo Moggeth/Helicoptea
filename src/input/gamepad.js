@@ -253,6 +253,8 @@ export class Gamepads {
       // Menus use the standard buttons whatever the layout.
       if (pressed(BTN.A)) this.events.push('confirm');
       if (pressed(BTN.B)) this.events.push('back');
+      if (pressed(BTN.LB)) this.events.push('tab-prev');   // the bumpers flip a menu's tabs
+      if (pressed(BTN.RB)) this.events.push('tab-next');
       if (pressed(BTN.BACK) || any(this.mapping.buttons.pause)) this.events.push('pause');
       if (pressed(BTN.START)) this.events.push('restart');
       // Menu navigation from the d-pad or the left stick, with auto-repeat.

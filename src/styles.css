@@ -371,23 +371,55 @@ body.pip-top .lesson { top: calc(var(--pip-bottom, 120px) + 8px + var(--safe-t))
 .help-grid dt { text-align: right; white-space: nowrap; }
 .help-grid dd { margin: 0; color: var(--ink-soft); }
 .help-note { font-size: 12.5px; color: var(--ink-soft); margin-top: 14px; line-height: 1.45; }
-.menu details.more { margin-top: 12px; }
-.menu details.more > summary { cursor: pointer; font-weight: 650; font-size: 14.5px; padding: 10px 0 4px; list-style: none; display: flex; align-items: center; gap: 8px; color: var(--ink); }
-.menu details.more > summary::-webkit-details-marker { display: none; }
-.menu details.more > summary::before { content: '▸'; transition: transform 0.15s; display: inline-block; color: var(--ink-soft); }
-.menu details.more[open] > summary::before { transform: rotate(90deg); }
-.menu details.more > .row.stack { margin-top: 4px; }
-.touch-opts select { max-width: 58%; }
-.touch-opts .weight-row input { width: 160px; }
-.touch-opts .aircraft-row { flex-wrap: wrap; }
-.touch-opts .aircraft-row span { display: flex; flex-wrap: wrap; gap: 6px; }
 .menu label.opt { min-width: 0; }
 .menu label.opt select { min-width: 0; max-width: 62%; text-overflow: ellipsis; }
 body.touch-ui:not(.pad-nav) .panel button:focus-visible, body.touch-ui:not(.pad-nav) #start-btn:focus-visible { outline: none; }
-.touch-opts .aircraft-row button, .touch-links button { padding: 8px 14px; font-size: 14px; }
-.touch-links { justify-content: flex-start !important; flex-wrap: wrap; }
 .opt-note { margin-left: auto; color: var(--ink-soft); font-size: 12px; }
 .home-tip small { color: var(--ink-soft); font-size: 12.5px; text-align: right; }
+/* The pause menu: actions up top, settings on tabs, one plain row per setting. Every target is 40 px or more. */
+.panel.menu.pause { width: min(580px, 100%); height: min(680px, 100%); display: flex; flex-direction: column; padding: 24px 26px 10px; overflow: hidden; }
+.pause-head h2 { font-size: 32px; margin: 0 0 16px; }
+.pause-actions { display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: 10px; }
+.pause-actions button { margin: 0; min-height: 50px; padding: 0 14px; font-size: 16.5px; }
+.pause-actions button.secondary { background: rgba(42, 29, 22, 0.09); }
+.pause-actions [data-act=tutorial] { grid-column: 1 / -1; min-height: 44px; }
+.pause-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 20px 0 6px; padding: 4px; border-radius: 14px; background: rgba(42, 29, 22, 0.08); }
+.pause-tabs button { min-height: 44px; border: 0; border-radius: 10px; background: none; color: var(--ink-soft); font: 650 16px/1 var(--sans); }
+.pause-tabs button.on { background: #fffaf1; color: var(--ink); box-shadow: 0 1px 3px rgba(42, 29, 22, 0.2); }
+.pause-page { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 0 -8px; padding: 0 8px 8px; }
+.pause .opt { min-height: 54px; box-sizing: border-box; font-size: 16.5px; font-weight: 600; padding: 7px 0 !important; }
+.pause-page > .opt:first-child { border-top: 0 !important; }
+.pause .opt-l { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pause .opt-l small { font-size: 13.5px; font-weight: 500; color: var(--ink-soft); }
+.pause .opt-l small kbd { font-size: 12px; }
+.pause button.small { flex: none; min-height: 40px; padding: 0 18px; font-size: 15px; }
+.pause .seg-row { flex-direction: column; align-items: stretch !important; gap: 8px !important; padding: 10px 0 12px !important; }
+.pause .seg { display: grid; grid-template-columns: repeat(auto-fit, minmax(116px, 1fr)); gap: 6px; }
+.pause .seg button { min-height: 42px; padding: 0 8px; font-size: 15px; white-space: nowrap; }
+.pause .seg button.chk:not(.on) { opacity: 1; background: none; box-shadow: inset 0 0 0 1.5px rgba(42, 29, 22, 0.18); color: var(--ink-soft); }
+.pause .seg button.chk.on { background: rgba(111, 143, 125, 0.16); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--sage); }
+.pause .seg button.chk.on::before { content: "\2713"; margin-right: 6px; color: var(--sage); font-weight: 800; }
+.pause .home-tip small { text-align: left; }
+/* Switches in place of the browser's tick boxes; the whole row is the target. */
+.menu input.switch { -webkit-appearance: none; appearance: none; flex: none; position: relative; width: 52px; height: 30px; margin: 0; border-radius: 999px; background: rgba(42, 29, 22, 0.2); cursor: pointer; transition: background 0.15s; }
+.menu input.switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fffaf1; box-shadow: 0 1px 3px rgba(42, 29, 22, 0.35); transition: transform 0.15s; }
+.menu input.switch:checked { background: var(--sage); }
+.menu input.switch:checked::after { transform: translateX(22px); }
+.pause label.opt { cursor: pointer; }
+/* Sliders and drop-downs in the same cream and terracotta. */
+.pause .weight-row { gap: 10px; }
+.pause .weight-row small { font-size: 13px; min-width: 2.2em; }
+.pause .weight-row small:last-child { text-align: right; }
+.pause input[type=range] { -webkit-appearance: none; appearance: none; width: 170px; height: 40px; margin: 0; background: none; cursor: pointer; }
+.pause input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: rgba(42, 29, 22, 0.16); }
+.pause input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; margin-top: -10px; border-radius: 50%; background: var(--terracotta); box-shadow: 0 0 0 3px #fffaf1, 0 1px 5px rgba(42, 29, 22, 0.4); }
+.pause input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: rgba(42, 29, 22, 0.16); }
+.pause input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border: 3px solid #fffaf1; border-radius: 50%; background: var(--terracotta); box-shadow: 0 1px 5px rgba(42, 29, 22, 0.4); }
+.pause select { -webkit-appearance: none; appearance: none; min-height: 42px; max-width: 58%; padding: 0 36px 0 12px; border-radius: 10px; border: 1px solid rgba(42, 29, 22, 0.22);
+  background: #fffaf1 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%232a1d16' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 13px center / 12px 8px;
+  font: 600 15px var(--sans); color: var(--ink); cursor: pointer; }
+/* A pad's focus shows on every control, not only after a key press. */
+.pause input:focus-visible, .pause select:focus-visible, body.pad-nav .pause :is(button, input, select):focus { outline: 3px solid var(--honey); outline-offset: 2px; }
 /* Phones: a pause menu that fits a short landscape screen and a narrow portrait one. */
 @media (max-height: 500px), (max-width: 500px) {
   .panel { padding: 16px 18px; border-radius: 16px; }
@@ -400,6 +432,30 @@ body.touch-ui:not(.pad-nav) .panel button:focus-visible, body.touch-ui:not(.pad-
   .help-grid dt { white-space: normal; }
 }
 @media (max-height: 500px) and (orientation: landscape) { .panel.menu { width: min(620px, 100%); } }
+/* Phones: a short landscape screen puts the actions beside the title; a narrow one gives Resume its own line. */
+@media (max-height: 500px), (max-width: 500px) {
+  .panel.menu.pause { padding: 14px 16px 6px; }
+  .pause .opt { font-size: 16px; min-height: 50px; }
+  .pause-tabs { margin: 12px 0 4px; }
+  .pause-tabs button { font-size: 15px; }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .panel.menu.pause { width: min(700px, 100%); }
+  .pause-head { display: flex; align-items: center; gap: 16px; }
+  .pause-head h2 { margin: 0; font-size: 24px; }
+  .pause-actions { flex: 1; grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: 1fr; }
+  .pause-actions button { min-height: 44px; font-size: 15.5px; }
+  .pause-actions [data-act=tutorial] { grid-column: auto; }
+}
+@media (max-width: 500px) {
+  .pause-head h2 { font-size: 24px; margin-bottom: 10px; }
+  .pause-actions { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .pause-actions [data-act=resume] { grid-column: 1 / -1; }
+  .pause-actions button { min-height: 46px; font-size: 16px; }
+  .pause input[type=range] { width: 120px; }
+  .pause select { max-width: 52%; }
+  .pause .seg { grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); }
+}
 
 /* debug */
 /* Frame-rate readout (F2): under the top-right buttons, out of the way of the hook camera and the sticks. */
@@ -696,6 +752,8 @@ body.fp .mstick { bottom: calc(150px + var(--safe-b, 0px)); }
 body.touch-ui .menu button, body.touch-ui .menu select, body.touch-ui .menu details.more > summary { min-height: 40px; }
 body.touch-ui .menu input[type=checkbox] { width: 24px; height: 24px; flex: none; accent-color: var(--terracotta); }
 body.touch-ui .menu input[type=range] { height: 32px; }
+body.touch-ui .menu input.switch { width: 52px; height: 30px; }   /* the pause menu's switches keep their shape */
+body.touch-ui .pause input[type=range] { height: 40px; }
 body.touch-ui .pill { min-height: 40px; }
 body.touch-ui .crash button { min-height: 44px; }
 /* Touch: no keyboard hints beside menu options or on the replay's Close button. */

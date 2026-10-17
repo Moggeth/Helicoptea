@@ -39,7 +39,7 @@ try{
   await page.locator('[data-act=skiphints]').click();await page.waitForFunction(()=>!document.querySelector('.hint').classList.contains('show'));
   check(`${prefix}: Skip tips hides guidance`,true);
   await page.keyboard.press('r');await page.waitForTimeout(200);await page.keyboard.press('Escape');
-  await page.waitForSelector('.overlay.show details.more');await page.evaluate(()=>document.querySelector('.overlay.show details.more').setAttribute('open',''));   // under More settings on touch
+  await page.waitForSelector('.overlay.show .pause');await page.click('.overlay.show [data-tab=flight]');
   await page.locator('[data-act=resethints]').click();
   await page.waitForFunction(()=>document.querySelector('.hint').classList.contains('show')&&document.querySelector('.hint .step').textContent==='1');
   check(`${prefix}: replay tips restores first step`,true);
