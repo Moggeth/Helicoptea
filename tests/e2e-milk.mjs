@@ -3,7 +3,7 @@
 // Flies the real game (in-page autopilot on the real input pipeline): hook the bucket, dip it in the
 // crock, carry it to the teacup and pour with the real G key; then an emulated gamepad's RT, the touch
 // Pour button, and a pour onto the table. Screenshots and a JSON report go to test-results/milk-*.
-import { chromium } from '../tools/browser-safety.mjs';
+import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -37,7 +37,7 @@ async function open(viewport, opts = {}) {
   page.on('console', (m) => logs.push(`[${m.type()}] ${m.text()}`));
   page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
   await page.goto(base + (opts.query || '?worldSpeed=1'), { waitUntil: 'load' });
-  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
   return { ctx, page, logs };
 }
 const start = async (page) => { await page.click('#start-btn'); await page.waitForFunction(() => window.__helicoptea?.started); await sleep(600); };

@@ -1,7 +1,7 @@
 // Browser checks for the Chinook through the real input paths (keyboard, emulated gamepad, CDP touch),
 // the aircraft picker, the in-flight switch, the breakup and frame rate. Same setup as tests/e2e.mjs.
 // Usage: start a server, then: node tests/e2e-chinook.mjs [baseUrl] [--headed]
-import { chromium } from '../tools/browser-safety.mjs';
+import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -37,7 +37,7 @@ async function open(viewport, opts = {}) {
   // Scripted timings assume real-time world speed (the default world runs slower).
   const q = opts.query || '';
   await page.goto(base + (q ? q + '&' : '?') + 'worldSpeed=1', { waitUntil: 'load' });
-  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
   return { ctx, page, logs };
 }
 const st = (page) => page.evaluate(() => {

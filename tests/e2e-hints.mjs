@@ -1,5 +1,5 @@
 // Normal-input hint transitions and stable-node regression. Mutation counts are DOM work, not FPS.
-import {chromium} from '../tools/browser-safety.mjs';
+import {chromium, startupTimeout} from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 const base=process.argv.find(a=>a.startsWith('http'))||'http://127.0.0.1:4240/';
@@ -13,7 +13,7 @@ try{
   if(pad)await ctx.addInitScript(()=>{window.__pad={axes:[0,0,0,0],buttons:Array.from({length:17},()=>({pressed:false,value:0}))};navigator.getGamepads=()=>[{...window.__pad,index:0,connected:true,mapping:'standard',id:'Xbox 360 Controller (XInput STANDARD GAMEPAD)',timestamp:performance.now()}];});
   const page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(`${base}?quality=medium&dynres=0&worldSpeed=1`);
-  await page.locator('#start-btn:not(.hidden)').click();
+  await page.locator('#start-btn:not(.hidden)').click({ timeout: startupTimeout(60000) });
   await page.waitForFunction(()=>document.querySelector('.hint')?.classList.contains('show'));
   const prefix=mode;
   if(touch){await page.waitForFunction(()=>document.querySelector('.hint .txt').textContent.includes('left stick'));}

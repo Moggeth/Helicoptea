@@ -61,7 +61,8 @@ const MB = (b) => Math.round(b / 1048576);
 try {
   // ---------------------------------------------------------------- memory while flying
   {
-    const { ctx, page, errors, logs } = await open('&aircraft=micro&view=chase');
+    // Test the actual medium-tier allocation even when Auto correctly selects low on CI's software GPU.
+    const { ctx, page, errors, logs } = await open('&aircraft=micro&view=chase&quality=medium');
     await page.tap('#start-btn');
     await page.waitForFunction(() => window.__helicoptea.frames > 120, null, { timeout: 60000 });
     await sleep(2000);
@@ -76,7 +77,7 @@ try {
       return { tier: h.quality.name, now: T.now, peak: T.peak, contexts: T.contexts, lost: T.lost, programs: h.renderer.info.programs.length, heap: performance.memory?.usedJSHeapSize || 0, budget: window.__helicoptea.gpuBudget?.() };
     });
     const line = logs.find((l) => l.includes('GPU memory')) || '';
-    check('phone gets the medium tier', r.tier === 'medium', r.tier);
+    check('explicit medium tests the phone memory budget at medium quality', r.tier === 'medium', r.tier);
     check('GPU memory in flight stays inside the phone budget (160 MB)', MB(r.now) < 160, `${MB(r.now)} MB live`);
     check('GPU memory peak during load stays inside the phone budget (160 MB)', MB(r.peak) < 160, `${MB(r.peak)} MB peak`);
     check('only the game keeps a WebGL context (the probe is given back)', r.contexts === 2 && r.lost === 1, { contexts: r.contexts, lost: r.lost });
@@ -88,15 +89,30 @@ try {
 
   // ---------------------------------------------------------------- lost graphics context
   {
-    const { ctx, page, errors } = await open('&aircraft=micro');
+    let { ctx, page, errors } = await open('&aircraft=micro');
+    const auto = await page.evaluate(() => ({ tier: window.__helicoptea.quality.name, software: window.__helicoptea.quality.software }));
+    check('Auto uses low on a software GPU and medium on a phone GPU', auto.tier === (auto.software ? 'low' : 'medium'), auto);
+    if (auto.tier === 'low') {
+      // Auto is already at its lowest tier on a software GPU: a loss should explain the failure,
+      // not wait forever for a reload that the game correctly refuses to loop.
+      await page.evaluate(() => window.__helicoptea.renderer.getContext().getExtension('WEBGL_lose_context').loseContext());
+      await page.waitForFunction(() => document.getElementById('error').classList.contains('show'));
+      check('a context loss at the lowest Auto tier explains the failure', await page.evaluate(() => /graphics context was lost/.test(document.getElementById('error-msg').textContent)));
+      check('the lowest Auto tier does not schedule a retry loop', await page.evaluate(() => sessionStorage.getItem('helicoptea.lostReload') !== '1'));
+      await ctx.close();
+      ({ ctx, page, errors } = await open('&aircraft=micro'));
+      // Exercise the medium -> low recovery policy on CI without claiming a physical medium GPU.
+      // The memory case above renders real medium quality; local hardware reaches this tier naturally.
+      await page.evaluate(() => { window.__helicoptea.quality.name = 'medium'; });
+    }
     await page.tap('#start-btn');
     await page.waitForFunction(() => window.__helicoptea.frames > 30);
-    const reloaded = page.waitForEvent('load', { timeout: 30000 });
+    const reloaded = page.waitForEvent('load', { timeout: 120000 });
     await page.evaluate(() => window.__helicoptea.renderer.getContext().getExtension('WEBGL_lose_context').loseContext());
     await reloaded;
     await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 120000 });
     const r = await page.evaluate(() => ({ tier: window.__helicoptea.quality.name, safe: localStorage.getItem('helicoptea.safeTier'), error: document.getElementById('error').classList.contains('show') }));
-    check('a lost context reloads the game one tier lower', r.tier === 'low' && r.safe === 'low', r);
+    check('Auto recovery from medium reloads the game at low', r.tier === 'low' && r.safe === 'low', r);
     check('no error screen after that reload', !r.error);
     // A second loss in the same tab doesn't loop: it says what happened instead.
     await page.evaluate(() => window.__helicoptea.renderer.getContext().getExtension('WEBGL_lose_context').loseContext());

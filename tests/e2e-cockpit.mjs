@@ -3,7 +3,7 @@
 // d-pad, touch drag), zoom and recenter, the hook camera inset, near-plane clipping against the house,
 // crash and restart from the cockpit for both aircraft, and console errors.
 // Usage: npm run build && npx vite preview --port 4190, then node tests/e2e-cockpit.mjs [baseUrl]
-import { chromium } from '../tools/browser-safety.mjs';
+import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -29,7 +29,7 @@ async function open(query, viewport = { width: 1600, height: 900 }, opts = {}) {
   page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') logs.push(`[${m.type()}] ${m.text()}`); });
   page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
   await page.goto(base + query, { waitUntil: 'load' });
-  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
   return { ctx, page, logs };
 }
 const start = async (page) => {

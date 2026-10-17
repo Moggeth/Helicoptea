@@ -4,7 +4,7 @@
 // LT) and its overlay, the cargo cam riding a bag into the tea (fog and overlay), the skycrane's snorkel
 // cam, pad L3 cycling, touch buttons, frame cost per mode on all three aircraft, and console errors.
 // Usage: npm run build && npx vite preview --port 4196, then node tests/e2e-camera.mjs [baseUrl] [--headed]
-import { chromium } from '../tools/browser-safety.mjs';
+import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -27,13 +27,13 @@ async function open(query, opts = {}) {
   const page = await ctx.newPage();
   // Loads, screenshots and clicks wait for a rendered frame; on a GPU-less CI runner (software WebGL at
   // a few fps in the heavier camera modes) those can take longer than Playwright's 30 s default.
-  page.setDefaultTimeout(90000);
-  page.setDefaultNavigationTimeout(90000);
+  page.setDefaultTimeout(startupTimeout(90000));
+  page.setDefaultNavigationTimeout(startupTimeout(90000));
   const logs = [];
   page.on('console', (m) => { if (m.type() === 'error') logs.push(`[error] ${m.text()}`); });
   page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
   await page.goto(base + query, { waitUntil: 'load' });
-  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
   if (opts.touch) await page.tap('#start-btn'); else await page.click('#start-btn');
   await page.waitForFunction(() => window.__helicoptea?.started);
   await page.evaluate(() => {
@@ -85,7 +85,14 @@ async function perf(page) {
   const a = await H(page, () => window.__helicoptea.frames);
   const t0 = Date.now();
   await sleep(1500);
-  return H(page, ([a, ms]) => { const r = window.__helicoptea.renderer.info.render; return { fps: Math.round((window.__helicoptea.frames - a) * 1000 / ms), calls: r.calls, tris: r.triangles }; }, [a, Date.now() - t0]);
+  // The busiest of four frames: on the lite tier (touch, low, and CI's software renderer) shadow maps are
+  // redrawn every other frame, so a single frame's count depends on which frame it lands on.
+  return H(page, ([a, ms]) => new Promise((res) => {
+    const g = window.__helicoptea, fps = Math.round((g.frames - a) * 1000 / ms);
+    let calls = 0, tris = 0, n = 0;
+    const tick = () => { const r = g.renderer.info.render; if (r.calls > calls) { calls = r.calls; tris = r.triangles; } if (++n < 4) requestAnimationFrame(tick); else res({ fps, calls, tris }); };
+    tick();
+  }), [a, Date.now() - t0]);
 }
 async function hookBag(page, ac) {
   const peg = await H(page, () => { const p = window.__helicoptea.sim.pegs[1].tip; return [p.x, p.y, p.z]; });
@@ -219,7 +226,7 @@ try {
     check('no console errors (micro)', logs.length === 0, logs.slice(0, 4).join(' | '));
     // Reload: the camera and the cycle come back as left.
     await page.goto(base + '?aircraft=micro', { waitUntil: 'load' });
-    await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+    await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
     await page.click('#start-btn');
     await page.waitForFunction(() => window.__helicoptea?.started);
     s = await state(page);

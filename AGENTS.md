@@ -13,6 +13,35 @@ to unrelated projects or changes to credentials, billing or repository visibilit
 
 ## Verification and handoff
 
+### Shared Codex and Claude PR workflow
+
+The user requested a shared PR workflow on 17 October 2026. For new substantial work, use an isolated
+worktree and an owned branch (`codex/…` for Codex); do not write into another active agent's checkout.
+Fetch and inspect current `origin/master`, branch state and existing PRs first. Open a small PR against
+`master`, using `.github/pull_request_template.md`. Draft means unfinished: include remaining checks.
+
+Either agent may review and merge a validated PR under the standing publication permission. Review
+the actual diff, comments, checks and latest head revision; refresh the base and resolve conflicts in
+the PR branch without force-pushing over somebody else's work. Revalidate affected behavior after
+resolving conflicts. Merge only when the current revision's CI is green and the PR has no unresolved
+blocking feedback. Do not use admin bypass or turn failing behavior checks into warnings to merge.
+Check the resulting production deployment separately: a green Vercel status is not a green test suite.
+
+Both local agents currently use GitHub account `Moggeth`. Record the reviewing agent and evidence in
+the PR; this is not a GitHub approval from a separate account. Do not require an independent GitHub
+approval unless separate reviewer identities are configured. The stable aggregate check is `CI ready`;
+it fails if build/headless checks or any browser job fails or is cancelled. Windows native mouse
+capture is explicitly skipped; the separate Linux native-mouse job must also pass `CI ready`.
+Subcontracted Claude commissions retain their existing no-publication boundary.
+
+Other projects can switch the shared active `gh` account while a long review runs. Before every network
+Git operation, verify the project identity again. Prefer binding the existing `Moggeth` credential in
+the child process (`GH_TOKEN` from `gh auth token --hostname github.com --user Moggeth`) and confirming
+`gh api user --jq .login`. For HTTPS Git, use an empty credential-helper entry followed by
+`!gh auth git-credential` for that invocation so a work-account credential manager cannot win. Never
+print or persist the token, change another project's login, or assume a successful earlier identity
+check still applies. This is reuse of existing credentials, not account provisioning.
+
 Read `README.md` and `docs/OPTIMIZATION-2026-10-14.md` for commands, measured results and known limits.
 Use an unused test-server port and require the spawned server to announce readiness. Do not rebuild a
 shared `dist/` while another browser suite uses it; a separate Vite `--outDir` avoids that conflict.

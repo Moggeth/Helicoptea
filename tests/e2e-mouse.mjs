@@ -4,6 +4,7 @@
 import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
+import { springCollectiveCase } from './spring-collective-case.mjs';
 const base = process.argv.find((a) => a.startsWith('http')) || 'http://127.0.0.1:4199/';
 const out = path.resolve('test-results/mouse');
 fs.mkdirSync(out, { recursive: true });
@@ -12,7 +13,7 @@ if (process.platform === 'win32') {
   console.log('SKIP Native pointer-lock acceptance requires an isolated Linux runner; Windows desktop capture is blocked.');
   process.exit(0);
 }
-const browser = await chromium.launch({ executablePath, headless: !process.argv.includes('--headed'), args: ['--ignore-gpu-blocklist', '--use-angle=d3d11'] });
+const browser = await chromium.launch({ executablePath, headless: !process.argv.includes('--headed'), args: ['--ignore-gpu-blocklist', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const checks = [];
 const check = (name, ok, detail = '') => { checks.push({ name, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name} ${detail ? JSON.stringify(detail) : ''}`); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -21,7 +22,9 @@ try {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(`${base}?quality=low`);
-  await page.locator('#start-btn:not(.hidden)').click();
+  // Linux SwiftShader cold shader warmup measured 120.4 s on the hosted runner. This is a startup
+  // allowance only; the actual climb/release assertions below retain their 5 s behavior deadlines.
+  await page.locator('#start-btn:not(.hidden)').click({ timeout: process.env.GITHUB_ACTIONS === 'true' ? 180000 : 30000 });
   await sleep(600);
   const H = (fn, arg) => page.evaluate(fn, arg);
 
@@ -71,24 +74,24 @@ try {
     check('the airframe actually rolled', Math.abs(after.z - before.z) + Math.abs(after.x - before.x) > 1e-3, { before, after });
     await page.screenshot({ path: path.join(out, 'mouse-flying.png') });
     await page.keyboard.press('Escape');
-    await sleep(300);
+    await page.waitForFunction(() => !window.__helicoptea.input.locked && window.__helicoptea.paused);
     const s = await H(() => ({ locked: window.__helicoptea.input.locked, paused: window.__helicoptea.paused }));
     check('Esc lets go of the mouse and pauses', !s.locked && s.paused, s);
-    await page.keyboard.press('Escape');
-    await sleep(200);
   }
 
   // Spring-return lift with Assist off.
-  await H(() => { const g = window.__helicoptea; if (g.sim.assist) g.doAction('assist'); });
-  await page.keyboard.down('w'); await sleep(500);
-  const held = await H(() => window.__helicoptea.sim.heli.collective);
-  await page.keyboard.up('w'); await sleep(500);
-  const let_ = await H(() => window.__helicoptea.sim.heli.collective);
+  // The preceding held-bank flight may legitimately have crashed. Restart this independent control
+  // case rather than dereferencing a retired airframe or depending on a software GPU's flight pace.
+  const { held, released: let_ } = await springCollectiveCase(page);
   check('Assist off: letting go of W drops the collective back below the climb', let_ < held - 0.05, { held, let: let_ });
   await H(() => window.__helicoptea.input.chooseKbPreset('keyboard'));
   check('no page errors', errors.length === 0, errors.slice(0, 3));
 } catch (e) {
   check('suite ran', false, String(e && e.stack || e));
+  for (const ctx of browser.contexts()) for (const page of ctx.pages()) {
+    console.log('INFO mouse failure state', JSON.stringify(await page.evaluate(() => ({ visibility: document.visibilityState, focus: document.hasFocus(), load: document.getElementById('load-status')?.textContent, errorShown: document.getElementById('error')?.classList.contains('show'), error: document.getElementById('error-msg')?.textContent, ready: !!window.__helicoptea, paused: window.__helicoptea?.paused, state: window.__helicoptea?.sim.state, keys: [...(window.__helicoptea?.input.keys || [])], collective: window.__helicoptea?.sim.heli?.collective, ctl: window.__helicoptea?.input.ctl })).catch(() => ({}))));
+    await page.screenshot({ path: path.join(out, 'failure.png'), timeout: 5000 }).catch(() => {});
+  }
 } finally {
   await browser.close();
 }

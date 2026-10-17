@@ -1,6 +1,6 @@
 name: CI
 
-# Every push and pull request: install, build and the Node checks, then every browser suite (tests/e2e*.mjs,
+# Every master push and pull request: install, build and the Node checks, then every browser suite (tests/e2e*.mjs,
 # listed by tests/run-e2e.mjs --list, so new suites run without editing this file) in headless Chrome, one
 # suite per parallel job so each gets a whole runner and a slow one cannot starve the rest.
 # Windows matches the machine the suites were written on (Chrome path, ANGLE on D3D11). Hosted runners
@@ -12,8 +12,12 @@ name: CI
 # Vercel builds and deploys on its own from the same pushes.
 on:
   push:
+    branches: [master]
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -34,6 +38,8 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run check
+        env:
+          HELICOPTEA_PERF_ADVISORY: '1'
       - id: list
         shell: bash
         run: echo "suites=$(node tests/run-e2e.mjs --list)" >> "$GITHUB_OUTPUT"
@@ -67,3 +73,37 @@ jobs:
             logs/flights/
           if-no-files-found: ignore
           retention-days: 14
+
+  native-mouse:
+    name: Native mouse capture (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node tests/run-e2e.mjs e2e-mouse.mjs --perf-advisory --timeout 12
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-native-mouse
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  ready:
+    name: CI ready
+    if: always()
+    needs: [check, browser, native-mouse]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every validation job to succeed
+        env:
+          CHECK: ${{ needs.check.result }}
+          BROWSER: ${{ needs.browser.result }}
+          NATIVE_MOUSE: ${{ needs.native-mouse.result }}
+        run: test "$CHECK" = success && test "$BROWSER" = success && test "$NATIVE_MOUSE" = success

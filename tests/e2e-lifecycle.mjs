@@ -1,5 +1,5 @@
 // GPU allocation soak checks; uses the same installed browser as the other suites.
-import { chromium } from '../tools/browser-safety.mjs';
+import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 const base = process.argv.find((a) => a.startsWith('http')) || 'http://127.0.0.1:4207/';
 const executablePath = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome'].find(fs.existsSync);
@@ -11,7 +11,7 @@ try {
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   const start = performance.now();
   await page.goto(`${base}?quality=low&record=0`);
-  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
   const readyMs = performance.now() - start;
   await page.click('#start-btn'); await page.keyboard.press('Escape');
   const results = await page.evaluate(async () => {

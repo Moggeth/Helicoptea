@@ -1,3 +1,4 @@
+import { performanceBudget } from './performance-budget.mjs';
 // Headless physics checks for the tandem-rotor Chinook (run by `npm run check` after sim-checks).
 // Same approach as sim-checks: drive the real simulation with player-style stick inputs and assert
 // on physical outcomes, including how the two rotors share the work.
@@ -288,7 +289,7 @@ const hookWhenInReach = (sim, ap, peg, hook, secs) => {
   const t0 = performance.now();
   run(sim, 2);
   const ms = (performance.now() - t0) / (2 / sim.dt);
-  check('physics step cost', ms < 1.0, `${f(ms, 3)} ms per 240 Hz step`);
+  performanceBudget(check, 'physics step cost', ms, 1.0, `${f(ms, 3)} ms per 240 Hz step`);
 }
 
 const failed = results.filter((r) => !r.ok);

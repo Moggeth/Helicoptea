@@ -6,7 +6,7 @@ import { chromium, desktopSafeChromium, blockNativePointerLock } from '../tools/
 function fixture(fail = false) {
   const scripts = [], contexts = [];
   const context = () => {
-    const c = { closed: false, async addInitScript(script) { if (fail) throw Error('injection failed'); scripts.push(script); }, async close() { c.closed = true; } };
+    const c = { closed: false, timeouts: [], setDefaultTimeout(ms) { this.timeouts.push(ms); }, setDefaultNavigationTimeout(ms) { this.timeouts.push(ms); }, async addInitScript(script) { if (fail) throw Error('injection failed'); scripts.push(script); }, async close() { c.closed = true; } };
     contexts.push(c);
     return c;
   };
@@ -33,10 +33,19 @@ test('a failed safety injection closes the context and rejects creation', async 
 
 test('Linux acceptance retains the native browser API', async () => {
   const f = fixture();
-  const b = await desktopSafeChromium(f.type, 'linux').launch();
+  const b = await desktopSafeChromium(f.type, 'linux', false).launch();
   assert.equal(b, f.browser);
   await b.newPage();
   assert.equal(f.scripts.length, 0);
+});
+
+test('CI contexts allow slow startup while Linux native capture stays available', async () => {
+  const f = fixture();
+  const b = await desktopSafeChromium(f.type, 'linux', true).launch();
+  await b.newContext();
+  await b.newPage();
+  assert.deepEqual(f.scripts, []);
+  assert.deepEqual(f.contexts.map(c => c.timeouts), [[120000, 120000], [120000, 120000]]);
 });
 
 test('browser tests cannot silently bypass the shared launcher', () => {
