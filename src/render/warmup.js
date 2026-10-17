@@ -12,7 +12,7 @@
 const SLICE_MS = 50;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export async function warmInSteps(renderer, root, camera, lightScene, { batch = 32, onStep } = {}) {
+export async function warmInSteps(renderer, root, camera, lightScene, { batch = 32, onStep, target, stop } = {}) {
   // With parallel shader compile the driver builds a batch on its own threads and we poll for it;
   // without it, a program finishes linking when first used, so getUniforms() below waits for each.
   const parallel = renderer.extensions.has('KHR_parallel_shader_compile');
@@ -30,12 +30,18 @@ export async function warmInSteps(renderer, root, camera, lightScene, { batch = 
   const list = [...groups.values()];
   let slice = performance.now();
   for (let i = 0; i < list.length; i += batch) {
+    if (stop && stop()) return;
     // Every object of each material: instancing, vertex colours and the like also pick the program variant.
     const objs = list.slice(i, i + batch).flat();
     // A stand-in "scene" holding just this batch: compile() reads its materials through traverse() and its
     // lights through traverseVisible() (none here; they come from lightScene).
     const part = { traverse: (fn) => objs.forEach(fn), traverseVisible: () => {} };
+    // A target picks the variants drawn into one; it is bound only around compile() so frames drawn in
+    // between (a warm-up running in the background) still go to the screen.
+    const was = renderer.getRenderTarget();
+    if (target) renderer.setRenderTarget(target);
     const mats = renderer.compile(part, camera, lightScene);
+    if (target) renderer.setRenderTarget(was);
     const programs = [...new Set([...mats].map((m) => renderer.properties.get(m).currentProgram).filter(Boolean))];
     // flush() hands the batch to the GPU process now, so its status can come back sooner.
     if (parallel) { gl.flush(); while (programs.some((p) => !p.isReady())) { await wait(4); slice = performance.now(); } }
