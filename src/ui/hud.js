@@ -13,6 +13,7 @@ import {
 import { CFG } from '../config.js';
 import { TOUCH_LAYOUTS, TOUCH_SIZES } from '../input/input.js';
 import { controlSVG, sceneSVG } from './lessonCard.js';
+import { AIRCRAFT_ICONS } from './aircraftIcons.js';
 
 // The assist-off lift stick: a sprung lever, or the old trim-and-hold collective (sim/collective.js).
 const LIFT_MODES = [['spring', 'Springs back: hold up to climb'], ['hold', 'Stays put: trim and leave it']];
@@ -32,6 +33,8 @@ const ICONS = {
   flag: '<svg viewBox="0 0 24 24"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg>',
   replay: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v5h5"/><path d="m10 9 5 3-5 3z"/></svg>',
   chase: '<svg viewBox="0 0 24 24"><path d="M4 13h9l3-3h4"/><path d="M8 13v3h6"/><path d="M2 8h12"/><path d="M8 8v5"/></svg>',
+  fullscreen: '<svg viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>',
+  windowed: '<svg viewBox="0 0 24 24"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg>',
   camera: '<svg viewBox="0 0 24 24"><rect x="3" y="7" width="13" height="11" rx="2"/><path d="m16 11 5-3v9l-5-3"/><circle cx="9.5" cy="12.5" r="2.5"/></svg>',
 };
 
@@ -57,6 +60,7 @@ export class Hud {
           <div class="vol-pop hidden"><button class="secondary" data-act="mute" style="padding:6px 10px">Mute</button><input type="range" min="0" max="1" step="0.01" aria-label="Volume" /></div>
         </div>
         <button class="icon-btn" data-act="help" title="Controls (H)" aria-label="Controls">${ICONS.help}</button>
+        <button class="icon-btn fs-btn" data-act="fullscreen" title="Full screen" aria-label="Full screen" aria-pressed="false">${ICONS.fullscreen}</button>
         <button class="icon-btn" data-act="pause" title="Pause (Esc)" aria-label="Pause">${ICONS.menu}</button>
       </div>
       <div class="collective hidden" aria-hidden="true"><div class="lvl"></div><div class="mark"></div></div>
@@ -422,6 +426,17 @@ export class Hud {
   }
   hideCrash() { this.crashEl.classList.remove('show'); if (this.crashEl.contains(document.activeElement)) document.activeElement.blur(); }
 
+  // The touch top bar's full screen button: shown where the browser allows full screen, its icon showing
+  // what a tap does.
+  setFullscreen(supported, on) {
+    const b = this.q('[data-act=fullscreen]');
+    b.classList.toggle('on', !!supported);
+    b.innerHTML = on ? ICONS.windowed : ICONS.fullscreen;
+    b.setAttribute('aria-pressed', String(!!on));
+    b.title = on ? 'Leave full screen' : 'Full screen';
+    b.setAttribute('aria-label', b.title);
+  }
+
   setVolume(v, muted) {
     this.vol.value = String(v);
     this.q('[data-act=sound]').innerHTML = (muted ? ICONS.mute : ICONS.sound);
@@ -475,7 +490,7 @@ export class Hud {
     const radio = (act, id, nm, on, title) => `<button class="secondary${on ? ' on' : ''}" role="radio" aria-checked="${on}" data-act="${act}" data-id="${id}"${title ? ` title="${title}"` : ''}>${nm}</button>`;
     const pages = {
       flight: [
-        seg('Aircraft', 'Aircraft', 'radiogroup', [['micro', 'Micro heli'], ['chinook', 'Chinook'], ['skycrane', 'Skycrane']].map(([id, nm]) => radio('aircraft', id, nm, opts.aircraft === id)).join('')),
+        seg('Aircraft', 'Aircraft', 'radiogroup', [['micro', 'Micro heli'], ['chinook', 'Chinook'], ['skycrane', 'Skycrane']].map(([id, nm]) => radio('aircraft', id, `${AIRCRAFT_ICONS[id]}<span>${nm}</span>`, opts.aircraft === id)).join('')),
         opts.lesson ? '' : go('Guided first flight', 'tutorial', 'Start'),
         go('Tips', 'resethints', 'Show again'),
         slider('World weight', `min="0" max="1" step="0.05" value="${opts.weight ?? 0.75}" data-setting="weight" aria-label="World weight"`, 'light', 'heavy'),

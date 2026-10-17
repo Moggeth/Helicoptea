@@ -24,6 +24,8 @@ async function run(label, browser, ctxOpts) {
   const tap = async (sel) => { const b = await page.locator(sel).first().boundingBox(); await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); await sleep(200); };
   await page.goto(`${base}?record=0&dynres=0&aircraft=micro&view=chase`);
   await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 120000 });
+  const pick = await H(() => [...document.querySelectorAll('#aircraft-pick [data-aircraft]')].map((b) => ({ id: b.dataset.aircraft, icon: !!b.querySelector('svg.ac-icon'), h: Math.round(b.getBoundingClientRect().height) })));
+  check(`${label}: every aircraft on the title card has its picture`, pick.length === 3 && pick.every((p) => p.icon && p.h >= 40), pick);
   await tap('#start-btn');
   await page.waitForFunction(() => window.__helicoptea.frames > 20);
 
@@ -60,6 +62,19 @@ async function run(label, browser, ctxOpts) {
   await tap('#hud [data-act=view]');
   check(`${label}: camera button by touch`, (await H(() => window.__helicoptea.viewMode)) !== v0);
   await H(() => window.__helicoptea.setView('chase', true));
+  // Full screen from the top bar, where the browser allows it (Android; not iPhone Safari).
+  const fs = await H(() => { const b = document.querySelector('#hud [data-act=fullscreen]'), r = b.getBoundingClientRect(); return { allowed: document.fullscreenEnabled, shown: !!b.getClientRects().length, h: Math.round(r.height) }; });
+  check(`${label}: full screen button ${fs.allowed ? 'in the top bar' : 'hidden where full screen is not allowed'}`, fs.allowed ? fs.shown && fs.h >= 40 : !fs.shown, fs);
+  if (fs.allowed) {
+    if (await H(() => !!document.fullscreenElement)) { await H(() => document.exitFullscreen()); await sleep(300); }
+    await tap('#hud [data-act=fullscreen]');
+    await sleep(400);
+    const on = await H(() => ({ fs: !!document.fullscreenElement, pressed: document.querySelector('#hud [data-act=fullscreen]').getAttribute('aria-pressed') }));
+    await tap('#hud [data-act=fullscreen]');
+    await sleep(400);
+    const off = await H(() => ({ fs: !!document.fullscreenElement, pressed: document.querySelector('#hud [data-act=fullscreen]').getAttribute('aria-pressed') }));
+    check(`${label}: full screen button goes in and out of full screen`, on.fs && on.pressed === 'true' && !off.fs && off.pressed === 'false', { on, off });
+  }
 
   // Pause menu: every control a thumb can hit (labels around checkboxes and sliders make the whole row).
   await tap('#hud [data-act=pause]');
@@ -76,6 +91,8 @@ async function run(label, browser, ctxOpts) {
   const keys = await H(() => [...document.querySelectorAll('.overlay.show label.opt > kbd')].filter((e) => e.getClientRects().length).length);
   check(`${label}: no keyboard hints beside touch menu options`, keys === 0, keys);
   await tap('.overlay.show [data-tab=flight]');
+  const icons = await H(() => [...document.querySelectorAll('.overlay.show [data-act=aircraft]')].filter((b) => b.querySelector('svg.ac-icon')).length);
+  check(`${label}: every aircraft in the pause menu has its picture`, icons === 3, icons);
   await tap('.overlay.show [data-act=aircraft][data-id=chinook]');
   check(`${label}: aircraft switch from the pause menu`, (await H(() => window.__helicoptea.sim.aircraft)) === 'chinook');
   await tap('.overlay.show [data-act=resume]');

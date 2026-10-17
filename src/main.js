@@ -36,6 +36,7 @@ import { ShadowCache } from './render/shadowCache.js';
 import { warmInSteps } from './render/warmup.js';
 import { PhoneRender } from './render/phoneRender.js';
 import { gpuEstimate } from './render/gpuBudget.js';
+import { AIRCRAFT_ICONS } from './ui/aircraftIcons.js';
 import { warmEverything } from './render/prewarm.js';
 
 const $ = (id) => document.getElementById(id);
@@ -639,6 +640,7 @@ async function boot() {
       case 'restart': if (paused) setPaused(false); sim.restartFlight(); hud.hideCrash(); break;
       case 'reset': if (paused) setPaused(false); sim.resetSandbox(); hud.hideCrash(); camRig.recenter(0); break;
       case 'recenter': camRig.recenter(sim.heli ? sim.heli.heading() : camRig.yaw); input.camOrbit.yaw = input.camOrbit.pitch = input.camOrbit.zoom = 0; fpRig.recenter(); cam.cargo.recenter(); if (fp.mode === 'tripod') cam.tripod.reset(); break;
+      case 'fullscreen': { const on = !document.fullscreenElement; store.set('fullscreen', on ? '1' : '0'); setFullscreen(on); break; }
       case 'pause': setPaused(!paused); break;
       case 'resume': setPaused(false); break;
       case 'help': if (hud.modalKind === 'help') hud.closeModal(); else { hud.openHelp(); } break;
@@ -806,6 +808,7 @@ async function boot() {
   // ---------------------------------------------------------------- start gate (audio unlock)
   const startBtn = $('start-btn');
   const picker = $('aircraft-pick');
+  for (const b of picker.querySelectorAll('[data-aircraft]')) b.insertAdjacentHTML('afterbegin', AIRCRAFT_ICONS[b.dataset.aircraft]);
   function updatePicker() {
     for (const b of picker.querySelectorAll('button')) {
       const on = b.dataset.aircraft === sim.aircraft;
@@ -844,6 +847,12 @@ async function boot() {
     document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
     addEventListener('contextmenu', (e) => e.preventDefault());
   }
+  const fsSync = () => {
+    hud.setFullscreen(IS_TOUCH && document.fullscreenEnabled, !!document.fullscreenElement);
+    if (paused && hud.modalKind === 'pause') hud.openPause(pauseOpts());
+  };
+  document.addEventListener('fullscreenchange', fsSync);
+  fsSync();
   function wantFullscreen() { return !navigator.webdriver && (params.get('fs') || store.get('fullscreen', '1')) !== '0'; }
   function setFullscreen(on) {
     const d = document, el = d.documentElement;
