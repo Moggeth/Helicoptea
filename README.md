@@ -173,12 +173,19 @@ suite receives the same output directory, so every suite tests the selected buil
 
 ## Online build and CI
 
-`.github/workflows/ci.yml` runs on every push and pull request (Windows runner, headless Chrome): `npm ci`,
+`.github/workflows/ci.yml` runs on every `master` push and pull request (Windows runner, headless Chrome): `npm ci`,
 the build, `npm run check` and every browser suite. Hosted runners have no GPU, so Chrome renders in
 software; the game detects that (as it would on any GPU-less machine) and switches to its software tier:
 low quality at about 100k rendered pixels with longer physics catch-up, so the world keeps real speed.
 Frame-rate checks show as warnings in the run summary there instead of failing; everything else must pass. Screenshots and reports
 are attached to each run as `test-results`.
+
+Codex and Claude use isolated worktrees and scoped PRs against `master`; see `AGENTS.md` and the PR
+template. Review the current revision and wait for **CI ready**, which aggregates the build, headless
+checks and every browser matrix job. Hosted CI contexts allow 120 seconds for implicit browser actions
+and navigation; explicit behavior deadlines remain unchanged. Feature pushes rely on the PR trigger
+instead of starting a duplicate full suite. Windows mouse-capture acceptance is reported as skipped;
+it still needs an isolated Linux runner. Vercel deploys independently of CI, so inspect both results.
 
 **Play online: [helicoptea.vercel.app](https://helicoptea.vercel.app/)** — public, no sign-in required.
 
