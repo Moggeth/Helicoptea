@@ -694,7 +694,9 @@ export class Cockpit {
 
   setPipRect(rect, w, h) {
     this.pipRect = rect;
-    this.pipCam.right = w; this.pipCam.top = h; this.pipCam.updateProjectionMatrix();
+    if (this.pipCam.right !== w || this.pipCam.top !== h) {
+      this.pipCam.right = w; this.pipCam.top = h; this.pipCam.updateProjectionMatrix();
+    }
     if (!rect) return;
     this.pip.position.set(rect.x + rect.s / 2, h - rect.y - rect.s / 2, 0);
     this.pip.scale.set(rect.s, rect.s, 1);

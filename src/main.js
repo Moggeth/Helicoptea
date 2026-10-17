@@ -226,6 +226,8 @@ async function boot() {
   depth.linearBlend = post.enabled;
   // First person: pilot's-eye rig, cockpit interiors drawn over the world, and the belly hook camera.
   const loadCam = new LoadCamera(renderer, quality);
+  const prepareLoadScene = () => kitchen.garden.world?.inset(loadCam.camera, loadCam.camera.far);
+  const restoreLoadScene = () => kitchen.garden.world?.restore();
   const cockpit = new Cockpit(renderer, scene, quality, kitchen, loadCam, sim.aircraft);
   const fpRig = new CockpitRig();
   setProgress(0.78, 'Warming the shaders…');
@@ -1018,7 +1020,8 @@ async function boot() {
       input.attachBtn.classList.toggle('ready', !!cand);
       input.attachBtn.classList.toggle('idle', !cand && !sim.carriedCargo().length);
       input.touchRoot.classList.toggle('down', crashShown);   // nothing to press after a crash but Restart
-      input.attachBtn.querySelector('.lbl').textContent = !cand && sim.carriedCargo().length ? 'Drop' : 'Hook';
+      const label = !cand && sim.carriedCargo().length ? 'Drop' : 'Hook';
+      if (input.attachLabel.textContent !== label) input.attachLabel.textContent = label;
       const bk = sim.milk.bucket, carryingBucket = !!(bk && sim.carriedCargo().includes(bk));
       input.setTouchMode(sim.aircraft === 'skycrane', carryingBucket);
       input.pourBtn.classList.toggle('empty', carryingBucket && bk.vol < 1e-7);
@@ -1253,7 +1256,7 @@ async function boot() {
       const extra = sim.carriedCargo().reduce((m, b) => m + b.mass, 0);
       hud.setCollective(h.collective, Math.min(1, (h.def.mass + extra) / (h.def.mass * h.def.thrustToWeight)));
     }
-    hud.updateBrew(view.projectCups(camera, vw, vh), flow.steepTimers);
+    hud.updateBrew(view.projectCups(camera, vw, vh, flow.steepTimers), flow.steepTimers);
     const tk = h && h.tank;
     hud.setTank(tk && started ? { fill: tk.vol / tk.capacity, doors: tk.doors,
       state: tk.auto ? `auto: ${tk.auto.phase === 'down' ? 'lowering' : tk.auto.phase === 'pump' ? 'pumping' : 'reeling in'}` : tk.salvo ? 'salvo' : tk.pumping ? 'pumping' : tk.flowOut > 0 ? 'dropping' : h.hose.submerged ? 'intake in' : '' } : null);
@@ -1282,10 +1285,7 @@ async function boot() {
       // The skycrane's camera sits under the front of the tank, between the snorkel and the doors.
       const mount = h.type === 'skycrane' ? [0.004, -0.0335, -0.012] : hooks[hooks.length === 3 ? 1 : 0];
       loadCam.update(view.heliPos, view.heliQuat, mount, heading);
-      const world = kitchen.garden.world;
-      if (world) world.inset(loadCam.camera, loadCam.camera.far);
-      loadCam.render(scene);
-      if (world) world.restore();
+      loadCam.render(scene, false, prepareLoadScene, restoreLoadScene);
     }
     const rect = showPip ? pipRect() : null;
     cockpit.setPipRect(rect, vw, vh);

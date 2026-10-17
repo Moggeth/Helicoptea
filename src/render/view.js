@@ -734,11 +734,16 @@ export class View {
   }
 
   // Screen positions of cups (for the subtle brew indicator in the HUD).
-  projectCups(camera, w, h) {
-    this.cupScreen.length = 0;
-    for (const c of this.sim.cups) {
+  projectCups(camera, w, h, steepTimers = null) {
+    this.cupScreen.length = this.sim.cups.length;
+    for (let i = 0; i < this.sim.cups.length; i++) {
+      const c = this.sim.cups[i];
+      const screen = this.cupScreen[i] || (this.cupScreen[i] = { cup: c });
+      screen.visible = false;
+      if (steepTimers && !(steepTimers[i] > 0)) continue;
       _p.set(c.x, c.topY + 0.03, c.z).project(camera);
-      this.cupScreen.push({ x: (_p.x * 0.5 + 0.5) * w, y: (-_p.y * 0.5 + 0.5) * h, visible: _p.z < 1, cup: c });
+      screen.x = (_p.x * 0.5 + 0.5) * w; screen.y = (-_p.y * 0.5 + 0.5) * h;
+      screen.visible = _p.z > -1 && _p.z < 1;
     }
     return this.cupScreen;
   }

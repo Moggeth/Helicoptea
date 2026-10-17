@@ -5,6 +5,7 @@ import { AirField } from '../src/sim/air.js';
 import { CFG } from '../src/config.js';
 import { batchStaticMeshes, freezeWorldBranch, updateVisibleMatrices } from '../src/render/sceneWork.js';
 import { indexedCopy } from '../src/render/batch.js';
+import { LoadCamera } from '../src/render/cockpitCam.js';
 
 function fieldAt(x, y, z) {
   const heli = { pos: new THREE.Vector3(x, y, z), quat: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0), thrust: CFG.heli.mass * 9.81 };
@@ -100,4 +101,18 @@ test('aircraft batches retain the exact triangle attributes while reusing indexe
     assert.notEqual(indexed.attributes.position.array, original.attributes.position.array);
     if (original.index) assert.ok(indexed.attributes.position.count < reference.attributes.position.count / 3);
   }
+});
+
+test('rate-limited hook-camera frames do no world culling; render failure restores state', () => {
+  let before = 0, after = 0, draws = 0, target = null;
+  const renderer = { shadowMap: { autoUpdate: true }, getRenderTarget: () => target, setRenderTarget: (v) => { target = v; }, clear() {}, render() { draws++; } };
+  const cam = new LoadCamera(renderer, { name: 'medium', lite: true });
+  cam.render({}, false, () => before++, () => after++);
+  for (let i = 0; i < 20; i++) cam.render({}, false, () => before++, () => after++);
+  assert.equal(draws, 1); assert.equal(before, 1); assert.equal(after, 1);
+  assert.equal(target, null); assert.equal(renderer.shadowMap.autoUpdate, true);
+  renderer.render = () => { throw new Error('driver failure'); };
+  assert.throws(() => cam.render({}, true, () => before++, () => after++), /driver failure/);
+  assert.equal(before, 2); assert.equal(after, 2);
+  assert.equal(target, null); assert.equal(renderer.shadowMap.autoUpdate, true);
 });

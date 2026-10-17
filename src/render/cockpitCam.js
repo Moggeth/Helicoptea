@@ -207,7 +207,7 @@ export class LoadCamera {
     this.camera.updateMatrixWorld();
   }
 
-  render(scene, force = false) {
+  render(scene, force = false, before = null, after = null) {
     const now = performance.now() / 1000;
     if (!force && this.rendered && ((this.frame++ % this.every) !== 0 || now - this.last < this.period * 0.9)) return;
     this.last = now;
@@ -215,11 +215,16 @@ export class LoadCamera {
     const au = r.shadowMap.autoUpdate;
     r.shadowMap.autoUpdate = false;     // re-use this frame's shadow maps
     const prev = r.getRenderTarget();
-    r.setRenderTarget(this.rt);
-    r.clear();
-    r.render(scene, this.camera);
-    r.setRenderTarget(prev);
-    r.shadowMap.autoUpdate = au;
-    this.rendered = true;
+    try {
+      before?.();
+      r.setRenderTarget(this.rt);
+      r.clear();
+      r.render(scene, this.camera);
+      this.rendered = true;
+    } finally {
+      r.setRenderTarget(prev);
+      r.shadowMap.autoUpdate = au;
+      after?.();
+    }
   }
 }

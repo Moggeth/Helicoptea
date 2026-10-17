@@ -42,6 +42,17 @@ reuse. The old mergers expanded shared sphere/tube vertices into triangle soup. 
 UVs, materials and triangle order stay identical; the regression compares the expanded attributes
 exactly. Temporary merge geometries are released after the merged geometry has been built.
 
+## HUD and extra cameras
+
+Unchanged hook/drop labels, debug visibility, flash opacity and tank text retain their DOM nodes. Touch
+aircraft/cargo buttons update on mode transitions. Cup projection objects are reused, and only cups with
+an active steep label are projected. The hook camera's world cull/restore now runs only when it actually
+draws; at a 120 Hz phone refresh it is limited to its existing 15 Hz cadence. Failed renders restore the
+render target, shadow settings and world visibility. The inset's projection matrix changes only on resize.
+
+`tests/e2e-performance.mjs` checks idle DOM mutation counts, hidden-aircraft matrix work, kitchen batches,
+all three cockpit switches, and hook-camera culling cadence using work counts instead of GPU-dependent FPS.
+
 Lesson: verify that a computed texture or uniform has a live consumer before optimizing its update
 frequency. The first revision throttled the legacy cloth texture; source inspection then showed the
 whole producer could safely be removed.
