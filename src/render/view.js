@@ -18,6 +18,7 @@ import { AircraftFxSet } from './aircraftFx.js';
 import { cloneSkycranePart } from './skycraneModel.js';
 import { CrashFx } from './crashFx.js';
 import { disposeTree } from './dispose.js';
+import { indexedCopy } from './batch.js';
 
 const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _c = new THREE.Color();
 const _pinA = new THREE.Vector3(), _pinL = new THREE.Vector3(), _pinQ = new THREE.Quaternion();
@@ -166,13 +167,14 @@ export class View {
         root.updateMatrixWorld(true);
         _inv.copy(root.matrixWorld).invert();
         const geos = casters.map((o) => {
-          const g = new THREE.BufferGeometry();
-          const src = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry;
-          g.setAttribute('position', src.attributes.position.clone());
+          const g = indexedCopy(o.geometry);
+          for (const name of Object.keys(g.attributes)) if (name !== 'position') g.deleteAttribute(name);
+          g.clearGroups();
           g.applyMatrix4(_rel.multiplyMatrices(_inv, o.matrixWorld));
           return g;
         });
         const merged = geos.length ? mergeGeometries(geos, false) : null;
+        for (const g of geos) g.dispose();
         if (merged) {
           const proxy = new THREE.Mesh(merged, SHADOW_ONLY);
           proxy.castShadow = true;

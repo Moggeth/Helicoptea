@@ -37,6 +37,11 @@ Regression checks cover indexed batching, material identity, dynamic exclusions,
 newly revealed children with moved/scaled parents. Run the rotor-wash browser suite for cloth, tea and
 grass interaction acceptance.
 
+All three aircraft's rigid-part mergers and first-person shadow proxies now retain indexed vertex
+reuse. The old mergers expanded shared sphere/tube vertices into triangle soup. Positions, normals,
+UVs, materials and triangle order stay identical; the regression compares the expanded attributes
+exactly. Temporary merge geometries are released after the merged geometry has been built.
+
 Lesson: verify that a computed texture or uniform has a live consumer before optimizing its update
 frequency. The first revision throttled the legacy cloth texture; source inspection then showed the
 whole producer could safely be removed.

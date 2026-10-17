@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { AirField } from '../src/sim/air.js';
 import { CFG } from '../src/config.js';
 import { batchStaticMeshes, freezeWorldBranch, updateVisibleMatrices } from '../src/render/sceneWork.js';
+import { indexedCopy } from '../src/render/batch.js';
 
 function fieldAt(x, y, z) {
   const heli = { pos: new THREE.Vector3(x, y, z), quat: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0), thrust: CFG.heli.mass * 9.81 };
@@ -89,4 +90,14 @@ test('static batching preserves indexed geometry, material and world positions; 
   assert.ok(merged.geometry.boundingBox.max.x > 2);
   assert.equal(animated.parent, root);
   assert.equal(glass.parent, root);
+});
+
+test('aircraft batches retain the exact triangle attributes while reusing indexed vertices', () => {
+  for (const original of [new THREE.SphereGeometry(1, 24, 16), new THREE.BoxGeometry(1, 2, 3).toNonIndexed()]) {
+    const indexed = indexedCopy(original);
+    const expanded = indexed.toNonIndexed(), reference = original.index ? original.toNonIndexed() : original;
+    for (const name of ['position', 'normal', 'uv']) assert.deepEqual(expanded.attributes[name].array, reference.attributes[name].array);
+    assert.notEqual(indexed.attributes.position.array, original.attributes.position.array);
+    if (original.index) assert.ok(indexed.attributes.position.count < reference.attributes.position.count / 3);
+  }
 });
