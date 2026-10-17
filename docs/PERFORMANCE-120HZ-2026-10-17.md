@@ -99,7 +99,9 @@ Before the final phone-renderer merge, a separate complete main-game browser run
 **171.89 s**. A larger earlier sweep retained 474 passing assertions and one cockpit performance failure
 before a tool-runtime interruption stopped the runner; it is not a completed green suite. The same
 cockpit suite now passes above after integration. The earlier full Node check passed in **175.36 s**;
-the final Node recheck is recorded in the timing ledger. All 17 targeted performance regressions pass.
+the final complete Node recheck also passed in **198.65 s** (1,012 plain PASS lines plus 22 Node tests:
+17 performance and five browser-safety checks). No timing thresholds were relaxed. The tracked paired
+liquid benchmark command passed in **4.04 s** and reproduced the solver reduction below.
 
 Hosted checks at `92b6d88` were not green: push run `39003572656` hit the existing real-Windows pointer
 test's 30-second timeout; PR run `39003570867` passed that guard but failed the existing simulation
@@ -151,9 +153,10 @@ including hidden source parts/effects; exact triangle counts are unchanged):
 | Skycrane | 92,483 → 66,262 (28% fewer) | 3,162,772 → 2,413,484 (24% fewer) |
 
 Seven interleaved CPU samples per scenario (40×40 grid, 600 measured frames at 120 Hz, 100 warm-up frames):
-stationary 2/3/6-blade forcing fell from 0.0795/0.0816/0.0847 ms to 0.0377/0.0386/0.0390 ms per frame
-(53–54% less). Footprints moving at 60 Hz fell from 0.0822/0.0806/0.0841 ms to 0.0574/0.0579/0.0582 ms
-(28–31% less). These are desktop Node CPU measurements, not phone timing guarantees.
+the final tracked-command rerun measured stationary 2/3/6-blade forcing falling from
+0.0763/0.0777/0.0798 ms to 0.0366/0.0364/0.0373 ms per frame (52–53% less). Footprints moving at 60 Hz
+fell from 0.0769/0.0780/0.1079 ms to 0.0534/0.0550/0.0759 ms (29–31% less). The earlier paired run
+measured 53–54% and 28–31% respectively. These are desktop Node CPU measurements, not phone timing guarantees.
 
 The final two 12-scene browser samples used 412×891 CSS pixels, DPR 3.5 capped by medium touch quality to
 1.5, dynamic resolution off and recording **on**. They took 97.82 s and 97.24 s. Two other Helicoptea
