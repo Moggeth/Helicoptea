@@ -89,6 +89,11 @@ status, anonymous HTML/assets and build marker separately after merging.
   full user command and a positive motor response above that run's idle, then assert the original
   release drop. Do not change aircraft power or spring tuning to satisfy a test's arbitrary percentage.
   Wait for a completed post-restart frame before sending the independent keyboard input.
+- The instrumented Linux run then reported **visible**, **focused**, ready/flying, and **Loaded in
+  120.4 s** just after its 120 s startup timeout. The screenshot capture also timed out, so the artifact
+  contained only the summary; do not claim an image was inspected. Give only this Linux native test's
+  cold start 180 s. Its climb/release checks keep 5 s deadlines, Windows startup waits stay at 120 s,
+  and failure snapshots distinguish an active error screen from its placeholder message.
 
 ## Inspection and recovery
 

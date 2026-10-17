@@ -21,7 +21,9 @@ try {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(`${base}?quality=low`);
-  await page.locator('#start-btn:not(.hidden)').click();
+  // Linux SwiftShader cold shader warmup measured 120.4 s on the hosted runner. This is a startup
+  // allowance only; the actual climb/release assertions below retain their 5 s behavior deadlines.
+  await page.locator('#start-btn:not(.hidden)').click({ timeout: process.env.GITHUB_ACTIONS === 'true' ? 180000 : 30000 });
   await sleep(600);
   const H = (fn, arg) => page.evaluate(fn, arg);
 
@@ -97,7 +99,7 @@ try {
 } catch (e) {
   check('suite ran', false, String(e && e.stack || e));
   for (const ctx of browser.contexts()) for (const page of ctx.pages()) {
-    console.log('INFO mouse failure state', JSON.stringify(await page.evaluate(() => ({ visibility: document.visibilityState, focus: document.hasFocus(), load: document.getElementById('load-status')?.textContent, error: document.getElementById('error-msg')?.textContent, ready: !!window.__helicoptea, paused: window.__helicoptea?.paused, state: window.__helicoptea?.sim.state, keys: [...(window.__helicoptea?.input.keys || [])], collective: window.__helicoptea?.sim.heli?.collective })).catch(() => ({}))));
+    console.log('INFO mouse failure state', JSON.stringify(await page.evaluate(() => ({ visibility: document.visibilityState, focus: document.hasFocus(), load: document.getElementById('load-status')?.textContent, errorShown: document.getElementById('error')?.classList.contains('show'), error: document.getElementById('error-msg')?.textContent, ready: !!window.__helicoptea, paused: window.__helicoptea?.paused, state: window.__helicoptea?.sim.state, keys: [...(window.__helicoptea?.input.keys || [])], collective: window.__helicoptea?.sim.heli?.collective, ctl: window.__helicoptea?.input.ctl })).catch(() => ({}))));
     await page.screenshot({ path: path.join(out, 'failure.png'), timeout: 5000 }).catch(() => {});
   }
 } finally {
