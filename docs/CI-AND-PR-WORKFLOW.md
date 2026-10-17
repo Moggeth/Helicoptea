@@ -94,6 +94,13 @@ status, anonymous HTML/assets and build marker separately after merging.
   contained only the summary; do not claim an image was inspected. Give only this Linux native test's
   cold start 180 s. Its climb/release checks keep 5 s deadlines, Windows startup waits stay at 120 s,
   and failure snapshots distinguish an active error screen from its placeholder message.
+- The next Linux snapshot reached the controls: user collective **1.0**, motor collective **0.675**,
+  unpaused/flying, no error screen. The idle-relative increase was an invalid precondition for that
+  sampled state. Extract the independent keyboard case, clear old fixture inputs, compare against the
+  configured neutral and require a full user command. Require release to settle at/below neutral as
+  well as the original drop. The native suite and a standalone Windows-safe keyboard suite share this
+  exact helper, so it can be played without enabling native Windows capture. Local SwiftShader passed
+  both checks in **22 s**, measuring **0.675 → 0.475**, with no page errors.
 
 ## Inspection and recovery
 

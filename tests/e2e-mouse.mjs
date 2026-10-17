@@ -4,6 +4,7 @@
 import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
+import { springCollectiveCase } from './spring-collective-case.mjs';
 const base = process.argv.find((a) => a.startsWith('http')) || 'http://127.0.0.1:4199/';
 const out = path.resolve('test-results/mouse');
 fs.mkdirSync(out, { recursive: true });
@@ -81,18 +82,7 @@ try {
   // Spring-return lift with Assist off.
   // The preceding held-bank flight may legitimately have crashed. Restart this independent control
   // case rather than dereferencing a retired airframe or depending on a software GPU's flight pace.
-  const restartFrame = await H(() => { const g = window.__helicoptea; g.doAction('restart'); return g.frames; });
-  await page.waitForFunction(frame => { const g = window.__helicoptea; return g.frames > frame && !g.paused && g.sim.heli && g.sim.state === 'flying'; }, restartFrame);
-  await H(() => window.__helicoptea.input.centreMouse());
-  await H(() => { const g = window.__helicoptea; if (g.sim.assist) g.doAction('assist'); });
-  const idle = await H(() => window.__helicoptea.sim.heli.collective);
-  await page.keyboard.down('w');
-  // Full user input is not 100% rotor collective: spring levels depend on aircraft thrust-to-weight.
-  await page.waitForFunction(idle => { const g = window.__helicoptea; return g.input.ctl.collective > 0.9 && g.sim.heli?.collective > idle + 0.05; }, idle, { timeout: 5000 });
-  const held = await H(() => window.__helicoptea.sim.heli.collective);
-  await page.keyboard.up('w');
-  await page.waitForFunction(held => window.__helicoptea.sim.heli && window.__helicoptea.sim.heli.collective < held - 0.05, held, { timeout: 5000 });
-  const let_ = await H(() => window.__helicoptea.sim.heli.collective);
+  const { held, released: let_ } = await springCollectiveCase(page);
   check('Assist off: letting go of W drops the collective back below the climb', let_ < held - 0.05, { held, let: let_ });
   await H(() => window.__helicoptea.input.chooseKbPreset('keyboard'));
   check('no page errors', errors.length === 0, errors.slice(0, 3));
