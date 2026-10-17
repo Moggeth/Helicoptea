@@ -372,9 +372,7 @@ async function boot() {
     },
     ding() {
       audio.ui('select');
-      hud.hint.classList.remove('ding');
-      void hud.hint.offsetWidth;   // restart the pop
-      hud.hint.classList.add('ding');
+      hud.lessonDing();
     },
   });
   bindUi(audio, [$('hud'), hud.modal, $('loading')]);
@@ -624,7 +622,8 @@ async function boot() {
       case 'mute': audio.setMuted(!audio.muted); hud.setVolume(audio.volume, audio.muted); break;
       case 'debug': debug.enabled = !debug.enabled; store.set('debug', debug.enabled ? '1' : '0'); break;
       case 'fpsmeter': fpsMeter.shown = !fpsMeter.shown; store.set('fpsMeter', fpsMeter.shown ? '1' : '0'); break;
-      case 'skiphints': if (tutorial.active) tutorial.end(false); else flow.skip(); break;
+      case 'skiphints': flow.skip(); break;
+      case 'endlesson': tutorial.end(false); break;
       case 'tutorial':
         if (tutorial.active) { tutorial.end(false); if (paused) setPaused(false); } else tutorial.start();
         break;

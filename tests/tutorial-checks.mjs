@@ -9,19 +9,22 @@ import { BUCKET } from '../src/sim/milk.js';
 import { Flow } from '../src/game/flow.js';
 import { Tutorial, TUTORIAL_STEPS } from '../src/game/tutorial.js';
 import { Hud } from '../src/ui/hud.js';
+import { sceneSVG, controlSVG } from '../src/ui/lessonCard.js';
 
 await initPhysics();
 let failed = 0;
 const check = (name, ok, detail = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`); if (!ok) failed++; };
 const zero = () => ({ pitch: 0, roll: 0, yaw: 0, collective: 0 });
 
-// A HUD without a page: the real wording methods, with the card recorded.
+// A HUD without a page: the real control lookups, with the lesson card recorded (and the pictures drawn,
+// so a bad control or scene would throw here).
 const hud = {
-  device: 'keyboard', pads: null, touchLayoutOf: () => 'classic', shown: null, opts: null,
-  showHint(step, html, opts) { this.shown = html; this.step = step; this.opts = opts; },
-  showPrompt() {}, setInvite() {},
+  device: 'keyboard', pads: null, touchLayoutOf: () => 'classic', card: null, art: '',
+  showLesson(c) { this.card = c; this.art = c ? sceneSVG(c.scene) + controlSVG(c.ctl) : ''; },
+  showHint() {}, showPrompt() {}, setInvite() {},
 };
-for (const m of ['key', 'padKeys', 'kbKeys', 'hotasKeys', 'flyName', 'camKey', 'touchStick']) hud[m] = Hud.prototype[m];
+for (const m of ['key', 'padKeys', 'kbKeys', 'hotasKeys', 'lessonControl', 'touchStick']) hud[m] = Hud.prototype[m];
+const title = () => (hud.card ? hud.card.title : null);
 
 const sim = new Sim();
 const flow = new Flow(sim, hud);
@@ -49,21 +52,32 @@ tut.start();
 check('starts on lift, waiting on the pad', tut.step === 'lift' && sim.heli.grounded);
 run(1, zero);
 check('sitting still never finishes lift', tut.step === 'lift', tut.step);
-check('lift card names the key', /<kbd>W<\/kbd>/.test(hud.shown) && /springs back/.test(hud.shown), hud.shown);
+check('lift card: big title, the W key held, the lift-off picture', title() === 'Lift off' && hud.card.ctl?.type === 'keys' && hud.card.ctl.keys[0] === 'W' && hud.card.ctl.hold && /ls-rise/.test(hud.art), JSON.stringify(hud.card));
+check('card words stay short', hud.card.title.split(' ').length <= 4 && hud.card.sub.split(' ').length <= 8, hud.card.sub);
 
-// Wording follows the device, live.
-const words = {};
-for (const d of ['gamepad', 'touch', 'hotas', 'keyboard']) { hud.device = d; tut.update(0); words[d] = hud.shown; }
-check('gamepad wording names the stick', /stick/.test(words.gamepad) && !/<kbd>W/.test(words.gamepad), words.gamepad);
-check('touch wording names the touch stick', /<b>left<\/b> stick up/.test(words.touch), words.touch);
-check('flight-stick wording names the throttle', /throttle/.test(words.hotas), words.hotas);
+// The control picture follows the device, live.
+const ctls = {};
+for (const d of ['gamepad', 'touch', 'hotas', 'keyboard']) { hud.device = d; tut.update(0); ctls[d] = { ...hud.card.ctl, art: hud.art }; }
+check('gamepad: the lift stick, pushed up', ctls.gamepad.type === 'stick' && !ctls.gamepad.touch && ctls.gamepad.dir === 'up' && /ls-ring on/.test(ctls.gamepad.art), JSON.stringify(ctls.gamepad.side));
+check('touch: the left touch stick, pushed up', ctls.touch.type === 'stick' && ctls.touch.touch && ctls.touch.side === 'left' && ctls.touch.dir === 'up', JSON.stringify(ctls.touch.side));
+check('flight stick: the throttle forward', ctls.hotas.type === 'throttle' && ctls.hotas.dir === 'up' && /ls-lever/.test(ctls.hotas.art));
+// A remapped keyboard and the mouse: the picture uses the player's bindings.
+hud.input = { kbLayout: { preset: 'custom', custom: { mouse: { x: 'roll', y: 'pitch', mode: 'nose' }, keys: { collUp: ['KeyR'], collDown: ['KeyF'], yawLeft: ['KeyQ'], yawRight: ['KeyE'], pitchFwd: [], pitchBack: [], rollLeft: [], rollRight: [], attach: ['Space'], assist: ['KeyT'], camNext: ['KeyV'] } } } };
+tut.update(0);
+const remapLift = hud.card.ctl;
+check('remapped lift key shows on the card', remapLift.type === 'keys' && remapLift.keys[0] === 'R', JSON.stringify(remapLift));
+check('mouse flying shows the mouse for tilting', hud.lessonControl('tilt').type === 'mouse', JSON.stringify(hud.lessonControl('tilt')));
+check('remapped camera key shows on the card', hud.lessonControl('camera').keys?.[0] === 'V', JSON.stringify(hud.lessonControl('camera')));
+delete hud.input;
+tut.update(0);
 
 let t = until('lift', 4, () => ({ ...zero(), collective: 1 }));
 check('climbing off the pad finishes lift', t !== null && tut.step === 'hover', `${t} s`);
 check('a finished step chimes', dings === 1, `${dings}`);
-const bar0 = hud.opts.progress;
+const bar0 = hud.card.progress;
 run(0.5, zero);
-check('hover shows a filling bar while held still', hud.opts.progress > 0 && (bar0 === null || hud.opts.progress > bar0), `${hud.opts.progress}`);
+check('hover shows a filling bar while held still', hud.card.progress > 0 && (bar0 === null || hud.card.progress > bar0), `${hud.card.progress}`);
+check('hover needs no control: hands off', hud.card.ctl === null && /ls-bob/.test(hud.art));
 t = until('hover', 6, zero);
 check('a still hover finishes hover', t !== null && tut.step === 'drift', `${t} s`);
 t = until('drift', 6, (s) => ({ ...zero(), roll: s < 0.6 ? -0.6 : 0, collective: 0.1 }));
@@ -74,9 +88,9 @@ check('turning round finishes turn', t !== null && tut.step === 'stop', `${t} s`
 run(1.5, hold(-0.5, 0.3, 0.35));   // back to open air, south of the teapot
 ap.yaw = Math.PI;                    // face the open side of the table
 run(1.5, hold(-0.5, 0.3, 0.35));
-check('stop asks for speed first', tut.step === 'stop' && !tut.s.fast && /speed/.test(hud.shown), hud.shown);
+check('stop asks for speed first', tut.step === 'stop' && !tut.s.fast && title() === 'Speed up', title());
 t = until('stop', 1.5, () => ({ ...zero(), pitch: tut.s.fast ? 0 : 1 }));
-check('building speed moves stop on to stopping', tut.step === 'stop' && tut.s.fast && /stop/.test(hud.shown), `top ${f(tut.s.top)} m/s`);
+check('building speed moves stop on to stopping', tut.step === 'stop' && tut.s.fast && title() === 'Now stop', `top ${f(tut.s.top)} m/s`);
 let stopFrom = null;
 t = until('stop', 6, () => { const h = sim.heli; if (!stopFrom) stopFrom = h.pos.clone(); ap.target.copy(stopFrom); ap.maxSpeed = 0.02; return ap.update(h); });
 check('coming to a stop finishes stop', t !== null && tut.step === 'land', `${t} s, state ${sim.state}`);
@@ -95,7 +109,7 @@ ap.yaw = 0;
 run(3, hold(sim.heli.pos.x, 0.4, sim.heli.pos.z, 0.3, { hook: true }));
 run(6, hold(peg.tip.x, 0.4, peg.tip.z, 0.3, { hook: true }));
 run(5, hold(peg.tip.x, peg.tip.y + 0.004, peg.tip.z, 0.12, { hook: true }));
-check('in reach, the hook card says how to hook', /to hook it/.test(hud.shown), `${hud.shown} | state ${sim.state} hook-loop ${sim.heli ? f(sim.heli.hookWorlds[0].distanceTo(peg.tip), 3) : '-'}`);
+check('in reach, the hook card shows the hook key', title() === 'Hook it!' && hud.card.ctl?.keys?.[0] === 'Space', `${title()} | state ${sim.state} hook-loop ${sim.heli ? f(sim.heli.hookWorlds[0].distanceTo(peg.tip), 3) : '-'}`);
 sim.toggleAttach();
 run(0.1, hold(peg.tip.x, peg.tip.y + 0.004, peg.tip.z, 0.12, { hook: true }));
 check('hooking a bag finishes hook', tut.step === 'dip', tut.step);
@@ -136,7 +150,7 @@ check('milk landing in a cup finishes pour', t !== null && tut.step === 'assist'
 
 // Flight Assist off, then a hover by hand.
 run(0.5, hold(cup.x, 0.4, cup.z));
-check('assist step waits for the switch', tut.step === 'assist' && /<kbd>F<\/kbd>/.test(hud.shown), hud.shown);
+check('assist step waits for the switch, showing its key', tut.step === 'assist' && hud.card.ctl?.keys?.[0] === 'F', JSON.stringify(hud.card.ctl));
 sim.assist = false;
 run(0.05, zero);
 check('switching Assist off finishes assist', tut.step === 'raw', tut.step);
@@ -153,7 +167,7 @@ tut.noteCamera(); tut.update(0);
 check('one camera change is not enough', tut.step === 'camera');
 tut.noteCamera(); tut.update(0);
 check('two camera changes finish camera', tut.step === 'done', tut.step);
-check('closing card mentions the pause menu', /pause menu/.test(hud.shown), hud.shown);
+check('closing card is unnumbered and says you can fly', hud.card.n === 0 && title() === 'You can fly!', JSON.stringify(hud.card));
 sim.assist = true;
 run(8, hold(cup.x, 0.45, cup.z));
 check('the lesson ends itself after the closing card', !tut.active && ended === true);
@@ -162,13 +176,13 @@ check('the lesson has fifteen skills and a closing card', TUTORIAL_STEPS.length 
 
 // Ending early: the card clears, the tips stay where they were.
 {
-  const sim2 = new Sim(), h2 = { ...hud, shown: 'x' };
+  const sim2 = new Sim(), h2 = { ...hud, card: 'x' };
   const fl = new Flow(sim2, h2); fl.replay();
   let e2 = null;
   const t2 = new Tutorial(sim2, h2, { end(d) { e2 = d; } });
   t2.start(); sim2.step(zero()); t2.update(sim2.dt);
   t2.end(false);
-  check('ending early clears the card and reports not done', !t2.active && e2 === false && h2.shown === null && fl.step === 0);
+  check('ending early clears the card and reports not done', !t2.active && e2 === false && h2.card === null && fl.step === 0);
   sim2.dispose();
 }
 sim.dispose();

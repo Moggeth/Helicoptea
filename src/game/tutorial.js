@@ -1,26 +1,26 @@
 // Guided first flight: one skill at a time in the real game, each step waiting until the player has
-// actually done it. It drives the same hint card as the contextual tips (game/flow.js), which go quiet
-// while it runs; Flow's hook / pour prompts stay on. Prompts are rebuilt every frame from hud.device, so
-// they follow whichever controller the player picks up.
+// actually done it. It shows its own big card (hud.showLesson): a looping picture of the skill, a picture of
+// the control that does it on the device in hand, and a few large words. The contextual tips (game/flow.js)
+// go quiet while it runs; Flow's hook / pour prompts stay on. The control is rebuilt from hud.device and the
+// player's bindings every frame, so it follows whichever controller the player picks up.
 
 const AIR = 0.03;   // skid clearance (m) that counts as properly airborne
 const hs = (h) => Math.hypot(h.vel.x, h.vel.z);
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
-// Each step: text(c) for the card, enter(s) once, check(s, dt) returning progress (>= 1 finishes it).
-// s is a scratch object reset on entry; s.air marks that the player has been airborne since, cleared on a
-// restart so a respawn on the pad can't finish a step that wants a landing.
+// Each step: card(s, sim) => { title, sub, ctl } (ctl names a control for hud.lessonControl), enter(s) once,
+// check(s, dt) returning progress (>= 1 finishes it). s is a scratch object reset on entry; s.air marks that
+// the player has been airborne since, cleared on a restart so a respawn on the pad can't fake a landing.
+// Words are few and plain on purpose: the pictures carry the lesson.
 const STEPS = [
   {
     id: 'lift',
-    text: (c) => c.dev === 'hotas'
-      ? `Let's fly. Push ${c.k('lift') || c.fly('liftUp')} to climb off the pad, then bring it back to the middle to hold your height.`
-      : `Let's fly. Hold ${c.fly('liftUp')} to climb off the pad. Let go and it springs back to the middle: you hold your height.`,
+    card: () => ({ title: 'Lift off', sub: 'Hold to climb. Let go to stay up.', ctl: 'liftUp' }),
     check: (s, dt, sim) => (sim.heli && !sim.heli.grounded && sim.heli.skidClearance > 0.1 ? 1 : 0),
   },
   {
     id: 'hover',
-    text: () => 'Now let go of everything and just hover. Nice and still.',
+    card: () => ({ title: 'Hover', sub: 'Hands off. Stay still.' }),
     check: (s, dt, sim) => {
       const h = sim.heli;
       const still = h && !h.grounded && h.skidClearance > AIR && hs(h) < 0.07 && Math.abs(h.vel.y) < 0.08;
@@ -30,7 +30,7 @@ const STEPS = [
   },
   {
     id: 'drift',
-    text: (c) => `Tilt with ${c.fly('tilt')}. It leans first, then slides that way, slowly at first. Drift a little way.`,
+    card: () => ({ title: 'Tilt to move', sub: 'It leans, then slides.', ctl: 'tilt' }),
     enter: (s, sim) => { s.from = sim.heli ? sim.heli.pos.clone() : null; },
     check: (s, dt, sim) => {
       const h = sim.heli;
@@ -41,7 +41,7 @@ const STEPS = [
   },
   {
     id: 'turn',
-    text: (c) => `Turn with ${c.fly('yaw')}. Swing right round to face the other way.`,
+    card: () => ({ title: 'Turn around', ctl: 'yaw' }),
     check: (s, dt, sim) => {
       const h = sim.heli;
       if (!h) return 0;
@@ -54,9 +54,9 @@ const STEPS = [
   {
     id: 'stop',
     // Two parts: build some speed, then bring it to a stop. Momentum is the lesson.
-    text: (c, s) => s.fast
-      ? 'And stop. It keeps sliding, so tilt the other way early and ease off as it slows.'
-      : `Now a little speed: tilt with ${c.fly('tilt')} and let it build. Mind the teapot.`,
+    card: (s) => (s.fast
+      ? { title: 'Now stop', sub: 'Tilt back early. It keeps sliding.', ctl: 'tilt' }
+      : { title: 'Speed up', sub: 'Tilt and let it build.', ctl: 'tilt' }),
     check: (s, dt, sim) => {
       const h = sim.heli;
       if (!h || h.grounded) return 0;
@@ -68,7 +68,7 @@ const STEPS = [
   },
   {
     id: 'land',
-    text: (c) => `Bring it down on anything flat. Ease ${c.fly('liftDown')} and touch down gently.`,
+    card: () => ({ title: 'Land', sub: 'Down gently, on anything flat.', ctl: 'liftDown' }),
     check: (s, dt, sim) => {
       const h = sim.heli;
       if (!h) return 0;
@@ -81,56 +81,54 @@ const STEPS = [
   },
   {
     id: 'hook',
-    text: (c, s, sim) => (sim.attachCandidate()
-      ? `In reach. ${c.k('attach')} to hook it.`
-      : 'Tea time. Fly to the tea stand just ahead and bring the brass hook under you close to a bag\'s loop.'),
+    card: (s, sim) => (sim.attachCandidate()
+      ? { title: 'Hook it!', ctl: 'attach' }
+      : { title: 'Hook a tea bag', sub: 'Fly the hook to a bag\'s loop on the stand.' }),
     check: (s, dt, sim) => (sim.carriedBag() ? 1 : 0),
   },
   {
     id: 'dip',
-    text: (c, s, sim) => {
+    card: (s, sim) => {
       const b = sim.carriedBag();
-      return b && b.immersion > 0.2
-        ? 'Hold it there and let it steep. Watch the tea darken.'
-        : 'Carry it to a cup and lower it right into the tea. Ease off early: the bag keeps swinging.';
+      return b && b.immersion > 0.2 ? { title: 'Hold it in', sub: 'Watch the tea darken.' } : { title: 'Dip it in tea', sub: 'Lower it into a cup.' };
     },
     back: (sim) => !sim.carriedBag() && 'hook',
     check: (s, dt, sim) => { const b = sim.carriedBag(); return b ? b.wetness / 0.55 : 0; },
   },
   {
     id: 'drop',
-    text: (c) => `Lovely. Lift it out and let go with ${c.k('attach')}. The saucer is the tidy spot.`,
+    card: () => ({ title: 'Let it go', sub: 'Lift it out first.', ctl: 'attach' }),
     check: (s, dt, sim) => (sim.carriedBag() ? 0 : 1),
   },
   {
     id: 'bucket',
-    text: (c, s, sim) => (sim.attachCandidate()?.isBucket
-      ? `${c.k('attach')} to hook the bucket.`
-      : 'Now milk. Hook the little milk bucket hanging by the crock, to the right of the tea stand.'),
+    card: (s, sim) => (sim.attachCandidate()?.isBucket
+      ? { title: 'Hook it!', ctl: 'attach' }
+      : { title: 'Hook the milk bucket', sub: 'It hangs by the milk crock.' }),
     check: (s, dt, sim) => (bucketOn(sim) ? 1 : 0),
   },
   {
     id: 'fill',
-    text: () => 'Lower it into the milk crock. It fills through its base. Then lift it out gently.',
+    card: () => ({ title: 'Fill it with milk', sub: 'Lower it into the crock.' }),
     back: (sim) => !bucketOn(sim) && 'bucket',
     check: (s, dt, sim) => { const b = sim.milk.bucket; return b ? b.fill / 0.5 : 0; },
   },
   {
     id: 'pour',
-    text: (c) => `Fly it over a cup and hold ${c.k('pour')} to pour. A splash will do.`,
+    card: () => ({ title: 'Pour into a cup', sub: 'Hold over a cup.', ctl: 'pour' }),
     back: (sim) => !bucketOn(sim) && 'bucket',
     on: { milkLand: (s, e) => !e.vessel.isBowl },
   },
   {
     id: 'assist',
-    text: (c) => `So far Flight Assist has been levelling you. Switch it off with ${c.k('assist')} and fly it yourself.`,
+    card: () => ({ title: 'Assist off', sub: 'Now you fly it yourself.', ctl: 'assist' }),
     check: (s, dt, sim) => (sim.assist ? 0 : 1),
   },
   {
     id: 'raw',
-    text: (c, s, sim) => (sim.heli && sim.heli.grounded
-      ? `Assist off. Lift off with ${c.fly('liftUp')}: centred, the lift stick lets you settle gently.`
-      : 'Nothing levels you now. Hold a touch of lift to stay up, catch every drift early, and hover still.'),
+    card: (s, sim) => (sim.heli && sim.heli.grounded
+      ? { title: 'Lift off', sub: 'Assist is off.', ctl: 'liftUp' }
+      : { title: 'Hover by hand', sub: 'A little lift. Catch every drift.', ctl: 'liftUp' }),
     back: (sim) => sim.assist && 'assist',
     check: (s, dt, sim) => {
       const h = sim.heli;
@@ -141,12 +139,12 @@ const STEPS = [
   },
   {
     id: 'camera',
-    text: (c) => `Last thing: change camera with ${c.cam()}. Try a couple.`,
+    card: () => ({ title: 'Change camera', sub: 'Try two.', ctl: 'camera' }),
     check: (s) => (s.cams || 0) / 2,
   },
   {
     id: 'done',
-    text: (c, s, sim) => `That's your first flight. ${sim.assist ? '' : `${c.k('assist')} brings Flight Assist back any time. `}The pause menu has this lesson again.`,
+    card: (s, sim) => ({ title: 'You can fly!', sub: sim.assist ? 'Have a cuppa.' : 'Assist comes back with this.', ctl: sim.assist ? null : 'assist' }),
     check: (s, dt) => { s.t = (s.t || 0) + dt; return s.t / 7; },
     quiet: true,
   },
@@ -167,6 +165,7 @@ export class Tutorial {
     this.i = 0;
     this.s = {};
     this.progress = 0;
+    this.card = null;   // what the card shows now (tests read it)
   }
 
   get step() { return STEPS[this.i].id; }
@@ -180,7 +179,8 @@ export class Tutorial {
   end(done = false) {
     if (!this.active) return;
     this.active = false;
-    this.hud.showHint(0, null);
+    this.card = null;
+    this.hud.showLesson(null);
     this.hooks.end?.(done);
   }
 
@@ -219,22 +219,17 @@ export class Tutorial {
       if (this.progress >= 1) { this.next(); if (!this.active) return; }
     }
     const cur = STEPS[this.i];
-    const c = this.words();
-    const needsHook = HOOK_STEPS.has(cur.id) && sim.aircraft === 'skycrane';
-    const html = sim.state !== 'flying' ? null
-      : needsHook ? 'The tea steps need a hook: pick the Micro heli in the pause menu, or end the lesson here.'
-        : cur.text(c, this.s, sim);
-    // The numbered steps are the skills; the closing card has no number.
-    this.hud.showHint(cur.quiet ? '✓' : this.i + 1, html, {
+    if (sim.state !== 'flying') { this.card = null; this.hud.showLesson(null); return; }
+    const words = HOOK_STEPS.has(cur.id) && sim.aircraft === 'skycrane'
+      ? { title: 'Needs a hook', sub: 'Pick the Micro heli in the pause menu.' }
+      : cur.card(this.s, sim);
+    let ctl = null;
+    if (words.ctl) { try { ctl = this.hud.lessonControl(words.ctl); } catch { ctl = null; } }
+    // The skills are numbered; the closing card has no number.
+    this.card = {
+      n: cur.quiet ? 0 : this.i + 1, total: STEPS.length - 1, scene: cur.id, title: words.title, sub: words.sub || '', ctl,
       progress: cur.check && !cur.quiet && this.progress > 0 ? Math.min(1, this.progress) : null,
-      skip: 'End lesson',
-    });
-  }
-
-  // Device-aware wording for the current step text.
-  words() {
-    const hud = this.hud;
-    const k = (a) => { try { return hud.key(a) || ''; } catch { return ''; } };
-    return { dev: hud.device, k, fly: (w) => hud.flyName(w), cam: () => hud.camKey() };
+    };
+    this.hud.showLesson(this.card);
   }
 }

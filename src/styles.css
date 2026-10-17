@@ -143,16 +143,188 @@ kbd {
 .hint.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .hint .step { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--terracotta); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 13px; }
 .hint .skip { flex: none; border: 0; background: none; color: var(--ink-soft); font-size: 12px; text-decoration: underline; padding: 4px; }
-.hint .body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-/* Guided flight: a thin fill under the step while you hold it, and a little pop when a step is done. */
-.hint .bar { display: block; height: 4px; border-radius: 2px; background: rgba(42, 29, 22, 0.12); overflow: hidden; }
-.hint .bar.off { display: none; }
-.hint .bar i { display: block; height: 100%; width: 0; border-radius: 2px; background: linear-gradient(90deg, var(--honey), var(--terracotta)); transition: width 0.12s linear; }
-.hint.lesson .step { background: var(--sage); }
-.hint.ding .step { animation: ding 0.5s ease; }
-@keyframes ding { 0% { transform: scale(1); } 40% { transform: scale(1.35); background: var(--honey); } 100% { transform: scale(1); } }
-.lesson-offer { width: min(440px, 100%); }
-.lesson-offer .lesson-note { font-size: 13px; color: var(--ink-soft); margin: 12px 0 0; }
+/* Guided first flight: a big card under the top bar. A looping picture of the skill, the control that does it,
+   a few large words, a bar that fills while you hold it. Pictures are inline SVG from ui/lessonCard.js. */
+.lesson {
+  position: absolute; left: 50%; top: calc(74px + var(--safe-t)); transform: translateX(-50%) translateY(-10px); opacity: 0;
+  width: min(820px, calc(100vw - 32px)); box-sizing: border-box;
+  display: flex; align-items: center; gap: 18px; padding: 14px 16px 14px 14px;
+  background: var(--paper); border-radius: 22px; box-shadow: var(--shadow); color: var(--ink);
+  transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: none;
+}
+.lesson.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+.lesson.ding { animation: ls-ding 0.55s ease; }
+@keyframes ls-ding { 0% { transform: translateX(-50%) scale(1); } 35% { transform: translateX(-50%) scale(1.05); box-shadow: 0 0 0 6px rgba(242, 184, 75, 0.55), var(--shadow); } 100% { transform: translateX(-50%) scale(1); } }
+.lesson .ls-art { display: flex; align-items: center; gap: 6px; flex: none; }
+.lesson .ls-scene svg { display: block; width: 168px; height: 126px; border-radius: 14px; background: rgba(111, 143, 125, 0.16); }
+.lesson .ls-ctl svg { display: block; width: 154px; height: 126px; }
+.lesson .ls-ctl.hidden { display: none; }
+.lesson .ls-words { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1 1 auto; }
+.lesson .ls-title { font-family: var(--serif); font-size: clamp(30px, 1.6vw + 14px, 48px); line-height: 1.05; font-weight: 700; letter-spacing: -0.01em; }
+.lesson .ls-sub { font-size: clamp(19px, 0.7vw + 12px, 25px); line-height: 1.25; color: var(--ink-soft); }
+.lesson .ls-sub:empty { display: none; }
+.lesson .ls-bar { display: block; height: 10px; border-radius: 5px; background: rgba(42, 29, 22, 0.12); overflow: hidden; margin-top: 4px; min-width: 180px; }
+.lesson .ls-bar.off { visibility: hidden; }
+.lesson .ls-bar i { display: block; height: 100%; width: 0; border-radius: 5px; background: linear-gradient(90deg, var(--honey), var(--terracotta)); transition: width 0.12s linear; }
+/* The close button sits in the top corner and the step count in the bottom one, clear of the words. */
+.lesson .ls-side { display: contents; }
+.lesson .ls-words { padding-right: 44px; }
+.lesson .ls-end { position: absolute; top: 10px; right: 10px; border: 0; background: rgba(42, 29, 22, 0.08); color: var(--ink-soft); width: 40px; height: 40px; border-radius: 50%; font-size: 18px; line-height: 1; cursor: pointer; }
+.lesson .ls-end:hover, .lesson .ls-end:focus-visible { background: rgba(42, 29, 22, 0.16); color: var(--ink); }
+.lesson .ls-count { position: absolute; bottom: 10px; right: 14px; font-size: 15px; font-weight: 650; color: var(--ink-soft); white-space: nowrap; }
+body.bolt .lesson { display: none; }
+body.pip-top .lesson { top: calc(var(--pip-bottom, 120px) + 8px + var(--safe-t)); }
+
+/* Phones and small windows: smaller pictures, still large words. */
+@media (max-width: 640px), (max-height: 480px) {
+  .lesson { gap: 10px; padding: 10px 10px 10px 10px; border-radius: 18px; }
+  .lesson .ls-scene svg { width: 88px; height: 66px; border-radius: 10px; }
+  .lesson .ls-ctl svg { width: 81px; height: 66px; }
+  .lesson .ls-title { font-size: 24px; }
+  .lesson .ls-sub { font-size: 16px; }
+  .lesson .ls-bar { min-width: 120px; height: 8px; }
+  .lesson .ls-end { width: 34px; height: 34px; font-size: 15px; top: 6px; right: 6px; }
+  .lesson .ls-count { font-size: 13px; bottom: 6px; right: 10px; }
+  .lesson .ls-words { padding-right: 34px; }
+}
+/* Landscape phones: between the Assist switch and the right-hand buttons. */
+@media (max-height: 480px) and (orientation: landscape) { .lesson { top: calc(62px + var(--safe-t)); width: min(560px, calc(100vw - 360px)); min-width: 300px; } }
+@media (max-width: 480px) and (orientation: portrait) {
+  .lesson { top: calc(112px + var(--safe-t)); gap: 8px; }
+  .lesson .ls-scene svg { width: 76px; height: 57px; }
+  .lesson .ls-ctl svg { width: 70px; height: 57px; }
+  .lesson .ls-art { flex-direction: column; gap: 2px; }
+  .lesson .ls-title { font-size: 23px; }
+}
+
+/* The offer on first launch. */
+.lesson-offer { width: min(420px, 100%); text-align: center; }
+.lesson-offer .ls-offer-art svg { width: 160px; height: 120px; display: block; margin: 0 auto 4px; border-radius: 16px; background: rgba(111, 143, 125, 0.16); }
+.lesson-offer h2 { font-size: 34px; margin: 6px 0 4px; }
+.lesson-offer p { font-size: 19px; margin: 0; }
+.lesson-offer .row { justify-content: center; }
+.lesson-offer .row button { font-size: 19px; padding: 12px 26px; }
+
+/* ---- the pictures */
+.lesson svg, .lesson-offer svg { overflow: visible; }
+.ls-line { fill: none; stroke: var(--ink); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.ls-line.ls-thick { stroke-width: 3.6; }
+.ls-soft { opacity: 0.35; }
+.ls-dash { stroke-dasharray: 4 5; opacity: 0.4; }
+.ls-arrow { fill: none; stroke: var(--terracotta); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.ls-ink { fill: var(--ink); }
+.ls-hull { fill: #f4efe6; stroke: var(--ink); stroke-width: 2.2; stroke-linejoin: round; }
+.ls-glass { fill: #8fb3c4; }
+.ls-rotor { fill: var(--ink); }
+.ls-pad { fill: #c9a06a; }
+.ls-shadow { fill: rgba(42, 29, 22, 0.2); }
+.ls-disc { fill: rgba(42, 29, 22, 0.06); stroke: rgba(42, 29, 22, 0.25); stroke-width: 1.5; stroke-dasharray: 3 4; }
+.ls-cup { fill: #f8f3ea; stroke: var(--ink); stroke-width: 2.2; stroke-linejoin: round; }
+.ls-tea { fill: #a8643a; }
+.ls-bag { fill: #efe2c6; stroke: var(--ink); stroke-width: 1.8; }
+.ls-tag { fill: var(--terracotta); }
+.ls-stand { fill: none; stroke: #7a4a2c; stroke-width: 4; stroke-linecap: round; }
+.ls-bucket { fill: #d9dde0; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; }
+.ls-crock { fill: #c7b39a; stroke: var(--ink); stroke-width: 2.2; stroke-linejoin: round; }
+.ls-milk { fill: #fffaf0; stroke: rgba(42, 29, 22, 0.35); stroke-width: 0.8; }
+.ls-milk-line { stroke: #fffaf0; stroke-width: 3; }
+.ls-switch { fill: var(--sage); stroke: var(--ink); stroke-width: 2; animation: ls-switch 3s ease-in-out infinite; }
+.ls-knob { fill: #fff; stroke: var(--ink); stroke-width: 2; }
+.ls-knob.off { fill: rgba(42, 29, 22, 0.15); stroke: none; }
+.ls-frame { fill: #fbf6ec; stroke: var(--ink); stroke-width: 2; }
+.ls-ok { fill: var(--sage); }
+.ls-tick { fill: none; stroke: #fff; stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
+.ls-key { fill: #fffaf1; stroke: var(--ink); stroke-width: 2.4; }
+.ls-keytext { font: 700 24px var(--sans); fill: var(--ink); text-anchor: middle; }
+.ls-keytext.mid { font-size: 19px; }
+.ls-keytext.small { font-size: 14px; }
+.ls-device { fill: rgba(42, 29, 22, 0.1); stroke: var(--ink); stroke-width: 2; }
+.ls-screen { fill: rgba(42, 29, 22, 0.12); }
+.ls-ring { fill: rgba(255, 255, 255, 0.5); stroke: rgba(42, 29, 22, 0.35); stroke-width: 2; }
+.ls-ring.on { fill: #fffaf1; stroke: var(--terracotta); stroke-width: 3; }
+
+/* Animated parts transform about their own box. */
+.ls-a { transform-box: fill-box; transform-origin: center; }
+.ls-rotor { animation: ls-rotor 0.18s linear infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes ls-rotor { 50% { transform: scaleX(0.35); } }
+
+.ls-rise { animation: ls-rise 2.6s ease-in-out infinite; }
+@keyframes ls-rise { 0%, 12% { transform: translateY(0); } 55%, 80% { transform: translateY(-17px); } 100% { transform: translateY(0); } }
+.ls-land { animation: ls-land 2.6s ease-in-out infinite; }
+@keyframes ls-land { 0%, 10% { transform: translateY(-22px); } 60% { transform: translateY(0) scaleY(0.94); } 66%, 90% { transform: translateY(0) scaleY(1); } 100% { transform: translateY(-22px); } }
+.ls-bob { animation: ls-bob 2.4s ease-in-out infinite; }
+@keyframes ls-bob { 50% { transform: translateY(-2px); } }
+.ls-breathe { animation: ls-breathe 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes ls-breathe { 50% { transform: scaleX(0.92); } }
+.ls-drift { animation: ls-drift 2.8s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes ls-drift { 0%, 8% { transform: translateX(0) rotate(0); } 25% { transform: translateX(2px) rotate(12deg); } 75% { transform: translateX(26px) rotate(12deg); } 90%, 100% { transform: translateX(28px) rotate(0); } }
+.ls-spin { animation: ls-spin 3s ease-in-out infinite; transform-origin: 50% 30%; }
+@keyframes ls-spin { 0%, 10% { transform: rotate(0); } 60%, 75% { transform: rotate(180deg); } 100% { transform: rotate(360deg); } }
+.ls-stop { animation: ls-stop 3s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes ls-stop { 0% { transform: translateX(0) rotate(12deg); } 45% { transform: translateX(26px) rotate(12deg); } 60% { transform: translateX(35px) rotate(-14deg); } 78%, 92% { transform: translateX(38px) rotate(0); } 100% { transform: translateX(0) rotate(12deg); opacity: 0; } }
+.ls-trail { animation: ls-trail 3s ease-in-out infinite; }
+@keyframes ls-trail { 0%, 45% { opacity: 0.35; } 60%, 100% { opacity: 0; } }
+.ls-reach { animation: ls-reach 3s ease-in-out infinite; }
+@keyframes ls-reach { 0%, 10% { transform: translate(0, 0); } 55% { transform: translate(30px, 2px); } 70%, 85% { transform: translate(30px, -2px); } 100% { transform: translate(0, 0); } }
+.ls-dunk { animation: ls-dunk 3s ease-in-out infinite; }
+@keyframes ls-dunk { 0%, 10% { transform: translateY(0); } 40%, 75% { transform: translateY(18px); } 100% { transform: translateY(0); } }
+.ls-steep { animation: ls-steep 3s ease-in-out infinite; }
+@keyframes ls-steep { 0%, 35% { fill: #d8b27a; } 75%, 100% { fill: #7a3f1f; } }
+.ls-fillup { animation: ls-fillup 3s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+@keyframes ls-fillup { 0%, 35% { transform: scaleY(0.1); } 70%, 100% { transform: scaleY(4.5); } }
+.ls-fall { animation: ls-fall 2.4s ease-in infinite; }
+@keyframes ls-fall { 0%, 25% { transform: translateY(0); opacity: 1; } 60% { transform: translateY(30px); opacity: 1; } 85% { transform: translateY(30px); opacity: 1; } 100% { transform: translateY(30px); opacity: 0; } }
+.ls-drops circle { animation: ls-drop 0.9s linear infinite; }
+.ls-drops circle:nth-child(2) { animation-delay: -0.3s; }
+.ls-drops circle:nth-child(3) { animation-delay: -0.6s; }
+@keyframes ls-drop { 0% { transform: translateY(-8px); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(18px); opacity: 0; } }
+.ls-lighten { animation: ls-lighten 3.6s ease-in-out infinite; }
+@keyframes ls-lighten { 0%, 20% { fill: #7a3f1f; } 80%, 100% { fill: #c79a6e; } }
+.ls-flip { animation: ls-flip 3s ease-in-out infinite; }
+@keyframes ls-flip { 0%, 25% { transform: translateX(0); } 50%, 90% { transform: translateX(-42px); } 100% { transform: translateX(0); } }
+@keyframes ls-switch { 0%, 25% { fill: var(--sage); } 50%, 90% { fill: #cfc6b8; } 100% { fill: var(--sage); } }
+.ls-wobble { animation: ls-wobble 1.8s ease-in-out infinite; transform-origin: 50% 0%; }
+@keyframes ls-wobble { 25% { transform: rotate(-6deg) translateX(-2px); } 75% { transform: rotate(6deg) translateX(2px); } }
+.ls-frames .ls-frame { animation: ls-frame 2.4s steps(1) infinite; opacity: 0.25; }
+.ls-frames .f2 { animation-delay: 0.8s; }
+.ls-frames .f3 { animation-delay: 1.6s; }
+@keyframes ls-frame { 0% { opacity: 1; } 33% { opacity: 0.25; } }
+.ls-steam path { animation: ls-steam 2.4s ease-in-out infinite; }
+.ls-steam path:nth-child(2) { animation-delay: -0.8s; }
+.ls-steam path:nth-child(3) { animation-delay: -1.6s; }
+@keyframes ls-steam { 0% { transform: translateY(4px); opacity: 0; } 40% { opacity: 0.6; } 100% { transform: translateY(-8px); opacity: 0; } }
+.ls-pop { animation: ls-pop 2.4s ease-out infinite; }
+@keyframes ls-pop { 0% { transform: scale(0.6); } 15% { transform: scale(1.12); } 25%, 100% { transform: scale(1); } }
+.ls-blink { animation: ls-blink 1.3s ease-in-out infinite; }
+@keyframes ls-blink { 50% { opacity: 0.35; } }
+
+/* Controls: a held key presses in and out; sticks, mouse and levers move the way to push them. */
+.ls-press { animation: ls-press 1.3s ease-in-out infinite; }
+.ls-press.ls-late { animation-delay: 0.65s; }
+.ls-k1 { animation-delay: 0s; } .ls-k2 { animation-delay: 0.35s; } .ls-k3 { animation-delay: 0.7s; } .ls-k4 { animation-delay: 1.05s; }
+.ls-k1, .ls-k2, .ls-k3, .ls-k4 { animation-duration: 1.4s; }
+@keyframes ls-press { 0%, 100% { transform: translateY(0); filter: none; } 30%, 60% { transform: translateY(3px) scale(0.95); filter: drop-shadow(0 0 4px rgba(200, 85, 61, 0.7)); } }
+.ls-knob.ls-up { animation: ls-up 1.5s ease-in-out infinite; }
+@keyframes ls-up { 0%, 15% { transform: translateY(0); } 45%, 80% { transform: translateY(-9px); } 100% { transform: translateY(0); } }
+.ls-knob.ls-down { animation: ls-down 1.5s ease-in-out infinite; }
+@keyframes ls-down { 0%, 15% { transform: translateY(0); } 45%, 80% { transform: translateY(8px); } 100% { transform: translateY(0); } }
+.ls-sway { animation: ls-sidek 2s ease-in-out infinite; }
+@keyframes ls-sidek { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-9px); } 75% { transform: translateX(9px); } }
+.ls-circle { animation: ls-circle 2.4s linear infinite; }
+@keyframes ls-circle { 0% { transform: translate(0, -8px); } 25% { transform: translate(8px, 0); } 50% { transform: translate(0, 8px); } 75% { transform: translate(-8px, 0); } 100% { transform: translate(0, -8px); } }
+.ls-lever { animation: ls-lever 2s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes ls-lever { 0%, 15% { transform: rotate(-18deg); } 55%, 85% { transform: rotate(18deg); } 100% { transform: rotate(-18deg); } }
+.ls-lever-back { animation: ls-lever 2s ease-in-out infinite reverse; transform-origin: 50% 100%; }
+.ls-tilt { animation: ls-tilt 2.4s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes ls-tilt { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-16deg); } 75% { transform: rotate(16deg); } }
+.ls-twist { animation: ls-twist 2s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes ls-twist { 0%, 100% { transform: scaleX(1); } 25% { transform: scaleX(0.45); } 50% { transform: scaleX(1); } 75% { transform: scaleX(0.45); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lesson *, .lesson-offer * { animation-duration: 6s !important; }
+  .ls-rotor { animation: none; }
+  .lesson.ding { animation: none; }
+}
 
 .prompt {
   position: absolute; left: 50%; bottom: calc(26px + var(--safe-b)); transform: translateX(-50%) scale(0.96); opacity: 0;
@@ -341,7 +513,7 @@ body:not(.touch-ui) .rotate-nudge { display: none !important; }
   .hint { top: auto; bottom: calc(10px + var(--safe-b)); font-size: 13px; max-width: min(420px, 44vw); }
   .prompt { bottom: auto; top: calc(62px + var(--safe-t)); }
 }
-@media (prefers-reduced-motion: reduce) { .steam path, .touch-btn.attach.ready, .hint.ding .step { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .steam path, .touch-btn.attach.ready { animation: none; } }
 
 /* controller panel */
 .pad-panel { width: min(560px, 100%); }

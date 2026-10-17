@@ -64,7 +64,7 @@ export class Flow {
       done: null,
     };
     const showHint = sim.state === 'flying' && s !== 'done' && !(s === 'hook' && sim.attachCandidate());
-    if (!this.quiet) hud.showHint(this.step + 1, showHint ? texts[s] : null);
+    hud.showHint(this.step + 1, showHint && !this.quiet ? texts[s] : null);
 
     // Contextual prompt for attach/release.
     let prompt = null;
