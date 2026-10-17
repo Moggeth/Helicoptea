@@ -94,13 +94,17 @@ const PRESETS = {
   medium: { name: 'medium', dprCap: 1.5, shadows: 1024, particles: 360, textureSize: 1024, steam: 0.7, antialias: true, transmission: false, ao: !IS_TOUCH, aoSamples: 8, aoMaxHeight: 720 },
   low: { name: 'low', dprCap: 1, shadows: 512, particles: 220, textureSize: 1024, steam: 0.4, antialias: false, transmission: false, ao: false },
 };
+// Safe mode: the low tier with smaller textures and without the neighbourhood around the house and garden
+// (the big map roughly doubles what a phone holds while loading). Only the crash guard picks it.
+const SAFE = { ...PRESETS.low, safe: true, noWorld: true, textureSize: 512, particles: 160 };
 const qualitySetting = params.get('quality') || store.get('quality', 'auto');
 // Crash guard. A tab killed for memory or a reset GPU runs no more of our code, so each load leaves a
 // 'booting' mark that is only cleared once the game has run for a while (or the page was put away). A mark
 // still there at the next load means the last one died: Auto then steps down a tier and remembers it
 // ('safeTier'), as it does after a lost graphics context (see boot()). Picking a quality clears it.
-const TIERS = ['low', 'medium', 'high', 'ultra'];
-const lowerTier = (name) => TIERS[Math.max(0, TIERS.indexOf(name) - 1)];
+// A phone goes straight to safe mode: its low tier holds about as much memory as medium does.
+const TIERS = ['safe', 'low', 'medium', 'high', 'ultra'];
+const lowerTier = (name) => (IS_TOUCH && name !== 'ultra' && name !== 'high' ? 'safe' : TIERS[Math.max(0, TIERS.indexOf(name) - 1)]);
 const autoTier = IS_TOUCH ? 'medium' : 'high';
 let safeTier = TIERS.includes(store.get('safeTier', '')) ? store.get('safeTier') : null;
 const diedLastTime = !!store.get('booting', '') && (!navigator.webdriver || params.get('crashguard') === '1');
@@ -109,7 +113,7 @@ if (diedLastTime && !PRESETS[qualitySetting]) {
   store.set('safeTier', safeTier);
 }
 store.set('booting', String(Date.now()));
-const autoPreset = safeTier && TIERS.indexOf(safeTier) < TIERS.indexOf(autoTier) ? PRESETS[safeTier] : PRESETS[autoTier];
+const autoPreset = safeTier && TIERS.indexOf(safeTier) < TIERS.indexOf(autoTier) ? (safeTier === 'safe' ? SAFE : PRESETS[safeTier]) : PRESETS[autoTier];
 const quality = { ...(PRESETS[qualitySetting] || autoPreset) };
 quality.setting = qualitySetting;
 quality.fallback = !PRESETS[qualitySetting] && autoPreset !== PRESETS[autoTier];
@@ -162,8 +166,8 @@ async function boot() {
     e.preventDefault();
     let retried = false;
     try { retried = sessionStorage.getItem('helicoptea.lostReload') === '1'; } catch { /* ignore */ }
-    const lower = lowerTier(quality.name);
-    if (!PRESETS[qualitySetting] && !retried && lower !== quality.name) {
+    const now = quality.safe ? 'safe' : quality.name, lower = lowerTier(now);
+    if (!PRESETS[qualitySetting] && !retried && lower !== now) {
       store.set('safeTier', lower);
       store.set('booting', '');
       try { sessionStorage.setItem('helicoptea.lostReload', '1'); } catch { /* ignore */ }
@@ -805,7 +809,7 @@ async function boot() {
   const gpu = gpuBudget();
   console.info(`[Helicoptea] GPU memory ~${gpu.totalMB} MB (textures ${gpu.texturesMB}, shadows ${gpu.shadowsMB}, targets ${gpu.targetsMB}, screen ${gpu.screenMB}) | ${gpu.programs} programs${quality.fallback ? ' | lighter graphics after an earlier crash' : ''}`);
   if (IS_TOUCH && gpu.overBudget) console.warn(`[Helicoptea] over the phone GPU budget: ~${gpu.totalMB} of ${gpu.budgetMB} MB`);
-  if (quality.fallback) $('load-status').textContent += ' · lighter graphics after a crash (Settings > Quality)';
+  if (quality.fallback) $('load-status').textContent += quality.safe ? ' · safe mode after a crash: just the house and garden (Settings > Quality to go back)' : ' · lighter graphics after a crash (Settings > Quality)';
   // The crash guard's mark (see the quality section) is cleared once a flight has run for a minute, or when
   // the page is put away or closed normally: a tab killed after that is not taken as this game's crash.
   const settled = () => store.set('booting', '');

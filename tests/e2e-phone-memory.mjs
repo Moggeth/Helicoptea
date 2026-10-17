@@ -95,8 +95,8 @@ try {
     await page.evaluate(() => window.__helicoptea.renderer.getContext().getExtension('WEBGL_lose_context').loseContext());
     await reloaded;
     await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 120000 });
-    const r = await page.evaluate(() => ({ tier: window.__helicoptea.quality.name, safe: localStorage.getItem('helicoptea.safeTier'), error: document.getElementById('error').classList.contains('show') }));
-    check('a lost context reloads the game one tier lower', r.tier === 'low' && r.safe === 'low', r);
+    const r = await page.evaluate(() => ({ tier: window.__helicoptea.quality.name, noWorld: !!window.__helicoptea.quality.noWorld, safe: localStorage.getItem('helicoptea.safeTier'), error: document.getElementById('error').classList.contains('show') }));
+    check('a lost context reloads the game in safe mode (low tier, no neighbourhood)', r.tier === 'low' && r.safe === 'safe' && r.noWorld, r);
     check('no error screen after that reload', !r.error);
     // A second loss in the same tab doesn't loop: it says what happened instead.
     await page.evaluate(() => window.__helicoptea.renderer.getContext().getExtension('WEBGL_lose_context').loseContext());
@@ -110,9 +110,9 @@ try {
   // ---------------------------------------------------------------- a load that never finished
   {
     const { ctx, page } = await open('&crashguard=1', { clear: false, init: () => { try { if (!sessionStorage.getItem('t.seeded')) { localStorage.clear(); localStorage.setItem('helicoptea.booting', '1'); sessionStorage.setItem('t.seeded', '1'); } } catch { /* ignore */ } } });
-    const r = await page.evaluate(() => ({ tier: window.__helicoptea.quality.name, safe: localStorage.getItem('helicoptea.safeTier'), status: document.getElementById('load-status').textContent }));
-    check('after a load that died, Auto comes back a tier lower', r.tier === 'low' && r.safe === 'low', r);
-    check('the start screen says why', /lighter graphics/.test(r.status), r.status);
+    const r = await page.evaluate(() => ({ tier: window.__helicoptea.quality.name, noWorld: !!window.__helicoptea.quality.noWorld, safe: localStorage.getItem('helicoptea.safeTier'), status: document.getElementById('load-status').textContent }));
+    check('after a load that died, Auto comes back in safe mode', r.tier === 'low' && r.safe === 'safe' && r.noWorld, r);
+    check('the start screen says why', /safe mode/.test(r.status), r.status);
     // Putting the page away clears the mark: the next load is not taken as a crash.
     await page.evaluate(() => dispatchEvent(new PageTransitionEvent('pagehide')));
     const mark = await page.evaluate(() => localStorage.getItem('helicoptea.booting'));

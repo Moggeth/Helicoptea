@@ -145,7 +145,8 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
   };
 
   // ?noworld=all or ?noworld=park,street hides areas (for measuring what each costs).
-  const skip = (typeof location !== 'undefined' && new URLSearchParams(location.search).get('noworld')) || '';
+  // Safe mode (after a phone crash, see main.js) leaves the whole neighbourhood out too.
+  const skip = (typeof location !== 'undefined' && new URLSearchParams(location.search).get('noworld')) || (quality.noWorld ? 'all' : '');
   const built = [];
   for (const [name, mod] of Object.entries(AREA_MODULES)) {
     if (!mod.build || skip === 'all' || skip.split(',').includes(name)) continue;
