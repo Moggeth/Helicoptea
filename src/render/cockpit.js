@@ -10,6 +10,7 @@ import { detailChinook } from './cockpitChinook.js';
 import { detailSkycrane } from './cockpitSkycrane.js';
 import { skyCabShellGeometry, SKY_FRAME, SKY_GLASS } from './skycraneModel.js';
 import { CFG } from '../config.js';
+import { updateVisibleMatrices } from './sceneWork.js';
 
 // First-person cockpits. Each interior is modelled in the aircraft's body coordinates at model scale
 // and drawn as a separate layer over the world (its own scene and camera, with a near plane of 0.4 mm
@@ -276,6 +277,7 @@ export class Cockpit {
     this.slimTier = !!quality.lite || quality.name === 'low';
     this.loadCam = loadCam;
     this.scene = new THREE.Scene();
+    this.scene.matrixWorldAutoUpdate = false;
     this.scene.environment = worldScene.environment;
     this.scene.environmentIntensity = 0.28;
     this.camera = new THREE.PerspectiveCamera(70, 1, 0.0004, 0.4);
@@ -760,6 +762,8 @@ export class Cockpit {
 
   render() {
     const r = this.renderer;
+    // Cached interiors from previously selected aircraft stay hidden; don't animate their matrices.
+    updateVisibleMatrices(this.scene);
     const ac = r.autoClear;
     r.autoClear = false;
     r.clearDepth();

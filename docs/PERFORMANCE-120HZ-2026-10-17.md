@@ -28,7 +28,9 @@ Opaque static kitchen pieces sharing a material and render flags are merged with
 geometry. Cups, the swinging pendant, cloth and moving flowers stay separate; transparent/refraction
 meshes retain their ordering. No triangle or authored material is simplified. A visible-only matrix
 walk follows Three r169's transform rules and skips explicitly frozen world chunks, hidden aircraft
-and hidden effects. Native matrix methods remain available for warm-up, cloning and explicit posing.
+and hidden effects. The separate cockpit scene uses the same walk, so previously selected cached
+interiors stop taking transform work. Native matrix methods remain available for warm-up, cloning and
+explicit posing.
 
 Grass vertices masked to zero density, or conservatively outside the current render camera, collapse
 to their root before doing gust/wake/bend/lighting calculations. The bound includes tall bent flowers;

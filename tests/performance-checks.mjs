@@ -11,6 +11,7 @@ import { resolutionPressure } from '../src/render/resolutionBudget.js';
 import { ShadowCache } from '../src/render/shadowCache.js';
 import { StringMesh } from '../src/render/strings.js';
 import { ParticlePool } from '../src/render/particles.js';
+import { Cockpit } from '../src/render/cockpit.js';
 
 function fieldAt(x, y, z) {
   const heli = { pos: new THREE.Vector3(x, y, z), quat: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0), thrust: CFG.heli.mass * 9.81 };
@@ -195,4 +196,16 @@ test('particle pools upload only live prefixes and idle pools do no uploads', ()
   pool.update(1 / 120);
   assert.equal(pool.posAttr.version, version);
   assert.equal(pool.points.visible, false);
+});
+
+test('cockpit renderer updates live instruments without visiting a cached hidden interior', () => {
+  const scene = new THREE.Scene(), live = new THREE.Object3D(), hidden = new THREE.Group();
+  scene.matrixWorldAutoUpdate = false;
+  scene.add(live, hidden); hidden.visible = false;
+  hidden.updateMatrix = () => { throw new Error('retired interior visited'); };
+  live.position.x = 0.2;
+  const renderer = { autoClear: true, shadowMap: {}, clearDepth() {}, render(s) { assert.equal(s, scene); assert.equal(live.matrixWorld.elements[12], 0.2); } };
+  const cockpit = Object.assign(Object.create(Cockpit.prototype), { renderer, scene, quality: {}, camera: new THREE.PerspectiveCamera() });
+  cockpit.render();
+  assert.equal(renderer.autoClear, true);
 });
