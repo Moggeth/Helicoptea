@@ -34,6 +34,7 @@ import { FrameStats } from './perf.js';
 import { FpsMeter } from './ui/fpsMeter.js';
 import { ShadowCache } from './render/shadowCache.js';
 import { warmInSteps } from './render/warmup.js';
+import { PhoneRender } from './render/phoneRender.js';
 import { gpuEstimate } from './render/gpuBudget.js';
 import { warmEverything } from './render/prewarm.js';
 import { updateVisibleMatrices } from './render/sceneWork.js';
@@ -119,6 +120,10 @@ const autoPreset = safeTier && TIERS.indexOf(safeTier) < TIERS.indexOf(autoTier)
 const quality = { ...(PRESETS[qualitySetting] || autoPreset) };
 quality.setting = qualitySetting;
 quality.fallback = !PRESETS[qualitySetting] && autoPreset !== PRESETS[autoTier];
+// The phone renderer (render/phoneRender.js): Lambert materials, batched draws, no shadow maps. On every
+// touch device; ?phone=0 / ?phone=1 force it off or on (to compare, or to try it on a desktop).
+quality.phone = params.get('phone') === '1' || (IS_TOUCH && params.get('phone') !== '0');
+if (quality.phone) quality.shadows = 0;
 const applyAoParam = () => {
   if (params.get('ao') === '0') quality.ao = false;
   if (params.get('ao') === '1') quality.ao = true;
@@ -231,6 +236,10 @@ async function boot() {
   const restoreLoadScene = () => kitchen.garden.world?.restore();
   const cockpit = new Cockpit(renderer, scene, quality, kitchen, loadCam, sim.aircraft);
   const fpRig = new CockpitRig();
+  // Phones: cheap materials now (so the warm-up below compiles those), batched draws once it is all built.
+  // (?phonebatch=0 leaves the draws unbatched, for comparing on a real phone.)
+  const phone = quality.phone ? new PhoneRender(renderer, [scene, cockpit.scene], { fill: 6 }) : null;
+  if (phone) { phone.convert(scene); phone.convert(cockpit.scene); if (params.get('phonebatch') !== '0') phone.batch(scene); }
   setProgress(0.78, 'Warming the shaders…');
   await tick();
   // Phones build the programs a few at a time (render/warmup.js): all at once is the long stall that can
@@ -245,10 +254,14 @@ async function boot() {
   // Materials drawn into a render target (the AO pipeline, the hook camera) use a different shader variant
   // from the screen's: build those now too, or each one compiles mid-flight the first time it is seen.
   const hadTarget = !!post.target;
-  post.ensureTarget();
-  renderer.setRenderTarget(post.target);
-  await warm(scene, camera, scene, 0.88, 0.96);
-  renderer.setRenderTarget(null);
+  // (Not on phones: there it is only the cockpit's hook camera, so its programs compile when that first runs
+  // rather than doubling what loading compiles.)
+  if (!quality.phone) {
+    post.ensureTarget();
+    renderer.setRenderTarget(post.target);
+    await warm(scene, camera, scene, 0.88, 0.96);
+    renderer.setRenderTarget(null);
+  }
   for (const it of Object.values(cockpit.interiors)) it.group.visible = true;
   await warm(cockpit.scene, cockpit.camera, cockpit.scene, 0.96, 1);
   for (const it of Object.values(cockpit.interiors)) it.group.visible = false;
@@ -290,6 +303,15 @@ async function boot() {
   // the shader variants; it comes back when the hook camera first runs.
   if (!hadTarget && quality.lite) post.releaseTarget();
   setProgress(1, 'Ready');
+  // Phones: the hook camera's shader variants (drawn into a target: linear, not tone mapped) compile in the
+  // background while the start screen waits, a batch at a time, against a tiny target of the same kind.
+  if (quality.phone) {
+    setTimeout(async () => {
+      const t = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType });
+      // A context lost meanwhile ends it quietly (the loss has its own handling above).
+      try { await warmInSteps(renderer, scene, camera, scene, { batch: 8, target: t, stop: () => renderer.getContext().isContextLost() }); } catch (err) { if (!renderer.getContext().isContextLost()) console.warn('[Helicoptea] background warm-up', err); } finally { t.dispose(); }
+    }, 300);
+  }
 
   const input = new Input($('touch'));
   input.bindCanvas(canvas);
@@ -1274,6 +1296,7 @@ async function boot() {
     // World matrices once per frame: every renderer.render() of the scene (hook camera, main view, AO
     // normals) would otherwise walk and update the whole scene graph again.
     updateVisibleMatrices(scene);
+    phone?.update();
     // The hook camera feeds the cockpit display and, when shown, the inset.
     const looksDown = cam.eff === 'bolt' || cam.eff === 'cargo';
     // The inset is an extra render of the world: the cockpit has it (its display shows it too); the other
@@ -1329,6 +1352,7 @@ async function boot() {
     renderer.info.reset();
     renderer.shadowMap.needsUpdate = true;
     updateVisibleMatrices(scene);
+    phone?.update();
     post.render();
     if (out.cockpit) cockpit.render();
     renderedFrames++;
@@ -1338,7 +1362,7 @@ async function boot() {
   running = true;
 
   // Expose a tiny handle for console debugging and automated checks.
-  window.__helicoptea = { THREE, freeCam, CFG, perf, gpuBudget, get fpsMeter() { return fpsMeter; }, shadowCache, cam, cycleView, get camMode() { return cam.eff; }, tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, get world() { return kitchen.garden.world; }, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; }, tutorial, flow };
+  window.__helicoptea = { THREE, freeCam, CFG, perf, phone, gpuBudget, get fpsMeter() { return fpsMeter; }, shadowCache, cam, cycleView, get camMode() { return cam.eff; }, tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, get world() { return kitchen.garden.world; }, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; }, tutorial, flow };
 }
 
 boot().catch((err) => showError('Helicoptea failed to start. Please reload.', err));
