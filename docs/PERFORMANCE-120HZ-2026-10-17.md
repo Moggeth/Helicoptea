@@ -83,6 +83,30 @@ short-circuited expression skipped that update and could rebuild static shadows 
 
 ## Reproducing measurements
 
+Measured geometry inventory (all three airframes are constructed; each unique geometry counted once,
+including hidden source parts/effects; exact triangle counts are unchanged):
+
+| Aircraft | Vertices before → after | Attribute/index bytes before → after |
+|---|---:|---:|
+| Micro | 60,637 → 49,861 (18% fewer) | 2,121,872 → 1,813,220 (15% fewer) |
+| Chinook | 145,077 → 74,406 (49% fewer) | 4,903,404 → 2,823,156 (42% fewer) |
+| Skycrane | 92,483 → 66,262 (28% fewer) | 3,162,772 → 2,413,484 (24% fewer) |
+
+Seven interleaved CPU samples per scenario (40×40 grid, 600 measured frames at 120 Hz, 100 warm-up frames):
+stationary 2/3/6-blade forcing fell from 0.0795/0.0816/0.0847 ms to 0.0377/0.0386/0.0390 ms per frame
+(53–54% less). Footprints moving at 60 Hz fell from 0.0822/0.0806/0.0841 ms to 0.0574/0.0579/0.0582 ms
+(28–31% less). These are desktop Node CPU measurements, not phone timing guarantees.
+
+The final two 12-scene browser samples used 412×891 CSS pixels, DPR 3.5 capped by medium touch quality to
+1.5, dynamic resolution off and recording **on**. They took 97.82 s and 97.24 s. Two other Helicoptea
+acceptance runners became active during the baseline. Their changing CPU/GPU load makes timing speedup
+claims invalid: candidate FPS ranged 204–700, but several candidate scenes were slower than the earlier
+baseline windows. Raw results are `baseline-final-recording.json` and `candidate-final-recording.json`.
+Average calls fell by 2–11 per scene; geometry inventory and isolated solver samples are stronger evidence.
+
+Three generated screenshots were visually inspected: touch micro cockpit, skycrane cockpit and Chinook
+flight beside the kitchen/garden door. Materials, scenery, instruments, grass and insets remained present.
+
 Build each revision into a separate output directory, start an unused strict-port preview and wait for
 that process's readiness banner. Do not rebuild an output while a suite or benchmark is reading it.
 Run browser measurements serially. Example for a running candidate preview:
