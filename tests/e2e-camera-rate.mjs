@@ -20,9 +20,10 @@ try {
       navigator.getGamepads = () => [{...window.__pad, id: 'Xbox 360 Controller (XInput STANDARD GAMEPAD)', index: 0, mapping: 'standard', connected: true, timestamp: performance.now()}];
     });
     const page = await context.newPage(), errors = [];
+    page.setDefaultTimeout(60000); // a software renderer can take over 30 s to load and to screenshot
     page.on('pageerror', e => errors.push(e.message));
     await page.goto(`${base}?fps=${fps}&quality=low&dynres=0&view=chase`);
-    await page.locator('#start-btn:not(.hidden)').click();
+    await page.locator('#start-btn:not(.hidden)').click({ timeout: 60000 });
     await page.waitForFunction(() => window.__helicoptea?.started);
     if (process.env.CAMERA_RATE_CAPTURE) await page.evaluate(() => {
       const stream = window.__helicoptea.renderer.domElement.captureStream(30);

@@ -13,7 +13,7 @@ try{
   if(pad)await ctx.addInitScript(()=>{window.__pad={axes:[0,0,0,0],buttons:Array.from({length:17},()=>({pressed:false,value:0}))};navigator.getGamepads=()=>[{...window.__pad,index:0,connected:true,mapping:'standard',id:'Xbox 360 Controller (XInput STANDARD GAMEPAD)',timestamp:performance.now()}];});
   const page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(`${base}?quality=medium&dynres=0&worldSpeed=1`);
-  await page.locator('#start-btn:not(.hidden)').click();
+  await page.locator('#start-btn:not(.hidden)').click({ timeout: 60000 });
   await page.waitForFunction(()=>document.querySelector('.hint')?.classList.contains('show'));
   const prefix=mode;
   if(touch){await page.waitForFunction(()=>document.querySelector('.hint .txt').textContent.includes('left stick'));}

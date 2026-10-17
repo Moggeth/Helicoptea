@@ -9,7 +9,7 @@ try{
  for(const aircraft of ['micro','chinook','skycrane'])for(const fps of [30,120]){
   const ctx=await browser.newContext({viewport:{width:1280,height:720}}),page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(`${base}?aircraft=${aircraft}&fps=${fps}&worldSpeed=0.4&quality=low&dynres=0`);
-  await page.locator('#start-btn:not(.hidden)').click();await page.waitForTimeout(500);
+  await page.locator('#start-btn:not(.hidden)').click({ timeout: 60000 });await page.waitForTimeout(500);
   const before=await page.evaluate(()=>({step:document.querySelector('.hint .step').textContent,text:document.querySelector('.hint .txt').textContent,grounded:window.__helicoptea.sim.heli.grounded,height:window.__helicoptea.sim.heli.pos.y}));
   check(`${aircraft} cap${fps}: lift instruction remains on pad`,before.step==='1'&&before.grounded,before);
   await page.screenshot({path:path.join(out,`${aircraft}-${fps}-pad.png`)});
