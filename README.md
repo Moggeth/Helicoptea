@@ -1,5 +1,7 @@
 # Helicoptea
 
+Windows browser QA and captures use the shared `tools/browser-safety.mjs` launcher to prevent headless Chromium from trapping the real desktop pointer. Native mouse-capture acceptance is explicitly skipped on Windows; run it on an isolated Linux runner. Verify the guard with `node --test tests/browser-safety-checks.mjs`. See [pointer incident and recovery](docs/WINDOWS-POINTER-SAFETY.md).
+
 Reusable development reference: [AI game iteration research](docs/AI-GAME-ITERATION-RESEARCH.md) and [overnight improvement playbook and prompts](docs/AI-GAME-ITERATION-PLAYBOOK.md). These cover evidence, quality gates and handoffs for this and future games; no overnight runner is scheduled by these documents.
 
 The bounded [14–15 October overnight polish pass](docs/OVERNIGHT-2026-10-15.md) records its starting build,

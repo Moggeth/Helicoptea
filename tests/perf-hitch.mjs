@@ -8,7 +8,7 @@
 //   node tests/perf-hitch.mjs [baseUrl] [--size 1920x1080] [--quality high] [--only micro,skycrane] [--out name] [--quick] [--vsync] [--headed]
 //
 // Writes test-results/perf/<out>.json with every scenario's frame-time summary and its slowest frames.
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { playAircraft } from './hitch-lib.mjs';

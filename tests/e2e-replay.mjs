@@ -4,7 +4,7 @@
 // cockpit cameras, replay exactness against the recorded snapshots, notes typed and tagged in the viewer,
 // saving to logs/flights through the server endpoint and loading back, and console errors.
 // Usage: npm run build && npx vite preview --port 4191, then node tests/e2e-replay.mjs [baseUrl]
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 

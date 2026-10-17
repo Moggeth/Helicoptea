@@ -4,7 +4,7 @@
 // Needs a Vite dev server for this checkout at the given address. Writes WAV (and MP3 when ffmpeg is
 // on the PATH) plus report.json to test-results/sound-clips/. Waveforms prove routing and levels only:
 // whether it sounds right still needs a person listening.
-import { chromium } from 'playwright-core';
+import { chromium } from './browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';

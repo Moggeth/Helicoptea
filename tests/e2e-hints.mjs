@@ -1,5 +1,5 @@
 // Normal-input hint transitions and stable-node regression. Mutation counts are DOM work, not FPS.
-import {chromium} from 'playwright-core';
+import {chromium} from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 const base=process.argv.find(a=>a.startsWith('http'))||'http://127.0.0.1:4240/';

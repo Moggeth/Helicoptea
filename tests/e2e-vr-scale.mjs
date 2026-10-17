@@ -3,7 +3,7 @@
 // reach of the eye, the instrument panel's distance, and dial and display sizes (real dials are 57 to
 // 100 mm; in a headset they should also span a few degrees to stay legible).
 // Usage: node tests/e2e-vr-scale.mjs [baseUrl]
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 
 const base = process.argv.find((a) => a.startsWith('http')) || 'http://localhost:4190/';

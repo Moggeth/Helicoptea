@@ -4,7 +4,7 @@
 // puts everything back; the Rotor strikes setting (default on) persists and makes blades pass through; the
 // replay shows the lost rotor and plays each crash's effects; the measured cost of the effects; console errors.
 // Usage: npm run build && npx vite preview --port 4201, then node tests/e2e-crashes.mjs [baseUrl]
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 

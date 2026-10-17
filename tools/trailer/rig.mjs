@@ -3,7 +3,7 @@
 // a frame, so every captured frame is exactly 1/60 s of game time however long it took to render. The game's
 // own audio graph is built on an OfflineAudioContext that renders in lockstep with those frames (suspended
 // at each frame boundary), so the soundtrack is the game's real mix, sample-aligned to the picture.
-import { chromium } from 'playwright-core';
+import { chromium } from '../browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 

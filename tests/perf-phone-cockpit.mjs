@@ -1,7 +1,7 @@
 // Phone-class cockpit frame rate, as the cockpit suite's touch check measures it (844x390 at DPR 2, touch,
 // medium tier, 4x CPU throttle, median of three 2 s windows), repeated, plus draw calls and triangles.
 // Usage: node tests/perf-phone-cockpit.mjs [baseUrl] [--runs=3] [--aircraft=micro]
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 
 const base = process.argv.find((a) => a.startsWith('http')) || 'http://localhost:4190/';

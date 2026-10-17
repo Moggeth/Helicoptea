@@ -1,6 +1,6 @@
 // Renders an HTML or SVG file to a PNG with installed Chrome (transparent where the page is).
 // Usage: node tools/branding/snap.mjs <in.svg|in.html> <out.png> <width> <height> [scale]
-import { chromium } from 'playwright-core';
+import { chromium } from '../browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';

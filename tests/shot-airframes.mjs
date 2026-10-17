@@ -1,7 +1,7 @@
 // Visual check of every aircraft, outside and in: node tests/shot-airframes.mjs [baseUrl] [--out=dir] [--aircraft=a,b] [--size=WxH]
 // Orbit shots of the airframe on its pad, then the cockpit from fixed look angles. Writes PNGs to
 // test-results/airframes/ (or --out).
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 

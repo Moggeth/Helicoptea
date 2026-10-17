@@ -7,7 +7,7 @@
 //        node tools/branding/stage.mjs [shotsFile.json] [outDir]
 // A shot is { name, w, h, pos: [x,y,z], look: [x,y,z], fov, steam } in metres, table top at y = 0.
 // pos/look may also be { rel: 'heli'|'bag'|'mug', off: [x,y,z] }.
-import { chromium } from 'playwright-core';
+import { chromium } from '../browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 

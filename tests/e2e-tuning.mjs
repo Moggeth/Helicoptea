@@ -3,7 +3,7 @@
 // work, the mouse-over clips run side by side, every clip flies cleanly at both ends of every range on
 // every aircraft, and the board closes back to the game with nothing logged as an error.
 // Usage: npm run build, serve dist, then node tests/e2e-tuning.mjs [baseUrl] [--headed]
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 

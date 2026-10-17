@@ -4,7 +4,7 @@
 // with real devices: keyboard (T pump, Z/X reel, G doors, double-tap G salvo, double-tap T auto-fill),
 // an emulated standard gamepad (default layout: RT analog doors, LB pump, double LB auto-fill, d-pad reel,
 // double RT salvo; Classic: LT analog pump, both bumpers auto-fill) and touch (Doors, Pump, Hose buttons). Screenshots and a report go to test-results/sky-*.
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 

@@ -1,7 +1,7 @@
 // Guided first flight in the browser: the first-launch offer, starting it, a real keyboard takeoff moving it
 // on, the wording switching live with the device, the pause-menu entry, ending it, and the phone layout
 // (the card must sit clear of the twin sticks and stay on screen).
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 const base = process.argv.find((a) => a.startsWith('http')) || 'http://127.0.0.1:4243/';

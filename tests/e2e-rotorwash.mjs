@@ -3,7 +3,7 @@
 // leaves; the milk crock and the bird bath respond the same way; the surface shaders compile; and
 // what it all costs per frame on desktop and on an emulated, CPU-throttled phone.
 // Usage: npm run build && npx vite preview --port 4193, then node tests/e2e-rotorwash.mjs [baseUrl] [--headed]
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 

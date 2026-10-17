@@ -2,7 +2,7 @@
 // the tea, the plumb line and height readout, the rim glint over a cup, the lower chase camera, the
 // pause-menu toggles (and that they persist), on all three aircraft in chase and cockpit views.
 // Usage: npm run build && npx vite preview --port 4192, then node tests/e2e-depth.mjs [baseUrl] [--headed]
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 

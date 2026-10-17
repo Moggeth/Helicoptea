@@ -4,7 +4,7 @@
 // aircraft jinks; dipping soaks the paper as far as it went in and stains the string that was under the
 // tea; no shader or console errors; frame rate while carrying.
 // Usage: npm run build && npx vite preview --port 4231, then node tests/e2e-teabag.mjs [baseUrl] [--headed]
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 

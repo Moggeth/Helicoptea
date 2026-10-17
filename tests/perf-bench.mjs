@@ -8,7 +8,7 @@
 // Per scene: average fps, 1% low fps, 99th percentile and worst frame time, main-thread CPU ms per frame
 // (with the sim / update / render split), GPU ms (where the browser exposes timer queries), draw calls and
 // triangles. Writes test-results/perf/<out>.json.
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 

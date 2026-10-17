@@ -3,7 +3,7 @@
 // d-pad, touch drag), zoom and recenter, the hook camera inset, near-plane clipping against the house,
 // crash and restart from the cockpit for both aircraft, and console errors.
 // Usage: npm run build && npx vite preview --port 4190, then node tests/e2e-cockpit.mjs [baseUrl]
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 

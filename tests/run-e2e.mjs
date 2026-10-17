@@ -62,7 +62,7 @@ for (let i = 0; ; i++) {
 // this shows the software fallback, which explains its frame rates.
 let gpu = 'unknown';
 try {
-  const { chromium } = await import('playwright-core');
+  const { chromium } = await import('../tools/browser-safety.mjs');
   const CHROME = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome'].find((p) => fs.existsSync(p));
   const b = await chromium.launch({ executablePath: CHROME, headless: !headed, args: ['--ignore-gpu-blocklist', '--use-angle=d3d11'] });
   const p = await b.newPage();
@@ -92,7 +92,8 @@ function run(file) {
       const lines = out.split(/\r?\n/);
       const fails = lines.filter((l) => l.startsWith('FAIL')).map((l) => l.replace(/^FAIL\s+/, ''));
       const passes = lines.filter((l) => l.startsWith('PASS')).length;
-      resolve({ file, code: code ?? (signal ? 1 : 0), fails, passes, secs: (Date.now() - t0) / 1000, timedOut: out.includes('\nTIMEOUT after') });
+      const skips = lines.filter((l) => l.startsWith('SKIP '));
+      resolve({ file, code: code ?? (signal ? 1 : 0), fails, passes, skips, secs: (Date.now() - t0) / 1000, timedOut: out.includes('\nTIMEOUT after') });
     });
   });
 }
@@ -102,16 +103,18 @@ for (const f of suites) {
   console.log(`\n========== ${f} ==========`);
   const r = await run(f);
   const perfOnly = r.fails.length > 0 && r.fails.every((l) => PERF.test(l.split('  — ')[0]));
-  r.status = r.code === 0 && !r.fails.length ? 'passed' : perfAdvisory && perfOnly && !r.timedOut ? 'perf-warning' : 'failed';
+  r.status = r.code === 0 && !r.fails.length && r.skips.length && !r.passes ? 'skipped' : r.code === 0 && !r.fails.length ? 'passed' : perfAdvisory && perfOnly && !r.timedOut ? 'perf-warning' : 'failed';
   results.push(r);
 }
 stop();
 
 // ---------------------------------------------------------------- summary
 const esc = (s) => s.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
-const icon = { passed: '✅', 'perf-warning': '⚠️', failed: '❌' };
+const icon = { passed: '✅', 'perf-warning': '⚠️', failed: '❌', skipped: '⏭️' };
 let md = `## Browser suites\n\nBrowser: ${gpu}\n\n| suite | result | checks | time |\n|---|---|---|---|\n`;
-for (const r of results) md += `| ${r.file} | ${icon[r.status]} ${r.status}${r.timedOut ? ' (timeout)' : ''} | ${r.passes} passed, ${r.fails.length} failed | ${r.secs.toFixed(0)} s |\n`;
+for (const r of results) md += `| ${r.file} | ${icon[r.status]} ${r.status}${r.timedOut ? ' (timeout)' : ''} | ${r.passes} passed, ${r.fails.length} failed, ${r.skips.length} skipped | ${r.secs.toFixed(0)} s |\n`;
+const skipped = results.filter((r) => r.status === 'skipped');
+if (skipped.length) md += `\n### Acceptance not run\n\n${skipped.flatMap((r) => r.skips.map((line) => `- ${r.file}: ${line.slice(5)}`)).join('\n')}\n`;
 const warn = results.filter((r) => r.status === 'perf-warning');
 const bad = results.filter((r) => r.status === 'failed');
 if (warn.length) md += `\n### Frame-rate checks below target on this machine (advisory here)\n\n${warn.flatMap((r) => r.fails.map((l) => `- ${r.file}: ${l}`)).join('\n')}\n`;

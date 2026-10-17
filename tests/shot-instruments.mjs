@@ -3,7 +3,7 @@
 // the mug with a bag on the hook, the bag steeping in the tea (the skycrane's snorkel in the milk crock,
 // pumping), and a climbing turn. Writes the full frame and a crop of the panel at the screen's real
 // pixels to test-results/instruments/, and prints what the panel read and what it cost.
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 

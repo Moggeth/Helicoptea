@@ -8,7 +8,7 @@
 // check holds everywhere.
 //
 //   node tests/e2e-hitch.mjs [baseUrl] [--headed]      (tests/run-e2e.mjs runs it with the other suites)
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { playAircraft } from './hitch-lib.mjs';

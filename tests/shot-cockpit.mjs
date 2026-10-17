@@ -1,6 +1,6 @@
 // Visual check of the cockpit view from fixed look angles: node tests/shot-cockpit.mjs [baseUrl] [--aircraft=micro|chinook]
 // Writes screenshots to test-results/cockpit/.
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 

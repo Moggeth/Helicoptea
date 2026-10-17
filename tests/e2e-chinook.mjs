@@ -1,7 +1,7 @@
 // Browser checks for the Chinook through the real input paths (keyboard, emulated gamepad, CDP touch),
 // the aircraft picker, the in-flight switch, the breakup and frame rate. Same setup as tests/e2e.mjs.
 // Usage: start a server, then: node tests/e2e-chinook.mjs [baseUrl] [--headed]
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 

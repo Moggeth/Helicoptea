@@ -3,7 +3,7 @@
 //   sources:  assets/branding/src/logo.svg, icon.svg
 //   outputs:  assets/branding/steam/*, public/ icons
 // Usage: node tools/branding/build.mjs
-import { chromium } from 'playwright-core';
+import { chromium } from '../browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';

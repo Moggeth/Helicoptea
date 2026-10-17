@@ -1,7 +1,7 @@
 // End-to-end browser checks using the locally installed Chrome (no browser download).
 // Usage: start the dev server (npm run dev) or preview, then: node tests/e2e.mjs [baseUrl] [--headed]
 // Writes screenshots and a JSON report to test-results/.
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 

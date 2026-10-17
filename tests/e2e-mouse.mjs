@@ -1,13 +1,17 @@
 // Keyboard and mouse flying in the real game: the Controls panel opens on the Keyboard and mouse tab, a
 // scheme can be picked and a key remapped there, a click captures the mouse, mouse movement tilts the
 // helicopter, the stick indicator shows, Esc lets go and pauses, and W springs back with Assist off.
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 const base = process.argv.find((a) => a.startsWith('http')) || 'http://127.0.0.1:4199/';
 const out = path.resolve('test-results/mouse');
 fs.mkdirSync(out, { recursive: true });
 const executablePath = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome', '/opt/pw-browsers/chromium'].find((p) => fs.existsSync(p));
+if (process.platform === 'win32') {
+  console.log('SKIP Native pointer-lock acceptance requires an isolated Linux runner; Windows desktop capture is blocked.');
+  process.exit(0);
+}
 const browser = await chromium.launch({ executablePath, headless: !process.argv.includes('--headed'), args: ['--ignore-gpu-blocklist', '--use-angle=d3d11'] });
 const checks = [];
 const check = (name, ok, detail = '') => { checks.push({ name, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name} ${detail ? JSON.stringify(detail) : ''}`); };

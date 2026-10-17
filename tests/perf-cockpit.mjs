@@ -3,7 +3,7 @@
 // seconds, times the cockpit's per-frame update (instruments), its draw (including any texture uploads),
 // and the hook camera's extra world render, on the CPU and, where the browser exposes GPU timer
 // queries, on the GPU. Works against older builds too (it only wraps public methods).
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 
 const base = process.argv.find((a) => a.startsWith('http')) || 'http://localhost:4190/';

@@ -1,6 +1,6 @@
 // D-pad camera movement must depend on elapsed time, not display refresh rate.
 // Real browser/pad input pipeline; emulated controller is not physical device acceptance.
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 

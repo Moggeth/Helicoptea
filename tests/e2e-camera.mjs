@@ -4,7 +4,7 @@
 // LT) and its overlay, the cargo cam riding a bag into the tea (fog and overlay), the skycrane's snorkel
 // cam, pad L3 cycling, touch buttons, frame cost per mode on all three aircraft, and console errors.
 // Usage: npm run build && npx vite preview --port 4196, then node tests/e2e-camera.mjs [baseUrl] [--headed]
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 

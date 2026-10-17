@@ -4,7 +4,7 @@
 // never finished last time comes back on lighter graphics.
 //
 //   node tests/e2e-phone-memory.mjs http://127.0.0.1:4199/
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 const base = process.argv.find((a) => a.startsWith('http')) || 'http://127.0.0.1:4199/';
 const executablePath = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome'].find(fs.existsSync);

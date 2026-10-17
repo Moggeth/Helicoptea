@@ -2,7 +2,7 @@
 // devices, the way Chrome shows them): it is found and kept out of the gamepad layer, the stick banks the
 // helicopter, the throttle lifts it, the Flight stick tab lists both devices and teaches an axis, the
 // throttle can become the collective itself, and the help sheet describes it.
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 const base = process.argv.find((a) => a.startsWith('http')) || 'http://127.0.0.1:4199/';

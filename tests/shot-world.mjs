@@ -2,7 +2,7 @@
 //   node tests/shot-world.mjs [baseUrl] [--out=dir] [--only=name,name] [--quality=high] [--size=1600x900]
 //     [--view=name:x,y,z,lookX,lookY,lookZ] (repeatable: adds a viewpoint) [--wait=ms]
 // Writes PNGs to test-results/world/ (or --out). Uses window.__helicoptea.freeCam to pin the camera.
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 

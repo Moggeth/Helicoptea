@@ -3,7 +3,7 @@
 // flights and notes save in the browser, survive a reload, load back in the viewer, download as one
 // self-contained file that tools/flight-notes.mjs reads, and that nothing logs a console error.
 // Usage: npm run build, then node tests/e2e-static.mjs [--headed]   (any base URL argument is ignored)
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';

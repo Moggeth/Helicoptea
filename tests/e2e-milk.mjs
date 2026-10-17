@@ -3,7 +3,7 @@
 // Flies the real game (in-page autopilot on the real input pipeline): hook the bucket, dip it in the
 // crock, carry it to the teacup and pour with the real G key; then an emulated gamepad's RT, the touch
 // Pour button, and a pour onto the table. Screenshots and a JSON report go to test-results/milk-*.
-import { chromium } from 'playwright-core';
+import { chromium } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
