@@ -96,6 +96,7 @@ const state = (page) => H(page, () => {
   check('HUD camera button steps on to the locked chase', s.mode === 'locked' && !s.hiddenFuselage && !s.pip);
   await page.keyboard.press('Escape');
   await sleep(200);
+  await page.click('.overlay.show [data-tab=camera]');
   await page.click('.overlay [data-act=view][data-id=cockpit]');
   await sleep(200);
   s = await state(page);

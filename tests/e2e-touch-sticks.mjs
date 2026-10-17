@@ -47,7 +47,9 @@ try {
     check('tips speak touch before the first touch', hint.includes('left stick') && !hint.includes('Arrow'), hint);
 
     const bar = await page.evaluate(() => [...document.querySelectorAll('.hud-tr .icon-btn')].filter((b) => b.offsetParent).map((b) => b.dataset.act));
-    check('touch top bar is restart, camera and pause', JSON.stringify(bar) === '["restart","view","pause"]', bar);
+    // Full screen joins the bar where the browser allows it (Android); iPhone Safari keeps three buttons.
+    const fsOk = await page.evaluate(() => document.fullscreenEnabled);
+    check('touch top bar is restart, camera, full screen (where allowed) and pause', JSON.stringify(bar) === JSON.stringify(fsOk ? ['restart', 'view', 'fullscreen', 'pause'] : ['restart', 'view', 'pause']), bar);
     const btns = await page.evaluate(() => [...document.querySelectorAll('.touch-btn')].filter((b) => b.offsetParent).map((b) => b.className.split(' ')[1]));
     check('micro shows only Hook and GoPro on screen', JSON.stringify(btns.sort()) === '["attach","bolt"]', btns);
     const labels = await page.evaluate(() => [...document.querySelectorAll('.stick-label')].map((l) => l.textContent));
