@@ -36,6 +36,7 @@ import { ShadowCache } from './render/shadowCache.js';
 import { warmInSteps } from './render/warmup.js';
 import { gpuEstimate } from './render/gpuBudget.js';
 import { warmEverything } from './render/prewarm.js';
+import { updateVisibleMatrices } from './render/sceneWork.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -1268,7 +1269,7 @@ async function boot() {
     renderer.shadowMap.needsUpdate = !quality.lite || (renderedFrames & 1) === 0;
     // World matrices once per frame: every renderer.render() of the scene (hook camera, main view, AO
     // normals) would otherwise walk and update the whole scene graph again.
-    scene.updateMatrixWorld();
+    updateVisibleMatrices(scene);
     // The hook camera feeds the cockpit display and, when shown, the inset.
     const looksDown = cam.eff === 'bolt' || cam.eff === 'cargo';
     // The inset is an extra render of the world: the cockpit has it (its display shows it too); the other
@@ -1328,7 +1329,7 @@ async function boot() {
     const out = replay.update(frameDt);
     renderer.info.reset();
     renderer.shadowMap.needsUpdate = true;
-    scene.updateMatrixWorld();
+    updateVisibleMatrices(scene);
     post.render();
     if (out.cockpit) cockpit.render();
     renderedFrames++;

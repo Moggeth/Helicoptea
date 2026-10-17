@@ -10,8 +10,10 @@ Claude's checkouts are left alone. Timings and raw evidence live in ignored `log
 The kitchen outwash grid used to run at 60 Hz whenever any rotor wake existed, including on the other
 side of the neighbourhood. Wake columns and table outwash now have separate activity: a wake outside
 the table remains available to grass, cargo and liquid, while the table solver sleeps after residual
-gusts decay. A grid revision lets the view encode/upload its texture only after a solve or clear,
-rather than every rendered frame. `node --test tests/performance-checks.mjs` verifies exterior wake
+gusts decay. The old cloth texture encoding has been removed: a consumer search proved that no shader
+reads those uniforms; the current cloth samples the CPU air field directly. This removes 2,400 pixel
+encodings per rendered frame and an unused texture/material set. The grid revision remains a diagnostic
+counter. `node --test tests/performance-checks.mjs` verifies exterior wake
 sampling, no empty-grid solves, table wake-up, residual settling and clear invalidation.
 
 The baseline instrumented pad scene visited about 1,300 matrices and produced four DOM mutations per
@@ -19,3 +21,22 @@ frame. Baseline phone-viewport samples cover micro and skycrane, house/garden an
 430×932 CSS pixels, DPR capped at 1.5, medium touch quality, fixed resolution and recording disabled.
 The machine reports an RTX 3080 Ti. Work counts are stronger evidence than short uncapped FPS samples
 when other browser suites may be running on this shared desktop.
+
+## Scene and vertex work
+
+Opaque static kitchen pieces sharing a material and render flags are merged with their original indexed
+geometry. Cups, the swinging pendant, cloth and moving flowers stay separate; transparent/refraction
+meshes retain their ordering. No triangle or authored material is simplified. A visible-only matrix
+walk follows Three r169's transform rules and skips explicitly frozen world chunks, hidden aircraft
+and hidden effects. Native matrix methods remain available for warm-up, cloning and explicit posing.
+
+Grass vertices masked to zero density, or conservatively outside the current render camera, collapse
+to their root before doing gust/wake/bend/lighting calculations. The bound includes tall bent flowers;
+the hook camera uses its own matrices. Existing grass density, shape and draw distances are retained.
+Regression checks cover indexed batching, material identity, dynamic exclusions, frozen branches and
+newly revealed children with moved/scaled parents. Run the rotor-wash browser suite for cloth, tea and
+grass interaction acceptance.
+
+Lesson: verify that a computed texture or uniform has a live consumer before optimizing its update
+frequency. The first revision throttled the legacy cloth texture; source inspection then showed the
+whole producer could safely be removed.

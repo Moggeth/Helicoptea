@@ -6,6 +6,7 @@ import * as TX from './textures.js';
 import { buildGarden } from './garden.js';
 import { TableCloth } from './cloth.js';
 import { cupModel, glazeMaterial, vesselGeometry, saucerGeometry, handleGeometry } from './models.js';
+import { batchStaticMeshes } from './sceneWork.js';
 
 const V2 = (x, y) => new THREE.Vector2(x, y);
 
@@ -16,9 +17,6 @@ function shadowed(m, cast = true, receive = true) {
 
 export function buildKitchen(scene, renderer, quality, progress, sim) {
   const out = { cups: [], sun: null, lamp: null, animated: [] };
-  // Shared air-field uniforms for cloth (filled by the view each frame).
-  out.clothUniforms = { uAir: { value: null }, uAirRect: { value: new THREE.Vector4(-1.02, -0.68, 2.04, 1.36) }, uTime: { value: 0 }, uAirRange: { value: 4 } };
-
   // Lighting: soft morning daylight through the window behind the table, a warm pendant and a room env map.
   const pmrem = new THREE.PMREMGenerator(renderer);
   const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -375,6 +373,9 @@ export function buildKitchen(scene, renderer, quality, progress, sim) {
 
   // (The teaspoon is loose: see props.js and charm.js.)
   progress?.('Setting out the china');
+  out.batching = batchStaticMeshes(scene, new Set([
+    out.cloth.mesh, ...out.cups, ...Object.values(out.pendant), ...out.animated.map((a) => a.obj),
+  ]));
   out.garden = buildGarden(scene, quality, out, teaStand, sim);
   return out;
 }

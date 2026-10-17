@@ -78,6 +78,21 @@ const VERT_HEAD = `
     float bed = mk.b;
     float flower = bed > 0.5 ? step(0.55, h3) : step(0.965, h3) * step(0.35, mk.g);
     float present = step(1.0 - mk.r, h1) * fade;
+    // Most cells of a rectangular grass window are masked out or outside the view. All vertices of
+    // such a blade collapse to its root: skip the expensive gust, wake, bend, normal and colour work.
+    // The conservative sphere includes the tallest flower even bent flat. Use this render's camera
+    // matrices, so the hook camera and main view can see different blades without a shared cull mask.
+    vec3 bladeRoot = vec3(root.x, uGroundY + mk.a * uHeightScale, root.y);
+    vec3 eyeRoot = (modelViewMatrix * vec4(bladeRoot, 1.0)).xyz;
+    float bound = uBlade.z * 2.0 + uBlade.x * 3.0;
+    bool offscreen = projectionMatrix[3][3] == 0.0 && (
+      eyeRoot.z > bound ||
+      abs(eyeRoot.x) * projectionMatrix[0][0] > -eyeRoot.z + bound * (1.0 + projectionMatrix[0][0]) ||
+      abs(eyeRoot.y) * projectionMatrix[1][1] > -eyeRoot.z + bound * (1.0 + projectionMatrix[1][1]));
+    if (present <= 0.0 || offscreen) {
+      gPos = bladeRoot; gNrm = vec3(0.0, 1.0, 0.0); vGrassCol = vec3(0.0);
+      return;
+    }
     float H = mix(uBlade.y, uBlade.z, mk.g) * (0.55 + 0.75 * h3 * h3) * present;
     H *= mix(1.0, 1.25, flower);
     float W = uBlade.x * (0.7 + 0.6 * h1) * mix(1.0, 0.75, flower) * (present > 0.0 ? 1.0 : 0.0);

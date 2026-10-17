@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { CFG } from '../config.js';
 import { RAPIER, GROUPS } from '../sim/physics.js';
 import { TABLE, surfaceY, BIRDBATH } from '../sim/layout.js';
-import { cloneHeliPart, makeMaterials, teabagAssets } from './models.js';
+import { cloneHeliPart, teabagAssets } from './models.js';
 import { buildRealisticHelicopter } from './heliModel.js';
 import { TeaSurface, teaColor, setLiquidEnvironment } from './water.js';
 import { LiquidWash } from './rotorwash.js';
@@ -38,7 +38,6 @@ export class View {
     this.quality = quality;
     this.kitchenCups = kitchen ? kitchen.cups : null;
     this.time = 0;
-    this.M = makeMaterials(quality);
     this.heliModel = buildRealisticHelicopter(quality);
     scene.add(this.heliModel);
     this.chinookModel = buildChinook();
@@ -106,13 +105,6 @@ export class View {
     scene.add(this.guide);
 
     this.animated = kitchen.animated;
-    // Air field -> texture for the cloth shader.
-    const air = sim.air;
-    this.airData = new Uint8Array(air.nx * air.nz * 4);
-    this.airTex = new THREE.DataTexture(this.airData, air.nx, air.nz, THREE.RGBAFormat);
-    this.airTex.magFilter = this.airTex.minFilter = THREE.LinearFilter;
-    this.clothUniforms = kitchen.clothUniforms;
-    this.clothUniforms.uAir.value = this.airTex;
     this.windFn = (x, y, z, o) => sim.air.sample(x, y, z, o);
     this.dustAcc = 0;
     this.flowerWind = new THREE.Vector3();
@@ -656,19 +648,9 @@ export class View {
     }
   }
 
-  // Rotor wash presentation: cloth texture, flowers and dust (liquids: LiquidWash).
+  // Rotor wash presentation: flowers and dust (cloth samples the CPU field; liquids: LiquidWash).
   updateAir(dt) {
-    const air = this.sim.air, d = this.airData, R = 4;
-    if (this.airVersion !== air.gridVersion) {
-      this.airVersion = air.gridVersion;
-      for (let k = 0, n = air.nx * air.nz; k < n; k++) {
-        d[k * 4] = Math.max(0, Math.min(255, (air.u[k] / R * 0.5 + 0.5) * 255));
-        d[k * 4 + 1] = Math.max(0, Math.min(255, (air.w[k] / R * 0.5 + 0.5) * 255));
-        d[k * 4 + 2] = 0; d[k * 4 + 3] = 255;
-      }
-      this.airTex.needsUpdate = true;
-    }
-    this.clothUniforms.uTime.value = this.time;
+    const air = this.sim.air;
     // Flowers nod and shiver in the wash.
     for (const a of (this.animated || [])) {
       a.obj.getWorldPosition(_p);
