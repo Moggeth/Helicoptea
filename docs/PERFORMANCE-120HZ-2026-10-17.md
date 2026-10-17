@@ -81,6 +81,26 @@ run caught that one legitimate lifecycle mutation, then passed after the fixture
 The shadow cache now always updates its camera key when classifying changed casters. Previously the
 short-circuited expression skipped that update and could rebuild static shadows again on the next frame.
 
+## Reproducing measurements
+
+Build each revision into a separate output directory, start an unused strict-port preview and wait for
+that process's readiness banner. Do not rebuild an output while a suite or benchmark is reading it.
+Run browser measurements serially. Example for a running candidate preview:
+
+```powershell
+node tests/perf-bench.mjs http://127.0.0.1:4474/ --size 412x891 --dpr 3.5 --quality medium --touch --record 1 --ms 4000 --settle 2000 --out candidate-phone
+node tests/perf-liquid.mjs --baseline=c251a68
+node tests/run-e2e.mjs e2e-performance.mjs --outDir scratch/final-dist --port 4475
+```
+
+The browser benchmark averages complete frame draw calls/triangles, includes their min/max call counts,
+and records all three aircraft's geometry vertices, triangles and attribute/index bytes. A final-frame
+snapshot is unsuitable because shadows and the hook camera draw intermittently. `--record 1` measures
+normal flight recording; the existing default `--record 0` remains available for isolated rendering.
+The liquid benchmark takes seven interleaved baseline/candidate samples for each blade count with
+stationary and 60 Hz moving footprints, after warm-up, at a 120 Hz frame cadence. It reads the baseline
+module from Git into ignored scratch storage and saves results in `test-results/perf/`.
+
 Lesson: verify that a computed texture or uniform has a live consumer before optimizing its update
 frequency. The first revision throttled the legacy cloth texture; source inspection then showed the
 whole producer could safely be removed.

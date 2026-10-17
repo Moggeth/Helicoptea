@@ -24,6 +24,7 @@ const window_ = parseInt(opt('ms', '3000'), 10);
 const outName = opt('out', `bench-${W}x${Hh}-${quality}${throttle > 1 ? `-cpu${throttle}x` : ''}`);
 const only = opt('only', '');   // e.g. micro or micro:garden:cockpit
 const extra = opt('query', '');
+const record = opt('record', '0');
 // --vsync: keep the browser's normal frame pacing (synced to the display when --headed), to see whether a
 // display's refresh rate is held. --offscreen: a headed window parked off the desktop.
 const vsync = args.includes('--vsync');
@@ -47,6 +48,8 @@ const PLACES = {
 };
 const rows = [];
 let gpuName = '';
+let geometry = null;
+try {
 for (const aircraft of ['micro', 'chinook', 'skycrane']) {
   if (only && !only.split(',').some((o) => o.split(':')[0] === aircraft)) continue;
   const ctx = await browser.newContext({ viewport: { width: W, height: Hh }, deviceScaleFactor: parseFloat(opt('dpr', '1')), hasTouch: touch, isMobile: touch });
@@ -54,13 +57,29 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto(`${base}?aircraft=${aircraft}&quality=${quality}&view=chase&record=0&dynres=0${extra ? `&${extra}` : ''}`, { waitUntil: 'load' });
+  await page.goto(`${base}?aircraft=${aircraft}&quality=${quality}&view=chase&record=${record}&dynres=0${extra ? `&${extra}` : ''}`, { waitUntil: 'load' });
   await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 90000 });
   await page.evaluate(() => document.getElementById('start-btn').click());
   await page.waitForFunction(() => window.__helicoptea?.started);
   gpuName = await page.evaluate(() => {
     const gl = window.__helicoptea.renderer.getContext(); const e = gl.getExtension('WEBGL_debug_renderer_info');
     return `${e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)} | timer queries ${window.__helicoptea.perf ? (window.__helicoptea.perf.ext ? 'yes' : 'no') : 'n/a (old build)'}`;
+  });
+  if (!geometry) geometry = await page.evaluate(() => {
+    const H = window.__helicoptea, stats = {};
+    for (const [id, root] of Object.entries({ micro: H.view.heliModel, chinook: H.view.chinookModel, skycrane: H.view.skycrane.model })) {
+      const seen = new Set(); let vertices = 0, triangles = 0, bytes = 0;
+      root.traverse((o) => {
+        const g = o.geometry;
+        if (!g || seen.has(g)) return; seen.add(g);
+        vertices += g.attributes.position.count;
+        triangles += (g.index ? g.index.count : g.attributes.position.count) / 3;
+        for (const a of Object.values(g.attributes)) bytes += a.array?.byteLength || 0;
+        bytes += g.index?.array?.byteLength || 0;
+      });
+      stats[id] = { geometries: seen.size, vertices, triangles, bytes };
+    }
+    return stats;
   });
   await page.evaluate(() => {
     const H = window.__helicoptea; H.doAction('skiphints');
@@ -146,15 +165,22 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
         })();
         if (window.__gpuDetail) { window.__gpuDetail.ms = {}; window.__gpuDetail.calls = {}; window.__gpuDetail.frames = 0; }
         const f0 = H.frames, t0 = performance.now();
-        await new Promise((res) => setTimeout(res, ms));
+        // A last-frame snapshot arbitrarily includes or omits the half-rate shadows / 15 Hz hook view.
+        // Average complete frame totals instead; all passes contribute before the next reset.
+        const info = H.renderer.info, reset = info.reset;
+        let calls = 0, tris = 0, samples = 0, minCalls = Infinity, maxCalls = 0;
+        info.reset = function (...a) {
+          if (samples++) { calls += this.render.calls; tris += this.render.triangles; minCalls = Math.min(minCalls, this.render.calls); maxCalls = Math.max(maxCalls, this.render.calls); }
+          return reset.apply(this, a);
+        };
+        try { await new Promise((res) => setTimeout(res, ms)); } finally { info.reset = reset; }
         const n = H.frames - f0, wall = (performance.now() - t0) / 1000;
         const s = P.summary(n);
-        const info = H.renderer.info.render;
         return { fps: +(n / wall).toFixed(1), low1: +s.low1.toFixed(1), p99Ms: +s.p99Ms.toFixed(2), worstMs: +s.worstMs.toFixed(1), cpuMs: +s.cpuMs.toFixed(2), cpuP99: +s.cpuP99.toFixed(1), cpuMax: +s.cpuMax.toFixed(1), phaseMax: P.phaseMax(n),
           simMs: +P.phase.sim.toFixed(2), updateMs: +P.phase.update.toFixed(2), renderMs: +P.phase.render.toFixed(2), gpuMs: +P.gpuMs.toFixed(2),
           callDetail: window.__gpuDetail ? Object.fromEntries(Object.entries(window.__gpuDetail.calls).map(([k, v]) => [k, Math.round(v / window.__gpuDetail.frames)])) : undefined,
           gpuDetail: window.__gpuDetail ? Object.fromEntries(Object.entries(window.__gpuDetail.ms).map(([k, v]) => [k, +(v / window.__gpuDetail.frames).toFixed(2)])) : undefined,
-          calls: info.calls, tris: info.triangles, dpr: +H.renderer.getPixelRatio().toFixed(2), state: H.sim.state === 'flying' ? 'flying' : `${H.sim.state}:${JSON.stringify(H.sim.crashInfo || {}).slice(0, 80)}`, view: H.viewMode };
+          calls: Math.round(calls / Math.max(1, samples - 1)), tris: Math.round(tris / Math.max(1, samples - 1)), minCalls, maxCalls, dpr: +H.renderer.getPixelRatio().toFixed(2), state: H.sim.state === 'flying' ? 'flying' : `${H.sim.state}:${JSON.stringify(H.sim.crashInfo || {}).slice(0, 80)}`, view: H.viewMode };
       }, window_);
       if (throttle > 1) await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
       const row = { aircraft, place, view, ...r };
@@ -167,6 +193,6 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
   if (errors.length) console.log(`  errors: ${errors.slice(0, 3).join(' | ')}`);
   await ctx.close();
 }
-await browser.close();
+} finally { await browser.close(); }
 console.log(`GPU: ${gpuName}`);
-fs.writeFileSync(path.join(outDir, `${outName}.json`), JSON.stringify({ size: [W, Hh], quality, throttle, touch, gpu: gpuName, rows }, null, 2));
+fs.writeFileSync(path.join(outDir, `${outName}.json`), JSON.stringify({ at: new Date().toISOString(), base, size: [W, Hh], quality, throttle, touch, record, gpu: gpuName, geometry, rows }, null, 2));
