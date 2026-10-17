@@ -1,8 +1,8 @@
 # S24 Ultra / 120 Hz performance pass — 17 October 2026
 
 Target: 8.33 ms per displayed frame on an S24 Ultra before thermal throttling. Desktop phone emulation
-does not establish physical phone acceptance. This independent PR starts at `c251a68`; production and
-Claude's checkouts are left alone. Timings and raw evidence live in ignored `logs/reviews/` and
+does not establish physical phone acceptance. This independent PR starts at `c251a68` and incorporates
+current master through `f2ad39d`; changes are delivered on `codex/s24-120hz` for review. Timings and raw evidence live in ignored `logs/reviews/` and
 `test-results/perf/` in the `s24-120hz` worktree.
 
 ## Avoid work that cannot affect the frame
@@ -85,6 +85,36 @@ short-circuited expression skipped that update and could rebuild static shadows 
 
 ## Reproducing measurements
 
+### Acceptance and remaining device work
+
+The final integrated build took **5.16 s**. The four serial browser suites completed in **170.68 s**:
+cockpit **41/41**, performance work counts **12/12**, phone memory/recovery **14/14**, and skycrane
+**35/35**. The 4× CPU-throttled landscape cockpit measured **40 fps** (38/44/40), and the phone GPU
+inventory was **91 MB** live/peak. These are RTX 3080 Ti desktop results using touch emulation and the
+upstream phone renderer; they do not measure an S24. In the final work-count fixture the scene visits
+554 transforms/frame, with zero hidden-aircraft transforms, zero idle DOM mutations, and zero transform
+updates across 222 nodes in three cached inactive interiors.
+
+Before the final phone-renderer merge, a separate complete main-game browser run passed **52/52** in
+**171.89 s**. A larger earlier sweep retained 474 passing assertions and one cockpit performance failure
+before a tool-runtime interruption stopped the runner; it is not a completed green suite. The same
+cockpit suite now passes above after integration. The earlier full Node check passed in **175.36 s**;
+the final Node recheck is recorded in the timing ledger. All 17 targeted performance regressions pass.
+
+Hosted checks at `92b6d88` were not green: push run `39003572656` hit the existing real-Windows pointer
+test's 30-second timeout; PR run `39003570867` passed that guard but failed the existing simulation
+timing assertion at 1.100 ms versus its 1.000 ms limit. Functional performance assertions passed.
+[PR #1](https://github.com/Moggeth/Helicoptea/pull/1) independently addresses hosted action deadlines
+and explicit CPU-budget reporting; this PR does not duplicate or relax those controls. Do not repeatedly
+rerun full hosted matrices to chase variable runner speed. Inspect the failed assertion and keep local
+limits strict. Local browser suites use the pointer guard and never request native Windows capture.
+
+Physical acceptance remains open: `adb devices -l` found no authorized device. Use the PR's Vercel
+preview (Vercel sign-in required), add `?fpsmeter=1`, enable the phone's 120 Hz display mode, and check
+all three aircraft in chase/cockpit in both the house and neighbourhood. Record the initial refresh,
+CPU/GPU/frame timing and resolution, then repeat after thermal throttling. Preserve recording-on and
+Battery saver checks. Emulated high FPS and a narrow screenshot do not establish physical acceptance.
+
 ### Current-master integration
 
 While this PR was under test, Claude's `f2ad39d` landed on master. Its Lambert/Phong phone materials,
@@ -156,3 +186,10 @@ module from Git into ignored scratch storage and saves results in `test-results/
 Lesson: verify that a computed texture or uniform has a live consumer before optimizing its update
 frequency. The first revision throttled the legacy cloth texture; source inspection then showed the
 whole producer could safely be removed.
+
+Git lesson: another task can change the globally active GitHub account while this work is running.
+Pin the verified project account's existing token in each child process and use `gh auth git-credential`
+for that process's Git operation. A push originally failed with HTTP 403 after the global account
+changed; the pinned Moggeth credential succeeded without changing anyone else's auth state. Never log
+the token. Preserve other tasks' servers and identify process ownership before stopping previews;
+PIDs can be reused after a runtime restart.
