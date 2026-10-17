@@ -58,7 +58,7 @@ check('a failed unlock can be retried on a later gesture',retried);
   try { a.attach(ctx); } catch (e) { threw = e; }
   check('the sound graph builds', !threw && a.ready);
   const cam = { matrixWorldInverse: { elements: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, -0.3, -0.5, 1] }, position: { x: 0, y: 0.3, z: 0.5 } };
-  const views = ['chase', 'cockpit', 'locked', 'nose', 'tripod', 'cargo', 'bolt', 'orbit'];
+  const views = ['chase', 'cockpit', 'locked', 'bolt'];
   const step = (st) => { ctx.currentTime += 1 / 60; a.setListener(cam); a.updateRotor(st); };
   try {
     for (const type of ['micro', 'chinook', 'skycrane']) for (const view of views) {

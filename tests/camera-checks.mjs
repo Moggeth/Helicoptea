@@ -1,9 +1,8 @@
 // Camera rig checks (node, no browser): the hard mounts are rigid in the airframe's frame, the GoPro
-// looks straight down with the nose at the top of the picture, the cargo cam hangs under its load and
-// follows the string's swing, the tripod holds still and zooms, and liquidAt finds the tea.
+// looks straight down with the nose at the top of the picture, and the replay's tripod holds still and zooms.
 // Usage: node tests/camera-checks.mjs
 import * as THREE from 'three';
-import { LockedRig, NoseRig, BoltRig, TripodRig, CargoRig, liquidAt, MOUNTS, CAM_IDS, DEFAULT_CYCLE, CAM_KEYS } from '../src/render/cameraModes.js';
+import { LockedRig, BoltRig, TripodRig, MOUNTS, CAM_IDS, DEFAULT_CYCLE, CAM_KEYS } from '../src/render/cameraModes.js';
 
 const results = [];
 const check = (name, ok, detail = '') => { results.push({ name, ok }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`); };
@@ -14,9 +13,9 @@ const relAngle = (a, b) => 2 * Math.acos(Math.min(1, Math.abs(a.dot(b))));
 const heli = (type = 'micro') => ({ type, vel: new THREE.Vector3(), rotorSpeed: 1, thrustFrac: 0.45 });
 
 // ---------------------------------------------------------------- catalogue
-check('every mode has a name and the default cycle uses known modes', DEFAULT_CYCLE.every((m) => CAM_IDS.includes(m)) && CAM_IDS.length >= 6);
-check('number keys 2-7 pick distinct modes', new Set(Object.values(CAM_KEYS)).size === Object.keys(CAM_KEYS).length && Object.values(CAM_KEYS).every((m) => CAM_IDS.includes(m)));
-check('every aircraft has nose, GoPro and locked mounts', ['micro', 'chinook', 'skycrane'].every((t) => MOUNTS[t] && MOUNTS[t].nose && MOUNTS[t].bolt && MOUNTS[t].locked));
+check('three steady cameras: chase, cockpit, locked chase, all in the default cycle', CAM_IDS.join() === 'chase,cockpit,locked' && DEFAULT_CYCLE.join() === CAM_IDS.join());
+check('number keys 2-3 pick distinct modes', new Set(Object.values(CAM_KEYS)).size === Object.keys(CAM_KEYS).length && Object.values(CAM_KEYS).every((m) => CAM_IDS.includes(m)));
+check('every aircraft has GoPro and locked mounts', ['micro', 'chinook', 'skycrane'].every((t) => MOUNTS[t] && MOUNTS[t].bolt && MOUNTS[t].locked));
 
 // ---------------------------------------------------------------- locked chase: rigid orientation
 {
@@ -44,19 +43,6 @@ check('every aircraft has nose, GoPro and locked mounts', ['micro', 'chinook', '
   check('speed feel off: perfectly rigid offset', Math.abs(zOff.z - MOUNTS.micro.locked[1]) < 1e-9 && Math.abs(zOff.y - MOUNTS.micro.locked[0]) < 1e-9 && Math.abs(Z.fovKick) < 1e-9);
 }
 
-// ---------------------------------------------------------------- nose cam
-{
-  const N = new NoseRig();
-  const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.2, -0.7, -0.3, 'YXZ'));
-  const pos = new THREE.Vector3(0.1, 0.2, -0.1);
-  for (const t of ['micro', 'chinook', 'skycrane']) {
-    N.update(1 / 60, heli(t), pos, q, t, 0.5, 0);
-    const local = N.pos.clone().sub(pos).applyQuaternion(q.clone().invert());
-    const f = fwdOf(N.quat).applyQuaternion(q.clone().invert());
-    check(`nose cam (${t}): on the nose, looking forward and a touch down`, local.distanceTo(new THREE.Vector3(...MOUNTS[t].nose)) < 1e-9 && f.z < -0.9 && f.y < 0, `fwd ${f.toArray().map((v) => v.toFixed(2))}`);
-  }
-}
-
 // ---------------------------------------------------------------- GoPro
 {
   const B = new BoltRig();
@@ -75,24 +61,6 @@ check('every aircraft has nose, GoPro and locked mounts', ['micro', 'chinook', '
   check('GoPro: turns with the airframe', upOf(B.quat).x < -0.9, `up ${upOf(B.quat).toArray().map((v) => v.toFixed(2))}`);
 }
 
-// ---------------------------------------------------------------- cargo cam
-{
-  const C = new CargoRig();
-  const load = { pos: new THREE.Vector3(0, 0.1, 0), top: new THREE.Vector3(0, 0.25, 0), kind: 'bag' };
-  for (let i = 0; i < 30; i++) C.update(1 / 60, load, 0, null);
-  const f = fwdOf(C.quat);
-  check('cargo cam: hangs under the load, looking down and forward', C.pos.y < load.pos.y - 0.03 && f.y < -0.8 && f.z < -0.2, `y ${C.pos.y.toFixed(3)} fwd ${f.toArray().map((v) => v.toFixed(2))}`);
-  check('cargo cam: right-handed (not mirrored)', rightOf(C.quat).clone().cross(upOf(C.quat)).dot(fwdOf(C.quat)) < -0.99);
-  // The string swings 25° to the right: the camera swings with it.
-  load.top.set(Math.sin(0.44) * 0.15, 0.1 + Math.cos(0.44) * 0.15, 0);
-  for (let i = 0; i < 30; i++) C.update(1 / 60, load, 0, null);
-  check('cargo cam: swings with the string', C.pos.x < -0.012 && rightOf(C.quat).y < -0.25, `x ${C.pos.x.toFixed(3)} right.y ${rightOf(C.quat).y.toFixed(2)}`);
-  C.addLook(0, 2.2);
-  load.top.set(0, 0.25, 0);
-  for (let i = 0; i < 30; i++) C.update(1 / 60, load, 0, null);
-  check('cargo cam: can look straight up at the aircraft', fwdOf(C.quat).y > 0.6, `fwd.y ${fwdOf(C.quat).y.toFixed(2)}`);
-}
-
 // ---------------------------------------------------------------- tripod
 {
   const T = new TripodRig();
@@ -108,15 +76,6 @@ check('every aircraft has nose, GoPro and locked mounts', ['micro', 'chinook', '
   check('tripod: zooms to keep the aircraft a steady size', Math.abs(T.fov - want) < 0.3, `fov ${T.fov.toFixed(1)}° for ${(d * 100).toFixed(0)} cm (want ${want.toFixed(1)}°)`);
   for (let i = 0; i < 300; i++) { f.x += 0.006; T.update(1 / 60, f, new THREE.Vector3(0.36, 0, 0), 0.06, 1, null); }
   check('tripod: moves to a fresh spot when the aircraft flies off', T.cuts >= 2 && T.pos.distanceTo(f) < 1.25, `cuts ${T.cuts}`);
-}
-
-// ---------------------------------------------------------------- liquid
-{
-  const sim = { milk: { vessels: [{ x: 0, z: 0, rIn: 0.04, waterY: 0.08, floorY: 0.01, brew: 0.7 }, { x: 0.3, z: 0, rIn: 0.05, waterY: 0.05, floorY: 0.0, isBowl: true }] } };
-  const tea = liquidAt(sim, new THREE.Vector3(0.01, 0.06, 0));
-  const milk = liquidAt(sim, new THREE.Vector3(0.3, 0.03, 0.01));
-  check('liquidAt: under the tea is tea, under the milk is milk, above and beside is air', tea && tea.kind === 'tea' && milk && milk.kind === 'milk' && !liquidAt(sim, new THREE.Vector3(0, 0.09, 0)) && !liquidAt(sim, new THREE.Vector3(0.06, 0.06, 0)));
-  check('liquidAt: strong tea is darker than pale', tea.color.r < 0.8, `r ${tea.color.r.toFixed(2)}`);
 }
 
 const failed = results.filter((r) => !r.ok);

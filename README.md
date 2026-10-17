@@ -57,17 +57,13 @@ Look around by dragging the mouse (wheel to zoom), holding **L3** and using the 
 
 ## Cameras
 
-**C** (gamepad **L3** tap, or the camera icon top right) steps through the cameras; **Shift+C** steps back, **1** jumps to the cockpit and back, and **2** to **7** pick one directly. **Pause → Camera** lists them all and chooses which are in the C / L3 cycle (remembered, as is the camera you left in).
+Three cameras, plus the GoPro on a hold. **C** (gamepad **L3** tap, X56 **D**, or the camera icon top right on a phone) steps through them; **Shift+C** steps back, **1** jumps to the cockpit and back, **2** picks the chase and **3** the locked chase. **Pause → Camera** picks one directly and chooses which are in the cycle (remembered, as is the camera you left in).
 
-- **Chase**: the horizon-steady camera behind you that turns with your heading and frames the load.
-- **Cockpit**: the pilot's seat (above).
+- **Chase**: the horizon-steady camera behind you that turns with your heading and frames the load. Drag, the D-pad or the X56 hat orbits and zooms it.
+- **Cockpit**: the pilot's seat (above), locked to the airframe.
 - **Locked chase**: bolted rigidly behind and above the tail, so it rolls and pitches with the airframe; every attitude change and burst of speed reads at once. **Speed feel** (pause menu) lets the arm stretch a little under acceleration and widens the lens with speed; at zero it is perfectly rigid.
-- **Nose cam**: hard-mounted under the nose, no cockpit, nothing in the way; the same speed feel through the lens.
-- **Orbit**: a free orbit that does not turn with the aircraft (drag or the D-pad to swing, wheel to zoom).
-- **Tripod**: a camera operator standing on the table with a long lens. It pans after you with a human lag, zooms to keep you a steady size, and cuts to a fresh spot ahead when you fly off or behind something. It keeps filming after a crash.
-- **Cargo cam**: rides the load, dangling under the tea bag or bucket (or on the skycrane's snorkel head), so it swings when you swing and goes into the tea first; under the surface the picture turns the colour of the brew and bubbles stream past. Drag or the D-pad to look about, right up at the aircraft above. It joins the C cycle while something is on a hook.
 
-Hold **B** (or the right mouse button, gamepad **LT** in the default Aim layout, **LB** in Arcade; any button in Pause → Controller, touch **GoPro**) for the **GoPro**: a camera bolted on a stub arm off the right side of each aircraft, looking straight down past the skid, sponson or tank, with REC, the height readout and a ring on the surface where the lowest load (or the snorkel) would land if you lowered it now. Let go and you are back in your camera. The flight replay has **Locked**, **GoPro** and **Tripod** cameras too (keys 4 to 6).
+Hold **B** (or the right mouse button, gamepad **LT** in the default Aim layout, **LB** in Arcade; any button in Pause → Controller, touch **GoPro**) for the **GoPro**: a camera bolted on a stub arm off the right side of each aircraft, looking straight down past the skid, sponson or tank, with REC, the height readout and a ring on the surface where the lowest load (or the snorkel) would land if you lowered it now. Let go and you are back in your camera. The flight replay keeps its own set (chase, orbit, cockpit, locked, GoPro and tripod).
 
 ## Judging height
 
@@ -157,7 +153,7 @@ node tests/e2e-replay.mjs            # flight recording, replay viewer, notes an
 node tests/e2e-crashes.mjs           # every crash kind on every aircraft, strikes, the Rotor strikes setting, crash replays, effect cost
 node tests/e2e-static.mjs            # the build on a plain static host (no /api): browser saving, reload, Download
 node tests/e2e-tuning.mjs            # flight tuning board: sliders, tabs, persistence, presets, export/import, and every preview clip at both ends of every range
-node tests/e2e-camera.mjs http://localhost:4196/  # camera modes, GoPro, cargo cam into the tea, cycling, frame cost per mode
+node tests/e2e-camera.mjs http://localhost:4196/  # camera modes, GoPro, cycling, frame cost per mode
 ```
 
 A new `tests/e2e-<name>.mjs` joins CI automatically if it takes the base URL as an argument, prints
@@ -210,7 +206,7 @@ connector calls or broaden repository permissions.
 | Flight Assist | F | Y | Assist switch (top left) |
 | Restart flight | R | Start | ↻ (top right) |
 | Reset sandbox | Shift+R | Pause menu | Pause menu |
-| Camera | C next, Shift+C previous, 1–7 pick; U / Home recenter; mouse drag orbit, wheel zoom | L3 tap next; B recenter; D-pad orbit/zoom | Camera icon (top right) next; drag open screen to orbit; double-tap it to recenter |
+| Camera | C next, Shift+C previous, 1 cockpit, 2 chase, 3 locked chase; U / Home recenter; mouse drag orbit, wheel zoom | L3 tap next; B recenter; D-pad orbit/zoom | Camera icon (top right) next; drag open screen to orbit; double-tap it to recenter |
 | Mark a moment for a flight note | N | LB or R3 | Pause → ⚑ Mark this moment |
 | Flight replay | Pause menu, or Watch replay after a crash | same | same |
 | Cockpit view | 1 toggles; mouse drag look, wheel zoom, U look ahead | L3 tap steps to it; hold L3 + right stick look, D-pad glance, B look ahead | Camera icon; drag open screen to look |

@@ -53,13 +53,13 @@ return [
   { name: 'rotor-chinook', secs: 16, step: profile('chinook') },
   { name: 'rotor-skycrane', secs: 16, step: profile('skycrane') },
   { name: 'cockpit-vs-outside', secs: 18, step: (() => { let pos = V(0, 0.2, 0); return (t, S) => {
-      // 0-4 chase, 4-10 cockpit (hover then fast), 10-14 nose camera at speed, 14-18 cargo camera under it.
+      // 0-4 chase, 4-10 cockpit (hover then fast), 10-14 GoPro at speed, 14-18 locked chase.
       const fast = t > 7 && t < 14;
       const vel = fast ? V(0, 0, -1.2) : V(0, 0, 0);
       pos = V(pos.x, 0.2, pos.z + vel.z / 60);
-      const view = t < 4 ? 'chase' : t < 10 ? 'cockpit' : t < 14 ? 'nose' : 'cargo';
+      const view = t < 4 ? 'chase' : t < 10 ? 'cockpit' : t < 14 ? 'bolt' : 'locked';
       if (view === 'chase') S.cam(V(pos.x, pos.y + 0.13, pos.z + 0.5), pos);
-      else if (view === 'cargo') S.cam(V(pos.x, pos.y - 0.2, pos.z + 0.02), V(pos.x, pos.y - 0.4, pos.z - 0.2));
+      else if (view === 'locked') S.cam(V(pos.x, pos.y + 0.085, pos.z + 0.3), pos);
       else S.cam(V(pos.x, pos.y + 0.01, pos.z - 0.03), V(pos.x, pos.y, pos.z - 1));
       return { alive: true, type: 'micro', rotorSpeed: 1, thrustFrac: fast ? 0.7 : 0.5, agility: fast ? 0.3 : 0.05, cushion: 0, pos, vel, yaw: 0, view };
     }; })() },

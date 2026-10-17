@@ -19,7 +19,7 @@ const loadKb = () => { try { const v = localStorage.getItem(LS_KB); return v ? J
 const saveKb = (v) => { try { localStorage.setItem(LS_KB, JSON.stringify(v)); } catch { /* ignore */ } };
 // Presses that become game actions as they are (held binds and flight directions are read each frame).
 const PRESS = { attach: 'attach', assist: 'assist', recenter: 'recenter', mark: 'mark', aircraft: 'aircraft' };
-// The digits: 1 is the cockpit and back, 2-7 pick a camera.
+// The digits: 1 is the cockpit and back, 2 the chase camera, 3 the locked chase.
 const DIGIT_KEYS = { Digit1: 'cockpit', ...Object.fromEntries(Object.entries(CAM_KEYS).map(([k, id]) => [k, `cam:${id}`])) };
 
 // Touch stick layouts: which flight axis each stick's x (left / right) and y (up / down) flies.

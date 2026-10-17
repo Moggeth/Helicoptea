@@ -29,20 +29,19 @@ for (const ac of which) {
   await sleep(1500);
   const S = ac === 'micro' ? 1 : ac === 'chinook' ? 1.5 : 1.35;
   if (only.includes('out')) {
-    await page.keyboard.press('Digit5');
-    await sleep(300);
     const orbits = [['front-q', 0.7, 0.18, 0.16], ['side', Math.PI / 2, 0.06, 0.17], ['rear-q', 2.5, 0.3, 0.17], ['top', 0.3, 0.95, 0.2], ['nose-close', 0.25, 0.08, 0.085]];
     for (const [nm, yaw, pitch, dist] of orbits) {
       await page.evaluate(([y, p, d]) => {
-        // Orbit yaw is in world axes: add the aircraft's heading so the named angle is relative to the nose.
-        const H = window.__helicoptea, q = H.view.heliQuat;
-        const hd = Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.x * q.x));
-        Object.assign(H.cam.orbit, { yaw: y + hd + Math.PI, pitch: p, dist: d });
+        // Pin the free camera on an orbit round the aircraft: yaw is relative to the nose.
+        const H = window.__helicoptea, q = H.view.heliQuat, c = H.view.heliPos;
+        const hd = Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.x * q.x)) + y + Math.PI;
+        H.freeCam.pos.set(c.x + Math.sin(hd) * Math.cos(p) * d, c.y + Math.sin(p) * d, c.z + Math.cos(hd) * Math.cos(p) * d);
+        H.freeCam.look.copy(c); H.freeCam.on = true;
       }, [yaw, pitch, dist * S]);
       await sleep(700);
       await page.screenshot({ path: `${outDir}/${ac}-out-${nm}.png` });
     }
-    await page.keyboard.press('Digit2');
+    await page.evaluate(() => { window.__helicoptea.freeCam.on = false; });
     await sleep(300);
   }
   if (only.includes('in')) {

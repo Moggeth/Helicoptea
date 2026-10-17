@@ -77,7 +77,6 @@ export class Hud {
       </div>
       <div class="loadcam hidden" aria-hidden="true"><span class="lc-name">HOOK CAM</span><span class="lc-read"></span></div>
       <div class="boltcam hidden" aria-hidden="true"><span class="bc-rec">REC <b>0:00</b></span><span class="bc-mount"></span><span class="bc-corner tl"></span><span class="bc-corner tr"></span><span class="bc-corner bl"></span><span class="bc-corner br"></span><span class="bc-ring"></span><span class="bc-read"></span></div>
-      <div class="underwater hidden" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
       <div class="mstick hidden" aria-hidden="true"><i></i></div>
       <div class="mouse-cta hidden">Click to fly with the mouse</div>
       <div class="fp-flash"></div>
@@ -211,7 +210,7 @@ export class Hud {
     if (d === 'hotas') {
       if (what === 'liftUp' || what === 'liftDown') return { type: 'throttle', dir: what === 'liftUp' ? 'up' : 'down' };
       if (what === 'tilt' || what === 'yaw') return { type: 'joystick', dir: what === 'yaw' ? 'twist' : 'any' };
-      const H = this.input?.hotas, r = H?.profile.buttons[what === 'camera' ? 'view' : what]?.[0];
+      const H = this.input?.hotas, r = H?.profile.buttons[what === 'camera' ? 'camNext' : what]?.[0];
       return r ? { type: 'button', label: H.refName(r) } : null;
     }
     // Keyboard and mouse, as the player's layout has them: the mouse when it flies that axis.
@@ -328,15 +327,6 @@ export class Hud {
     if (this.boltMount.textContent !== mount) this.boltMount.textContent = mount;
     this.boltRing.style.display = o.ring ? '' : 'none';
     if (o.ring) this.boltRing.style.transform = `translate(${Math.round(o.ring.x)}px, ${Math.round(o.ring.y)}px)`;
-  }
-
-  // Under the tea (or the milk): a tinted, wobbling vignette with bubbles going up past the lens.
-  setUnder(u) {
-    const el = this.q('.underwater');
-    if (!u) { el.classList.add('hidden'); return; }
-    el.classList.remove('hidden');
-    el.dataset.kind = u.kind;
-    el.style.setProperty('--uw', u.color);
   }
 
   // The hook-camera inset: a frame and a readout laid over the picture the renderer draws.
@@ -501,7 +491,7 @@ export class Hud {
       camera: [
         seg('Camera', 'Camera', 'radiogroup', CAM_MODES.map(({ id, name, blurb }) => radio('view', id, name, opts.view === id, blurb)).join('')),
         `<div class="opt seg-row cam-row" role="group" aria-label="Cameras in the C / L3 cycle">${lbl(opts.touch ? 'Camera button cycles' : 'Next camera cycles', opts.touch ? '' : '<kbd>C</kbd> or L3')}<span class="seg">${CAM_MODES.map(({ id, name }) => { const on = (opts.camCycle || []).includes(id); return `<button class="secondary chk${on ? ' on' : ''}" aria-pressed="${on}" data-act="camcycle" data-id="${id}">${name}</button>`; }).join('')}</span></div>`,
-        slider('Speed feel', `min="0" max="1" step="0.05" value="${opts.camFeel ?? 0.5}" data-setting="camFeel" aria-label="Speed feel on the locked and nose cameras"`, 'rigid', 'lots'),
+        slider('Speed feel', `min="0" max="1" step="0.05" value="${opts.camFeel ?? 0.5}" data-setting="camFeel" aria-label="Speed feel on the locked chase"`, 'rigid', 'lots'),
         slider('Cockpit field of view', `min="60" max="110" step="1" value="${opts.fpFov}" data-setting="fpFov" aria-label="Cockpit field of view"`, `${opts.fpFov}°`),
         slider('Head motion', `min="0" max="1" step="0.05" value="${opts.fpMotion}" data-setting="fpMotion" aria-label="Head motion in the cockpit"`, 'off', 'lots'),
         slider('Rotor vibration', `min="0" max="1" step="0.05" value="${opts.fpVibration}" data-setting="fpVibration" aria-label="Rotor vibration in the cockpit"`, 'off', 'lots'),
@@ -652,7 +642,7 @@ export class Hud {
       ['Scheme', `${kbPresetName(layout)} (change it in Pause or Controls and remapping)`],
       ...describeKb(layout).map((r) => [keys(r.keys), r.label]),
       ['<kbd>Shift</kbd>+restart', 'Reset sandbox'],
-      ['<kbd>1</kbd>', 'Cockpit and back. Drag the mouse to look around, wheel to zoom'], ['<kbd>2</kbd>–<kbd>7</kbd>', 'Chase, locked chase, nose cam, orbit, tripod, cargo cam'],
+      ['<kbd>1</kbd>', 'Cockpit and back. Drag the mouse to look around, wheel to zoom'], ['<kbd>2</kbd> / <kbd>3</kbd>', 'Chase / locked chase'],
       ['<kbd>Home</kbd>', 'Recenter camera or look ahead'], ['<kbd>M</kbd>', 'Mute'], ['<kbd>Esc</kbd> / <kbd>P</kbd>', 'Pause (Esc also lets go of the mouse)'], ['<kbd>H</kbd>', 'This sheet'], ['<kbd>F2</kbd>', 'Frame rate readout'], ['<kbd>`</kbd>', 'Debug overlay'],
     ];
   }
@@ -903,7 +893,7 @@ export class Hud {
       <p class="help-note">${flies ? 'Click the scene to start flying with the mouse; <kbd>Esc</kbd> lets it go and pauses. <b>Moves the nose</b>: each movement is a push that springs back, so how far you move is how far it rotates, and with Assist off the rotation carries on until you stop it. With Assist on, mouse tilt stays where you leave it. <b>Virtual stick</b>: the mouse position is the stick, drawn as a dot in a ring.' : 'The mouse does not fly in this scheme: drag to orbit the camera.'}</p>
       ${group('Flying', KB_FLIGHT)}
       ${group('Actions', KB_ACTIONS)}
-      <p class="help-note">Choosing a key that already does something else moves it: the other job takes your old key if it would be left with none. Mouse buttons work too. <kbd>Esc</kbd>, <kbd>P</kbd>, <kbd>H</kbd>, <kbd>M</kbd>, <kbd>Shift</kbd>, the F keys and the camera digits <kbd>1</kbd>–<kbd>7</kbd> stay as they are.</p>`;
+      <p class="help-note">Choosing a key that already does something else moves it: the other job takes your old key if it would be left with none. Mouse buttons work too. <kbd>Esc</kbd>, <kbd>P</kbd>, <kbd>H</kbd>, <kbd>M</kbd>, <kbd>Shift</kbd>, the F keys and the camera digits <kbd>1</kbd>–<kbd>3</kbd> stay as they are.</p>`;
     const after = (notes, key) => { if (notes && notes.length) this.toast(notes.join('. '), 3.5); this.renderKb(key); this.refreshKeys(); };
     box.querySelector('[data-kb=preset]').addEventListener('change', (e) => { inp.chooseKbPreset(e.target.value); after([], 'kpreset'); });
     for (const el of box.querySelectorAll('[data-kb=maxis]')) el.addEventListener('change', () => after(inp.setMouseAxis(el.dataset.dir, el.value), el.dataset.key));

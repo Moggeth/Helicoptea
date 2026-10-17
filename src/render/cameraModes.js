@@ -2,38 +2,32 @@ import * as THREE from 'three';
 import { RAPIER, GROUPS } from '../sim/physics.js';
 import { ROOM, TABLE } from '../sim/layout.js';
 import { groundHeight } from '../sim/world/plan.js';
-import { teaColor } from './water.js';
 
-// Camera modes beyond the chase rig (camera.js) and the pilot's seat (cockpitCam.js). Each rig poses the
+// Camera rigs beyond the chase rig (camera.js) and the pilot's seat (cockpitCam.js). Each rig poses the
 // world camera from the interpolated airframe pose and reports the lens it wants; main.js owns the lens.
 // Body frame: x right, y up, z aft (the nose points to -z). Model scale: a micro-heli cabin is 4.5 cm wide.
 
 export const CAM_MODES = [
   { id: 'chase', name: 'Chase', blurb: 'Horizon-steady, turns with your heading, frames the load' },
-  { id: 'cockpit', name: 'Cockpit', blurb: "Pilot's seat; the head sways with the g" },
+  { id: 'cockpit', name: 'Cockpit', blurb: "Pilot's seat, locked to the airframe" },
   { id: 'locked', name: 'Locked chase', blurb: 'Bolted behind the tail: rolls and pitches with the airframe' },
-  { id: 'nose', name: 'Nose cam', blurb: 'Hard-mounted on the nose, nothing in the way' },
-  { id: 'orbit', name: 'Orbit', blurb: 'Free orbit that does not turn with the aircraft' },
-  { id: 'tripod', name: 'Tripod', blurb: 'A camera operator on the table, panning and zooming' },
-  { id: 'cargo', name: 'Cargo cam', blurb: "Ride the load down: the tea bag's-eye view" },
 ];
 export const CAM_IDS = CAM_MODES.map((m) => m.id);
 export const CAM_NAME = Object.fromEntries(CAM_MODES.map((m) => [m.id, m.name]));
-// Modes C / L3 step through by default (Orbit is a mouse / d-pad toy, one press away on 5).
-export const DEFAULT_CYCLE = ['chase', 'cockpit', 'locked', 'nose', 'tripod', 'cargo'];
+// The C / L3 / camera-button cycle. The GoPro is not in it: it is held (B, right mouse, LT, touch GoPro).
+export const DEFAULT_CYCLE = ['chase', 'cockpit', 'locked'];
 // Number keys pick a mode directly; 1 keeps its old job (cockpit, and back again).
-export const CAM_KEYS = { Digit2: 'chase', Digit3: 'locked', Digit4: 'nose', Digit5: 'orbit', Digit6: 'tripod', Digit7: 'cargo' };
+export const CAM_KEYS = { Digit2: 'chase', Digit3: 'locked' };
 // Modes where dragging (or the d-pad) turns the view rather than orbiting the chase camera.
-export const LOOK_MODES = new Set(['cockpit', 'cargo']);
+export const LOOK_MODES = new Set(['cockpit']);
 
-// Hard mounts, per aircraft (body frame, metres). nose: forward-looking hood camera just under the nose.
-// bolt: the GoPro, on a stub arm off the right side, looking straight down past the skid or sponson, image
-// top towards the nose; tilt [forward, inboard] in radians leans it so the hook line sits in frame.
+// Hard mounts, per aircraft (body frame, metres). bolt: the GoPro, on a stub arm off the right side, looking
+// straight down past the skid or sponson, image top towards the nose; tilt [forward, inboard] in radians leans it so the hook line sits in frame.
 // locked: rigid chase offset [up, back] and its downward aim.
 export const MOUNTS = {
-  micro: { nose: [0, -0.019, -0.073], nosePitch: -0.2, bolt: [0.041, -0.016, -0.012], boltTilt: [0.05, 0.2], locked: [0.085, 0.3], lockedPitch: -0.2 },
-  chinook: { nose: [0, -0.008, -0.098], nosePitch: -0.18, bolt: [0.047, -0.004, -0.014], boltTilt: [0.03, 0.14], locked: [0.12, 0.42], lockedPitch: -0.2 },
-  skycrane: { nose: [0, -0.005, -0.097], nosePitch: -0.2, bolt: [0.028, -0.012, -0.024], boltTilt: [-0.04, 0.18], locked: [0.12, 0.42], lockedPitch: -0.2 },
+  micro: { bolt: [0.041, -0.016, -0.012], boltTilt: [0.05, 0.2], locked: [0.085, 0.3], lockedPitch: -0.2 },
+  chinook: { bolt: [0.047, -0.004, -0.014], boltTilt: [0.03, 0.14], locked: [0.12, 0.42], lockedPitch: -0.2 },
+  skycrane: { bolt: [0.028, -0.012, -0.024], boltTilt: [-0.04, 0.18], locked: [0.12, 0.42], lockedPitch: -0.2 },
 };
 
 const G = new THREE.Vector3(0, 9.81, 0);
@@ -98,27 +92,6 @@ export class LockedRig {
   }
 }
 
-// ---------------------------------------------------------------- nose cam
-// A hood camera under the nose: rigid, no cockpit, wide. The speed feel is the lens alone.
-export class NoseRig {
-  constructor() { this.g = new GSense(); this.pos = new THREE.Vector3(); this.quat = new THREE.Quaternion(); this.fovKick = 0; this.t = 0; }
-  reset() { this.g.reset(); this.fovKick = 0; }
-  update(dt, h, pos, quat, type, feel, vibration) {
-    const M = MOUNTS[type] || MOUNTS.micro;
-    const aB = this.g.update(dt, h, quat);
-    this.pos.set(...M.nose).applyQuaternion(quat).add(pos);
-    this.t += dt;
-    // Airframe buzz through the mount: tiny, fast, worse at high collective.
-    const amp = h ? vibration * 2 * h.rotorSpeed * (0.3 + 0.7 * Math.min(1, h.thrustFrac)) * 0.0012 : 0;
-    _e.set(M.nosePitch + amp * Math.sin(this.t * 151.3), amp * 0.6 * Math.sin(this.t * 197.1 + 1), amp * 0.4 * Math.sin(this.t * 173.7 + 2), 'YXZ');
-    this.quat.copy(quat).multiply(_q.setFromEuler(_e));
-    const fwd = h ? -_w.copy(h.vel).applyQuaternion(_qi.copy(quat).invert()).z : 0;
-    const want = feel * (12 * clamp(fwd / 1.2, -0.3, 1) + clamp(-aB.z * 0.8, -3, 6));
-    this.fovKick += (want - this.fovKick) * (1 - Math.exp(-dt * 4));
-    return this;
-  }
-}
-
 // ---------------------------------------------------------------- bolted GoPro (hold)
 // Hard-mounted on a stub arm off the right side, looking straight down. The airframe edge fills one side
 // of the frame and the hook line hangs through the middle: line the load up over the cup and lower.
@@ -139,7 +112,7 @@ export class BoltRig {
   }
 }
 
-// ---------------------------------------------------------------- tripod
+// ---------------------------------------------------------------- tripod (flight replay only)
 // Someone on the table with a long lens: stands still, pans after you with a human lag, zooms to keep the
 // aircraft (and load) a steady size, and moves to a fresh spot ahead of you when you fly off or out of sight.
 export class TripodRig {
@@ -195,61 +168,4 @@ export class TripodRig {
     this.fov += (want - this.fov) * (1 - Math.exp(-dt * 2.5));
     return this;
   }
-}
-
-// ---------------------------------------------------------------- cargo cam
-// Rides the load, hanging under the string: the swing is your swing. It looks down and forward past the
-// load (drag or the d-pad to look about, even straight up at the aircraft). Under the surface the world
-// goes the colour of the tea.
-export class CargoRig {
-  constructor() { this.pos = new THREE.Vector3(); this.quat = new THREE.Quaternion(); this.up = new THREE.Vector3(0, 1, 0); this.lookYaw = 0; this.lookPitch = 0; this.under = null; this.kind = 'hook'; }
-  reset() { this.lookYaw = this.lookPitch = 0; this.up.set(0, 1, 0); }
-  addLook(dy, dp) { this.lookYaw = clamp(this.lookYaw + dy, -3, 3); this.lookPitch = clamp(this.lookPitch + dp, -0.9, 2.2); }
-  recenter() { this.lookYaw = this.lookPitch = 0; }
-  // load: { pos, top, kind } with top the point the line hangs from; heading: aircraft heading.
-  update(dt, load, heading, sim) {
-    this.kind = load.kind;
-    _a.subVectors(load.top, load.pos);
-    if (_a.lengthSq() < 1e-8) _a.set(0, 1, 0);
-    _a.normalize();
-    // The string swings fast; a little smoothing keeps the picture readable without hiding the swing.
-    this.up.lerp(_a, 1 - Math.exp(-dt * 18)).normalize();
-    const up = this.up;
-    // Where the lens sits: dangling just under the load, so the cup comes up at you and you go in first.
-    const below = { bag: 0.046, bucket: 0.03, hose: -0.004, hook: 0.002 }[load.kind] ?? 0.01;
-    const behind = { bag: 0.006, bucket: 0.008, hose: 0.012, hook: 0.004 }[load.kind] ?? 0.01;
-    // Forward: the aircraft's heading, made square to the line.
-    const fwd = _b.set(-Math.sin(heading), 0, -Math.cos(heading));
-    fwd.addScaledVector(up, -fwd.dot(up));
-    if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, -1);
-    fwd.normalize();
-    fwd.applyAxisAngle(up, this.lookYaw);
-    _a.copy(load.pos).addScaledVector(up, -below).addScaledVector(fwd, -behind);
-    keepClear(sim, load.pos, _a, this.pos);   // never through the table or a cup wall
-    // a: angle from straight down towards forward; look up past the horizon to see the aircraft above.
-    const a = clamp((load.kind === 'hose' ? 0.3 : 0.42) + this.lookPitch, 0.02, 3.1);
-    const dir = _v.copy(up).multiplyScalar(-Math.cos(a)).addScaledVector(fwd, Math.sin(a)).normalize();
-    const imgUp = _w.copy(up).addScaledVector(dir, -up.dot(dir));
-    if (imgUp.lengthSq() < 1e-6) imgUp.copy(fwd); else imgUp.normalize();
-    const right = _a.crossVectors(imgUp, dir.negate()); // camera x = y × z, with z = -dir
-    _m.makeBasis(right, imgUp, dir);
-    this.quat.setFromRotationMatrix(_m);
-    this.under = liquidAt(sim, this.pos);
-    return this;
-  }
-}
-
-// The liquid a point is under, if any: { kind: 'tea' | 'milk', color, depth }.
-const _c = new THREE.Color();
-export function liquidAt(sim, p) {
-  if (!sim || !sim.milk) return null;
-  for (const v of sim.milk.vessels) {
-    if (p.y >= v.waterY || p.y < (v.floorY ?? v.waterY - 0.2)) continue;
-    if (Math.hypot(p.x - v.x, p.z - v.z) > v.rIn) continue;
-    if (v.isBowl) return { kind: 'milk', color: _c.setRGB(0.93, 0.91, 0.85).clone(), depth: v.waterY - p.y };
-    teaColor(v.brew || 0, _c);
-    if (v.milk) _c.lerp(new THREE.Color(0.92, 0.86, 0.74), Math.min(1, v.milk * 2));
-    return { kind: 'tea', color: _c.clone(), depth: v.waterY - p.y };
-  }
-  return null;
 }

@@ -721,23 +721,7 @@ body.pip-top .hint:not(.show), body.pip-top .prompt:not(.show) { pointer-events:
 .boltcam .bc-ring::after { content: ''; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: rgba(255,214,120,0.95); }
 @keyframes rec { 50% { opacity: 0.15; } }
 body.bolt .plumb-read, body.bolt .hint { display: none; }
-
-/* Under the tea: a wobbling tinted vignette and bubbles rising past the lens. */
-.underwater { position: absolute; inset: 0; pointer-events: none !important; overflow: hidden; --uw: #7a4a22;
-  background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--uw) 18%, transparent) 20%, color-mix(in srgb, var(--uw) 70%, black 20%) 100%);
-  animation: uwobble 2.6s ease-in-out infinite alternate; }
-.underwater[data-kind=milk] { background: radial-gradient(ellipse at 50% 40%, rgba(255,252,244,0.25) 10%, rgba(240,236,226,0.85) 100%); }
-.underwater i { position: absolute; bottom: -20px; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid rgba(255,250,240,0.65); background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.6), transparent 60%); animation: bubble 2.4s ease-in infinite; }
-.underwater i:nth-child(1) { left: 18%; animation-delay: 0s; }
-.underwater i:nth-child(2) { left: 31%; width: 6px; height: 6px; animation-delay: 0.7s; animation-duration: 1.9s; }
-.underwater i:nth-child(3) { left: 46%; width: 14px; height: 14px; animation-delay: 1.3s; animation-duration: 2.8s; }
-.underwater i:nth-child(4) { left: 58%; width: 7px; height: 7px; animation-delay: 0.3s; }
-.underwater i:nth-child(5) { left: 69%; width: 11px; height: 11px; animation-delay: 1.8s; animation-duration: 2.2s; }
-.underwater i:nth-child(6) { left: 80%; width: 5px; height: 5px; animation-delay: 1s; animation-duration: 1.6s; }
-.underwater i:nth-child(7) { left: 9%; width: 8px; height: 8px; animation-delay: 2s; animation-duration: 2.6s; }
-@keyframes bubble { 0% { transform: translate(0, 0); opacity: 0; } 10% { opacity: 1; } 100% { transform: translate(14px, -110vh); opacity: 0.2; } }
-@keyframes uwobble { from { transform: scale(1.02) rotate(-0.4deg); } to { transform: scale(1.05) rotate(0.5deg); } }
-@media (prefers-reduced-motion: reduce) { .underwater, .underwater i, .boltcam .bc-rec::before { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .boltcam .bc-rec::before { animation: none; } }
 
 /* Mouse flying: the mouse stick as a dot in a ring, low and centred, and a nudge to click in. */
 .mstick { position: absolute; left: 50%; bottom: calc(96px + var(--safe-b, 0px)); width: 60px; height: 60px; margin-left: -30px; border-radius: 50%;

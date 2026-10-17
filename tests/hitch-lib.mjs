@@ -74,7 +74,7 @@ const ev = (page, fn, arg) => page.evaluate(fn, arg);
 async function microRun(page, quick) {
   await label(page, 'pad idle'); await sleep(2500);
   await label(page, 'lift off'); await fly(page, -0.5, 0.42, 0.2, 0.3, 3000);
-  for (const v of quick ? ['cockpit', 'tripod', 'chase'] : ['cockpit', 'locked', 'nose', 'orbit', 'tripod', 'chase']) { await label(page, `view ${v}`); await ev(page, (v) => window.__helicoptea.setView(v), v); await sleep(1200); }
+  for (const v of quick ? ['cockpit', 'chase'] : ['cockpit', 'locked', 'chase']) { await label(page, `view ${v}`); await ev(page, (v) => window.__helicoptea.setView(v), v); await sleep(1200); }
   // Tea bag from the middle peg, dipped in the house mug.
   await label(page, 'to the peg');
   const peg = await ev(page, () => { const p = window.__helicoptea.sim.pegs[1].tip; return [p.x, p.y, p.z]; });
@@ -88,7 +88,6 @@ async function microRun(page, quick) {
   await label(page, 'dip bag'); await fly(page, mug[0], mug[1] - 0.03, mug[2], 0.04, 5000, true);
   await label(page, 'lift bag'); await fly(page, mug[0], mug[1] + 0.2, mug[2], 0.08, 2500, true);
   await label(page, 'cockpit with bag'); await ev(page, () => window.__helicoptea.setView('cockpit')); await sleep(1500);
-  await label(page, 'cargo cam'); await ev(page, () => window.__helicoptea.setView('cargo')); await sleep(1500);
   await ev(page, () => window.__helicoptea.setView('chase'));
   await label(page, 'drop bag'); await ev(page, () => window.__helicoptea.sim.toggleAttach()); await sleep(1000);
   // Milk bucket: hook it, fill it straight from the crock, pour into the teacup.
@@ -127,7 +126,7 @@ async function menus(page) {
 async function heavyRun(page, id, quick) {
   await label(page, `switch to ${id}`); await ev(page, (id) => window.__helicoptea.setAircraft(id), id); await sleep(2500);
   await label(page, 'lift off'); await fly(page, -0.5, 0.42, 0.2, 0.3, 3000);
-  for (const v of ['cockpit', 'locked', 'nose', 'chase']) { await label(page, `view ${v}`); await ev(page, (v) => window.__helicoptea.setView(v), v); await sleep(1200); }
+  for (const v of ['cockpit', 'locked', 'chase']) { await label(page, `view ${v}`); await ev(page, (v) => window.__helicoptea.setView(v), v); await sleep(1200); }
   if (id === 'skycrane') {
     const s = await ev(page, () => { const m = window.__helicoptea.sim.milk.bowl, c = window.__helicoptea.sim.cups[1]; return { bowl: [m.x, m.z], cup: [c.x, c.z] }; });
     await label(page, 'to crock'); await fly(page, s.bowl[0], 0.42, s.bowl[1], 0.3, 5000); await fly(page, s.bowl[0], 0.215, s.bowl[1], 0.12, 4000);

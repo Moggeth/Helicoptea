@@ -27,12 +27,9 @@ const clamp01 = (x) => clamp(x, 0, 1);
 const VIEWS = {
   cockpit: { interior: 1, onboard: true, doppler: false, wind: 'cabin' },
   bolt: { interior: 0, onboard: true, doppler: false, wind: 'airframe' },
-  nose: { interior: 0, onboard: true, doppler: false, wind: 'airframe' },
-  cargo: { interior: 0, onboard: false, doppler: false, wind: 'downwash' },
   chase: { interior: 0, onboard: false, doppler: false, wind: null }, // it trails the aircraft: Doppler would only wobble
   locked: { interior: 0, onboard: false, doppler: false, wind: null },
-  tripod: { interior: 0, onboard: false, doppler: true, wind: null },
-  orbit: { interior: 0, onboard: false, doppler: true, wind: null },
+  tripod: { interior: 0, onboard: false, doppler: true, wind: null }, // a fixed camera it flies past (sound renders)
 };
 
 export function insideHouse(p) {
@@ -293,14 +290,13 @@ export class Audio {
     }
     this.drowned = false;
 
-    // Airflow for onboard views, the cargo hook's downwash, and the cabin's seal hiss.
+    // Airflow for onboard views and the cabin's seal hiss.
     const sp = state.vel ? Math.hypot(state.vel.x, state.vel.y, state.vel.z) : 0;
     const strain = clamp01(state.thrustFrac || 0);
     const bpf = { micro: 16.6, chinook: 14.3, skycrane: 24.8 }[type] * (state.rotorSpeed || 0);
     let wg = 0, wf = 400, depth = 0, hiss = 0;
     if (state.alive) {
       if (V.wind === 'airframe') { wg = 0.04 + 0.3 * clamp01(sp / 1.6) + 0.08 * strain; wf = 350 + 1800 * clamp01(sp / 1.6); depth = 0.3; }
-      else if (V.wind === 'downwash') { wg = 0.06 + 0.28 * strain; wf = 300 + 600 * strain; depth = 0.45; }
       else if (V.wind === 'cabin') { hiss = 0.004 + 0.03 * clamp01(sp / 1.4); }
     }
     this.air.g.gain.setTargetAtTime(wg, t, 0.15);

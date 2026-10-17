@@ -29,7 +29,7 @@ import { ReplayStage } from './replay/stage.js';
 import { ReplayViewer } from './replay/viewer.js';
 import { stageCrash, STAGES } from './sim/crashStage.js';
 import { CrashCinema, crashMessage, crashTitle } from './game/crashCinema.js';
-import { CAM_IDS, CAM_NAME, DEFAULT_CYCLE, LockedRig, NoseRig, BoltRig, TripodRig, CargoRig, liquidAt } from './render/cameraModes.js';
+import { CAM_IDS, CAM_NAME, DEFAULT_CYCLE, LockedRig, BoltRig } from './render/cameraModes.js';
 import { FrameStats } from './perf.js';
 import { FpsMeter } from './ui/fpsMeter.js';
 import { ShadowCache } from './render/shadowCache.js';
@@ -350,12 +350,11 @@ async function boot() {
   };
   // Camera modes beyond chase and cockpit (render/cameraModes.js), the C / L3 cycle and the held GoPro.
   const cam = {
-    cycle: (() => { try { const c = JSON.parse(store.get('camCycle', 'null')); if (Array.isArray(c) && c.length) return CAM_IDS.filter((id) => c.includes(id)); } catch { /* ignore */ } return DEFAULT_CYCLE.slice(); })(),
+    cycle: (() => { try { const c = JSON.parse(store.get('camCycle', 'null')); const kept = Array.isArray(c) ? CAM_IDS.filter((id) => c.includes(id)) : []; if (kept.length) return kept; } catch { /* ignore */ } return DEFAULT_CYCLE.slice(); })(),
     feel: numSetting('camFeel', 0.5, 0, 1),
     last: fp.mode === 'cockpit' ? 'chase' : fp.mode,   // where 1 returns to from the cockpit
-    eff: fp.mode, bolt: false, under: null, uwKey: '', fogSave: null,
-    locked: new LockedRig(), nose: new NoseRig(), boltRig: new BoltRig(), tripod: new TripodRig(), cargo: new CargoRig(),
-    orbit: { yaw: 0, pitch: 0.45, dist: 0.5 },
+    eff: fp.mode, bolt: false,
+    locked: new LockedRig(), boltRig: new BoltRig(),
   };
   const hud = new Hud($('hud'), {
     action: (a, el) => doAction(a, el),
@@ -474,16 +473,10 @@ async function boot() {
   function pauseOpts() { return { lesson: tutorial.active, quality: quality.setting, debug: debug.enabled, fpsMeter: fpsMeter.shown, aircraft: sim.aircraft, weight, view: fp.mode, camCycle: cam.cycle, camFeel: cam.feel, fpFov: fp.fov, fpMotion: fp.motion, fpVibration: fp.vibration, loadCam: fp.loadCam, cues: { ...depth.settings }, rotorStrikes: sim.damage.rotorStrikes, collectiveMode: CFG.collective.mode,
     touch: IS_TOUCH, batterySaver: fpsCap === 30, haptics: haptics.supported ? haptics.enabled : null, fullscreen: document.fullscreenEnabled ? !!document.fullscreenElement : null, homeScreenTip: IS_IOS && !navigator.standalone, touchLayout: input.touchLayout, touchSize: input.touchSize, volume: audio.volume, muted: audio.muted }; }
 
-  // Something to ride for the cargo cam: a load on a hook, or the skycrane's snorkel paid out.
-  function cargoReady() {
-    const hh = sim.heli;
-    return !!hh && (sim.carriedCargo().length > 0 || (hh.type === 'skycrane' && hh.hose && hh.hose.length > 0.03));
-  }
-
   const CAM_TIPS = {
-    gamepad: { cockpit: 'hold L3 and use the right stick to look around', cargo: 'D-pad looks about, B looks ahead', orbit: 'D-pad orbits and zooms' },
-    keyboard: { cockpit: 'drag to look around, wheel to zoom', cargo: 'drag to look about, even up at the aircraft', orbit: 'drag to orbit, wheel to zoom' },
-    touch: { cockpit: 'drag the open screen to look around', cargo: 'drag to look about', orbit: 'drag to orbit' },
+    gamepad: { cockpit: 'hold L3 and use the right stick to look around' },
+    keyboard: { cockpit: 'drag to look around, wheel to zoom' },
+    touch: { cockpit: 'drag the open screen to look around' },
   };
   function setView(mode, quiet = false) {
     if (!CAM_IDS.includes(mode)) return;
@@ -500,17 +493,6 @@ async function boot() {
       fpRig.lookYaw = fpRig.lookPitch = 0;
     }
     if (mode === 'locked') cam.locked.reset();
-    if (mode === 'nose') cam.nose.reset();
-    if (mode === 'tripod') cam.tripod.reset();
-    if (mode === 'cargo') cam.cargo.reset();
-    if (mode === 'orbit') {
-      // Start the orbit where the camera is now, so the switch is seamless.
-      const f = view.focusPoint();
-      cam.orbit.dist = THREE.MathUtils.clamp(camera.position.distanceTo(f), 0.15, 2);
-      cam.orbit.yaw = Math.atan2(camera.position.x - f.x, camera.position.z - f.z);
-      cam.orbit.pitch = THREE.MathUtils.clamp(Math.asin(THREE.MathUtils.clamp((camera.position.y - f.y) / Math.max(cam.orbit.dist, 1e-3), -1, 1)), -0.2, 1.4);
-      input.camOrbit.yaw = input.camOrbit.pitch = input.camOrbit.zoom = 0;
-    }
     if (mode === 'chase' || was === 'cockpit') camRig.recenter(sim.heli ? sim.heli.heading() : camRig.yaw);
     if (mode === 'chase') input.camOrbit.yaw = input.camOrbit.pitch = input.camOrbit.zoom = 0;
     if (started && input.source === 'gamepad') input.pads.rumble(0, 0.12, 22);   // a click through the grip
@@ -518,13 +500,12 @@ async function boot() {
     if (started && !quiet) {
       const how = input.source === 'gamepad' ? 'gamepad' : (input.source === 'touch' || IS_TOUCH ? 'touch' : 'keyboard');
       const next = how === 'gamepad' ? 'L3: next' : how === 'touch' ? '' : 'C: next';
-      const ride = mode === 'cargo' && !cargoReady() ? 'nothing on the hook yet, riding the hook' : '';
-      hud.toast([CAM_NAME[mode], ride || CAM_TIPS[how][mode], next].filter(Boolean).join(' · '), 2.4);
+      hud.toast([CAM_NAME[mode], CAM_TIPS[how][mode], next].filter(Boolean).join(' · '), 2.4);
     }
   }
-  // Next / previous camera in the player's cycle. The cargo cam is skipped while there is nothing to ride.
+  // Next / previous camera in the player's cycle.
   function cycleView(dir = 1) {
-    const list = cam.cycle.filter((id) => id !== 'cargo' || cargoReady() || id === fp.mode);
+    const list = cam.cycle;
     if (!list.length) return;
     const i = list.indexOf(fp.mode);
     const n = i < 0 ? (dir > 0 ? 0 : list.length - 1) : (i + dir + list.length) % list.length;
@@ -639,7 +620,7 @@ async function boot() {
         break;
       case 'restart': if (paused) setPaused(false); sim.restartFlight(); hud.hideCrash(); break;
       case 'reset': if (paused) setPaused(false); sim.resetSandbox(); hud.hideCrash(); camRig.recenter(0); break;
-      case 'recenter': camRig.recenter(sim.heli ? sim.heli.heading() : camRig.yaw); input.camOrbit.yaw = input.camOrbit.pitch = input.camOrbit.zoom = 0; fpRig.recenter(); cam.cargo.recenter(); if (fp.mode === 'tripod') cam.tripod.reset(); break;
+      case 'recenter': camRig.recenter(sim.heli ? sim.heli.heading() : camRig.yaw); input.camOrbit.yaw = input.camOrbit.pitch = input.camOrbit.zoom = 0; fpRig.recenter(); break;
       case 'fullscreen': { const on = !document.fullscreenElement; store.set('fullscreen', on ? '1' : '0'); setFullscreen(on); break; }
       case 'pause': setPaused(!paused); break;
       case 'resume': setPaused(false); break;
@@ -904,54 +885,6 @@ async function boot() {
   startBtn.focus();
 
   // ---------------------------------------------------------------- camera helpers
-  const orbitTarget = new THREE.Vector3(), orbitM = new THREE.Matrix4();
-  const orbitPose = { pos: new THREE.Vector3(), quat: new THREE.Quaternion() };
-  const cargoTmp = { pos: new THREE.Vector3(), top: new THREE.Vector3(), kind: 'hook' };
-  const cq = new THREE.Quaternion();
-  // What the cargo cam rides: the lowest load on a hook, else the skycrane's snorkel head, else the bare hook.
-  function cargoLoad(hh) {
-    const L = cargoTmp;
-    const c = sim.carriedCargo();
-    if (c.length) {
-      let low = c[0];
-      for (const b of c) if (b.pos.y < low.pos.y) low = b;
-      if (low.track) low.track.sample(lastAlpha, L.pos, cq); else L.pos.copy(low.pos);
-      const hk = hh.def.hooks[low.attach.hook || 0] || hh.def.hooks[0];
-      L.top.set(...hk).applyQuaternion(view.heliQuat).add(view.heliPos);
-      L.kind = low === sim.milk.bucket ? 'bucket' : 'bag';
-      return L;
-    }
-    const sv = view.skycrane;
-    if (hh.type === 'skycrane' && hh.hose && hh.hose.length > 0.03 && sv && sv.curvePts) {
-      const n = sv.curvePts.length;
-      L.pos.copy(sv.curvePts[n - 1]); L.top.copy(sv.curvePts[n - 2]); L.kind = 'hose';
-      if (L.top.distanceToSquared(L.pos) < 1e-10) L.top.y += 0.01;
-      return L;
-    }
-    const hk = hh.def.hooks[hh.def.hooks.length === 3 ? 1 : 0];
-    L.top.set(hk[0], hk[1] + 0.02, hk[2]).applyQuaternion(view.heliQuat).add(view.heliPos);
-    L.pos.set(...hk).applyQuaternion(view.heliQuat).add(view.heliPos);
-    L.kind = 'hook';
-    return L;
-  }
-
-  // Under the tea: the scene fog turns the colour of the brew and closes in to a couple of centimetres.
-  function underLiquid(u) {
-    const F = scene.fog;
-    if (u && F) {
-      if (!cam.fogSave) cam.fogSave = { color: F.color.clone(), near: F.near, far: F.far };
-      F.color.copy(u.color).convertSRGBToLinear();
-      F.near = 0; F.far = u.kind === 'milk' ? 0.03 : 0.085;
-    } else if (cam.fogSave && F) {
-      F.color.copy(cam.fogSave.color); F.near = cam.fogSave.near; F.far = cam.fogSave.far;
-      cam.fogSave = null;
-    }
-    const key = u ? `${u.kind}|${u.color.getHexString()}` : '';
-    if (key !== cam.uwKey) { cam.uwKey = key; hud.setUnder(u ? { kind: u.kind, color: `#${u.color.getHexString()}` } : null); }
-    if (!!u !== !!cam.under && u && input.source === 'gamepad') input.pads.rumble(0.15, 0.45, 120);
-    cam.under = u;
-  }
-
   // The GoPro's overlay: REC, a running clock and a ring where the lowest load will land if lowered now.
   const boltState = { t: 0, readT: 0, text: '' };
   function boltOverlay(on, dt) {
@@ -999,7 +932,6 @@ async function boot() {
   let stageT = stageKind ? 1.2 : -1;
   const camTarget = new THREE.Vector3();
   const tmp = new THREE.Vector3();
-  let lastAlpha = 0;
   const perf = new FrameStats(renderer.getContext());
   let lastFrameAt = 0;
   const fpsMeter = new FpsMeter($('hud'), perf);
@@ -1080,7 +1012,6 @@ async function boot() {
     }
     const physMs = performance.now() - tPhys;
     const alpha = acc / dt;
-    lastAlpha = alpha;
 
     const events = sim.drainEvents();
     recorder.frameEnd();
@@ -1143,37 +1074,13 @@ async function boot() {
     const fpView = started && mode === 'cockpit' && cockpit.has(sim.aircraft) && (!!sim.heli || fp.crashT > 0);
     const fpLive = fpView && !!sim.heli;
     const wd = rd * runSpeed;   // the rigs feel the world's clock, slow motion included
-    // Rigid rigs need an airframe; after a crash they hand over to the chase camera (the tripod and orbit keep filming).
+    // Rigid rigs need an airframe; after a crash they hand over to the chase camera.
     let rig = null;
     if (!fpView && started && sim.heli) {
       const hh = sim.heli, carrying = sim.carriedCargo().length > 0;
       if (mode === 'bolt') rig = cam.boltRig.update(wd, hh, view.heliPos, view.heliQuat, hh.type, fp.vibration);
       else if (mode === 'locked') rig = cam.locked.update(wd, hh, view.heliPos, view.heliQuat, hh.type, camRig.sizeScale, cam.feel, carrying, sim);
-      else if (mode === 'nose') rig = cam.nose.update(wd, hh, view.heliPos, view.heliQuat, hh.type, cam.feel, fp.vibration);
-      else if (mode === 'cargo') {
-        cam.cargo.addLook(look.yaw, -look.pitch);
-        rig = cam.cargo.update(Math.max(frameDt, 1e-4), cargoLoad(hh), heading, sim);
-      }
     }
-    if (!fpView && started && (mode === 'tripod' || mode === 'orbit')) {
-      const f = view.focusPoint();
-      if (mode === 'tripod') {
-        const hh = sim.heli, c = sim.carriedCargo();
-        const span = c.length ? Math.max(...c.map((b) => b.pos.distanceTo(f))) : 0;
-        rig = cam.tripod.update(Math.max(frameDt, 1e-4), f, hh ? hh.vel : tmp.set(0, 0, 0), 0.055 * camRig.sizeScale + span * 0.6, camRig.sizeScale, sim);
-      } else {
-        const O = cam.orbit;
-        O.yaw -= input.camOrbit.yaw; O.pitch = THREE.MathUtils.clamp(O.pitch + input.camOrbit.pitch, -0.2, 1.45);
-        O.dist = THREE.MathUtils.clamp(O.dist * Math.exp(input.camOrbit.zoom * 1.6), 0.08, 2.5);
-        input.camOrbit.yaw = input.camOrbit.pitch = input.camOrbit.zoom = 0;
-        orbitTarget.lerp(f, 1 - Math.exp(-Math.max(frameDt, 1e-4) * 12));
-        const cp = Math.cos(O.pitch);
-        tmp.set(orbitTarget.x + Math.sin(O.yaw) * cp * O.dist, orbitTarget.y + Math.sin(O.pitch) * O.dist, orbitTarget.z + Math.cos(O.yaw) * cp * O.dist);
-        orbitPose.pos.copy(tmp);
-        orbitPose.quat.setFromRotationMatrix(orbitM.lookAt(orbitPose.pos, orbitTarget, tmp.set(0, 1, 0)));
-        rig = orbitPose;
-      }
-    } else orbitTarget.copy(view.focusPoint());
     cam.eff = fpView ? 'cockpit' : rig ? mode : 'chase';
     if (fpView) {
       if (!lensFp) fpRig.reset();
@@ -1191,7 +1098,7 @@ async function boot() {
       camera.position.copy(rig.pos);
       camera.quaternion.copy(rig.quat);
       // Crash and bump shake reaches the hard mounts too.
-      if (camRig.shake > 0.0001 && mode !== 'tripod' && mode !== 'orbit') {
+      if (camRig.shake > 0.0001) {
         const s = camRig.shake * 0.25 * camRig.sizeScale, t = performance.now() / 1000;
         camera.position.x += Math.sin(t * 53) * s; camera.position.y += Math.sin(t * 61 + 1.3) * s * 0.7; camera.position.z += Math.sin(t * 47 + 2.1) * s;
       }
@@ -1199,10 +1106,7 @@ async function boot() {
       const aspect = vw / vh;
       const lens = mode === 'bolt' ? { fov: Math.min(100, vfov(122, aspect)), near: 0.0015 }
         : mode === 'locked' ? { fov: (aspect < 1 ? 66 : 58) + cam.locked.fovKick, near: 0.004 }
-          : mode === 'nose' ? { fov: vfov(fp.fov, aspect) + cam.nose.fovKick, near: 0.0015 }
-            : mode === 'cargo' ? { fov: vfov(104, aspect), near: 0.0012 }
-              : mode === 'tripod' ? { fov: cam.tripod.fov * (aspect < 1 ? 1.35 : 1), near: 0.01 }
-                : { fov: aspect < 1 ? 62 : CFG.camera.fov, near: 0.01 };
+          : { fov: aspect < 1 ? 62 : CFG.camera.fov, near: 0.01 };
       applyLens(false, 0, lens);
       camTarget.copy(view.focusPoint());
     } else {
@@ -1226,7 +1130,6 @@ async function boot() {
       camRig.yaw = heading;
       camRig.initialised = true;
     }
-    underLiquid(mode === 'cargo' && rig ? rig.under : null);
     // Dev and screenshot tooling can pin the camera anywhere (window.__helicoptea.freeCam), before the world
     // streams its detail and grass round the camera.
     if (freeCam.on) { camera.position.copy(freeCam.pos); camera.lookAt(freeCam.look); }
@@ -1256,7 +1159,7 @@ async function boot() {
       agility: h && h.body ? (() => { const w = h.body.angvel(); return Math.hypot(w.x, w.y, w.z) / 2.5; })() : 0,
       cushion: h ? Math.max(0, 1 - h.groundDist / 0.18) * Math.min(1, h.thrustFrac * 2) : 0,
       crane: sim.aircraft === 'skycrane',
-      pan: h && !fpView && cam.eff !== 'cargo' && cam.eff !== 'bolt' ? THREE.MathUtils.clamp(tmp.copy(h.pos).project(camera).x, -1, 1) : 0,
+      pan: h && !fpView && cam.eff !== 'bolt' ? THREE.MathUtils.clamp(tmp.copy(h.pos).project(camera).x, -1, 1) : 0,
       dist: h ? camera.position.distanceTo(h.pos) : 1,
       wear: h && h.dmg ? Math.max(...h.dmg.wear) : 0,
       tailGone: !!(h && h.dmg && h.dmg.tail),
@@ -1304,7 +1207,7 @@ async function boot() {
     scene.updateMatrixWorld();
     phone?.update();
     // The hook camera feeds the cockpit display and, when shown, the inset.
-    const looksDown = cam.eff === 'bolt' || cam.eff === 'cargo';
+    const looksDown = cam.eff === 'bolt';
     // The inset is an extra render of the world: the cockpit has it (its display shows it too); the other
     // modes only with Hook camera set to Always, and never where the picture already looks down.
     const wantLoadCam = !!h && !looksDown && (fpLive || fp.loadCam === 'always');

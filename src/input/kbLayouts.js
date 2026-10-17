@@ -48,12 +48,12 @@ export const KB_BIND = Object.fromEntries(KB_BINDS.map((b) => [b.id, b]));
 export const MAX_KEYS = 3;
 
 // Keys that always do the same thing, so no layout can lock you out of pausing, help or the menus.
-// Digits 1 to 7 pick cameras; Shift is the modifier for reset, salvo and previous camera.
+// Digits 1 to 3 pick cameras; Shift is the modifier for reset, salvo and previous camera.
 export const FIXED_KEYS = {
   Escape: 'pause', KeyP: 'pause', KeyH: 'help', Slash: 'help', KeyM: 'mute', Backquote: 'debug', F3: 'debug', F2: 'fpsmeter', Home: 'recenter',
 };
 const RESERVED = new Set([...Object.keys(FIXED_KEYS), 'Tab', 'ShiftLeft', 'ShiftRight', 'MetaLeft', 'MetaRight', 'ContextMenu', 'CapsLock',
-  ...Array.from({ length: 12 }, (_, i) => `F${i + 1}`), ...Array.from({ length: 7 }, (_, i) => `Digit${i + 1}`)]);
+  ...Array.from({ length: 12 }, (_, i) => `F${i + 1}`), ...Array.from({ length: 3 }, (_, i) => `Digit${i + 1}`)]);
 export function isReserved(code) { return RESERVED.has(code); }
 export function isBindable(code) { return typeof code === 'string' && /^(Key|Digit|Arrow|Numpad|Mouse)|^(Space|Enter|Backspace|Insert|Delete|End|PageUp|PageDown|Comma|Period|Semicolon|Quote|BracketLeft|BracketRight|Backslash|Minus|Equal|IntlBackslash|AltLeft|AltRight|ControlLeft|ControlRight)$/.test(code) && !RESERVED.has(code); }
 

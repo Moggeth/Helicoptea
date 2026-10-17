@@ -275,8 +275,8 @@ heard as full-size helicopters (that is the joke), while cups, tea and the rooms
 - **Where you hear it from**: the camera is the listener. Distance lowers the level and the highs (air
   absorption), a source behind is darker, and cameras that watch the aircraft go past hear a scaled Doppler.
   The cockpit muffles the exterior through the canopy and a headset, adds the airframe's felt thump, the
-  gearbox, intercom hiss and a warning horn (low rotor speed, lost tail rotor, chipped blades); the nose and
-  GoPro mounts are loud and windy, chopped at blade-pass rate; the cargo camera sits in the downwash.
+  gearbox, intercom hiss and a warning horn (low rotor speed, lost tail rotor, chipped blades); the GoPro
+  mount is loud and windy, chopped at blade-pass rate.
 - **Places** ([ambience.js](../src/audio/ambience.js)): the kitchen has a short boxy reverb, room tone, the
   fridge cycling and the wall clock ticking; the garden is dry and open, with a breeze, leaves and a robin who
   goes quiet while a helicopter is close. The mix follows where the camera and aircraft are.
