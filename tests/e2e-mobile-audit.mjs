@@ -63,14 +63,19 @@ async function run(label, browser, ctxOpts) {
 
   // Pause menu: every control a thumb can hit (labels around checkboxes and sliders make the whole row).
   await tap('#hud [data-act=pause]');
-  await page.locator('.overlay.show details.more > summary').first().tap();
-  const small = await H(() => [...document.querySelectorAll('.overlay.show button, .overlay.show select, .overlay.show summary')]
-    .filter((e) => e.getClientRects().length).map((e) => { const r = e.getBoundingClientRect(); return [e.dataset.act || e.dataset.setting || e.tagName, Math.round(r.height)]; }).filter(([, h]) => h < 40));
+  // Every tab of the settings, one after another.
+  const small = [];
+  for (const t of ['flight', 'camera', 'controls', 'display']) {
+    await tap(`.overlay.show [data-tab=${t}]`);
+    small.push(...await H(() => [...document.querySelectorAll('.overlay.show button, .overlay.show select, .overlay.show input')]
+      .filter((e) => e.getClientRects().length && e.offsetParent !== null).map((e) => { const r = e.getBoundingClientRect(); return [e.dataset.act || e.dataset.setting || e.dataset.cue || e.tagName, Math.round(Math.max(r.height, e.closest('label')?.getBoundingClientRect().height || 0))]; }).filter(([, h]) => h < 40)));
+  }
   check(`${label}: pause menu buttons and lists are at least 40 px tall`, !small.length, small.slice(0, 6));
   const rows = await H(() => [...document.querySelectorAll('.overlay.show label.opt')].filter((e) => e.getClientRects().length && e.querySelector('input')).map((e) => Math.round(e.getBoundingClientRect().height)).filter((h) => h < 40));
   check(`${label}: setting rows with a checkbox or slider are at least 40 px tall`, !rows.length, rows);
   const keys = await H(() => [...document.querySelectorAll('.overlay.show label.opt > kbd')].filter((e) => e.getClientRects().length).length);
   check(`${label}: no keyboard hints beside touch menu options`, keys === 0, keys);
+  await tap('.overlay.show [data-tab=flight]');
   await tap('.overlay.show [data-act=aircraft][data-id=chinook]');
   check(`${label}: aircraft switch from the pause menu`, (await H(() => window.__helicoptea.sim.aircraft)) === 'chinook');
   await tap('.overlay.show [data-act=resume]');
