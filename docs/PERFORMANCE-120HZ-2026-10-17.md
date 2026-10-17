@@ -85,6 +85,32 @@ short-circuited expression skipped that update and could rebuild static shadows 
 
 ## Reproducing measurements
 
+### Current-master integration
+
+While this PR was under test, Claude's `f2ad39d` landed on master. Its Lambert/Phong phone materials,
+disabled phone shadow maps, BatchedMesh renderer and background target warm-up are upstream work, not
+results of this PR. The earlier 12-scene and geometry comparisons above used the pre-phone-renderer
+baseline `c251a68`; do not attribute the current master's shader/load/draw reductions to this PR.
+The merge retains that phone path and runs its batch synchronization after the visible matrix update.
+
+Integration found and fixed four phone-path issues:
+
+- An empty regex alternative matched **every** custom material hook, including functional wet-paper
+  shading. Only the explicitly cosmetic grime/sway/world-kit hooks are now dropped.
+- Float32 snapshots compared against double-precision world matrices repeatedly marked stationary
+  instances dirty. Double snapshots eliminate those false matrix uploads; 120 unchanged frames of two
+  nontrivially rotated/translated instances now issue zero uploads, and a real move issues one.
+- First-person invisible materials and restoration of already-converted original materials no longer
+  permanently eject airframe members from their batches. Genuine replacements still draw independently.
+- Dynamic vertex buffers remain live rather than being copied once into an immutable batch, including
+  the skycrane's changing milk sight-glass levels.
+
+The 4× CPU landscape cockpit threshold also failed on the untouched pre-phone-renderer baseline in a
+fixed-resolution reproduction. A direct-to-screen alternative and deferred sky rendering did not show
+a reliable gain, so neither was adopted. Keep the existing target/sky paths; use the new phone renderer
+and physical-device profiling before repeating those experiments. One test fixture initially compared
+layer 31 with JavaScript's signed `1 << 31`; Three stores an unsigned mask, so the assertion uses `2 ** 31`.
+
 Measured geometry inventory (all three airframes are constructed; each unique geometry counted once,
 including hidden source parts/effects; exact triangle counts are unchanged):
 
