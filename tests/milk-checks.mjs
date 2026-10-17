@@ -1,3 +1,4 @@
+import { performanceBudget } from './performance-budget.mjs';
 // Headless milk checks (part of `npm run check`): the bucket hangs on its hanger, hooks like a bag,
 // fills by dipping (mass rises, the bowl level falls), pours through its valve into a cup (the tea
 // lightens), misses make bounded puddles, sloshes, and milk is conserved throughout.
@@ -255,7 +256,7 @@ function pilot(sim, ap) {
   run(sim, 1, () => ({ ...zero(), pour: true }));
   const ms = (performance.now() - t0) / Math.round(1 / sim.dt);
   k.attach.kind = 'peg';
-  check('physics step cost while pouring', ms < 1.0, `${f(ms, 3)} ms per step, ${sim.milk.parcels.length} parcels`);
+  performanceBudget(check, 'physics step cost while pouring', ms, 1.0, `${f(ms, 3)} ms per step, ${sim.milk.parcels.length} parcels`);
 }
 
 const failed = results.filter((r) => !r.ok);

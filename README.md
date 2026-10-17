@@ -177,7 +177,9 @@ suite receives the same output directory, so every suite tests the selected buil
 the build, `npm run check` and every browser suite. Hosted runners have no GPU, so Chrome renders in
 software; the game detects that (as it would on any GPU-less machine) and switches to its software tier:
 low quality at about 100k rendered pixels with longer physics catch-up, so the world keeps real speed.
-Frame-rate checks show as warnings in the run summary there instead of failing; everything else must pass. Screenshots and reports
+Frame-rate checks and the five explicit CPU timing budgets show as warnings on hosted CI; behavior,
+resource counts, memory limits and invalid timing samples still fail. Local `npm run check` keeps the
+CPU timing budgets strict. Screenshots and reports
 are attached to each run as `test-results`.
 
 Codex and Claude use isolated worktrees and scoped PRs against `master`; see `AGENTS.md` and the PR
@@ -187,6 +189,7 @@ and navigation; explicit behavior deadlines remain unchanged. Feature pushes rel
 instead of starting a duplicate full suite. Windows mouse-capture acceptance is reported as skipped;
 the separate Linux native-mouse job exercises capture without touching the Windows desktop and is
 also required by `CI ready`. Vercel deploys independently of CI, so inspect both results.
+See [CI diagnosis and merge workflow](docs/CI-AND-PR-WORKFLOW.md) for limits and recovery.
 
 **Play online: [helicoptea.vercel.app](https://helicoptea.vercel.app/)** — public, no sign-in required.
 

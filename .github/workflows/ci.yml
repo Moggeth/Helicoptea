@@ -38,6 +38,8 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run check
+        env:
+          HELICOPTEA_PERF_ADVISORY: '1'
       - id: list
         shell: bash
         run: echo "suites=$(node tests/run-e2e.mjs --list)" >> "$GITHUB_OUTPUT"
