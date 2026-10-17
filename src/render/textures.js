@@ -7,10 +7,29 @@ function rng(seed) {
   return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
 }
 
+// Texture canvases are drawn on the CPU (willReadFrequently keeps Chrome from giving them a GPU canvas):
+// they are drawn once and uploaded, and a phone's GPU canvases can hold far more memory than the pixels.
 function canvas(w, h) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
-  return [c, c.getContext('2d')];
+  return [c, c.getContext('2d', { willReadFrequently: true })];
+}
+
+// Draws a layer onto ctx blurred by radius px, in one operation. Where the canvas filter is missing
+// (Safari), it is softened instead by scaling the layer down and back up.
+function blurOnto(ctx, layer, radius) {
+  if (typeof ctx.filter === 'string') {
+    ctx.filter = `blur(${radius}px)`;
+    ctx.drawImage(layer, 0, 0);
+    ctx.filter = 'none';
+    return;
+  }
+  const k = Math.max(1, Math.round(radius * 1.5));
+  const [sc, sx] = canvas(Math.max(1, Math.round(layer.width / k)), Math.max(1, Math.round(layer.height / k)));
+  sx.imageSmoothingQuality = 'high';
+  sx.drawImage(layer, 0, 0, sc.width, sc.height);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(sc, 0, 0, layer.width, layer.height);
 }
 
 function toTexture(c, { srgb = true, repeat = null, aniso = 8 } = {}) {
@@ -138,19 +157,21 @@ export function teabagTexture() {
   const r = rng(23);
   // Leaves showing through the paper: torn flakes and dust, denser towards the bottom where they settle,
   // soft-edged because they sit behind the filter paper.
-  ctx.filter = 'blur(0.8px)';
+  // (Drawn sharp on a layer and blurred once as the layer goes on. A filter on each of 2,600 shapes made a
+  // phone's GPU canvas keep a blurred copy per shape: about 3 GB, enough for Android to kill the browser.)
+  const [lc, lx] = canvas(W, Hh);
   for (let i = 0; i < 2600; i++) {
     const y = 100 + Math.pow(r(), 0.75) * 460, x = 70 + r() * 372;
     const s = 2 + r() * 9, a = r() * Math.PI;
-    ctx.save();
-    ctx.translate(x, y); ctx.rotate(a);
-    ctx.fillStyle = `rgba(${78 + r() * 50},${48 + r() * 30},${22 + r() * 18},${0.05 + r() * 0.12})`;
-    ctx.beginPath();
-    ctx.moveTo(-s, 0); ctx.lineTo(-s * 0.2, -s * (0.25 + r() * 0.3)); ctx.lineTo(s, -s * 0.1 * r()); ctx.lineTo(s * 0.3, s * (0.2 + r() * 0.3));
-    ctx.closePath(); ctx.fill();
-    ctx.restore();
+    lx.save();
+    lx.translate(x, y); lx.rotate(a);
+    lx.fillStyle = `rgba(${78 + r() * 50},${48 + r() * 30},${22 + r() * 18},${0.05 + r() * 0.12})`;
+    lx.beginPath();
+    lx.moveTo(-s, 0); lx.lineTo(-s * 0.2, -s * (0.25 + r() * 0.3)); lx.lineTo(s, -s * 0.1 * r()); lx.lineTo(s * 0.3, s * (0.2 + r() * 0.3));
+    lx.closePath(); lx.fill();
+    lx.restore();
   }
-  ctx.filter = 'none';
+  blurOnto(ctx, lc, 0.8);
   // Paper fibres.
   for (let i = 0; i < 1800; i++) {
     ctx.strokeStyle = `rgba(255,255,255,${0.08 + r() * 0.18})`;
@@ -256,18 +277,19 @@ export function windowViewTexture() {
   sky.addColorStop(0, '#cfe3f2'); sky.addColorStop(0.55, '#f6efe0'); sky.addColorStop(1, '#e8dcc0');
   ctx.fillStyle = sky; ctx.fillRect(0, 0, 1024, 768);
   const r = rng(41);
-  ctx.filter = 'blur(18px)';
+  // Out of focus: drawn on a layer, blurred once as it goes on (see teabagTexture).
+  const [lc, lx] = canvas(1024, 768);
   for (let i = 0; i < 40; i++) {
-    ctx.fillStyle = `rgba(${70 + r() * 50},${110 + r() * 50},${60 + r() * 30},${0.35 + r() * 0.35})`;
-    ctx.beginPath(); ctx.arc(r() * 1024, 380 + r() * 400, 60 + r() * 140, 0, Math.PI * 2); ctx.fill();
+    lx.fillStyle = `rgba(${70 + r() * 50},${110 + r() * 50},${60 + r() * 30},${0.35 + r() * 0.35})`;
+    lx.beginPath(); lx.arc(r() * 1024, 380 + r() * 400, 60 + r() * 140, 0, Math.PI * 2); lx.fill();
   }
   for (let i = 0; i < 16; i++) {
-    ctx.fillStyle = `rgba(${230 + r() * 25},${170 + r() * 60},${150 + r() * 60},0.5)`;
-    ctx.beginPath(); ctx.arc(r() * 1024, 520 + r() * 220, 14 + r() * 26, 0, Math.PI * 2); ctx.fill();
+    lx.fillStyle = `rgba(${230 + r() * 25},${170 + r() * 60},${150 + r() * 60},0.5)`;
+    lx.beginPath(); lx.arc(r() * 1024, 520 + r() * 220, 14 + r() * 26, 0, Math.PI * 2); lx.fill();
   }
-  ctx.fillStyle = 'rgba(255,250,235,0.55)';
-  ctx.beginPath(); ctx.arc(760, 150, 160, 0, Math.PI * 2); ctx.fill();
-  ctx.filter = 'none';
+  lx.fillStyle = 'rgba(255,250,235,0.55)';
+  lx.beginPath(); lx.arc(760, 150, 160, 0, Math.PI * 2); lx.fill();
+  blurOnto(ctx, lc, 18);
   return toTexture(c);
 }
 
