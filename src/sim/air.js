@@ -37,6 +37,7 @@ export class AirField {
     this.wakes = [mkWake(), mkWake()];
     this.wake = this.wakes[0];
     this.energy = 0;
+    this.gridVersion = 0;
     this.calm = true;
     this.markSolids();
     this.buildStencil();
@@ -86,7 +87,7 @@ export class AirField {
     box(STATION.x, STATION.z, STATION.baseHalf[0], STATION.baseHalf[2]);
   }
 
-  clear() { this.u.fill(0); this.w.fill(0); this.p.fill(0); for (const wk of this.wakes) wk.active = false; this.energy = 0; this.calm = true; }
+  clear() { this.u.fill(0); this.w.fill(0); this.p.fill(0); for (const wk of this.wakes) wk.active = false; this.energy = 0; this.calm = true; this.gridVersion++; }
 
   get anyWake() { return this.wakes[0].active || this.wakes[1].active; }
 
@@ -115,6 +116,7 @@ export class AirField {
     const A = CFG.air;
     const heli = this.sim.heli;
     this.src.fill(0);
+    let gridForced = false;
     for (const wk of this.wakes) wk.active = false;
     const rotors = heli && heli.thrust > 0.01 ? this.rotorsOf(heli) : [];
     rotors.forEach((rot, ri) => {
@@ -136,12 +138,18 @@ export class AirField {
         const spread = 1 + Math.max(0, wk.len - R) / (3.5 * R);
         wk.vg = 2 * wk.vi / spread;
         wk.footR = R * (0.75 + 0.35 * Math.min(2, wk.len / R));
-        if (wk.hit.y < 0.2) this.inject(wk);
+        if (wk.hit.y < 0.2) gridForced = this.inject(wk) || gridForced;
       } else wk.vg = 0;
     });
-    // Skip the solve entirely when the air is still (no rotor and the last gusts have died away).
-    if (!this.anyWake && this.energy < 0.002) { this.calm = true; return; }
-    this.calm = false;
+    // The wake follows the aircraft everywhere, but this solver covers only the kitchen table. A rotor
+    // in the garden must keep its wake without waking an empty table grid. Retire the final tiny gust
+    // once, then leave both the CPU grid and its uploaded texture alone until air reaches it again.
+    this.calm = !this.anyWake && this.energy < 0.002;
+    if (this.energy < 0.002 && !gridForced) {
+      if (this.energy > 0) { this.u.fill(0); this.w.fill(0); this.p.fill(0); this.energy = 0; this.gridVersion++; }
+      return;
+    }
+    this.gridVersion++;
     this.advect(dt);
     this.project();
     const damp = Math.exp(-dt / A.decay);
@@ -156,6 +164,7 @@ export class AirField {
   }
 
   inject(wk) {
+    let injected = false;
     // Mass source over the footprint so the outwash leaves the ring edge at ~v_g.
     const a = wk.footR;
     const s = 2 * wk.vg / a;
@@ -170,9 +179,11 @@ export class AirField {
         if (r > a) continue;
         const k = j * NX + i;
         this.src[k] += s * (1 - (r / a) ** 4);
+        injected = true;
         if (dh > 0.02) { this.u[k] += wk.dir.x * wk.vg * 0.25; this.w[k] += wk.dir.z * wk.vg * 0.25; }
       }
     }
+    return injected;
   }
 
   advect(dt) {

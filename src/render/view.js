@@ -659,12 +659,15 @@ export class View {
   // Rotor wash presentation: cloth texture, flowers and dust (liquids: LiquidWash).
   updateAir(dt) {
     const air = this.sim.air, d = this.airData, R = 4;
-    for (let k = 0, n = air.nx * air.nz; k < n; k++) {
-      d[k * 4] = Math.max(0, Math.min(255, (air.u[k] / R * 0.5 + 0.5) * 255));
-      d[k * 4 + 1] = Math.max(0, Math.min(255, (air.w[k] / R * 0.5 + 0.5) * 255));
-      d[k * 4 + 2] = 0; d[k * 4 + 3] = 255;
+    if (this.airVersion !== air.gridVersion) {
+      this.airVersion = air.gridVersion;
+      for (let k = 0, n = air.nx * air.nz; k < n; k++) {
+        d[k * 4] = Math.max(0, Math.min(255, (air.u[k] / R * 0.5 + 0.5) * 255));
+        d[k * 4 + 1] = Math.max(0, Math.min(255, (air.w[k] / R * 0.5 + 0.5) * 255));
+        d[k * 4 + 2] = 0; d[k * 4 + 3] = 255;
+      }
+      this.airTex.needsUpdate = true;
     }
-    this.airTex.needsUpdate = true;
     this.clothUniforms.uTime.value = this.time;
     // Flowers nod and shiver in the wash.
     for (const a of (this.animated || [])) {
