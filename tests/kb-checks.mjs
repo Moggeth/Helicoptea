@@ -24,9 +24,9 @@ const check = (name, ok, detail = '') => { results.push({ name, ok, detail }); c
 const near = (a, b, e = 0.02) => Math.abs(a - b) < e;
 
 // ---------------------------------------------------------------- presets
-check('default scheme is keyboard only (nothing changes for existing players)', K.defaultKbLayout().preset === 'keyboard');
+check('default scheme is Battlefield: one click and the mouse flies', K.defaultKbLayout().preset === 'battlefield');
+const km = K.kbMappingOf(K.chooseKbPreset(K.defaultKbLayout(), 'keyboard'));
 const old = { collUp: ['KeyW'], collDown: ['KeyS'], yawLeft: ['KeyA', 'KeyQ'], yawRight: ['KeyD', 'KeyE'], pitchFwd: ['ArrowUp', 'KeyI'], pitchBack: ['ArrowDown', 'KeyK'], rollLeft: ['ArrowLeft', 'KeyJ'], rollRight: ['ArrowRight', 'KeyL'], attach: ['Space', 'Enter'], assist: ['KeyF'], restart: ['KeyR'], pour: ['KeyG'], pump: ['KeyT'], camNext: ['KeyC'], aircraft: ['KeyV'], mark: ['KeyN'] };
-const km = K.kbMappingOf(K.defaultKbLayout());
 check('keyboard only keeps every original key', Object.entries(old).every(([id, keys]) => JSON.stringify(km.keys[id]) === JSON.stringify(keys)));
 for (const id of K.KB_PRESET_ORDER) {
   const m = K.kbMappingOf(K.chooseKbPreset(K.defaultKbLayout(), id));
@@ -53,9 +53,9 @@ m = K.kbMappingOf(r.layout);
 check('replacing a key hands the old one to whoever lost theirs', m.keys.collUp[0] === 'KeyF' && m.keys.assist[0] === 'KeyW', r.notes.join('; '));
 check('remapped layout stays clash-free', K.kbConflicts(m).length === 0);
 r = K.bindKey(K.defaultKbLayout(), 'attach', 'Escape');
-check('Esc cannot be taken', r.layout.preset === 'keyboard' && /kept/.test(r.notes[0] || ''));
+check('Esc cannot be taken', r.layout.preset === 'battlefield' && /kept/.test(r.notes[0] || ''));
 r = K.bindKey(K.defaultKbLayout(), 'attach', 'Digit3');
-check('camera digits cannot be taken', r.layout.preset === 'keyboard');
+check('camera digits cannot be taken', r.layout.preset === 'battlefield');
 r = K.bindKey(K.defaultKbLayout(), 'attach', 'Mouse0');
 check('mouse buttons can be bound', K.kbMappingOf(r.layout).keys.attach.includes('Mouse0'));
 r = K.bindKey(K.bindKey(K.defaultKbLayout(), 'attach', 'KeyO').layout, 'attach', 'KeyY');
@@ -66,7 +66,7 @@ check('pointing both mouse directions at one axis swaps them', m.mouse.x === 'pi
 const bad = K.normalizeKbLayout({ preset: 'custom', custom: { mouse: { x: 'roll', y: 'roll', mode: 'warp' }, keys: { collUp: ['KeyW', 'Escape', 7], collDown: ['KeyW', 'KeyS'] } }, mouseSens: 99 });
 const bm = K.kbMappingOf(bad);
 check('saved layouts load defensively', bm.mouse.y === 'none' && bm.mouse.mode === 'nose' && JSON.stringify(bm.keys.collUp) === '["KeyW"]' && JSON.stringify(bm.keys.collDown) === '["KeyS"]' && bad.mouseSens === 1);
-check('a custom layout without its data falls back', K.normalizeKbLayout({ preset: 'custom' }).preset === 'keyboard');
+check('a custom layout without its data falls back', K.normalizeKbLayout({ preset: 'custom' }).preset === 'battlefield');
 check('key names read like keys', K.keyName('KeyW') === 'W' && K.keyName('ArrowUp') === '↑' && K.keyName('Mouse2') === 'Right mouse' && K.keyName('AltLeft') === 'Left Alt');
 
 // ---------------------------------------------------------------- the real input
@@ -75,6 +75,8 @@ const canvas = { addEventListener(t, f) { cl.set(t, f); }, setPointerCapture() {
 const run = (inp, secs, dt = 1 / 120) => { let c; for (let t = 0; t < secs - 1e-9; t += dt) { nowMs += dt * 1000; c = inp.update(dt); } return { ...c }; };
 const inp = new Input(null);
 inp.bindCanvas(canvas);
+check('a fresh player gets Battlefield', inp.kbLayout.preset === 'battlefield' && inp.mouseFlies);
+inp.chooseKbPreset('keyboard');
 check('keyboard only: the mouse does not fly', !inp.mouseFlies);
 key('KeyW');
 let c = run(inp, 0.5);
@@ -110,9 +112,28 @@ check('invert mouse ↕ reverses pitch', c.pitch < -0.1, c.pitch.toFixed(3));
 inp.setMouseFeel('invertMouse', false);
 run(inp, 0.5);
 inp.assist = true;
-inp.mouseMove(0, -100);
-c = run(inp, 0.5);
-check('nose mode with Assist on: the tilt stays where you leave it', near(c.pitch, 100 / CFG.input.mouse.stickPx, 0.01), c.pitch.toFixed(3));
+inp.mouseMove(0, -200);
+c = run(inp, 1);
+check('nose mode with Assist on: a big tilt stays where you leave it', near(c.pitch, 200 / CFG.input.mouse.stickPx, 0.01), c.pitch.toFixed(3));
+inp.mouseMove(0, 120);
+c = run(inp, 3);
+check('brought back near level, it settles to exactly level by itself', c.pitch === 0, c.pitch.toFixed(4));
+inp.mouseMove(30, -30);
+const c0 = run(inp, 1 / 120);
+c = run(inp, 0.3);
+check('a small tilt eases back gently, not at once', Math.abs(c.roll) < Math.abs(c0.roll) && Math.abs(c.roll) > 0.2 * Math.abs(c0.roll), `${c0.roll.toFixed(3)} -> ${c.roll.toFixed(3)}`);
+c = run(inp, 2);
+check('and reaches level in both axes', c.roll === 0 && c.pitch === 0);
+const rate0 = CFG.input.mouse.levelRate;
+CFG.input.mouse.levelRate = 0;
+inp.mouseMove(0, -40); c = run(inp, 2);
+check('levelling at 0 (tuning board) leaves small tilts alone', near(c.pitch, 40 / CFG.input.mouse.stickPx, 0.005), c.pitch.toFixed(3));
+CFG.input.mouse.levelRate = rate0;
+inp.setKbLayout(inp.kbLayout);
+inp.chooseKbPreset('mouseStick'); canvas.requestPointerLock();
+inp.mouseMove(40, 0); c = run(inp, 2);
+check('the virtual stick never self-levels', near(c.roll, 40 / CFG.input.mouse.stickPx, 0.005), c.roll.toFixed(3));
+inp.chooseKbPreset('battlefield'); canvas.requestPointerLock();
 inp.setKbLayout(inp.kbLayout);   // re-centres
 inp.assist = false;
 
