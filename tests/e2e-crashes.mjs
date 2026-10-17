@@ -45,7 +45,12 @@ const instrument = (page) => H(page, () => {
     const o = fx[k].bind(fx);
     fx[k] = (...a) => { const t = performance.now(); const r = o(...a); acc += performance.now() - t; return r; };
   }
-  const tick = () => { g.__fxMs.push(acc); acc = 0; requestAnimationFrame(tick); };
+  g.__rotorMinScale = 1;
+  const tick = () => {
+    g.__fxMs.push(acc); acc = 0;
+    if (g.sim.state === 'flying' && (g.sim.heli?.dmg.shed & 1)) g.__rotorMinScale = Math.min(g.__rotorMinScale, g.cinema.scale);
+    requestAnimationFrame(tick);
+  };
   requestAnimationFrame(tick);
 });
 const frameStats = (page, ms) => H(page, (ms) => new Promise((resolve) => {
@@ -66,7 +71,7 @@ const state = (page) => H(page, () => {
     sim: g.sim.state, reason: g.sim.crashInfo?.reason, kind: g.sim.crashInfo?.kind, title: document.querySelector('.crash h2').textContent, why: document.querySelector('.crash .why').textContent,
     crashShown: document.querySelector('.crash').classList.contains('show'), shed: h ? h.dmg.shed : -1, tail: h ? h.dmg.tail : null, spin: h ? h.dmg.spin : 0,
     look: M.userData.dmgBits | 0, tailRotorVisible: M.userData.tailRotor ? M.userData.tailRotor.visible : null,
-    fx: g.view.fx.count, smoke: g.view.smoke.count, shards: g.view.crashFx.n, debris: g.view.debris.size, scale: g.cinema.scale,
+    fx: g.view.fx.count, smoke: g.view.smoke.count, shards: g.view.crashFx.n, debris: g.view.debris.size, scale: g.cinema.scale, rotorMinScale: g.__rotorMinScale,
   };
 });
 const waitFor = (page, fn, ms = 6000) => page.waitForFunction(fn, null, { timeout: ms, polling: 16 }).then(() => true).catch(() => false);
@@ -80,7 +85,7 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
   await instrument(page);
   report.perf[`${aircraft}Flying`] = await frameStats(page, 1500);
   for (const [kind, [reason, crashKind]] of Object.entries(KINDS)) {
-    await H(page, (k) => window.__helicoptea.stageCrash(k), kind);
+    await H(page, (k) => { window.__helicoptea.__rotorMinScale = 1; window.__helicoptea.stageCrash(k); }, kind);
     if (kind === 'rotor') {
       // The blades go first: while the airframe falls the lost rotor is hidden and it trails smoke.
       const shed = await waitFor(page, () => { const g = window.__helicoptea; return g.sim.heli && (g.sim.heli.dmg.shed & 1); }, 4000);
@@ -88,7 +93,9 @@ for (const aircraft of ['micro', 'chinook', 'skycrane']) {
       const s = await state(page);
       if (s.sim === 'flying') {
         check(`${aircraft}: rotor strike hides the lost blades as it falls`, shed && (s.look & 1) === 1, JSON.stringify({ look: s.look, shed: s.shed }));
-        check(`${aircraft}: rotor strike throws blade debris and shards before the crash`, s.debris > 0 && s.shards > 10 && s.scale < 1, `${s.debris} blades, ${s.shards} shards, world at ${s.scale.toFixed(2)}x`);
+        // Observe the transient beat inside the page: a later CDP round trip can arrive after its
+        // easing has already returned to 1x. Debris/shard thresholds remain unchanged.
+        check(`${aircraft}: rotor strike throws blade debris and shards before the crash`, s.debris > 0 && s.shards > 10 && s.rotorMinScale < 1, `${s.debris} blades, ${s.shards} shards, slowest observed world scale ${s.rotorMinScale.toFixed(2)}x`);
       } else check(`${aircraft}: rotor strike hides the lost blades as it falls`, false, `already ${s.sim} (${s.reason})`);
       await page.screenshot({ path: `${outDir}/${aircraft}-rotor-shatter.png` });
     }

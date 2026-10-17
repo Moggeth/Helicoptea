@@ -52,14 +52,18 @@ async function installPilot(page) {
   await page.evaluate(() => {
     const H = window.__helicoptea;
     const ap = new H.Autopilot();
-    const orig = H.input.update.bind(H.input);
+    const step = H.sim.step.bind(H.sim);
     window.__pilot = { ap, on: false };
-    H.input.update = (dt) => {
-      const c = orig(dt);
-      if (!window.__pilot.on || !H.sim.heli) return c;
-      const out = ap.update(H.sim.heli, null, null, dt);
-      c.pitch = out.pitch; c.roll = out.roll; c.yaw = out.yaw; c.collective = out.collective;
-      return c;
+    // The test pilot belongs to the physics clock, as it does in headless checks. Updating a PID once
+    // per slow software-rendered frame can crash the fixture before a controller binding is measured.
+    // Real collisions, physics, tank flow and the non-flight input controls remain active.
+    H.sim.step = (c) => {
+      if (window.__pilot.on && H.sim.heli) {
+        const out = ap.update(H.sim.heli, null, null, H.sim.dt);
+        c.pitch = out.pitch; c.roll = out.roll; c.yaw = out.yaw; c.collective = out.collective;
+        H.tuning.shapeCtl(c);
+      }
+      return step(c);
     };
   });
 }

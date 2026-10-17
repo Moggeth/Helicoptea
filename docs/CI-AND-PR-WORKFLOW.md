@@ -66,6 +66,18 @@ status, anonymous HTML/assets and build marker separately after merging.
   Do not switch accounts back and forth across projects. Bind the cached Moggeth token only in this
   child process, verify `gh api user`, and override HTTPS Git's helper for that invocation as described
   in `AGENTS.md`. A prior successful identity check is not sufficient for a long concurrent session.
+- Run `38992859905` passed native capture, roll and Escape release, but its later collective sample
+  remained at the airframe's initial **0.12**. The test issued a second queued Escape, then restarted
+  before the next frame consumed that action. Remove the redundant Escape, require an unpaused fresh
+  flight, and await a real climb input and its release instead of fixed 500 ms samples.
+- The same run's skycrane pad fixture crashed before measuring reel/pump bindings. Its test autopilot
+  was updated once per rendered frame. Update that test PID per physics step, retaining tuning shaping,
+  collisions, tank flow and real non-flight input. On local SwiftShader all **34 behavior checks passed**;
+  the sole remaining sample was an **11.5 fps** advisory. No aircraft parameters or player code changed.
+- A micro rotor crash had **2 blades and 45 shards**, but a later CDP read saw normal **1.00x** world speed
+  after the short slow-motion beat had ended. Observe the minimum scale in the existing in-page frame
+  instrumentation while the damaged aircraft is still flying. Keep debris/shard thresholds unchanged;
+  this tests the actual transient rather than the timing of the automation round trip.
 
 ## Inspection and recovery
 

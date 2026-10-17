@@ -74,20 +74,20 @@ try {
     await page.waitForFunction(() => !window.__helicoptea.input.locked && window.__helicoptea.paused);
     const s = await H(() => ({ locked: window.__helicoptea.input.locked, paused: window.__helicoptea.paused }));
     check('Esc lets go of the mouse and pauses', !s.locked && s.paused, s);
-    await page.keyboard.press('Escape');
-    await sleep(200);
   }
 
   // Spring-return lift with Assist off.
   // The preceding held-bank flight may legitimately have crashed. Restart this independent control
   // case rather than dereferencing a retired airframe or depending on a software GPU's flight pace.
   await H(() => window.__helicoptea.doAction('restart'));
-  await page.waitForFunction(() => window.__helicoptea.sim.heli && window.__helicoptea.sim.state === 'flying');
+  await page.waitForFunction(() => !window.__helicoptea.paused && window.__helicoptea.sim.heli && window.__helicoptea.sim.state === 'flying');
   await H(() => window.__helicoptea.input.centreMouse());
   await H(() => { const g = window.__helicoptea; if (g.sim.assist) g.doAction('assist'); });
-  await page.keyboard.down('w'); await sleep(500);
+  await page.keyboard.down('w');
+  await page.waitForFunction(() => window.__helicoptea.sim.heli?.collective > 0.8, null, { timeout: 5000 });
   const held = await H(() => window.__helicoptea.sim.heli.collective);
-  await page.keyboard.up('w'); await sleep(500);
+  await page.keyboard.up('w');
+  await page.waitForFunction(held => window.__helicoptea.sim.heli && window.__helicoptea.sim.heli.collective < held - 0.05, held, { timeout: 5000 });
   const let_ = await H(() => window.__helicoptea.sim.heli.collective);
   check('Assist off: letting go of W drops the collective back below the climb', let_ < held - 0.05, { held, let: let_ });
   await H(() => window.__helicoptea.input.chooseKbPreset('keyboard'));
