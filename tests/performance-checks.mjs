@@ -8,6 +8,7 @@ import { indexedCopy } from '../src/render/batch.js';
 import { LoadCamera } from '../src/render/cockpitCam.js';
 import { RippleField } from '../src/render/rippleField.js';
 import { resolutionPressure } from '../src/render/resolutionBudget.js';
+import { ShadowCache } from '../src/render/shadowCache.js';
 
 function fieldAt(x, y, z) {
   const heli = { pos: new THREE.Vector3(x, y, z), quat: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0), thrust: CFG.heli.mass * 9.81 };
@@ -149,4 +150,14 @@ test('liquid footprint cache preserves the analytic blade forcing for every airc
     assert.equal(field.texture.version, version);
     field.texture.dispose();
   }
+});
+
+test('changing shadow casters also refreshes the camera key in the same frame', () => {
+  const cache = Object.create(ShadowCache.prototype);
+  let cameraChecks = 0, renders = 0;
+  Object.assign(cache, { light: new THREE.DirectionalLight(), visible: [], stats: {},
+    classify: () => true, cameraMoved: () => { cameraChecks++; return true; } });
+  cache.render(() => { renders++; }, [cache.light], new THREE.Scene(), new THREE.PerspectiveCamera());
+  assert.equal(cameraChecks, 1);
+  assert.equal(renders, 1);
 });

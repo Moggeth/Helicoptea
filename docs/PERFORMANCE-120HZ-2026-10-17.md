@@ -73,6 +73,9 @@ candidate sample overlapped the rotor-wash suite and is retained only as diagnos
 the loading screen's 500 ms dismissal before asserting zero idle DOM mutations; the first work-count
 run caught that one legitimate lifecycle mutation, then passed after the fixture waited for it.
 
+The shadow cache now always updates its camera key when classifying changed casters. Previously the
+short-circuited expression skipped that update and could rebuild static shadows again on the next frame.
+
 Lesson: verify that a computed texture or uniform has a live consumer before optimizing its update
 frequency. The first revision throttled the legacy cloth texture; source inspection then showed the
 whole producer could safely be removed.
