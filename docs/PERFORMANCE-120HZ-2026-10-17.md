@@ -53,6 +53,11 @@ render target, shadow settings and world visibility. The inset's projection matr
 `tests/e2e-performance.mjs` checks idle DOM mutation counts, hidden-aircraft matrix work, kitchen batches,
 all three cockpit switches, and hook-camera culling cadence using work counts instead of GPU-dependent FPS.
 
+Idle strings now keep their geometry version unchanged, letting the shadow cache recognize still
+strings. Motion and pumping-hose radius changes still rebuild the tube; its five ring angles are
+precomputed. Empty particle pools skip integration and rendering; active pools upload the live prefix
+of each buffer rather than their full capacity. These paths have direct geometry/version/range tests.
+
 ## Liquid and refresh budgets
 
 The ripple solver caches each rotor footprint until its position, width or blade count changes. Its

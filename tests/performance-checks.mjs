@@ -9,6 +9,8 @@ import { LoadCamera } from '../src/render/cockpitCam.js';
 import { RippleField } from '../src/render/rippleField.js';
 import { resolutionPressure } from '../src/render/resolutionBudget.js';
 import { ShadowCache } from '../src/render/shadowCache.js';
+import { StringMesh } from '../src/render/strings.js';
+import { ParticlePool } from '../src/render/particles.js';
 
 function fieldAt(x, y, z) {
   const heli = { pos: new THREE.Vector3(x, y, z), quat: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0), thrust: CFG.heli.mass * 9.81 };
@@ -160,4 +162,37 @@ test('changing shadow casters also refreshes the camera key in the same frame', 
   cache.render(() => { renders++; }, [cache.light], new THREE.Scene(), new THREE.PerspectiveCamera());
   assert.equal(cameraChecks, 1);
   assert.equal(renders, 1);
+});
+
+test('unchanged strings keep their vertex versions and shadows; motion and radius still invalidate', () => {
+  const rope = new StringMesh(3, 0.001, new THREE.MeshStandardMaterial());
+  const pts = new Float32Array([0, 0, 0, 0, 0.1, 0, 0.05, 0.2, 0]);
+  rope.update(pts);
+  const position = rope.mesh.geometry.attributes.position, version = position.version;
+  const original = position.array.slice();
+  rope.update(pts);
+  assert.equal(position.version, version);
+  assert.deepEqual(position.array, original);
+  pts[3] += 0.02; rope.update(pts);
+  assert.equal(position.version, version + 1);
+  assert.notDeepEqual(position.array, original);
+  rope.radius *= 2; rope.update(pts);
+  assert.equal(position.version, version + 2);
+});
+
+test('particle pools upload only live prefixes and idle pools do no uploads', () => {
+  const pool = new ParticlePool(100);
+  pool.update(1 / 120);
+  assert.equal(pool.posAttr.version, 0);
+  assert.equal(pool.points.visible, false);
+  pool.emit({ p: [0, 1, 0], v: [0, 0, 0], life: 1, size0: 0.01, col0: [1, 1, 1] });
+  pool.update(1 / 120);
+  assert.equal(pool.points.visible, true);
+  assert.deepEqual(pool.posAttr.updateRanges, [{ start: 0, count: 3 }]);
+  assert.deepEqual(pool.colAttr.updateRanges, [{ start: 0, count: 4 }]);
+  assert.equal(pool.points.geometry.drawRange.count, 1);
+  pool.clear(); const version = pool.posAttr.version;
+  pool.update(1 / 120);
+  assert.equal(pool.posAttr.version, version);
+  assert.equal(pool.points.visible, false);
 });
