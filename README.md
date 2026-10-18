@@ -219,6 +219,10 @@ Patch transfer on Windows: write patches with `git diff --output=<path> --full-i
 with `git apply --3way`. A PowerShell text pipeline changed patch line endings and caused every hunk
 to fail; native Git output applied cleanly apart from one real safe-mode policy conflict. Preserve the
 current `safe` recovery mode (low quality with no neighbourhood), not the older `low` storage value.
+Low on a software GPU is still allowed one real recovery into safe mode; do not transplant the old
+test's "low is final" assumption or mutate debug quality to force a transition. The adapted actual
+recovery, phone-batch and independent keyboard fixtures passed 23/23 on local SwiftShader in 90.78 s;
+the full strict local Node run passed in 158.42 s after the CI adaptation.
 
 **Play online: [helicoptea.vercel.app](https://helicoptea.vercel.app/)** — public, no sign-in required.
 

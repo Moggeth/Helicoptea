@@ -89,22 +89,12 @@ try {
 
   // ---------------------------------------------------------------- lost graphics context
   {
-    let { ctx, page, errors } = await open('&aircraft=micro');
+    const { ctx, page, errors } = await open('&aircraft=micro');
     const auto = await page.evaluate(() => ({ tier: window.__helicoptea.quality.name, software: window.__helicoptea.quality.software }));
     check('Auto uses low on a software GPU and medium on a phone GPU', auto.tier === (auto.software ? 'low' : 'medium'), auto);
-    if (auto.tier === 'low') {
-      // Auto is already at its lowest tier on a software GPU: a loss should explain the failure,
-      // not wait forever for a reload that the game correctly refuses to loop.
-      await page.evaluate(() => window.__helicoptea.renderer.getContext().getExtension('WEBGL_lose_context').loseContext());
-      await page.waitForFunction(() => document.getElementById('error').classList.contains('show'));
-      check('a context loss at the lowest Auto tier explains the failure', await page.evaluate(() => /graphics context was lost/.test(document.getElementById('error-msg').textContent)));
-      check('the lowest Auto tier does not schedule a retry loop', await page.evaluate(() => sessionStorage.getItem('helicoptea.lostReload') !== '1'));
-      await ctx.close();
-      ({ ctx, page, errors } = await open('&aircraft=micro'));
-      // Exercise the medium -> low recovery policy on CI without claiming a physical medium GPU.
-      // The memory case above renders real medium quality; local hardware reaches this tier naturally.
-      await page.evaluate(() => { window.__helicoptea.quality.name = 'medium'; });
-    }
+    // Low is not the lowest policy state any more: touch Auto (including a software GPU) can still
+    // reload once into safe mode, which also removes the neighbourhood. Test that real transition;
+    // do not rewrite debug quality state to emulate the older medium -> low policy.
     await page.tap('#start-btn');
     await page.waitForFunction(() => window.__helicoptea.frames > 30);
     const reloaded = page.waitForEvent('load', { timeout: 120000 });
