@@ -63,14 +63,26 @@ try {
     const before = await H(() => window.__helicoptea.sim.heli.body.rotation());
     let peak = 0;
     for (let i = 0; i < 12; i++) {
-      await page.mouse.move(640 + (i + 1) * 12, 400);
-      peak = Math.max(peak, await H(() => window.__helicoptea.input.ctl.roll));
-      await sleep(16);
+      const frame = await H(() => window.__helicoptea.frames);
+      await page.mouse.move(640 + (i + 1) * 48, 400);
+      await page.waitForFunction(f => window.__helicoptea.frames > f, frame, { timeout: 5000 });
+      const sample = await H(() => ({ roll: window.__helicoptea.input.ctl.roll,
+        tilt: Math.hypot(window.__helicoptea.input.mstick.x, window.__helicoptea.input.mstick.y), zone: window.__helicoptea.CFG.input.mouse.levelZone }));
+      peak = Math.max(peak, sample.roll);
+      if (sample.tilt > sample.zone + 0.08) break;
     }
     check('moving the mouse right banks right', peak > 0.05, { peak });
     check('the stick indicator shows', await page.locator('.mstick:not(.hidden)').isVisible());
+    // Nose mode intentionally self-levels small tilts. Test its hold contract outside that zone,
+    // and compare completed movement with a later sample, not with a possibly stale intermediate peak.
+    const movedAt = await H(() => window.__helicoptea.frames);
+    await page.waitForFunction(f => window.__helicoptea.frames > f + 1, movedAt, { timeout: 5000 });
+    const settled = await H(() => ({ roll: window.__helicoptea.input.ctl.roll,
+      tilt: Math.hypot(window.__helicoptea.input.mstick.x, window.__helicoptea.input.mstick.y), zone: window.__helicoptea.CFG.input.mouse.levelZone }));
+    check('the native gesture reaches outside the self-level zone', settled.tilt > settled.zone + 0.05, settled);
     await sleep(500);
-    check('with Assist on, the mouse tilt stays where you leave it', Math.abs(await H(() => window.__helicoptea.input.ctl.roll) - peak) < 0.02);
+    const heldRoll = await H(() => window.__helicoptea.input.ctl.roll);
+    check('with Assist on, mouse tilt outside the self-level zone stays put', Math.abs(heldRoll - settled.roll) < 0.02, { before: settled.roll, after: heldRoll, tilt: settled.tilt, zone: settled.zone });
     const after = await H(() => window.__helicoptea.sim.heli.body.rotation());
     check('the airframe actually rolled', Math.abs(after.z - before.z) + Math.abs(after.x - before.x) > 1e-3, { before, after });
     await page.screenshot({ path: path.join(out, 'mouse-flying.png') });
