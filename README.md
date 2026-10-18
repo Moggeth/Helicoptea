@@ -235,6 +235,12 @@ For a completed job in an active workflow, `gh run view --log` refuses logs unti
 `gh api repos/<owner>/<repo>/actions/jobs/<job-id>/logs` retrieves that job's log immediately. Download
 its named artifact as well, and collect other matrix failures before pushing another revision.
 
+Post-merge native-input lesson: a hold assertion compared a later roll with the peak of intermediate
+mouse samples, without ensuring the gesture exceeded the configured self-level zone. Small tilts are
+supposed to decay. Use native movement to cross that zone, wait for the final input frames and compare
+the settled roll against its held value with the original 0.02 tolerance. Keep the Node coverage for
+near-level decay and large-tilt hold; do not change flight controls to satisfy the fixture.
+
 **Play online: [helicoptea.vercel.app](https://helicoptea.vercel.app/)** — public, no sign-in required.
 
 Vercel project `helicoptea` in `moggeths-projects` is connected to `Moggeth/Helicoptea`; `master` deploys
