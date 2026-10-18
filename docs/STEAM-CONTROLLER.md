@@ -10,9 +10,10 @@ For a Steam Controller on Windows with its wireless dongle, use **Steam Input** 
    - Rename it to `Helicoptea`.
    - Under **Launch Options**, paste:
      ```
-     --user-data-dir="C:\Users\<you>\AppData\Local\Helicoptea-Chrome" --app=https://helicoptea.vercel.app/
+     --user-data-dir="C:\Users\<you>\AppData\Local\Helicoptea-Chrome" --autoplay-policy=no-user-gesture-required --app=https://helicoptea.vercel.app/
      ```
      Replace `<you>` with your Windows username. The separate profile prevents Chrome from handing the window to an already-running browser process outside this Steam shortcut. Settings and recordings in this profile are separate from your usual browser's local data.
+     `--autoplay-policy=no-user-gesture-required` lets the game make sound when you only use the controller. Browsers start audio only after a mouse click, tap or key press, and controller buttons don't count, so without it the game stays silent until you click the window or press a key. Close every window of this Chrome profile before relaunching, or Chrome ignores the new flag.
 4. In the same Properties window, open **Controller** and set the override to **Enable Steam Input**.
 5. Launch **Helicoptea** from your Steam library. Open the controller layout (Steam button → Controller settings, or the controller icon on the game's page) and choose **Templates → Gamepad**.
 
@@ -24,6 +25,7 @@ Press a controller button with the game focused, then open **Pause → Controlle
 
 That's the Steam Controller as presented by Steam Input. Move the sticks or trackpads and the two dots will follow them. The game requests rumble on crashes, bumps, hooking a bag and splashes. Press **Test rumble** to check the actual device; an advertised actuator does not establish that feedback is felt through this Steam configuration.
 
+- **No sound**: check that the Launch Options include `--autoplay-policy=no-user-gesture-required`, then close that Chrome window and launch again from Steam. Without the flag, one mouse click in the window or any key press starts the sound.
 - **"No controller detected"**: press any button on the controller. Browsers hide controllers until they see input. If it still doesn't appear, the browser wasn't launched through Steam, or Steam Input is off for that entry.
 - **Layout**: the same screen picks a preset (Aim, Aim southpaw, Classic RC Mode 2, RC Mode 1, Arcade) or lets you change any stick or button, with an invert per axis. See the README's Controls section.
 - **"Steam Controller · unknown layout"**: Chrome is reading the raw device instead of the Steam Input pad. Press **Teach it an odd pad…** and follow the prompts (move each stick or trackpad, then press each button). That only tells the game where things are; the layout decides what they do. It is saved for that controller.

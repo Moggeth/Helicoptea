@@ -851,11 +851,12 @@ async function boot() {
     if (IS_TOUCH && wantFullscreen()) setFullscreen(true);
     audio.unlock();
     audio.ui('start');
-    // A gamepad press doesn't count as a user gesture for audio in every browser: offer a one-tap fix.
-    setTimeout(() => {
-      if (!paused && !document.hidden && audio.ctx && audio.ctx.state !== 'running') {
-        hud.toast('Sound is waiting for a click or key press (browser rule)', 5);
-      }
+    // Browsers don't count a gamepad press as a gesture that may start audio, so a controller-only start
+    // stays silent. Keep saying so until a click or key press unlocks it (a 5 s toast was easy to miss).
+    const soundWait = setInterval(() => {
+      if (audio.ctx && audio.ctx.state === 'running') { clearInterval(soundWait); return; }
+      const busy = hud.toastEl.classList.contains('show') && !hud.toastEl.textContent.startsWith('Sound is waiting');
+      if (!paused && !document.hidden && audio.ctx && !busy) hud.toast('Sound is waiting for a click or key press (browsers ignore controllers here)', 1.5);
     }, 400);
     $('loading').classList.add('fade');
     setTimeout(() => $('loading').classList.remove('show'), 500);

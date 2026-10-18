@@ -10,8 +10,8 @@ const executablePath = ['C:/Program Files/Google/Chrome/Application/chrome.exe',
 const browser = await chromium.launch({executablePath, headless:true, args:['--ignore-gpu-blocklist','--use-angle=d3d11','--autoplay-policy=document-user-activation-required']});
 const checks = [], samples = [];
 function check(name,ok,detail='') { checks.push({name,ok,detail}); console.log(`${ok?'PASS':'FAIL'}  ${name} ${typeof detail==='string'?detail:JSON.stringify(detail)}`); }
-async function open({pad=false,touch=false}={}) {
-  const ctx = await browser.newContext({viewport:{width:1280,height:720},hasTouch:touch});
+async function open({pad=false,touch=false,via=browser}={}) {
+  const ctx = await via.newContext({viewport:{width:1280,height:720},hasTouch:touch});
   if(pad) await ctx.addInitScript(() => {
     window.__pad={axes:[0,0,0,0],buttons:Array.from({length:17},()=>({pressed:false,value:0}))};
     navigator.getGamepads=()=>[{...window.__pad,id:'Xbox 360 Controller (XInput STANDARD GAMEPAD)',index:0,connected:true,mapping:'standard',timestamp:performance.now()}];
@@ -116,11 +116,28 @@ try {
     const s=result.value; samples.push({scenario:kind+'-start',...s});
     if(kind==='gamepad') {
       check('controller-only startup explains browser audio restriction',s.audio==='suspended'&&s.toast.includes('Sound is waiting'),s);
+      await page.waitForTimeout(6000);
+      const later=(await cdp.send('Runtime.evaluate',{expression:'({audio:window.__helicoptea.audio.ctx?.state,show:document.querySelector("#hud .toast")?.classList.contains("show"),toast:document.querySelector("#hud .toast")?.textContent})',returnByValue:true,userGesture:false})).result.value;
+      check('controller-only audio notice stays up until sound starts',later.audio==='suspended'&&later.show&&later.toast.includes('Sound is waiting'),later);
       await page.keyboard.press('u'); await page.waitForTimeout(250);
     }
     check(`${kind} startup unlocks audio${kind==='gamepad'?' after a real gesture':''}`,(await state(page)).audio==='running',await state(page));
     check(`${kind} startup has no page errors`,errors.length===0,errors.join(';'));
     await ctx.close();
   }
+  // The Steam shortcut's launch flag (docs/STEAM-CONTROLLER.md) lets a controller-only start make sound.
+  const steam=await chromium.launch({executablePath, headless:true, args:['--ignore-gpu-blocklist','--use-angle=d3d11','--autoplay-policy=no-user-gesture-required']});
+  try {
+    const {ctx,page,errors}=await open({pad:true,via:steam});
+    const cdp=await ctx.newCDPSession(page);
+    await cdp.send('Runtime.evaluate',{expression:'window.__pad.buttons[0]={pressed:true,value:1}',userGesture:false});
+    await cdp.send('Runtime.evaluate',{expression:'new Promise(resolve => { const id=setInterval(()=>{if(window.__helicoptea.started){clearInterval(id);window.__pad.buttons[0]={pressed:false,value:0};resolve();}},20); })',awaitPromise:true,userGesture:false});
+    await page.waitForTimeout(650);
+    const {result}=await cdp.send('Runtime.evaluate',{expression:'({audio:window.__helicoptea.audio.ctx?.state,toast:document.querySelector("#hud .toast")?.textContent||"",activation:navigator.userActivation.hasBeenActive})',returnByValue:true,userGesture:false});
+    samples.push({scenario:'gamepad-steam-flag',...result.value});
+    check('Steam launch flag: controller-only startup plays sound',result.value.audio==='running'&&!result.value.activation&&!result.value.toast.includes('Sound is waiting'),result.value);
+    check('Steam launch flag startup has no page errors',errors.length===0,errors.join(';'));
+    await ctx.close();
+  } finally { await steam.close(); }
 } finally { await browser.close(); fs.writeFileSync(path.join(out,'report.json'),JSON.stringify({base,checks,samples},null,2)); }
 if(checks.some(c=>!c.ok)) process.exitCode=1;
