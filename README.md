@@ -259,6 +259,13 @@ and keep validating the saved JSON. Count the tag's real render integration cloc
 per update), for the original 3.5 s times world speed, instead of sleeping while fewer updates occur.
 Keep the swing/settling angles and local hardware performance requirements unchanged.
 
+Hosted browser jobs now explicitly select SwiftShader through the shared guarded launcher, matching
+local software verification, rather than inheriting each runner's WARP fallback. Run `39096025757`
+showed an intermittent Skycrane pad impact before takeoff on WARP (0.97 m/s contact severity despite
+only 0.05 m/s residual speed); the preceding runs passed that case. This remains a WARP-specific
+finding, not evidence that production flight physics is fixed. Keep all aircraft, input, startup and
+crash assertions running on the explicit backend; neither renderer is physical phone acceptance.
+
 **Play online: [helicoptea.vercel.app](https://helicoptea.vercel.app/)** — public, no sign-in required.
 
 Vercel project `helicoptea` in `moggeths-projects` is connected to `Moggeth/Helicoptea`; `master` deploys

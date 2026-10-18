@@ -3,8 +3,8 @@ name: CI
 # Every master push and pull request: install, build and Node checks alongside every browser suite (tests/e2e*.mjs,
 # listed by a separate dependency-free discovery job, so new suites run without editing this file) in headless Chrome, one
 # suite per parallel job so each gets a whole runner and a slow one cannot starve the rest.
-# Windows matches the machine the suites were written on (Chrome path, ANGLE on D3D11). Hosted runners
-# have no GPU: Chrome falls back to WARP (Basic Render Driver, roughly 10-20 fps here), which the game
+# Windows matches the machine the suites were written on (Chrome path and input behaviour). Hosted runners
+# have no GPU: explicitly use SwiftShader instead of a machine-dependent WARP fallback, which the game
 # detects and answers with its software-renderer tier (low quality, ~100k rendered pixels, longer physics
 # catch-up), so the world runs at real speed. Performance checks (frame rate, ms-per-frame budgets) are
 # reported as warnings here rather than failures; every behaviour check must pass. A suite stuck for 20
@@ -72,6 +72,8 @@ jobs:
       - run: npm run build
       - name: Run ${{ matrix.suite }}
         run: node tests/run-e2e.mjs ${{ matrix.suite }} --perf-advisory --timeout 20
+        env:
+          HELICOPTEA_SOFTWARE_GL: '1'
       - name: Upload screenshots and reports
         if: always()
         uses: actions/upload-artifact@v4
