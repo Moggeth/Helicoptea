@@ -9,11 +9,14 @@ const label = process.env.CAMERA_RATE_LABEL || 'candidate';
 const out = path.resolve('test-results/camera-rate', label);
 fs.mkdirSync(out, { recursive: true });
 const executablePath = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome'].find(p => fs.existsSync(p));
-const browser = await chromium.launch({ executablePath, headless: true, args: ['--ignore-gpu-blocklist', '--use-angle=d3d11', '--disable-frame-rate-limit', '--disable-background-timer-throttling'] });
+let browser;
 const results = [], checks = [];
 const check = (name, ok, detail) => { checks.push({name, ok, detail}); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name} ${detail || ''}`); };
 try {
   for (const fps of [30, 60, 120]) {
+    // Each cap is an independent cold-start case. Reusing a Windows WARP browser after closing a
+    // WebGL context can leave the next page stuck before its module runs (readyState=interactive).
+    browser = await chromium.launch({ executablePath, headless: true, args: ['--ignore-gpu-blocklist', '--use-angle=d3d11', '--disable-frame-rate-limit', '--disable-background-timer-throttling'] });
     const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
     await context.addInitScript(() => {
       window.__pad = { axes: [0, 0, 0, 0], buttons: Array.from({length: 17}, () => ({pressed: false, value: 0})) };
@@ -30,10 +33,10 @@ try {
     } catch(error) {
       const state=await Promise.race([
         page.evaluate(()=>({ready:document.readyState,load:document.getElementById('load-status')?.textContent,
-          app:!!window.__helicoptea,error:document.getElementById('error-msg')?.textContent})).catch(e=>({diagnosticError:e.message})),
+          app:!!window.__helicoptea,error:document.querySelector('#error.show #error-msg')?.textContent})).catch(e=>({diagnosticError:e.message})),
         new Promise(resolve=>setTimeout(()=>resolve({diagnosticTimeout:true}),3000)),
       ]);
-      console.log('INFO camera-rate startup state',JSON.stringify(state));
+      console.log('INFO camera-rate startup state',JSON.stringify({fps,...state,errors}));
       throw error;
     }
     await page.waitForFunction(() => window.__helicoptea?.started);
@@ -90,9 +93,11 @@ try {
       fs.writeFileSync(path.join(out, `${fps}-flight-camera.webm`), Buffer.from(data, 'base64'));
     }
     await context.close();
+    await browser.close();
+    browser = null;
   }
 } finally {
-  await browser.close();
+  await browser?.close();
   fs.writeFileSync(path.join(out, 'report.json'), JSON.stringify({base,label,results,checks}, null, 2));
 }
 if (checks.some(c => !c.ok)) process.exitCode = 1;

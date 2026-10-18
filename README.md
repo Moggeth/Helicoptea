@@ -245,8 +245,12 @@ Replay fixture lesson: waiting for a rendered-frame counter does not guarantee a
 sampled once; a tap can span two polls and trigger D-pad repeat at a slow frame rate. Deliver one
 pressed and released sample around the actual flight/replay pad consumer, retain its original input
 logic, and fail if the consumer never polls. Await replay pause before checking exact two-frame steps.
-The camera-rate startup case waits for navigation commit followed by the game's ready button instead
-of the incidental browser load event; the existing startup deadline and input/rate assertions remain.
+Hosted camera-rate run `39094913073` still stalled on its second context before the game module ran
+(`readyState=interactive`, unchanged loading text, no app or page errors). A generic load-event wait
+was not the cause. Give each independent rate case a fresh browser process instead of reusing WARP
+state after WebGL context teardown. Navigate to commit then await the game's ready button; preserve
+the 120 s hosted startup deadline and all input/rate assertions. Log the cap and actual visible errors
+on startup failure; the hidden error paragraph contains placeholder text even when there is no error.
 
 **Play online: [helicoptea.vercel.app](https://helicoptea.vercel.app/)** — public, no sign-in required.
 
