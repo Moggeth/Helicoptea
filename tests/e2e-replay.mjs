@@ -4,7 +4,7 @@
 // cockpit cameras, replay exactness against the recorded snapshots, notes typed and tagged in the viewer,
 // saving to logs/flights through the server endpoint and loading back, and console errors.
 // Usage: npm run build && npx vite preview --port 4191, then node tests/e2e-replay.mjs [baseUrl]
-import { chromium } from '../tools/browser-safety.mjs';
+import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -30,7 +30,7 @@ async function open(query, viewport = { width: 1600, height: 900 }, opts = {}) {
   page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') logs.push(`[${m.type()}] ${m.text()}`); });
   page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
   await page.goto(base + query, { waitUntil: 'load' });
-  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
   return { ctx, page, logs };
 }
 const start = async (page) => {
@@ -173,12 +173,15 @@ const hold = async (page, keys, ms) => { for (const k of keys) await page.keyboa
   await page.keyboard.press('Escape'); await sleep(200);
   await H(page, () => window.__helicoptea.sim.crash('impact', 2));
   await sleep(1500);
-  await H(page, () => { window.__helicoptea.replay.rate = 1; });
+  // Hold the playhead where the viewer opens it: on a slow software renderer the click and the reads below
+  // can take seconds of wall time, enough at 1x to play past the crash before it is measured.
+  await H(page, () => { window.__helicoptea.replay.rate = 0; });
   await page.click('.crash [data-act=replay]');
   await sleep(400);
   s = await rp(page);
   const crash = await H(page, () => window.__helicoptea.replay.flight.crash());
   check('crash screen opens the replay a few seconds before the crash', s.active && crash && s.wall < crash.wall + 0.5 && s.wall > crash.wall - 6.5, `at ${s.wall.toFixed(2)}, crash ${crash && crash.wall.toFixed(2)}`);
+  await H(page, () => { window.__helicoptea.replay.rate = 1; });
   // Play on through the crash (at 1x; give a slow machine time to get there).
   await page.waitForFunction(() => window.__helicoptea.replay.stage.alive === false, null, { timeout: 30000 }).catch(() => {});
   await sleep(300);

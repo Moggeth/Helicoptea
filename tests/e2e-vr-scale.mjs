@@ -3,7 +3,7 @@
 // reach of the eye, the instrument panel's distance, and dial and display sizes (real dials are 57 to
 // 100 mm; in a headset they should also span a few degrees to stay legible).
 // Usage: node tests/e2e-vr-scale.mjs [baseUrl]
-import { chromium } from '../tools/browser-safety.mjs';
+import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 
 const base = process.argv.find((a) => a.startsWith('http')) || 'http://localhost:4190/';
@@ -23,7 +23,7 @@ for (const ac of ['micro', 'chinook', 'skycrane']) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(`${base}?aircraft=${ac}&view=chase`, { waitUntil: 'load' });
-  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
   await page.click('#start-btn');
   await page.waitForFunction(() => window.__helicoptea?.started);
   await page.keyboard.press('Digit1');

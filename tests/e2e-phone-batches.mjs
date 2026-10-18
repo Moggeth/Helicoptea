@@ -1,5 +1,5 @@
 // Exercise real phone batches across all aircraft/cockpit switches, with the Windows pointer guard.
-import { chromium } from '../tools/browser-safety.mjs';
+import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 const base = process.argv.find(a => a.startsWith('http')) || 'http://localhost:4178/';
 const executablePath = [process.env.CHROME, 'C:/Program Files/Google/Chrome/Application/chrome.exe',
@@ -15,7 +15,7 @@ try {
   const page = await context.newPage();
   page.on('pageerror', e => errors.push(e.message));
   await page.goto(base + '?quality=medium&phone=1&hints=0&lesson=0&record=0');
-  await page.waitForSelector('#start-btn:not(.hidden)', {timeout: 60000});
+  await page.waitForSelector('#start-btn:not(.hidden)', {timeout: startupTimeout(60000)});
   await page.click('#start-btn');
   await page.waitForFunction(() => window.__helicoptea?.started);
   await page.evaluate(() => window.__helicoptea.doAction('skiphints'));

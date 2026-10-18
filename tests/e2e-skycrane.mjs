@@ -4,7 +4,7 @@
 // with real devices: keyboard (T pump, Z/X reel, G doors, double-tap G salvo, double-tap T auto-fill),
 // an emulated standard gamepad (default layout: RT analog doors, LB pump, double LB auto-fill, d-pad reel,
 // double RT salvo; Classic: LT analog pump, both bumpers auto-fill) and touch (Doors, Pump, Hose buttons). Screenshots and a report go to test-results/sky-*.
-import { chromium } from '../tools/browser-safety.mjs';
+import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -32,7 +32,7 @@ async function open(viewport, opts = {}) {
   page.on('console', (m) => logs.push(`[${m.type()}] ${m.text()}`));
   page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
   await page.goto(base + (opts.query || '?worldSpeed=1&aircraft=skycrane'), { waitUntil: 'load' });
-  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
   return { ctx, page, logs };
 }
 const start = async (page) => { await page.click('#start-btn'); await page.waitForFunction(() => window.__helicoptea?.started); await sleep(600); };
@@ -52,14 +52,18 @@ async function installPilot(page) {
   await page.evaluate(() => {
     const H = window.__helicoptea;
     const ap = new H.Autopilot();
-    const orig = H.input.update.bind(H.input);
+    const step = H.sim.step.bind(H.sim);
     window.__pilot = { ap, on: false };
-    H.input.update = (dt) => {
-      const c = orig(dt);
-      if (!window.__pilot.on || !H.sim.heli) return c;
-      const out = ap.update(H.sim.heli, null, null, dt);
-      c.pitch = out.pitch; c.roll = out.roll; c.yaw = out.yaw; c.collective = out.collective;
-      return c;
+    // The test pilot belongs to the physics clock, as it does in headless checks. Updating a PID once
+    // per slow software-rendered frame can crash the fixture before a controller binding is measured.
+    // Real collisions, physics, tank flow and the non-flight input controls remain active.
+    H.sim.step = (c) => {
+      if (window.__pilot.on && H.sim.heli) {
+        const out = ap.update(H.sim.heli, null, null, H.sim.dt);
+        c.pitch = out.pitch; c.roll = out.roll; c.yaw = out.yaw; c.collective = out.collective;
+        H.tuning.shapeCtl(c);
+      }
+      return step(c);
     };
   });
 }

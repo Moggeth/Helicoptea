@@ -1,5 +1,5 @@
 // Editing tuning JSON must not restart a flight, move the camera, or swallow game-key letters.
-import {chromium} from '../tools/browser-safety.mjs';
+import {chromium, startupTimeout} from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 const base=process.argv.find(a=>a.startsWith('http'))||'http://127.0.0.1:4238/';
@@ -13,7 +13,7 @@ try {
   const page=await browser.newPage({viewport:{width:1280,height:720}}), errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   await page.goto(`${base}?quality=low`);
-  await page.locator('#start-btn:not(.hidden)').click();
+  await page.locator('#start-btn:not(.hidden)').click({ timeout: startupTimeout(60000) });
   await page.waitForTimeout(600);
   await page.keyboard.down('w');await page.waitForTimeout(700);await page.keyboard.up('w');
   await page.keyboard.press('Escape');

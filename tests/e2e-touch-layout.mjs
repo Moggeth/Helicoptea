@@ -1,4 +1,4 @@
-import { chromium } from '../tools/browser-safety.mjs';
+import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 const base = process.argv.find((a) => a.startsWith('http')) || 'http://127.0.0.1:4207/';
 const executablePath = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome'].find(fs.existsSync);
@@ -7,7 +7,7 @@ let failed = 0;
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   await page.goto(`${base}?quality=low&record=0`);
-  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
   await page.click('#start-btn'); await page.evaluate(() => window.__helicoptea.doAction('pause'));
   if (process.argv.includes('--source-css')) await page.addStyleTag({ content: fs.readFileSync('src/styles.css', 'utf8') });
   for (const [width, height] of [[320, 568], [390, 844], [430, 932], [844, 390], [1024, 768]]) {

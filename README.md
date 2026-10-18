@@ -172,7 +172,7 @@ memory/recovery, rotor-wash and skycrane browser suites passed. The cockpit suit
 Node/browser run measured 3 fps; run throttled browser timing checks separately from Node physics
 acceptance before diagnosing a regression. Hosted run `39090954942` failed the inherited milk-pouring
 CPU budget at 1.000 ms/step; local acceptance passed with unchanged limits. Keep timing failures visible;
-the independent CI repair in PR #1 covers hosted CPU-budget reporting. Physical S24 acceptance is open.
+the CI follow-up reuses the test infrastructure from PR #1. Physical S24 acceptance is open.
 
 Windows baseline-worktree lesson: archiving a checkout with a `node_modules` junction into another
 checkout can delete the target's installed packages. Use separate dependency installs, or remove the
@@ -197,12 +197,28 @@ suite receives the same output directory, so every suite tests the selected buil
 
 ## Online build and CI
 
-`.github/workflows/ci.yml` runs on every push and pull request (Windows runner, headless Chrome): `npm ci`,
+`.github/workflows/ci.yml` runs on master pushes and pull requests (Windows runner, headless Chrome): `npm ci`,
 the build, `npm run check` and every browser suite. Hosted runners have no GPU, so Chrome renders in
 software; the game detects that (as it would on any GPU-less machine) and switches to its software tier:
 low quality at about 100k rendered pixels with longer physics catch-up, so the world keeps real speed.
-Frame-rate checks show as warnings in the run summary there instead of failing; everything else must pass. Screenshots and reports
-are attached to each run as `test-results`.
+Frame-rate overruns and the five explicit CPU timing budgets show as warnings in the run summary;
+they are never counted as passing assertions. Invalid timings and behavior, counts and memory limits
+still fail. Ordinary local CPU budgets remain strict. Screenshots and reports are attached to each run.
+Native mouse capture runs separately on isolated Linux; Windows always retains the pointer guard.
+The `CI ready` job requires the Node/build job, every browser suite and native Linux acceptance.
+
+Hosted software-renderer startup gets bounded 120 s waits (180 s for the measured Linux native cold
+start); behavioral deadlines remain intact. Input fixtures synchronize with delivered frames and
+physics steps rather than assuming a fast renderer. Use `HELICOPTEA_SOFTWARE_GL=1` in a child process
+with the usual runner to reproduce software rendering locally, retaining the pointer guard. Inspect
+failed job logs before rerunning a matrix; record the failing state and compare against master rather
+than changing gameplay or silently weakening assertions. Build once, freeze the tested revision and
+put later evidence in the PR body to avoid cancelling expensive runs for documentation-only pushes.
+
+Patch transfer on Windows: write patches with `git diff --output=<path> --full-index`, then apply them
+with `git apply --3way`. A PowerShell text pipeline changed patch line endings and caused every hunk
+to fail; native Git output applied cleanly apart from one real safe-mode policy conflict. Preserve the
+current `safe` recovery mode (low quality with no neighbourhood), not the older `low` storage value.
 
 **Play online: [helicoptea.vercel.app](https://helicoptea.vercel.app/)** — public, no sign-in required.
 

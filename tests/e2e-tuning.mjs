@@ -3,7 +3,7 @@
 // work, the mouse-over clips run side by side, every clip flies cleanly at both ends of every range on
 // every aircraft, and the board closes back to the game with nothing logged as an error.
 // Usage: npm run build, serve dist, then node tests/e2e-tuning.mjs [baseUrl] [--headed]
-import { chromium } from '../tools/browser-safety.mjs';
+import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -25,7 +25,7 @@ page.on('pageerror', (e) => errors.push(e.message));
 const H = (fn, arg) => page.evaluate(fn, arg);
 async function boot() {
   await page.goto(base);
-  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
   await page.click('#start-btn');
   await sleep(600);
 }
@@ -47,7 +47,7 @@ const setSlider = (knob, frac) => H(({ knob, frac }) => {
 await boot();
 await H(() => localStorage.removeItem('helicoptea.tuning.v1'));
 await page.reload();
-await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
 await page.click('#start-btn');
 await sleep(600);
 
@@ -135,7 +135,7 @@ check('Chinook changed count shows on its tab', await H(() => document.querySele
 
 // ---------------------------------------------------------------- persistence
 await page.reload();
-await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
 const kept = await H(() => ({ c: window.__helicoptea.tuning.getGlobal('coasting'), r: window.__helicoptea.tuning.getAircraft('chinook', 'rotationRate') }));
 check('tuning survives a reload', kept.c === after.cfg && kept.r === 2, `coasting ×${kept.c}, Chinook rotation ×${kept.r}`);
 await page.click('#start-btn');

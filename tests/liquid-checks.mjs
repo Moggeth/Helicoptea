@@ -1,3 +1,4 @@
+import { performanceBudget } from './performance-budget.mjs';
 // Headless checks for the rotor-wash ripple field on liquids (src/render/rippleField.js): a steady push
 // settles to a dimple of the asked-for scale, volume is conserved (the walls rise), the blade pulses keep
 // it ringing, it stays bounded under long forcing, a single drop rings and echoes, it settles and switches
@@ -65,7 +66,7 @@ for (let i = 0; i < 180; i++) bath.step(1 / 60, [wash({ a: 0.04, ring: 0.035, de
 const b = stats(bath);
 check('the bird bath field is stable', Number.isFinite(b.min) && b.min > -0.004 && b.max < 0.004, `${(b.min * 1000).toFixed(2)} … ${(b.max * 1000).toFixed(2)} mm`);
 
-check('cost per forced frame (40×40, 4 substeps) stays small', ms < 1.0, `${ms.toFixed(3)} ms in Node on this machine`);
+performanceBudget(check, 'cost per forced frame (40×40, 4 substeps) stays small', ms, 1.0, `${ms.toFixed(3)} ms in Node on this machine`);
 
 const failed = results.filter((r) => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} liquid checks passed`);
