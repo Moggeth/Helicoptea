@@ -241,6 +241,13 @@ supposed to decay. Use native movement to cross that zone, wait for the final in
 the settled roll against its held value with the original 0.02 tolerance. Keep the Node coverage for
 near-level decay and large-tilt hold; do not change flight controls to satisfy the fixture.
 
+Replay fixture lesson: waiting for a rendered-frame counter does not guarantee a mock gamepad tap is
+sampled once; a tap can span two polls and trigger D-pad repeat at a slow frame rate. Deliver one
+pressed and released sample around the actual flight/replay pad consumer, retain its original input
+logic, and fail if the consumer never polls. Await replay pause before checking exact two-frame steps.
+The camera-rate startup case waits for navigation commit followed by the game's ready button instead
+of the incidental browser load event; the existing startup deadline and input/rate assertions remain.
+
 **Play online: [helicoptea.vercel.app](https://helicoptea.vercel.app/)** — public, no sign-in required.
 
 Vercel project `helicoptea` in `moggeths-projects` is connected to `Moggeth/Helicoptea`; `master` deploys

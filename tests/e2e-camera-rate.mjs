@@ -22,8 +22,20 @@ try {
     const page = await context.newPage(), errors = [];
     page.setDefaultTimeout(startupTimeout(60000)); // a software renderer can take over 30 s to load and to screenshot
     page.on('pageerror', e => errors.push(e.message));
-    await page.goto(`${base}?fps=${fps}&quality=low&dynres=0&view=chase`);
-    await page.locator('#start-btn:not(.hidden)').click({ timeout: startupTimeout(60000) });
+    // Browser "load" can wait behind software-GL initialization. The start button is the game's own
+    // readiness gate; commit navigation first and retain its existing bounded startup deadline.
+    await page.goto(`${base}?fps=${fps}&quality=low&dynres=0&view=chase`, {waitUntil:'commit'});
+    try {
+      await page.locator('#start-btn:not(.hidden)').click({ timeout: startupTimeout(60000) });
+    } catch(error) {
+      const state=await Promise.race([
+        page.evaluate(()=>({ready:document.readyState,load:document.getElementById('load-status')?.textContent,
+          app:!!window.__helicoptea,error:document.getElementById('error-msg')?.textContent})).catch(e=>({diagnosticError:e.message})),
+        new Promise(resolve=>setTimeout(()=>resolve({diagnosticTimeout:true}),3000)),
+      ]);
+      console.log('INFO camera-rate startup state',JSON.stringify(state));
+      throw error;
+    }
     await page.waitForFunction(() => window.__helicoptea?.started);
     if (process.env.CAMERA_RATE_CAPTURE) await page.evaluate(() => {
       const stream = window.__helicoptea.renderer.domElement.captureStream(30);

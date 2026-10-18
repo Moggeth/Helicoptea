@@ -7,6 +7,7 @@
 import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
+import { tapGamepad } from './gamepad-tap.mjs';
 
 const base = process.argv.find((a) => a.startsWith('http')) || 'http://localhost:4191/';
 const outDir = path.resolve('test-results/replay');
@@ -212,20 +213,10 @@ const hold = async (page, keys, ms) => { for (const k of keys) await page.keyboa
   await page.waitForFunction(() => window.__helicoptea?.started, null, { timeout: 5000 }).catch(() => {});
   if (!(await H(page, () => window.__helicoptea.started))) await start(page);
   await H(page, () => window.__helicoptea.doAction('skiphints'));
-  // A tap the game sees exactly once at any frame rate: the pad is polled once a frame, so the button is
-  // down for one frame, set and cleared from inside the page (a wall-clock hold can span several slow
-  // frames and step twice, or fall between two).
+  // Replay and flight each poll the mocked pad. Deliver one pressed/released sample to the active
+  // consumer rather than relying on RAF callback order, which can turn a tap into a held D-pad repeat.
   const press = async (i) => {
-    await page.evaluate((i) => new Promise((res) => {
-      const g = window.__helicoptea, w0 = performance.now();
-      window.__pad.buttons[i] = { pressed: true, value: 1 };
-      const f0 = g.frames;
-      const tick = () => {
-        if (g.frames > f0 || performance.now() - w0 > 3000) { window.__pad.buttons[i] = { pressed: false, value: 0 }; const f1 = g.frames; const done = () => (g.frames > f1 || performance.now() - w0 > 3000 ? res() : requestAnimationFrame(done)); requestAnimationFrame(done); return; }
-        requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-    }), i);
+    await tapGamepad(page, i);
     await sleep(120);
   };
   await page.evaluate(() => { window.__pad.axes[1] = -0.9; });
@@ -249,6 +240,7 @@ const hold = async (page, keys, ms) => { for (const k of keys) await page.keyboa
   let s = await rp(page);
   check('gamepad: crash screen → Watch replay', s.active && s.aircraft === 'chinook', `focused ${focused}`);
   await press(0); // A: pause
+  await page.waitForFunction(() => window.__helicoptea.replay.active && !window.__helicoptea.replay.playing, null, {timeout:3000});
   s = await rp(page);
   const sA = s.s;
   await press(15); await press(15); // d-pad right: two frames
