@@ -259,12 +259,12 @@ and keep validating the saved JSON. Count the tag's real render integration cloc
 per update), for the original 3.5 s times world speed, instead of sleeping while fewer updates occur.
 Keep the swing/settling angles and local hardware performance requirements unchanged.
 
-Hosted browser jobs now explicitly select SwiftShader through the shared guarded launcher, matching
-local software verification, rather than inheriting each runner's WARP fallback. Run `39096025757`
-showed an intermittent Skycrane pad impact before takeoff on WARP (0.97 m/s contact severity despite
-only 0.05 m/s residual speed); the preceding runs passed that case. This remains a WARP-specific
-finding, not evidence that production flight physics is fixed. Keep all aircraft, input, startup and
-crash assertions running on the explicit backend; neither renderer is physical phone acceptance.
+Run `39096025757` showed an intermittent Skycrane pad impact before takeoff on WARP after the fixture
+captured a large screenshot. Capture that diagnostic after the input/guidance assertions so GPU readback
+does not stall the live physics loop immediately before the tested input. All grounded, takeoff,
+guidance and crash assertions remain. An attempted CI-wide SwiftShader pin (`39096319881`) introduced
+more short-wait input failures on the hosted CPUs; it was reverted. Keep Windows' normal renderer
+selection and use explicit local SwiftShader runs to investigate slow-render timing independently.
 
 **Play online: [helicoptea.vercel.app](https://helicoptea.vercel.app/)** — public, no sign-in required.
 
