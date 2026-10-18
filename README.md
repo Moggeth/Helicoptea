@@ -142,6 +142,8 @@ Click **Start flying** (this also unlocks browser audio).
 npm run build && npm run e2e         # every browser suite (tests/e2e*.mjs) against one preview server; what CI runs
 npm run e2e -- replay static         # only suites whose name contains these words
 npm run check                        # headless physics checks: both aircraft and the house + garden (Node only)
+node --test tests/phone-liquid-checks.mjs # phone batch/shader preservation and analytic liquid forcing
+node tests/perf-liquid.mjs --baseline=4565a40 # seven paired CPU samples per rotor/motion scenario
 node tests/e2e.mjs                   # browser checks against npm run preview (port 4178)
 node tests/e2e.mjs http://localhost:5178/ --headed --only=desktop
 node tests/e2e-chinook.mjs           # Chinook through keyboard, gamepad and touch, picker, breakup
@@ -155,6 +157,13 @@ node tests/e2e-static.mjs            # the build on a plain static host (no /api
 node tests/e2e-tuning.mjs            # flight tuning board: sliders, tabs, persistence, presets, export/import, and every preview clip at both ends of every range
 node tests/e2e-camera.mjs http://localhost:4196/  # camera modes, GoPro, cycling, frame cost per mode
 ```
+
+Phone batching preserves functional shader hooks, live vertex buffers and aircraft instances across
+cockpit switches; unchanged world matrices do not trigger instance uploads. The liquid solver caches
+unchanged rotor footprints and factors blade trigonometry out of its cell loop without changing its
+240 Hz integration. The focused checks above run with `npm run check`. Run the paired benchmark
+serially, outside browser/simulation acceptance runs; it saves raw samples in ignored
+`test-results/perf/liquid-paired.json`. Desktop component timings do not establish physical phone FPS.
 
 A new `tests/e2e-<name>.mjs` joins CI automatically if it takes the base URL as an argument, prints
 `PASS` / `FAIL  <check>` lines and exits non-zero on failure.
