@@ -174,6 +174,11 @@ acceptance before diagnosing a regression. Hosted run `39090954942` failed the i
 CPU budget at 1.000 ms/step; local acceptance passed with unchanged limits. Keep timing failures visible;
 the independent CI repair in PR #1 covers hosted CPU-budget reporting. Physical S24 acceptance is open.
 
+Windows baseline-worktree lesson: archiving a checkout with a `node_modules` junction into another
+checkout can delete the target's installed packages. Use separate dependency installs, or remove the
+verified junction itself before archiving. Source stays in Git; recover ignored dependencies with
+`npm ci`. The focused extraction encountered and recovered from this during baseline cleanup.
+
 A new `tests/e2e-<name>.mjs` joins CI automatically if it takes the base URL as an argument, prints
 `PASS` / `FAIL  <check>` lines and exits non-zero on failure.
 
