@@ -3,7 +3,7 @@
 // ahead, the slim touch top bar, the pause menu fitting the screen, touch wording in the tips, frame rate.
 //
 //   node tests/e2e-touch-sticks.mjs http://127.0.0.1:4199/
-import { chromium } from '../tools/browser-safety.mjs';
+import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 const base = process.argv.find((a) => a.startsWith('http')) || 'http://127.0.0.1:4199/';
 const executablePath = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome'].find(fs.existsSync);
@@ -15,6 +15,18 @@ const check = (name, ok, detail = '') => { total++; if (!ok) failed++; console.l
 async function open(viewport, query = '', { ios = false } = {}) {
   const ua = ios ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' : undefined;
   const ctx = await browser.newContext({ viewport, hasTouch: true, isMobile: true, deviceScaleFactor: 2, userAgent: ua });
+  await ctx.addInitScript(() => {
+    window.__qaTaps = [];
+    for (const type of ['pointerdown', 'pointerup']) document.addEventListener(type, event => {
+      window.__qaTaps.push({ type, action: event.target.closest?.('[data-act]')?.dataset.act, target: event.target.className?.baseVal ?? event.target.className, id: event.pointerId, at: performance.now() });
+      if (window.__qaTaps.length > 30) window.__qaTaps.shift();
+    }, true);
+    document.addEventListener('click', event => {
+      const action = event.target.closest?.('[data-act]')?.dataset.act;
+      if (!action) return;
+      queueMicrotask(() => { window.__qaTaps.push({ action, paused: window.__helicoptea?.paused, at: performance.now() }); if (window.__qaTaps.length > 20) window.__qaTaps.shift(); });
+    }, true);
+  });
   await ctx.addInitScript(() => { try { localStorage.clear(); } catch { /* fresh profile */ } });
   // Record haptics: Android's vibrate() calls, and the iPhone switch's clicks.
   await ctx.addInitScript((ios) => {
@@ -28,13 +40,15 @@ async function open(viewport, query = '', { ios = false } = {}) {
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto(`${base}?record=0&dynres=0${query}`);
-  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 90000 });
+  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(90000) });
   const cdp = await ctx.newCDPSession(page);
-  const touch = (type, touchPoints) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints });
+  const touch = (type, touchPoints, timestamp) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints, ...(timestamp === undefined ? {} : { timestamp }) });
   return { ctx, page, errors, touch };
 }
-// Pointer moves are delivered with the next frame, so let one pass before reading the sticks.
-const T = async (page) => { await sleep(60); return page.evaluate(() => ({ ...window.__helicoptea.input.touch })); };
+// Coalesced pointer moves are delivered with a frame. A fixed 60 ms can fall between software-GPU
+// frames and lose the intermediate leash movement, so wait for the browser's input/frame cycle.
+const inputFrame = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+const T = async (page) => { await inputFrame(page); await sleep(60); return page.evaluate(() => ({ ...window.__helicoptea.input.touch })); };
 const zoneBox = (page, side) => page.locator(`.stick-zone.${side}`).boundingBox();
 
 try {
@@ -75,7 +89,7 @@ try {
 
     // Leash: shove the thumb far past the rim, then come back a little: the stick reverses at once.
     await touch('touchMove', [{ x: lx, y: ly - 260, id: 1 }, { x: rx, y: ry, id: 2 }]);
-    await sleep(60);
+    await inputFrame(page);
     await touch('touchMove', [{ x: lx, y: ly - 260 + 90, id: 1 }, { x: rx, y: ry, id: 2 }]);
     t = await T(page);
     check('the centre follows a thumb past the rim, so pulling back reverses at once', t.collective < -0.3, t);
@@ -87,12 +101,34 @@ try {
     check('the stick ring goes back to its resting spot', base0 === '', base0);
 
     // Double-tap open screen (between the sticks, below the top bar) to look ahead again.
-    await page.evaluate(() => { window.__helicoptea.input.camOrbit.yaw = 1.2; });
+    await page.evaluate(() => { window.__helicoptea.input.camOrbit.yaw = 1.2; window.__helicoptea.input.lastOpenTap = null; });
     const ox = 422, oy = 180;
-    for (let i = 0; i < 2; i++) { await touch('touchStart', [{ x: ox, y: oy, id: 5 }]); await touch('touchEnd', []); await sleep(90); }
-    await sleep(100);
+    // CDP transport can take longer than the double-tap window on a software GPU. Timestamp the
+    // actual gesture (120 ms between taps) instead of measuring renderer/automation round-trip delay.
+    const taps = async (gap) => {
+      const at = Date.now();
+      for (let i = 0; i < 2; i++) {
+        const down = at + i * gap;
+        // Never send future timestamps: subsequent normal taps must remain chronological too.
+        await sleep(Math.max(0, down - Date.now()));
+        await touch('touchStart', [{ x: ox, y: oy, id: 5 }], down / 1000);
+        await sleep(Math.max(0, down + 20 - Date.now()));
+        await touch('touchEnd', [], (down + 20) / 1000);
+      }
+    };
+    await taps(120);
+    await page.waitForFunction(() => window.__helicoptea.input.camOrbit.yaw === 0);
     const orbit = await page.evaluate(() => window.__helicoptea.input.camOrbit.yaw);
     check('double-tap the open screen looks ahead again', orbit === 0, orbit);
+
+    await page.evaluate(() => { window.__helicoptea.input.camOrbit.yaw = 1.2; window.__helicoptea.input.lastOpenTap = null; });
+    await taps(700);
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    check('two separate taps do not recenter the camera', await page.evaluate(() => window.__helicoptea.input.camOrbit.yaw === 1.2));
+
+    // Menu/layout cases do not depend on the preceding flight surviving after the sticks are released.
+    await page.evaluate(() => window.__helicoptea.doAction('restart'));
+    await page.waitForFunction(() => window.__helicoptea.sim.heli && window.__helicoptea.sim.state === 'flying');
 
     // Assist switch top left toggles assist (the old Assist button is gone).
     const a0 = await page.evaluate(() => window.__helicoptea.sim.assist);
@@ -111,7 +147,9 @@ try {
     const stored = await page.evaluate(() => [localStorage.getItem('helicoptea.touchLayout') ?? Object.entries(localStorage).find(([k]) => k.endsWith('touchLayout'))?.[1], getComputedStyle(document.getElementById('touch')).getPropertyValue('--stick-r').trim()]);
     check('layout and size are saved and applied', stored[0] === 'aim' && stored[1] === '84px', stored);
     await page.tap('.overlay [data-act=resume]');
+    await page.waitForFunction(() => !window.__helicoptea.paused);
     await sleep(150);
+    check('the touch Resume button returns to flight', await page.evaluate(() => !window.__helicoptea.paused));
     const R2 = await zoneBox(page, 'right');
     await touch('touchStart', [{ x: R2.x + R2.width * 0.6, y: R2.y + R2.height * 0.6, id: 7 }]);
     await touch('touchMove', [{ x: R2.x + R2.width * 0.6 + 42, y: R2.y + R2.height * 0.6, id: 7 }]);
@@ -121,7 +159,7 @@ try {
     const labels2 = await page.evaluate(() => [...document.querySelectorAll('.stick-label')].map((l) => l.textContent));
     check('stick labels follow the layout', labels2[0] === 'LiftRoll' && labels2[1] === 'PitchTurn', labels2);
 
-    // Help sheet follows the layout.
+    // Help sheet follows the layout; retain the original human-scale gap after the drag gesture.
     await sleep(150);
     await page.tap('.hud-tr [data-act=pause]');
     await page.waitForSelector('.overlay.show .pause', { timeout: 5000 });
@@ -208,6 +246,11 @@ try {
   }
 } catch (err) {
   check('suite completed', false, String(err && err.stack || err));
+  fs.mkdirSync('test-results/touch-sticks', { recursive: true });
+  for (const ctx of browser.contexts()) for (const page of ctx.pages()) {
+    console.log('INFO failure state', JSON.stringify(await page.evaluate(() => ({ paused: window.__helicoptea?.paused, state: window.__helicoptea?.sim.state, overlay: document.querySelector('.overlay.show')?.textContent.slice(0, 400), source: window.__helicoptea?.input.source, taps: window.__qaTaps })).catch(() => ({}))));
+    await page.screenshot({ path: 'test-results/touch-sticks/failure.png', timeout: 5000 }).catch(() => {});
+  }
 } finally {
   await browser.close();
 }

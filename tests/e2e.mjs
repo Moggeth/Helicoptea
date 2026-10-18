@@ -1,7 +1,7 @@
 // End-to-end browser checks using the locally installed Chrome (no browser download).
 // Usage: start the dev server (npm run dev) or preview, then: node tests/e2e.mjs [baseUrl] [--headed]
 // Writes screenshots and a JSON report to test-results/.
-import { chromium } from '../tools/browser-safety.mjs';
+import { chromium, startupTimeout } from '../tools/browser-safety.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -46,6 +46,7 @@ async function open(viewport, opts = {}) {
     navigator.getGamepads = () => (window.__pad.present ? [pad(), null, null, null] : [null, null, null, null]);
   }, opts.gamepad);
   const page = await ctx.newPage();
+  page.setDefaultTimeout(startupTimeout(60000)); // a software renderer can take over 30 s to load and to screenshot
   const logs = [];
   page.on('console', (m) => logs.push(`[${m.type()}] ${m.text()}`));
   page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
@@ -53,7 +54,7 @@ async function open(viewport, opts = {}) {
   const q = opts.query || '';
   const query = opts.defaultSpeed ? q : (q ? q + '&' : '?') + 'worldSpeed=1';
   await page.goto(base + query, { waitUntil: 'load' });
-  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 60000 });
+  await page.waitForSelector('#start-btn:not(.hidden)', { timeout: startupTimeout(60000) });
   return { ctx, page, logs };
 }
 const start = async (page) => { await page.click('#start-btn'); await page.waitForFunction(() => window.__helicoptea?.started); await sleep(600); };
@@ -275,7 +276,21 @@ try {
   // ------------------------------------------------------------ emulated gamepad
   if (!only || only === 'gamepad') {
     const { ctx, page } = await open({ width: 1280, height: 720 }, { gamepad: 'standard' });
-    const press = async (i, hold = 90) => { await page.evaluate((i) => { window.__pad.buttons[i] = { pressed: true, value: 1 }; }, i); await sleep(hold); await page.evaluate((i) => { window.__pad.buttons[i] = { pressed: false, value: 0 }; }, i); await sleep(90); };
+    // A tap the game sees at any frame rate: down for exactly one polled frame, set and cleared from inside
+    // the page (a wall-clock hold can fall between two slow software-renderer frames, or span several).
+    const press = async (i) => {
+      await page.evaluate((i) => new Promise((res) => {
+        const g = window.__helicoptea, w0 = performance.now();
+        window.__pad.buttons[i] = { pressed: true, value: 1 };
+        const f0 = g.frames;
+        const tick = () => {
+          if (g.frames > f0 || performance.now() - w0 > 3000) { window.__pad.buttons[i] = { pressed: false, value: 0 }; const f1 = g.frames; const done = () => (g.frames > f1 || performance.now() - w0 > 3000 ? res() : requestAnimationFrame(done)); requestAnimationFrame(done); return; }
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }), i);
+      await sleep(90);
+    };
     const ui = () => page.evaluate(() => ({ started: window.__helicoptea.started, paused: window.__helicoptea.paused, modal: document.querySelector('.overlay.show:not(#loading)')?.querySelector('h2')?.textContent || null, focus: document.activeElement?.textContent?.trim() || document.activeElement?.tagName }));
     await sleep(300);
     await press(0);

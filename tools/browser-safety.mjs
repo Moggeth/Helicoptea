@@ -1,6 +1,8 @@
 // Headless Chrome can confine the real Windows pointer. All local QA uses this launcher.
 import { chromium as nativeChromium, webkit as nativeWebkit } from 'playwright-core';
 
+export const startupTimeout = (local = 60000) => process.env.GITHUB_ACTIONS === 'true' ? 120000 : local;
+
 export function blockNativePointerLock() {
   Element.prototype.requestPointerLock = function () {
     document.dispatchEvent(new Event('pointerlockerror'));
@@ -8,16 +10,36 @@ export function blockNativePointerLock() {
   };
 }
 
-export function desktopSafeChromium(browserType, platform = process.platform) {
+export function desktopSafeChromium(browserType, platform = process.platform, ci = process.env.GITHUB_ACTIONS === 'true') {
   return {
     async launch(options) {
+      const isChromium = browserType.name?.() !== 'webkit';
+      if (ci && isChromium) {
+        options = { ...options, args: [...new Set([...(options?.args || []), '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'])] };
+      }
+      if (isChromium && process.env.HELICOPTEA_SOFTWARE_GL === '1') {
+        options = { ...options, args: [...(options?.args || []).filter(arg => !arg.startsWith('--use-angle=')), '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] };
+      }
       const browser = await browserType.launch(options);
-      if (platform !== 'win32') return browser;
+      if (platform !== 'win32' && !ci) return browser;
       const guarded = new WeakSet();
       const protect = async (context) => {
         if (guarded.has(context)) return;
         try {
-          await context.addInitScript(blockNativePointerLock);
+          if (platform === 'win32') await context.addInitScript(blockNativePointerLock);
+          // Hosted software renderers take longer to construct the neighbourhood. Keep explicit
+          // behavioural deadlines intact; only Playwright's implicit 30 s action/navigation limit grows.
+          if (ci) {
+            context.setDefaultTimeout(120000);
+            context.setDefaultNavigationTimeout(120000);
+            const diagnose = (page) => {
+              page.on('pageerror', error => console.error(`[browser pageerror] ${page.url()}: ${error.message}`));
+              page.on('crash', () => console.error(`[browser crash] ${page.url()}`));
+              page.on('console', message => { if (message.type() === 'error') console.error(`[browser console] ${page.url()}: ${message.text()}`); });
+            };
+            context.on?.('page', diagnose);
+            for (const page of context.pages?.() || []) diagnose(page);
+          }
           guarded.add(context);
         } catch (error) {
           await context.close();

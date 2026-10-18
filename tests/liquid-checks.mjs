@@ -1,3 +1,4 @@
+import { performanceBudget } from './performance-budget.mjs';
 // Headless checks for the rotor-wash ripple field on liquids (src/render/rippleField.js): a steady push
 // settles to a dimple of the asked-for scale, volume is conserved (the walls rise), the blade pulses keep
 // it ringing, it stays bounded under long forcing, a single drop rings and echoes, it settles and switches
@@ -27,7 +28,14 @@ const s = stats(mug);
 let centre = 0;
 for (let k = 0; k < 40; k++) { mug.step(1 / 60, [wash()]); centre += mug.heightAt(0, 0) / 40; }
 check('a steady wash presses a dimple under the rotor', centre < -0.0002 && centre > -0.004, `mean centre ${(centre * 1000).toFixed(2)} mm`);
-check('volume is conserved: what is pressed down climbs the walls', Math.abs(s.mean) < 1e-7 && s.wall > 0, `mean ${(s.mean * 1e6).toFixed(3)} µm, walls +${(s.wall * 1000).toFixed(2)} mm`);
+// A turbulent wave can put the wall in a trough at this instant, even with exactly conserved volume.
+// Keep the turbulent-volume assertion, but measure wall rise under steady forcing without random kicks.
+const steadyMug = new RippleField(0.0415, 40);
+for (let i = 0; i < 180; i++) steadyMug.step(1 / 60, [wash({ I: 0 })]);
+const steady = stats(steadyMug);
+check('volume is conserved: what is pressed down climbs the walls', Math.abs(s.mean) < 1e-7 && Math.abs(steady.mean) < 1e-7 && steady.wall > 0,
+  `turbulent mean ${(s.mean * 1e6).toFixed(3)} µm, steady walls +${(steady.wall * 1000).toFixed(2)} mm`);
+steadyMug.texture.dispose();
 check('stays bounded under long forcing (within the ±4 mm texture range)', s.min > -0.004 && s.max < 0.004, `${(s.min * 1000).toFixed(2)} … ${(s.max * 1000).toFixed(2)} mm`);
 // The blade pulses keep it moving: the centre height varies frame to frame.
 const hs = [];
@@ -58,7 +66,7 @@ for (let i = 0; i < 180; i++) bath.step(1 / 60, [wash({ a: 0.04, ring: 0.035, de
 const b = stats(bath);
 check('the bird bath field is stable', Number.isFinite(b.min) && b.min > -0.004 && b.max < 0.004, `${(b.min * 1000).toFixed(2)} … ${(b.max * 1000).toFixed(2)} mm`);
 
-check('cost per forced frame (40×40, 4 substeps) stays small', ms < 1.0, `${ms.toFixed(3)} ms in Node on this machine`);
+performanceBudget(check, 'cost per forced frame (40×40, 4 substeps) stays small', ms, 1.0, `${ms.toFixed(3)} ms in Node on this machine`);
 
 const failed = results.filter((r) => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} liquid checks passed`);

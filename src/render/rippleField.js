@@ -43,8 +43,10 @@ export class RippleField {
     this.e = new Float32Array(N);
     this.F = new Float32Array(N);
     this.shape = [new Float32Array(N), new Float32Array(N)];   // per forcing (up to two rotors)
-    this.ang = [new Float32Array(N), new Float32Array(N)];
-    this.lobeW = [new Float32Array(N), new Float32Array(N)];
+    this.lobeCos = [new Float32Array(N), new Float32Array(N)];
+    this.lobeSin = [new Float32Array(N), new Float32Array(N)];
+    this.footprints = [null, null];
+    this.shapeBuilds = 0;
     this.mask = new Uint8Array(N);
     this.cx = new Float32Array(N);
     this.cz = new Float32Array(N);
@@ -89,11 +91,17 @@ export class RippleField {
     const { n, F, mask } = this;
     this.maxDepth = 0;
     this.acc += Math.min(dt, 0.05);
-    // Footprint shape per forcing, once per frame (the wake moves slowly next to 240 Hz substeps).
+    if (this.acc < STEP) return false; // no wave state changed; don't rebuild/encode/upload it
+    // Air updates at 60 Hz. Reuse a footprint across render frames and 240 Hz substeps until its
+    // position, width or blade count actually changes. Time/depth/intensity are applied below.
     const nf = Math.min(2, forcing.length);
     for (let fi = 0; fi < nf; fi++) {
       const f = forcing[fi];
-      const g = this.shape[fi], th = this.ang[fi], lw = this.lobeW[fi];
+      const old = this.footprints[fi];
+      if (old && old.x === f.x && old.z === f.z && old.a === f.a && old.nb === f.nb) continue;
+      this.footprints[fi] = { x: f.x, z: f.z, a: f.a, nb: f.nb };
+      this.shapeBuilds++;
+      const g = this.shape[fi], lc = this.lobeCos[fi], ls = this.lobeSin[fi];
       const a2 = f.a * f.a, reach2 = 6.5 * a2;
       for (let k = 0; k < n * n; k++) {
         g[k] = 0;
@@ -102,8 +110,8 @@ export class RippleField {
         const r2 = dx * dx + dz * dz;
         if (r2 > reach2) continue;
         g[k] = Math.exp(-r2 / a2);
-        th[k] = Math.atan2(dz, dx);
-        lw[k] = 0.6 * Math.min(1, r2 / a2 * 2.5);
+        const angle = f.nb * Math.atan2(dz, dx), weight = 0.6 * Math.min(1, r2 / a2 * 2.5);
+        lc[k] = weight * Math.cos(angle); ls[k] = weight * Math.sin(angle);
       }
     }
     let sub = 0;
@@ -115,13 +123,16 @@ export class RippleField {
       F.fill(0);
       for (let fi = 0; fi < nf; fi++) {
         const f = forcing[fi];
-        const g = this.shape[fi], th = this.ang[fi], lw = this.lobeW[fi];
+        const g = this.shape[fi], lc = this.lobeCos[fi], ls = this.lobeSin[fi];
         const P = this.k * f.depth;              // steady push that settles to depth f.depth
         const pulse = 0.35 * Math.sin(this.t * f.omega * f.nb + f.phase);
         const turn = this.t * f.omega + f.phase;
+        // cos(nb*(angle-turn)) = cos(nb*angle)*cos(nb*turn) + sin(nb*angle)*sin(nb*turn).
+        // Two trig calls per rotor/substep, instead of one for every forced cell.
+        const cosTurn = Math.cos(f.nb * turn), sinTurn = Math.sin(f.nb * turn);
         for (let k = 0; k < n * n; k++) {
           if (g[k] === 0) continue;
-          F[k] -= P * g[k] * (1 + pulse + lw[k] * Math.cos(f.nb * (th[k] - turn)));
+          F[k] -= P * g[k] * (1 + pulse + lc[k] * cosTurn + ls[k] * sinTurn);
         }
         // Turbulent punches: gusts slap random spots, mostly in the core and where the outwash shears
         // across the surface (which may be all the vessel sees when the wake lands beside it).

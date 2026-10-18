@@ -142,6 +142,8 @@ Click **Start flying** (this also unlocks browser audio).
 npm run build && npm run e2e         # every browser suite (tests/e2e*.mjs) against one preview server; what CI runs
 npm run e2e -- replay static         # only suites whose name contains these words
 npm run check                        # headless physics checks: both aircraft and the house + garden (Node only)
+node --test tests/phone-liquid-checks.mjs # phone batch/shader preservation and analytic liquid forcing
+node tests/perf-liquid.mjs --baseline=4565a40 # seven paired CPU samples per rotor/motion scenario
 node tests/e2e.mjs                   # browser checks against npm run preview (port 4178)
 node tests/e2e.mjs http://localhost:5178/ --headed --only=desktop
 node tests/e2e-chinook.mjs           # Chinook through keyboard, gamepad and touch, picker, breakup
@@ -156,6 +158,32 @@ node tests/e2e-tuning.mjs            # flight tuning board: sliders, tabs, persi
 node tests/e2e-camera.mjs http://localhost:4196/  # camera modes, GoPro, cycling, frame cost per mode
 ```
 
+Phone batching preserves functional shader hooks, live vertex buffers and aircraft instances across
+cockpit switches; unchanged world matrices do not trigger instance uploads. The liquid solver caches
+unchanged rotor footprints and factors blade trigonometry out of its cell loop without changing its
+240 Hz integration. The focused checks above run with `npm run check`. Run the paired benchmark
+serially, outside browser/simulation acceptance runs; it saves raw samples in ignored
+`test-results/perf/liquid-paired.json`. Desktop component timings do not establish physical phone FPS.
+
+Focused validation on 18 October 2026: full Node acceptance passed in 200.96 s; the phone-batch,
+memory/recovery, rotor-wash and skycrane browser suites passed. The cockpit suite passed 40/41: its
+4× CPU timing budget remains below target on this desktop. An isolated serial reproduction measured
+18 fps on both unchanged `4565a40` and the focused patch (target >30). The earlier overlapping
+Node/browser run measured 3 fps; run throttled browser timing checks separately from Node physics
+acceptance before diagnosing a regression. Hosted run `39090954942` failed the inherited milk-pouring
+CPU budget at 1.000 ms/step; local acceptance passed with unchanged limits. Keep timing failures visible;
+the CI follow-up reuses the test infrastructure from PR #1. Physical S24 acceptance is open.
+
+Windows baseline-worktree lesson: archiving a checkout with a `node_modules` junction into another
+checkout can delete the target's installed packages. Use separate dependency installs, or remove the
+verified junction itself before archiving. Source stays in Git; recover ignored dependencies with
+`npm ci`. The focused extraction encountered and recovered from this during baseline cleanup.
+
+Liquid-check lesson: an instantaneous turbulent wall height can be negative while total volume is
+conserved. Seed 24 reproduces the same trough on master and the optimized solver. The volume check
+retains turbulent forcing and its original tolerance; wall rise is checked separately with steady
+forcing and no random kicks, so a random wave phase does not fail the assertion.
+
 A new `tests/e2e-<name>.mjs` joins CI automatically if it takes the base URL as an argument, prints
 `PASS` / `FAIL  <check>` lines and exits non-zero on failure.
 
@@ -169,12 +197,43 @@ suite receives the same output directory, so every suite tests the selected buil
 
 ## Online build and CI
 
-`.github/workflows/ci.yml` runs on every push and pull request (Windows runner, headless Chrome): `npm ci`,
+`.github/workflows/ci.yml` runs on master pushes and pull requests (Windows runner, headless Chrome): `npm ci`,
 the build, `npm run check` and every browser suite. Hosted runners have no GPU, so Chrome renders in
 software; the game detects that (as it would on any GPU-less machine) and switches to its software tier:
 low quality at about 100k rendered pixels with longer physics catch-up, so the world keeps real speed.
-Frame-rate checks show as warnings in the run summary there instead of failing; everything else must pass. Screenshots and reports
-are attached to each run as `test-results`.
+Frame-rate overruns and the five explicit CPU timing budgets show as warnings in the run summary;
+they are never counted as passing assertions. Invalid timings and behavior, counts and memory limits
+still fail. Ordinary local CPU budgets remain strict. Screenshots and reports are attached to each run.
+Native mouse capture runs separately on isolated Linux; Windows always retains the pointer guard.
+The `CI ready` job requires the Node/build job, every browser suite and native Linux acceptance.
+Dependency-free suite discovery runs separately, allowing browser and Node checks to overlap while
+the final gate still requires discovery and every validation job. This avoids repeating the full
+Node wait before browser feedback on each fixture repair.
+
+Hosted software-renderer startup gets bounded 120 s waits (180 s for the measured Linux native cold
+start); behavioral deadlines remain intact. Input fixtures synchronize with delivered frames and
+physics steps rather than assuming a fast renderer. Use `HELICOPTEA_SOFTWARE_GL=1` in a child process
+with the usual runner to reproduce software rendering locally, retaining the pointer guard. Inspect
+failed job logs before rerunning a matrix; record the failing state and compare against master rather
+than changing gameplay or silently weakening assertions. Build once, freeze the tested revision and
+put later evidence in the PR body to avoid cancelling expensive runs for documentation-only pushes.
+
+Patch transfer on Windows: write patches with `git diff --output=<path> --full-index`, then apply them
+with `git apply --3way`. A PowerShell text pipeline changed patch line endings and caused every hunk
+to fail; native Git output applied cleanly apart from one real safe-mode policy conflict. Preserve the
+current `safe` recovery mode (low quality with no neighbourhood), not the older `low` storage value.
+Low on a software GPU is still allowed one real recovery into safe mode; do not transplant the old
+test's "low is final" assumption or mutate debug quality to force a transition. The adapted actual
+recovery, phone-batch and independent keyboard fixtures passed 23/23 on local SwiftShader in 90.78 s;
+the full strict local Node run passed in 158.42 s after the CI adaptation.
+
+Hosted run `39091914958` found a startup-hints fixture reading `skidClearance` after the Skycrane had
+crashed while lift was still held. Capture takeoff on the physics clock and engage a test altitude hold
+only after the real W input reaches the existing clearance target; preserve the flight/guidance checks
+and retain a crash trace. All 18 aircraft/frame-cap cases passed on SwiftShader in 64.55 s afterward.
+For a completed job in an active workflow, `gh run view --log` refuses logs until the workflow ends;
+`gh api repos/<owner>/<repo>/actions/jobs/<job-id>/logs` retrieves that job's log immediately. Download
+its named artifact as well, and collect other matrix failures before pushing another revision.
 
 **Play online: [helicoptea.vercel.app](https://helicoptea.vercel.app/)** — public, no sign-in required.
 

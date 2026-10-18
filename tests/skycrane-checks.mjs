@@ -1,3 +1,4 @@
+import { performanceBudget } from './performance-budget.mjs';
 // Headless skycrane checks (part of `npm run check`): the S-64-style tanker's flight model, its snorkel
 // hose (reel, collisions, swinging), the pump that only works with the intake under a surface, the tank's
 // mass and slosh, analog belly doors, the salvo and auto-fill combos, crashes and milk conservation.
@@ -335,7 +336,7 @@ const climb = (sim) => { run(sim, 2.0, () => ({ ...zero(), collective: 1 })); ru
   const t0 = performance.now();
   run(sim, 1, () => ({ ...zero(), doors: 0.5, reel: 0.3 }));
   const ms = (performance.now() - t0) / Math.round(1 / sim.dt);
-  check('physics step cost with hose and stream', ms < 1.2, `${f(ms, 3)} ms per step (${sim.world.bodies.len()} bodies, ${sim.milk.parcels.length} parcels)`);
+  performanceBudget(check, 'physics step cost with hose and stream', ms, 1.2, `${f(ms, 3)} ms per step (${sim.world.bodies.len()} bodies, ${sim.milk.parcels.length} parcels)`);
 }
 
 const failed = results.filter((r) => !r.ok);

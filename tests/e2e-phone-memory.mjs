@@ -61,7 +61,8 @@ const MB = (b) => Math.round(b / 1048576);
 try {
   // ---------------------------------------------------------------- memory while flying
   {
-    const { ctx, page, errors, logs } = await open('&aircraft=micro&view=chase');
+    // Test the actual medium-tier allocation even when Auto correctly selects low on CI's software GPU.
+    const { ctx, page, errors, logs } = await open('&aircraft=micro&view=chase&quality=medium');
     await page.tap('#start-btn');
     await page.waitForFunction(() => window.__helicoptea.frames > 120, null, { timeout: 60000 });
     await sleep(2000);
@@ -76,7 +77,7 @@ try {
       return { tier: h.quality.name, now: T.now, peak: T.peak, contexts: T.contexts, lost: T.lost, programs: h.renderer.info.programs.length, heap: performance.memory?.usedJSHeapSize || 0, budget: window.__helicoptea.gpuBudget?.() };
     });
     const line = logs.find((l) => l.includes('GPU memory')) || '';
-    check('phone gets the medium tier', r.tier === 'medium', r.tier);
+    check('explicit medium tests the phone memory budget at medium quality', r.tier === 'medium', r.tier);
     check('GPU memory in flight stays inside the phone budget (160 MB)', MB(r.now) < 160, `${MB(r.now)} MB live`);
     check('GPU memory peak during load stays inside the phone budget (160 MB)', MB(r.peak) < 160, `${MB(r.peak)} MB peak`);
     check('only the game keeps a WebGL context (the probe is given back)', r.contexts === 2 && r.lost === 1, { contexts: r.contexts, lost: r.lost });
@@ -89,9 +90,14 @@ try {
   // ---------------------------------------------------------------- lost graphics context
   {
     const { ctx, page, errors } = await open('&aircraft=micro');
+    const auto = await page.evaluate(() => ({ tier: window.__helicoptea.quality.name, software: window.__helicoptea.quality.software }));
+    check('Auto uses low on a software GPU and medium on a phone GPU', auto.tier === (auto.software ? 'low' : 'medium'), auto);
+    // Low is not the lowest policy state any more: touch Auto (including a software GPU) can still
+    // reload once into safe mode, which also removes the neighbourhood. Test that real transition;
+    // do not rewrite debug quality state to emulate the older medium -> low policy.
     await page.tap('#start-btn');
     await page.waitForFunction(() => window.__helicoptea.frames > 30);
-    const reloaded = page.waitForEvent('load', { timeout: 30000 });
+    const reloaded = page.waitForEvent('load', { timeout: 120000 });
     await page.evaluate(() => window.__helicoptea.renderer.getContext().getExtension('WEBGL_lose_context').loseContext());
     await reloaded;
     await page.waitForSelector('#start-btn:not(.hidden)', { timeout: 120000 });

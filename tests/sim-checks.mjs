@@ -1,3 +1,4 @@
+import { performanceBudget } from './performance-budget.mjs';
 // Headless physics checks: run with `npm run check`. Drives the real simulation with the same
 // stick inputs a player produces (via a scripted autopilot) and asserts on physical outcomes.
 import * as THREE from 'three';
@@ -300,7 +301,7 @@ const f = (x, d = 3) => Number(x).toFixed(d);
   const t0 = performance.now();
   run(sim, 2);
   const ms = (performance.now() - t0) / (2 / sim.dt);
-  check('physics step cost', ms < 1.0, `${f(ms, 3)} ms per 240 Hz step (${sim.world.bodies.len()} bodies)`);
+  performanceBudget(check, 'physics step cost', ms, 1.0, `${f(ms, 3)} ms per 240 Hz step (${sim.world.bodies.len()} bodies)`);
 }
 
 const failed = results.filter((r) => !r.ok);
