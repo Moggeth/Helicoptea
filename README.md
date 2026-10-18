@@ -252,6 +252,13 @@ state after WebGL context teardown. Navigate to commit then await the game's rea
 the 120 s hosted startup deadline and all input/rate assertions. Log the cap and actual visible errors
 on startup failure; the hidden error paragraph contains placeholder text even when there is no error.
 
+Hosted run `39095337126` passed all camera-rate cases, then exposed two more fixture timing assumptions:
+the tuning export's 5 s download timer included slow click actionability, and the tea tag had only
+0.103 rad of swing after a wall-clock sleep (limit 0.1). Use the bounded CI action deadline for export
+and keep validating the saved JSON. Count the tag's real render integration clock (clamped to 0.05 s
+per update), for the original 3.5 s times world speed, instead of sleeping while fewer updates occur.
+Keep the swing/settling angles and local hardware performance requirements unchanged.
+
 **Play online: [helicoptea.vercel.app](https://helicoptea.vercel.app/)** — public, no sign-in required.
 
 Vercel project `helicoptea` in `moggeths-projects` is connected to `Moggeth/Helicoptea`; `master` deploys

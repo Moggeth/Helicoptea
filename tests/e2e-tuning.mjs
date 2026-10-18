@@ -148,7 +148,9 @@ await sleep(200);
 const sn = await H(() => ({ rr: window.__helicoptea.tuning.getGlobal('rotationRate'), expo: window.__helicoptea.tuning.getGlobal('expo'), shape: window.__helicoptea.tuning.shape(0.5) }));
 check('Snappy acro preset applies', sn.rr === 2 && sn.expo === 0.4, `rotation ×${sn.rr}, expo ${sn.expo}`);
 check('stick shaping is live in the game', sn.shape !== 0.5, `half stick → ${sn.shape.toFixed(3)}`);
-const dl = page.waitForEvent('download', { timeout: 5000 }).catch(() => null);
+// Hosted rendering can spend the old 5 s deadline just making the click actionable. Keep the
+// download under the same bounded CI action deadline; still parse and validate the saved file.
+const dl = page.waitForEvent('download', { timeout: startupTimeout(5000) }).catch(() => null);
 await page.click('[data-act=tuneExport]');
 const d = await dl;
 let exported = null;
