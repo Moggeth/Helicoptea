@@ -165,6 +165,15 @@ unchanged rotor footprints and factors blade trigonometry out of its cell loop w
 serially, outside browser/simulation acceptance runs; it saves raw samples in ignored
 `test-results/perf/liquid-paired.json`. Desktop component timings do not establish physical phone FPS.
 
+Focused validation on 18 October 2026: full Node acceptance passed in 200.96 s; the phone-batch,
+memory/recovery, rotor-wash and skycrane browser suites passed. The cockpit suite passed 40/41: its
+4× CPU timing budget remains below target on this desktop. An isolated serial reproduction measured
+18 fps on both unchanged `4565a40` and the focused patch (target >30). The earlier overlapping
+Node/browser run measured 3 fps; run throttled browser timing checks separately from Node physics
+acceptance before diagnosing a regression. Hosted run `39090954942` failed the inherited milk-pouring
+CPU budget at 1.000 ms/step; local acceptance passed with unchanged limits. Keep timing failures visible;
+the independent CI repair in PR #1 covers hosted CPU-budget reporting. Physical S24 acceptance is open.
+
 A new `tests/e2e-<name>.mjs` joins CI automatically if it takes the base URL as an argument, prints
 `PASS` / `FAIL  <check>` lines and exits non-zero on failure.
 
