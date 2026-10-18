@@ -13,11 +13,29 @@ try{
   const before=await page.evaluate(()=>({step:document.querySelector('.hint .step').textContent,text:document.querySelector('.hint .txt').textContent,grounded:window.__helicoptea.sim.heli.grounded,height:window.__helicoptea.sim.heli.pos.y}));
   check(`${aircraft} cap${fps}: lift instruction remains on pad`,before.step==='1'&&before.grounded,before);
   await page.screenshot({path:path.join(out,`${aircraft}-${fps}-pad.png`)});
+  await page.evaluate(() => {
+    const H=window.__helicoptea, ap=new H.Autopilot(), step=H.sim.step.bind(H.sim);
+    const trace=window.__takeoff={lifted:false,maxClearance:0,crash:null};
+    ap.target.copy(H.sim.heli.pos); ap.yaw=H.sim.heli.heading();
+    // W still performs the takeoff. Once it reaches the existing target, hold there on the physics
+    // clock so a slow CDP read/key-up cannot continue climbing into scenery between observations.
+    H.sim.step=ctl=>{
+      if(trace.lifted&&H.sim.heli){
+        Object.assign(ctl,ap.update(H.sim.heli,null,null,H.sim.dt)); H.tuning.shapeCtl(ctl);
+      }
+      const result=step(ctl), h=H.sim.heli;
+      if(h){
+        trace.maxClearance=Math.max(trace.maxClearance,h.skidClearance);
+        if(!trace.lifted&&h.skidClearance>0.08){trace.lifted=true;ap.target.y=h.pos.y+0.03;}
+      }else trace.crash=H.sim.crashInfo;
+      return result;
+    };
+  });
   await page.keyboard.down('w');
-  await page.waitForFunction(()=>window.__helicoptea.sim.heli.skidClearance>0.08,null,{timeout:10000});
+  await page.waitForFunction(()=>window.__takeoff.lifted||window.__takeoff.crash,null,{timeout:10000});
   await page.keyboard.up('w');await page.waitForTimeout(100);
-  const after=await page.evaluate(()=>({step:document.querySelector('.hint .step').textContent,clearance:window.__helicoptea.sim.heli.skidClearance,state:window.__helicoptea.sim.state}));
-  check(`${aircraft} cap${fps}: takeoff advances guidance`,after.step==='2'&&after.state==='flying',after);
+  const after=await page.evaluate(()=>({step:document.querySelector('.hint .step').textContent,clearance:window.__helicoptea.sim.heli?.skidClearance,state:window.__helicoptea.sim.state,trace:window.__takeoff}));
+  check(`${aircraft} cap${fps}: takeoff advances guidance`,after.step==='2'&&after.state==='flying'&&after.trace.lifted,after);
   check(`${aircraft} cap${fps}: no errors`,errors.length===0,errors);
   await ctx.close();
  }

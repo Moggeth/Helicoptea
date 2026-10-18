@@ -206,6 +206,9 @@ they are never counted as passing assertions. Invalid timings and behavior, coun
 still fail. Ordinary local CPU budgets remain strict. Screenshots and reports are attached to each run.
 Native mouse capture runs separately on isolated Linux; Windows always retains the pointer guard.
 The `CI ready` job requires the Node/build job, every browser suite and native Linux acceptance.
+Dependency-free suite discovery runs separately, allowing browser and Node checks to overlap while
+the final gate still requires discovery and every validation job. This avoids repeating the full
+Node wait before browser feedback on each fixture repair.
 
 Hosted software-renderer startup gets bounded 120 s waits (180 s for the measured Linux native cold
 start); behavioral deadlines remain intact. Input fixtures synchronize with delivered frames and
@@ -223,6 +226,14 @@ Low on a software GPU is still allowed one real recovery into safe mode; do not 
 test's "low is final" assumption or mutate debug quality to force a transition. The adapted actual
 recovery, phone-batch and independent keyboard fixtures passed 23/23 on local SwiftShader in 90.78 s;
 the full strict local Node run passed in 158.42 s after the CI adaptation.
+
+Hosted run `39091914958` found a startup-hints fixture reading `skidClearance` after the Skycrane had
+crashed while lift was still held. Capture takeoff on the physics clock and engage a test altitude hold
+only after the real W input reaches the existing clearance target; preserve the flight/guidance checks
+and retain a crash trace. All 18 aircraft/frame-cap cases passed on SwiftShader in 64.55 s afterward.
+For a completed job in an active workflow, `gh run view --log` refuses logs until the workflow ends;
+`gh api repos/<owner>/<repo>/actions/jobs/<job-id>/logs` retrieves that job's log immediately. Download
+its named artifact as well, and collect other matrix failures before pushing another revision.
 
 **Play online: [helicoptea.vercel.app](https://helicoptea.vercel.app/)** — public, no sign-in required.
 

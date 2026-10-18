@@ -1,7 +1,7 @@
 name: CI
 
-# Every master push and pull request: install, build and the Node checks, then every browser suite (tests/e2e*.mjs,
-# listed by tests/run-e2e.mjs --list, so new suites run without editing this file) in headless Chrome, one
+# Every master push and pull request: install, build and Node checks alongside every browser suite (tests/e2e*.mjs,
+# listed by a separate dependency-free discovery job, so new suites run without editing this file) in headless Chrome, one
 # suite per parallel job so each gets a whole runner and a slow one cannot starve the rest.
 # Windows matches the machine the suites were written on (Chrome path, ANGLE on D3D11). Hosted runners
 # have no GPU: Chrome falls back to WARP (Basic Render Driver, roughly 10-20 fps here), which the game
@@ -24,11 +24,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  discover:
+    name: Discover browser suites
+    runs-on: ubuntu-latest
+    outputs:
+      suites: ${{ steps.list.outputs.suites }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: list
+        shell: bash
+        run: echo "suites=$(node tests/run-e2e.mjs --list)" >> "$GITHUB_OUTPUT"
+
   check:
     runs-on: windows-latest
     timeout-minutes: 20
-    outputs:
-      suites: ${{ steps.list.outputs.suites }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,19 +52,16 @@ jobs:
       - run: npm run check
         env:
           HELICOPTEA_PERF_ADVISORY: '1'
-      - id: list
-        shell: bash
-        run: echo "suites=$(node tests/run-e2e.mjs --list)" >> "$GITHUB_OUTPUT"
 
   browser:
-    needs: check
+    needs: discover
     name: ${{ matrix.suite }}
     runs-on: windows-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        suite: ${{ fromJSON(needs.check.outputs.suites) }}
+        suite: ${{ fromJSON(needs.discover.outputs.suites) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -98,12 +107,13 @@ jobs:
   ready:
     name: CI ready
     if: always()
-    needs: [check, browser, native-mouse]
+    needs: [discover, check, browser, native-mouse]
     runs-on: ubuntu-latest
     steps:
       - name: Require every validation job to succeed
         env:
+          DISCOVER: ${{ needs.discover.result }}
           CHECK: ${{ needs.check.result }}
           BROWSER: ${{ needs.browser.result }}
           NATIVE_MOUSE: ${{ needs.native-mouse.result }}
-        run: test "$CHECK" = success && test "$BROWSER" = success && test "$NATIVE_MOUSE" = success
+        run: test "$DISCOVER" = success && test "$CHECK" = success && test "$BROWSER" = success && test "$NATIVE_MOUSE" = success
