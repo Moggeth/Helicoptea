@@ -89,4 +89,3 @@ test('liquid footprint cache preserves the analytic blade forcing for every airc
     field.texture.dispose();
   }
 });
-
