@@ -179,6 +179,11 @@ checkout can delete the target's installed packages. Use separate dependency ins
 verified junction itself before archiving. Source stays in Git; recover ignored dependencies with
 `npm ci`. The focused extraction encountered and recovered from this during baseline cleanup.
 
+Liquid-check lesson: an instantaneous turbulent wall height can be negative while total volume is
+conserved. Seed 24 reproduces the same trough on master and the optimized solver. The volume check
+retains turbulent forcing and its original tolerance; wall rise is checked separately with steady
+forcing and no random kicks, so a random wave phase does not fail the assertion.
+
 A new `tests/e2e-<name>.mjs` joins CI automatically if it takes the base URL as an argument, prints
 `PASS` / `FAIL  <check>` lines and exits non-zero on failure.
 

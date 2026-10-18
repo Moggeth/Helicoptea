@@ -27,7 +27,14 @@ const s = stats(mug);
 let centre = 0;
 for (let k = 0; k < 40; k++) { mug.step(1 / 60, [wash()]); centre += mug.heightAt(0, 0) / 40; }
 check('a steady wash presses a dimple under the rotor', centre < -0.0002 && centre > -0.004, `mean centre ${(centre * 1000).toFixed(2)} mm`);
-check('volume is conserved: what is pressed down climbs the walls', Math.abs(s.mean) < 1e-7 && s.wall > 0, `mean ${(s.mean * 1e6).toFixed(3)} µm, walls +${(s.wall * 1000).toFixed(2)} mm`);
+// A turbulent wave can put the wall in a trough at this instant, even with exactly conserved volume.
+// Keep the turbulent-volume assertion, but measure wall rise under steady forcing without random kicks.
+const steadyMug = new RippleField(0.0415, 40);
+for (let i = 0; i < 180; i++) steadyMug.step(1 / 60, [wash({ I: 0 })]);
+const steady = stats(steadyMug);
+check('volume is conserved: what is pressed down climbs the walls', Math.abs(s.mean) < 1e-7 && Math.abs(steady.mean) < 1e-7 && steady.wall > 0,
+  `turbulent mean ${(s.mean * 1e6).toFixed(3)} µm, steady walls +${(steady.wall * 1000).toFixed(2)} mm`);
+steadyMug.texture.dispose();
 check('stays bounded under long forcing (within the ±4 mm texture range)', s.min > -0.004 && s.max < 0.004, `${(s.min * 1000).toFixed(2)} … ${(s.max * 1000).toFixed(2)} mm`);
 // The blade pulses keep it moving: the centre height varies frame to frame.
 const hs = [];
