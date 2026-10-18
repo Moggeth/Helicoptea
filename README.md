@@ -241,6 +241,31 @@ supposed to decay. Use native movement to cross that zone, wait for the final in
 the settled roll against its held value with the original 0.02 tolerance. Keep the Node coverage for
 near-level decay and large-tilt hold; do not change flight controls to satisfy the fixture.
 
+Replay fixture lesson: waiting for a rendered-frame counter does not guarantee a mock gamepad tap is
+sampled once; a tap can span two polls and trigger D-pad repeat at a slow frame rate. Deliver one
+pressed and released sample around the actual flight/replay pad consumer, retain its original input
+logic, and fail if the consumer never polls. Await replay pause before checking exact two-frame steps.
+Hosted camera-rate run `39094913073` still stalled on its second context before the game module ran
+(`readyState=interactive`, unchanged loading text, no app or page errors). A generic load-event wait
+was not the cause. Give each independent rate case a fresh browser process instead of reusing WARP
+state after WebGL context teardown. Navigate to commit then await the game's ready button; preserve
+the 120 s hosted startup deadline and all input/rate assertions. Log the cap and actual visible errors
+on startup failure; the hidden error paragraph contains placeholder text even when there is no error.
+
+Hosted run `39095337126` passed all camera-rate cases, then exposed two more fixture timing assumptions:
+the tuning export's 5 s download timer included slow click actionability, and the tea tag had only
+0.103 rad of swing after a wall-clock sleep (limit 0.1). Use the bounded CI action deadline for export
+and keep validating the saved JSON. Count the tag's real render integration clock (clamped to 0.05 s
+per update), for the original 3.5 s times world speed, instead of sleeping while fewer updates occur.
+Keep the swing/settling angles and local hardware performance requirements unchanged.
+
+Run `39096025757` showed an intermittent Skycrane pad impact before takeoff on WARP after the fixture
+captured a large screenshot. Capture that diagnostic after the input/guidance assertions so GPU readback
+does not stall the live physics loop immediately before the tested input. All grounded, takeoff,
+guidance and crash assertions remain. An attempted CI-wide SwiftShader pin (`39096319881`) introduced
+more short-wait input failures on the hosted CPUs; it was reverted. Keep Windows' normal renderer
+selection and use explicit local SwiftShader runs to investigate slow-render timing independently.
+
 **Play online: [helicoptea.vercel.app](https://helicoptea.vercel.app/)** — public, no sign-in required.
 
 Vercel project `helicoptea` in `moggeths-projects` is connected to `Moggeth/Helicoptea`; `master` deploys

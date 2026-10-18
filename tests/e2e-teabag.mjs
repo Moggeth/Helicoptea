@@ -107,7 +107,21 @@ try {
     for (let i = 0; i < 6; i++) { swing = Math.max(swing, (await drawn(page)).swing); await sleep(60); }
     await jink;
     await page.evaluate(() => { window.__P.on = true; });
-    await go(page, 0.0, 0.5, -0.3, 0.3, 3500);
+    await go(page, 0.0, 0.5, -0.3, 0.3, 0);
+    // The tag integrates at most 0.05 s per rendered update. A 3.5 s wall-clock sleep gives it less
+    // settling time on WARP. Count the same integration clock, retaining the nominal world-speed
+    // duration and the original angle assertion. Never advance the game or change the pendulum.
+    await page.evaluate(() => new Promise((resolve, reject) => {
+      const H = window.__helicoptea, view = H.view, original = view.update;
+      let elapsed = 0;
+      const timer = setTimeout(() => { view.update = original; reject(Error('Tag settling clock did not advance within 15 s')); }, 15000);
+      view.update = function(alpha, dt, ...rest) {
+        const result = original.call(this, alpha, dt, ...rest);
+        if (dt > 0) elapsed += Math.min(Math.max(dt, 1e-4), 0.05);
+        if (elapsed >= 3.5 * H.worldSpeed) { clearTimeout(timer); view.update = original; resolve(); }
+        return result;
+      };
+    }));
     const settled = (await drawn(page)).swing;
     check(`${id}: the tag swings when the aircraft jinks, then settles`, swing > 0.05 && settled < 0.1, `swing ${swing.toFixed(2)} rad, then ${settled.toFixed(3)} rad`);
     if (id === 'micro') {
