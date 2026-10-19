@@ -16,7 +16,7 @@ export const SKYCRANE_PARTS = [
   { name: 'engines', pos: [0, 0.029, 0.008], half: [0.014, 0.008, 0.026], mass: 0.016, collide: true },
   { name: 'tailBoom', pos: [0, 0.024, 0.085], half: [0.005, 0.009, 0.035], mass: 0.008, collide: true },
   { name: 'tailPylon', pos: [0, 0.04, 0.123], half: [0.0035, 0.016, 0.009], mass: 0.004, collide: true },
-  { name: 'tank', pos: [0, -0.0155, -0.002], half: [0.0165, 0.0105, 0.0315], mass: 0.012, collide: true },
+  { name: 'tank', pos: [0, -0.0155, 0], half: [0.0165, 0.0105, 0.0315], mass: 0.012, collide: true },
   { name: 'gearNL', pos: [-0.009, -0.034, -0.062], half: [0.0028, 0.007, 0.0045], mass: 0.0015, collide: true, gear: true },
   { name: 'gearNR', pos: [0.009, -0.034, -0.062], half: [0.0028, 0.007, 0.0045], mass: 0.0015, collide: true, gear: true },
   { name: 'gearML', pos: [-0.034, -0.034, 0.032], half: [0.0035, 0.007, 0.006], mass: 0.002, collide: true, gear: true },

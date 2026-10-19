@@ -243,7 +243,7 @@ export const CFG = {
     explosionImpulse: 1.05,
     tank: {
       half: [0.015, 0.009, 0.03],      // interior (m): 32 ml
-      center: [0, -0.0155, -0.002],
+      center: [0, -0.0155, 0],         // on the mast axis, so filling or emptying it does not change the trim
       doorArea: 1.7e-4,                // m^2 with both belly doors fully open (a salvo empties it in about a second)
       doorSlew: 1.4,                   // keyboard/touch: doors open at this rate while held (1/s); a trigger is direct
       doorClose: 4,                    // doors swing shut this fast (1/s)
@@ -254,7 +254,7 @@ export const CFG = {
     },
     hose: {
       segments: 9,
-      anchor: [0.011, -0.025, -0.024], // front right of the tank
+      anchor: [0, -0.025, 0],           // under the mast: its pull (weight, rotor wash, liquid drag) never tips the airframe
       minLength: 0.014,
       maxLength: 0.17,
       startLength: 0.07,

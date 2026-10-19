@@ -449,7 +449,7 @@ export function buildSkycrane(M = skycraneMaterials()) {
   {
     const T = C.tank;
     const W = 0.033, H = 0.021, L = 0.063;
-    const cy = -0.0155, cz = -0.002;
+    const cy = T.center[1], cz = T.center[2];
     const body = new RoundedBoxGeometry(W, H, L, 3, 0.0032);
     add('tank', body, M.orange, 0, cy, cz);
     for (const sx of [-1, 1]) {
@@ -477,7 +477,7 @@ export function buildSkycrane(M = skycraneMaterials()) {
       add('tank', rod(V3(sx * 0.0125, cy - H / 2 - 0.0042, cz - 0.041), V3(sx * 0.0125, cy - H / 2 - 0.0042, cz + 0.037), 0.0009), M.white);
       for (const z of [-0.026, 0, 0.026]) add('tank', rod(V3(sx * 0.0125, cy - H / 2 - 0.0042, cz + z), V3(sx * 0.0125, cy - H / 2, cz + z), 0.0006), M.white);
     }
-    // snorkel socket, front right
+    // snorkel socket, under the mast
     const a = C.hose.anchor;
     add('tank', cyl(0.0032, 0.0028, 0.004, 14), M.darkMetal, a[0], a[1] + 0.002, a[2]);
     add('tank', new THREE.TorusGeometry(0.0029, 0.0006, 8, 16).rotateX(Math.PI / 2), M.alu, a[0], a[1], a[2]);
