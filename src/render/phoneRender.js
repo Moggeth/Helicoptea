@@ -27,6 +27,34 @@ const plain = (m) => m.onBeforeCompile === STOCK_OBC || COSMETIC.test(m.customPr
 const WALK_EVERY = 30;      // frames between walks for new materials
 function releaseArray() { this.array = null; }
 const _box = new THREE.Box3(), _sphere = new THREE.Sphere();
+const _proj = new THREE.Matrix4(), _mat = new THREE.Matrix4(), _frustum = new THREE.Frustum();
+
+// A batch's onBeforeRender. three.js's culls each instance against the camera, then re-uploads the batch's
+// list of instances to draw on every render, even when the list is the same as last time (nearly always:
+// about 100 texture uploads a frame). This culls the same way and uploads the list only when it changed.
+function cullBatch(renderer, scene, camera, geometry) {
+  const index = geometry.getIndex();
+  const bytes = index === null ? 1 : index.array.BYTES_PER_ELEMENT;
+  const info = this._drawInfo, ranges = this._drawRanges, starts = this._multiDrawStarts, counts = this._multiDrawCounts;
+  const tex = this._indirectTexture, ids = tex.image.data;
+  _proj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse).multiply(this.matrixWorld);
+  _frustum.setFromProjectionMatrix(_proj, renderer.coordinateSystem);
+  let count = 0, changed = false;
+  for (let i = 0, l = info.length; i < l; i++) {
+    const d = info[i];
+    if (!d.visible || !d.active) continue;
+    this.getMatrixAt(i, _mat);
+    if (!_frustum.intersectsSphere(this.getBoundingSphereAt(d.geometryIndex, _sphere).applyMatrix4(_mat))) continue;
+    const r = ranges[d.geometryIndex];
+    starts[count] = r.start * bytes;
+    counts[count] = r.count;
+    if (ids[count] !== i) { ids[count] = i; changed = true; }
+    count++;
+  }
+  if (changed || count !== this._multiDrawCount) tex.needsUpdate = true;
+  this._multiDrawCount = count;
+  this._visibilityChanged = false;
+}
 
 // Copied from the original material every frame (cheap: a few hundred numbers in all).
 function syncMaterial(src, dst) {
@@ -170,6 +198,7 @@ export class PhoneRender {
       bm.frustumCulled = false;          // culled per instance instead
       bm.sortObjects = false;            // opaque only: no sorting needed
       bm.matrixAutoUpdate = false;
+      bm.onBeforeRender = cullBatch;
       const ids = new Map();
       try { for (const g of geos) ids.set(g, bm.addGeometry(g)); } catch (err) { console.warn('[Helicoptea] phone batch skipped', err.message); bm.dispose(); mat.dispose(); continue; }
       for (const o of list) {

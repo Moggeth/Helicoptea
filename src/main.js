@@ -35,6 +35,8 @@ import { FpsMeter } from './ui/fpsMeter.js';
 import { ShadowCache } from './render/shadowCache.js';
 import { warmInSteps } from './render/warmup.js';
 import { PhoneRender } from './render/phoneRender.js';
+import { sortOpaqueByProgram } from './render/drawOrder.js';
+import { MatrixUpdater } from './render/matrixUpdate.js';
 import { gpuEstimate } from './render/gpuBudget.js';
 import { AIRCRAFT_ICONS } from './ui/aircraftIcons.js';
 import { warmEverything } from './render/prewarm.js';
@@ -158,6 +160,7 @@ async function boot() {
     $('loading').classList.remove('show'); $('unsupported').classList.add('show'); console.warn('[Helicoptea] renderer failed', err); return;
   }
   renderer.info.autoReset = false; // the AO composer renders several passes per frame; count them all
+  sortOpaqueByProgram(renderer);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -204,6 +207,7 @@ async function boot() {
 
   const scene = new THREE.Scene();
   scene.matrixWorldAutoUpdate = false; // updated once per frame in frame(), before the first render
+  const matrices = new MatrixUpdater(scene);   // ...and only where something moved
   const camera = new THREE.PerspectiveCamera(CFG.camera.fov, innerWidth / innerHeight, 0.01, 420);
   // Viewport size, read once per resize: reading innerWidth/innerHeight inside the frame, after the HUD has
   // touched the DOM, forces a synchronous style and layout pass each time.
@@ -1205,7 +1209,7 @@ async function boot() {
     renderer.shadowMap.needsUpdate = !quality.lite || (renderedFrames & 1) === 0;
     // World matrices once per frame: every renderer.render() of the scene (hook camera, main view, AO
     // normals) would otherwise walk and update the whole scene graph again.
-    scene.updateMatrixWorld();
+    matrices.update();
     phone?.update();
     // The hook camera feeds the cockpit display and, when shown, the inset.
     const looksDown = cam.eff === 'bolt';
@@ -1266,7 +1270,7 @@ async function boot() {
     const out = replay.update(frameDt);
     renderer.info.reset();
     renderer.shadowMap.needsUpdate = true;
-    scene.updateMatrixWorld();
+    matrices.update();
     phone?.update();
     post.render();
     if (out.cockpit) cockpit.render();
@@ -1277,7 +1281,7 @@ async function boot() {
   running = true;
 
   // Expose a tiny handle for console debugging and automated checks.
-  window.__helicoptea = { THREE, freeCam, CFG, perf, phone, gpuBudget, get fpsMeter() { return fpsMeter; }, shadowCache, cam, cycleView, get camMode() { return cam.eff; }, tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, get world() { return kitchen.garden.world; }, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; }, tutorial, flow };
+  window.__helicoptea = { THREE, freeCam, CFG, perf, phone, matrices, gpuBudget, get fpsMeter() { return fpsMeter; }, shadowCache, cam, cycleView, get camMode() { return cam.eff; }, tuning, tuningPanel, tuningKnobs, stageCrash: (kind) => stageCrash(sim, kind), cinema, cloth: kitchen.cloth, get world() { return kitchen.garden.world; }, depth, recorder, replay, flightStore, openReplay, get worldSpeed() { return worldSpeed; }, post, cockpit, fpRig, loadCam, setView, get viewMode() { return fp.mode; }, fp, Autopilot, setAircraft, AIRCRAFT_NAMES, sim, view, camRig, input, audio, renderer, quality, doAction, get frames() { return renderedFrames; }, get paused() { return paused; }, get started() { return started; }, tutorial, flow };
 }
 
 boot().catch((err) => showError('Helicoptea failed to start. Please reload.', err));
