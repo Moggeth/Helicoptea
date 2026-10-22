@@ -32,11 +32,30 @@ const _proj = new THREE.Matrix4(), _mat = new THREE.Matrix4(), _frustum = new TH
 // A batch's onBeforeRender. three.js's culls each instance against the camera, then re-uploads the batch's
 // list of instances to draw on every render, even when the list is the same as last time (nearly always:
 // about 100 texture uploads a frame). This culls the same way and uploads the list only when it changed.
+// Each camera keeps a list of its own: the hook camera's renders would otherwise replace the main view's
+// list and have it uploaded again, twice for every batch, on each of those frames.
+const _views = new WeakMap();   // batch -> WeakMap(camera -> its draw list)
+function viewOf(bm, camera) {
+  let byCam = _views.get(bm);
+  if (!byCam) { byCam = new WeakMap(); _views.set(bm, byCam); bm.__firstView = true; }
+  let v = byCam.get(camera);
+  if (!v) {
+    if (bm.__firstView) { bm.__firstView = false; v = { tex: bm._indirectTexture, starts: bm._multiDrawStarts, counts: bm._multiDrawCounts, count: 0 }; }
+    else {
+      const t = bm._indirectTexture, img = t.image;
+      v = { tex: new THREE.DataTexture(new Uint32Array(img.data.length), img.width, img.height, t.format, t.type), starts: new Int32Array(bm._multiDrawStarts.length), counts: new Int32Array(bm._multiDrawCounts.length), count: 0 };
+    }
+    byCam.set(camera, v);
+  }
+  return v;
+}
 function cullBatch(renderer, scene, camera, geometry) {
   const index = geometry.getIndex();
   const bytes = index === null ? 1 : index.array.BYTES_PER_ELEMENT;
-  const info = this._drawInfo, ranges = this._drawRanges, starts = this._multiDrawStarts, counts = this._multiDrawCounts;
-  const tex = this._indirectTexture, ids = tex.image.data;
+  const v = viewOf(this, camera);
+  this._indirectTexture = v.tex; this._multiDrawStarts = v.starts; this._multiDrawCounts = v.counts;
+  const info = this._drawInfo, ranges = this._drawRanges, starts = v.starts, counts = v.counts;
+  const tex = v.tex, ids = tex.image.data;
   _proj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse).multiply(this.matrixWorld);
   _frustum.setFromProjectionMatrix(_proj, renderer.coordinateSystem);
   let count = 0, changed = false;
@@ -51,8 +70,8 @@ function cullBatch(renderer, scene, camera, geometry) {
     if (ids[count] !== i) { ids[count] = i; changed = true; }
     count++;
   }
-  if (changed || count !== this._multiDrawCount) tex.needsUpdate = true;
-  this._multiDrawCount = count;
+  if (changed || count !== v.count) tex.needsUpdate = true;
+  this._multiDrawCount = v.count = count;
   this._visibilityChanged = false;
 }
 
@@ -263,7 +282,7 @@ export class PhoneRender {
         bm.setColorAt(id, c);
         // Compare doubles with doubles: a Float32 snapshot rounds stationary rotations/translations,
         // making them look changed every frame and repeatedly uploading the instance matrix texture.
-        const mem = { o, bm, id, m: new Float64Array(o.matrixWorld.elements), vis: true, mat: o.material, key: this.matKey(o.material), r: c.r, g: c.g, b: c.b, dead: false };
+        const mem = { o, bm, id, root: scene, m: new Float64Array(o.matrixWorld.elements), vis: true, mat: o.material, key: this.matKey(o.material), r: c.r, g: c.g, b: c.b, dead: false };
         o.layers.set(HIDDEN_LAYER);
         this.members.push(mem);
       }
@@ -277,7 +296,7 @@ export class PhoneRender {
     }
     this.stats.batches = this.batches.length;
     this.stats.members = this.members.length;
-    this.scene = scene;
+    this.scene = this.scene || scene;   // the first (main) scene
   }
 
   // A member that changed material (or anything else batching can't follow) goes back to drawing alone.
@@ -310,10 +329,11 @@ export class PhoneRender {
         }
         this.eject(mem); continue;
       }
-      // Drawn only when it, its material and every ancestor are visible and it is still in the scene.
+      // Drawn only when it, its material and every ancestor are visible and it is still in its scene.
+      const root = mem.root || scene;
       let vis = o.visible && mat.visible, p = o.parent;
-      while (vis && p && p !== scene) { vis = p.visible; p = p.parent; }
-      if (p !== scene) vis = false;
+      while (vis && p && p !== root) { vis = p.visible; p = p.parent; }
+      if (p !== root) vis = false;
       if (vis !== mem.vis) { mem.vis = vis; mem.bm.setVisibleAt(mem.id, vis); }
       if (!vis) continue;
       const c = mat.color;

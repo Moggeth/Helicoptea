@@ -240,7 +240,7 @@ async function boot() {
   // Phones: cheap materials now (so the warm-up below compiles those), batched draws once it is all built.
   // (?phonebatch=0 leaves the draws unbatched, for comparing on a real phone.)
   const phone = quality.phone ? new PhoneRender(renderer, [scene, cockpit.scene], { fill: 6 }) : null;
-  if (phone) { phone.convert(scene); phone.convert(cockpit.scene); if (params.get('phonebatch') !== '0') phone.batch(scene); }
+  if (phone) { phone.convert(scene); phone.convert(cockpit.scene); if (params.get('phonebatch') !== '0') { phone.batch(scene); phone.batch(cockpit.scene); } }
   setProgress(0.78, 'Warming the shaders…');
   await tick();
   // Phones build the programs a few at a time (render/warmup.js): all at once is the long stall that can
