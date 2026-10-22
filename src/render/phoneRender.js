@@ -162,35 +162,90 @@ export class PhoneRender {
   }
 
   // What a batch's shared material must agree on (colour is per instance, so it is left out).
-  matKey(m) {
+  // (anyColours: leave vertex colours out, for grouping: see batch().)
+  matKey(m, anyColours = false) {
     if (m.isMeshBasicMaterial) return `basic|${m.uuid}`;
     if (!(m.isMeshLambertMaterial || m.isMeshPhongMaterial) || m.emissive.getHex() !== 0) return null;   // glowing ones change at runtime
     const id = (t) => (t ? t.uuid : '-');
-    return [m.type, m.isMeshPhongMaterial ? `${m.shininess}|${m.specular.getHexString()}` : '', id(m.map), id(m.normalMap), id(m.bumpMap), id(m.alphaMap), id(m.aoMap), m.side, m.vertexColors, m.flatShading, m.alphaTest, m.fog, m.depthWrite, m.depthTest, m.toneMapped, m.polygonOffset].join('|');
+    return [m.type, m.isMeshPhongMaterial ? `${m.shininess}|${m.specular.getHexString()}` : '', id(m.map), id(m.normalMap), id(m.bumpMap), id(m.alphaMap), id(m.aoMap), m.side, anyColours ? '*' : m.vertexColors, m.flatShading, m.alphaTest, m.fog, m.depthWrite, m.depthTest, m.toneMapped, m.polygonOffset].join('|');
+  }
+
+  // The attributes a batch draws with: for Lambert and Phong, position and normal, and uv where a texture
+  // reads it (colour is dealt with in batch()); for the rest, every attribute the geometry has.
+  layout(o) {
+    const m = o.material, g = o.geometry;
+    if (m.isMeshBasicMaterial) return Object.keys(g.attributes).sort();
+    return ['position', 'normal', ...(m.map || m.alphaMap ? ['uv'] : [])].filter((n) => g.attributes[n]);
   }
 
   // Groups the scene's eligible meshes by material (colour aside) and attribute layout into BatchedMeshes,
   // each with a material of its own (a material shared with a mesh drawn alone would switch shader variant
   // between the two every frame) and each mesh's colour per instance.
+  // Meshes with and without an index, and with and without vertex colours, share a batch: an unindexed
+  // geometry is drawn through an index of its own vertices in order, and one without vertex colours through
+  // white ones (which leave its colour as it was).
   batch(scene, { minMembers = 2 } = {}) {
     scene.updateMatrixWorld();
-    const groups = new Map();
+    const desc = (a) => `${a.itemSize}${a.normalized ? 'n' : ''}${a.array.constructor.name}`;
+    const base = new Map();
     scene.traverse((o) => {
       if (!this.eligible(o)) return;
-      const mk = this.matKey(o.material);
+      const m = o.material, g = o.geometry;
+      const mk = this.matKey(m, !m.isMeshBasicMaterial);
       if (!mk) return;
-      const g = o.geometry;
-      const sig = Object.keys(g.attributes).sort().map((n) => { const a = g.attributes[n]; return `${n}${a.itemSize}${a.normalized ? 'n' : ''}${a.array.constructor.name}`; }).join() + (g.index ? '|i' : '');
-      const key = `${mk}|${sig}`;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(o);
+      // A material with vertex colours on a geometry without them stays apart (it draws black, as it did).
+      if (!m.isMeshBasicMaterial && m.vertexColors && !g.attributes.color) return;
+      const names = this.layout(o);
+      const key = `${mk}|${names.map((n) => n + desc(g.attributes[n])).join()}` + (m.isMeshBasicMaterial && g.index ? '|i' : '');
+      if (!base.has(key)) base.set(key, []);
+      base.get(key).push(o);
     });
-    for (const list of groups.values()) {
+    // Within a group, the vertex-coloured meshes split by how their colours are stored; the others join the
+    // first of those (or make a group of their own when none has colours).
+    const groups = [];
+    for (const list of base.values()) {
+      const byColour = new Map(), plain = [];
+      for (const o of list) {
+        if (o.material.isMeshBasicMaterial || !o.material.vertexColors) { plain.push(o); continue; }
+        const k = desc(o.geometry.attributes.color);
+        if (!byColour.has(k)) byColour.set(k, []);
+        byColour.get(k).push(o);
+      }
+      const coloured = [...byColour.values()];
+      // White in the first coloured format, if it has a plain white (floats, or normalised integers).
+      const fmt = coloured.length ? coloured[0][0].geometry.attributes.color : null;
+      if (fmt && (fmt.array instanceof Float32Array || (fmt.normalized && (fmt.array instanceof Uint8Array || fmt.array instanceof Uint16Array)))) coloured[0].push(...plain);
+      else if (plain.length) groups.push(plain);
+      groups.push(...coloured);
+    }
+    for (const list of groups) {
       if (list.length < minMembers) continue;
-      const geos = [...new Set(list.map((o) => o.geometry))];
+      const lead = list.find((o) => o.material.vertexColors) || list[0];
+      const names = this.layout(lead);
+      const colour = !lead.material.isMeshBasicMaterial && lead.material.vertexColors ? lead.geometry.attributes.color : null;
+      const indexed = list.some((o) => o.geometry.index);
+      // What each geometry is drawn as in the batch: its own arrays, plus white colours and an index where
+      // the batch needs them.
+      const views = new Map();
+      for (const o of list) {
+        const g = o.geometry;
+        if (views.has(g)) continue;
+        const v = new THREE.BufferGeometry(), count = g.attributes.position.count;
+        for (const n of names) v.setAttribute(n, g.attributes[n]);
+        if (colour) {
+          if (o.material.vertexColors) v.setAttribute('color', g.attributes.color);
+          else {
+            const C = colour.array.constructor, white = C === Float32Array ? 1 : 2 ** (8 * C.BYTES_PER_ELEMENT) - 1;
+            v.setAttribute('color', new THREE.BufferAttribute(new C(count * colour.itemSize).fill(white), colour.itemSize, colour.normalized));
+          }
+        }
+        if (g.index) v.setIndex(g.index);
+        else if (indexed) { const ix = new (count > 65535 ? Uint32Array : Uint16Array)(count); for (let i = 0; i < count; i++) ix[i] = i; v.setIndex(new THREE.BufferAttribute(ix, 1)); }
+        views.set(g, v);
+      }
       let verts = 0, idx = 0;
-      for (const g of geos) { verts += g.attributes.position.count; idx += g.index ? g.index.count : 0; }
-      const mat = list[0].material.clone();
+      for (const v of views.values()) { verts += v.attributes.position.count; idx += v.index ? v.index.count : 0; }
+      const mat = lead.material.clone();
       mat.color.set(0xffffff);
       mat.name = `phone-batch:${list[0].material.name || list[0].material.type}`;
       const bm = new THREE.BatchedMesh(list.length, verts, Math.max(idx, 1), mat);
@@ -200,7 +255,7 @@ export class PhoneRender {
       bm.matrixAutoUpdate = false;
       bm.onBeforeRender = cullBatch;
       const ids = new Map();
-      try { for (const g of geos) ids.set(g, bm.addGeometry(g)); } catch (err) { console.warn('[Helicoptea] phone batch skipped', err.message); bm.dispose(); mat.dispose(); continue; }
+      try { for (const [g, v] of views) ids.set(g, bm.addGeometry(v)); } catch (err) { console.warn('[Helicoptea] phone batch skipped', err.message); bm.dispose(); mat.dispose(); continue; }
       for (const o of list) {
         const id = bm.addInstance(ids.get(o.geometry));
         bm.setMatrixAt(id, o.matrixWorld);

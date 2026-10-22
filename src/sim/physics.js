@@ -1,5 +1,8 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
+import { cacheBodyReads } from './rapierCache.js';
+
+cacheBodyReads();
 
 export { RAPIER };
 
