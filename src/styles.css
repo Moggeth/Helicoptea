@@ -520,8 +520,8 @@ body.touch-ui:not(.pad-nav) .panel button:focus-visible, body.touch-ui:not(.pad-
 .touch-btn.doors { background: #f2a35e; }
 .touch-btn.pour.empty { opacity: 0.55; }
 .touch-btn.pump { width: 54px; height: 54px; right: calc(236px + var(--safe-r)); bottom: calc(var(--zone-h) + 4px); background: #f6ede0; }
-.touch-btn.reel-in, .touch-btn.reel-out { width: 58px; height: 36px; border-radius: 12px; left: calc(92px + var(--safe-l)); background: #f6ede0; }
-.touch-btn.reel-in { bottom: calc(var(--zone-h) + 36px); }
+.touch-btn.reel-in, .touch-btn.reel-out { width: 58px; height: 44px; border-radius: 12px; left: calc(92px + var(--safe-l)); background: #f6ede0; }
+.touch-btn.reel-in { bottom: calc(var(--zone-h) + 44px); }
 .touch-btn.reel-out { bottom: calc(var(--zone-h) - 6px); }
 /* Touch top bar: the assist switch, restart, camera and pause. Sound, help and the rest are in Pause. */
 body.touch-ui .hud-tr [data-act=recenter], body.touch-ui .hud-tr .sound-wrap, body.touch-ui .hud-tr [data-act=help], body.touch-ui .mark-btn { display: none; }
@@ -531,8 +531,11 @@ body.touch-ui .icon-btn { width: 44px; height: 44px; }
 body.touch-ui .hud-tr .fs-btn.on { display: grid; }
 /* Prompts and toasts go where the thumbs aren't: top centre between the bars in landscape, just above
    the button row in portrait. They wrap instead of running off a narrow screen. */
-body.touch-ui .prompt { white-space: normal; text-align: center; width: max-content; max-width: min(520px, calc(100vw - 340px - var(--safe-l) - var(--safe-r))); font-size: 13px; padding: 8px 14px; border-radius: 18px; bottom: auto; top: calc(14px + var(--safe-t)); }
+body.touch-ui .prompt { white-space: normal; text-align: center; width: max-content; max-width: min(520px, max(200px, calc(100vw - 464px - 2 * max(var(--safe-l), var(--safe-r))))); font-size: 13px; padding: 8px 14px; border-radius: 18px; bottom: auto; top: calc(14px + var(--safe-t)); }
 body.touch-ui .prompt kbd { margin-right: 3px; }
+/* Thumb-sized tip and lesson buttons. */
+body.touch-ui .hint .skip { min-height: 40px; padding: 4px 8px; }
+body.touch-ui .lesson .ls-end { width: 40px; height: 40px; }
 body.touch-ui .toast { bottom: calc(112px + var(--safe-b)); }
 body.touch-ui .toast { max-width: min(460px, calc(100vw - 32px)); text-align: center; }
 /* Portrait phones: sticks along the bottom, buttons in one row above; a gentle nudge to rotate. */
@@ -543,7 +546,7 @@ body.touch-ui .toast { max-width: min(460px, calc(100vw - 32px)); text-align: ce
   .touch-btn.pour, .touch-btn.doors { right: calc(12px + var(--safe-r) + 2 * var(--cell) + 4px); bottom: calc(var(--row) + 4px); width: calc(var(--cell) - 8px); height: calc(var(--cell) - 8px); }
   .touch-btn.pump { right: calc(12px + var(--safe-r) + 3 * var(--cell) + 2px); bottom: calc(var(--row) + 6px); width: calc(var(--cell) - 12px); height: calc(var(--cell) - 12px); }
   .touch-btn.reel-in, .touch-btn.reel-out { left: calc(12px + var(--safe-l)); width: calc(var(--cell) - 8px); }
-  .touch-btn.reel-in { bottom: calc(var(--row) + 42px); }
+  .touch-btn.reel-in { bottom: calc(var(--row) + 50px); }
   .touch-btn.reel-out { bottom: var(--row); }
   .stick-base { top: 56%; left: calc(40% + var(--safe-l)); }
   .stick-zone.right .stick-base { left: 60%; }

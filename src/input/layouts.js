@@ -75,8 +75,9 @@ const THUMBS_ON_STICKS = {
   doors: [BTN.RT], pump: [BTN.LB], reelIn: [BTN.UP], reelOut: [BTN.DOWN],
 };
 
-// The original layout, exactly as it was (triggers free on the micro heli and Chinook, so they add lift).
-const CLASSIC_BUTTONS = { ...COMMON, attach: [BTN.A], pour: [BTN.RB], look: [], boltCam: [], mark: [BTN.R3], ...TANK };
+// The original layout (triggers free on the micro heli and Chinook, so they add lift), plus LB to hook so
+// the thumbs can stay on the sticks. On the skycrane LB reels the hose in, and A hooks.
+const CLASSIC_BUTTONS = { ...COMMON, attach: [BTN.A, BTN.LB], pour: [BTN.RB], look: [], boltCam: [], mark: [BTN.R3], ...TANK };
 
 export const PRESETS = {
   aim: {
@@ -88,7 +89,7 @@ export const PRESETS = {
     axes: { collective: 'ry', roll: 'rx', pitch: 'ly', yaw: 'lx' }, buttons: THUMBS_ON_STICKS,
   },
   mode2: {
-    name: 'Classic (RC Mode 2)', blurb: 'The original twin-stick layout. Left stick: ↕ lift, ↔ turn. Right stick tilts. Triggers add lift.',
+    name: 'Classic (RC Mode 2)', blurb: 'The original twin-stick layout. Left stick: ↕ lift, ↔ turn. Right stick tilts. Triggers add lift. LB hooks, RB pours.',
     axes: { collective: 'ly', yaw: 'lx', pitch: 'ry', roll: 'rx' }, buttons: CLASSIC_BUTTONS,
   },
   mode1: {
@@ -96,9 +97,10 @@ export const PRESETS = {
     axes: { pitch: 'ly', yaw: 'lx', collective: 'ry', roll: 'rx' }, buttons: THUMBS_ON_STICKS,
   },
   arcade: {
-    name: 'Arcade', blurb: 'Left stick tilts, right stick ↔ turns, the triggers are the throttle (RT up, LT down). On the skycrane the triggers run the tank and lift moves to the right stick ↕.',
+    name: 'Arcade', blurb: 'Left stick tilts, right stick ↔ turns, the triggers are the throttle (RT up, LT down). LB hooks, RB pours. On the skycrane the triggers run the tank and lift moves to the right stick ↕.',
     axes: { pitch: 'ly', roll: 'lx', yaw: 'rx', collective: 'trig' },
-    buttons: { ...COMMON, attach: [BTN.A], pour: [BTN.RB], look: [], boltCam: [BTN.LB], mark: [BTN.R3], ...TANK },
+    // LB hooks, so the bolted camera moves to a right-stick click (that stick only turns here).
+    buttons: { ...COMMON, attach: [BTN.A, BTN.LB], pour: [BTN.RB], look: [], boltCam: [BTN.R3], mark: [], ...TANK },
   },
 };
 export const PRESET_ORDER = ['aim', 'aimSouthpaw', 'mode2', 'mode1', 'arcade'];

@@ -63,7 +63,7 @@ Three cameras, plus the GoPro on a hold. **C** (gamepad **L3** tap, X56 **D**, o
 - **Cockpit**: the pilot's seat (above), locked to the airframe.
 - **Locked chase**: bolted rigidly behind and above the tail, so it rolls and pitches with the airframe; every attitude change and burst of speed reads at once. **Speed feel** (pause menu) lets the arm stretch a little under acceleration and widens the lens with speed; at zero it is perfectly rigid.
 
-Hold **B** (or the right mouse button, gamepad **LT** in the default Aim layout, **LB** in Arcade; any button in Pause → Controller, touch **GoPro**) for the **GoPro**: a camera bolted on a stub arm off the right side of each aircraft, looking straight down past the skid, sponson or tank, with REC, the height readout and a ring on the surface where the lowest load (or the snorkel) would land if you lowered it now. Let go and you are back in your camera. The flight replay keeps its own set (chase, orbit, cockpit, locked, GoPro and tripod).
+Hold **B** (or the right mouse button, gamepad **LT** in the default Aim layout, **R3** in Arcade; any button in Pause → Controller, touch **GoPro**) for the **GoPro**: a camera bolted on a stub arm off the right side of each aircraft, looking straight down past the skid, sponson or tank, with REC, the height readout and a ring on the surface where the lowest load (or the snorkel) would land if you lowered it now. Let go and you are back in your camera. The flight replay keeps its own set (chase, orbit, cockpit, locked, GoPro and tripod).
 
 ## Judging height
 
@@ -288,10 +288,10 @@ connector calls or broaden repository permissions.
 | Roll (tilt sideways) | Arrow keys ← → (or J L) | Left stick ↔ | Right stick ↔ |
 | Collective | W / S | Left stick ↕ | Left stick ↕ |
 | Yaw | A / D (or Q / E) | Right stick ↔ | Left stick ↔ |
-| Hook / release | Space (Chinook: each press hooks the nearest bag or the milk bucket to a free hook; with none in reach it drops them all) | A or RB | Hook button |
+| Hook / release | Space (Chinook: each press hooks the nearest bag or the milk bucket to a free hook; with none in reach it drops them all) | A or RB (Classic and Arcade: A or LB) | Hook button |
 | Pour milk (hold) | G | RT (past half-way) | Pour button (shown while carrying the bucket) |
 | Salvo (latch the bucket valve open) | double-tap G, or Shift+G | two quick RT pulls | double-tap Pour |
-| GoPro, straight down (hold) | B, or the right mouse button | LT (Aim layouts; LB in Arcade) | GoPro button |
+| GoPro, straight down (hold) | B, or the right mouse button | LT (Aim layouts; R3 in Arcade) | GoPro button |
 | Switch aircraft | V (micro, Chinook, skycrane) | Pause menu | Pause menu |
 | Flight Assist | F | Y | Assist switch (top left) |
 | Restart flight | R | Start | ↻ (top right) |
@@ -311,9 +311,9 @@ connector calls or broaden repository permissions.
 |---|---|---|---|
 | **Aim** (default) | ↕ lift, ↔ roll | ↕ pitch, ↔ yaw (aims the nose like a rifle) | RB hook, RT pour, LT bolted camera, LB mark |
 | Aim, southpaw | ↕ pitch, ↔ yaw | ↕ lift, ↔ roll | as Aim |
-| Classic (RC Mode 2) | ↕ lift, ↔ yaw | ↕ pitch, ↔ roll | the original: RB pour, triggers add lift, skycrane LT pump and LB / RB reel |
+| Classic (RC Mode 2) | ↕ lift, ↔ yaw | ↕ pitch, ↔ roll | the original plus LB hook: RB pour, triggers add lift, skycrane LT pump and LB / RB reel |
 | RC Mode 1 | ↕ pitch, ↔ yaw | ↕ lift, ↔ roll | as Aim |
-| Arcade | ↕ pitch, ↔ roll | ↔ yaw | RT climb, LT sink, RB pour, LB bolted camera (the skycrane's triggers run the tank, so lift moves to the right stick ↕ there) |
+| Arcade | ↕ pitch, ↔ roll | ↔ yaw | RT climb, LT sink, LB hook, RB pour, R3 bolted camera (the skycrane's triggers run the tank, so lift moves to the right stick ↕ there) |
 
 Yaw stays on a proportional stick in every preset, never on a bumper or trigger. Every axis has its own invert (and **Invert pitch** sits at the top for stick-up-raises-the-nose). Choosing a button that already does something else in the same aircraft moves it, and the other action takes your old button if it would be left with none; skycrane-only buttons override general ones while you fly the skycrane. Menus always use A, B and the d-pad, so no layout can lock you out.
 
