@@ -35,6 +35,39 @@ const AREA_MODULES = { house, left, right, street, allotments, park };
 
 const _c = new THREE.Vector3(), _p = new THREE.Vector3(), _box = new THREE.Box3();
 
+// Detail doesn't pop in and out at its draw distance: over the last few metres it dissolves (an ordered
+// dither by distance from the camera, so it stays opaque and needs no sorting), and a chunk comes off only
+// once all of it is past the limit. Only the chunks reaching into that stretch draw with the dissolving
+// variant of their materials (a discard costs the GPU its early depth test); the rest draw as they were.
+// uLodFade: (width of the stretch, draw distance), shared by every variant of one level of detail.
+const fadeKey = new WeakMap();
+function lodFadeMaterial(m, u) {
+  const f = m.clone();
+  f.userData = m.userData;
+  f.name = `${m.name}|lodfade`;
+  const base = m.onBeforeCompile, key = m.customProgramCacheKey();
+  f.onBeforeCompile = (sh, r) => {
+    base.call(m, sh, r);
+    if (!sh.vertexShader.includes('#include <project_vertex>') || !sh.fragmentShader.includes('#include <clipping_planes_fragment>')) return;
+    sh.uniforms.uLodFade = u;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vLodW;')
+      .replace('#include <project_vertex>', 'vLodW = (modelMatrix * vec4(transformed, 1.0)).xyz;\n#include <project_vertex>');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vLodW; uniform vec2 uLodFade;')
+      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+        {
+          float k = smoothstep(0.0, 1.0, (uLodFade.y - distance(vLodW, cameraPosition)) / uLodFade.x);
+          vec2 q = mod(floor(gl_FragCoord.xy), 4.0), a = floor(q * 0.5), b = mod(q, 2.0);
+          float t = fract(a.x * 0.5 + a.y * a.y * 0.75) * 0.25 + fract(b.x * 0.5 + b.y * b.y * 0.75);
+          if (k <= t * 0.94 + 0.03) discard;
+        }`);
+  };
+  f.customProgramCacheKey = () => `${key}|lodfade`;
+  fadeKey.set(f, true);
+  return f;
+}
+
 // The set-piece kit has a material per kind of surface, but most differ only in roughness and metalness over
 // one of three grain textures. In the world's merged chunks they share one material per texture, reading
 // roughness and metalness from the vertices: a third of the draw calls (and of those in the AO pass).
@@ -69,6 +102,9 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
   // Indoors (the kitchen and the house) the world outside is only seen through windows and doors: its detail
   // closes in.
   const IN = lite ? { lod0: 16, lod1: 6, lod2: 0 } : { lod0: 24, lod1: 7, lod2: 5 };
+  // How far before its draw distance each level of detail starts to dissolve (lod 0 goes into the fog).
+  const BAND = lite ? [0, 3, 0] : [0, 8, 5], IN_BAND = [0, 2, 1.5];
+  const fadeU = [null, { value: new THREE.Vector2(1, 1) }, { value: new THREE.Vector2(1, 1) }];
   const kit = kitMaterials();
   const wk = worldKit(quality);
   const shared = sharedMaterials(kit);
@@ -161,7 +197,8 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
 
   // Merge each chunk's statics; fit the chunk boxes to what they hold.
   for (const c of chunks.values()) {
-    for (const m of c.batch.build(c.group)) {
+    c.merged = c.batch.build(c.group);
+    for (const m of c.merged) {
       if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
       m.geometry.computeBoundingSphere();
       c.box.union(m.geometry.boundingBox);
@@ -193,8 +230,41 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
   const list = [...chunks.values()];
   const extrasInRoot = root.children.filter((o) => o !== groundMesh && !list.some((c) => c.group === o));
   let frame = 0;
+  let wasInside = null;
   return {
     root, chunks, built, ground: groundMesh, far, DIST,
+    // The dissolving variants of the detail chunks' materials, made from the materials they draw with now
+    // (on phones, after the cheaper stand-ins replaced them and small pieces went into batches). Returns a
+    // hidden group drawing each variant, kept in the scene so the shader warm-ups build those programs too.
+    prepareFades() {
+      const warm = new THREE.Group();
+      warm.name = 'world-lod-fade-warm';
+      warm.visible = false;
+      warm.matrixAutoUpdate = false;
+      const made = new Map();
+      for (const c of list) {
+        if (c.lod < 1 || !c.merged) continue;
+        c.fadeMeshes = [];
+        for (const m of c.merged) {
+          // Meshes drawn through a phone batch (moved to a hidden layer) keep their material.
+          if (Array.isArray(m.material) || m.layers.mask !== 1 || fadeKey.has(m.material)) continue;
+          const k = `${m.material.uuid}|${c.lod}`;
+          let f = made.get(k);
+          if (!f) {
+            f = lodFadeMaterial(m.material, fadeU[c.lod]);
+            made.set(k, f);
+            const w = new THREE.Mesh(m.geometry, f);
+            w.matrixAutoUpdate = false; w.frustumCulled = false; w.userData.noAO = true;
+            warm.add(w);
+          }
+          m.userData.lodSolid = m.material;
+          m.userData.lodFade = f;
+          c.fadeMeshes.push(m);
+        }
+      }
+      root.add(warm);
+      return warm;
+    },
     stats() {
       let draws = 0, tris = 0;
       root.traverseVisible((o) => { if (o.isMesh) { draws++; tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3 * (o.isInstancedMesh ? o.count : 1); } });
@@ -223,6 +293,8 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
         const inside = (cp.x > ROOM.minX && cp.x < ROOM.maxX && cp.z > ROOM.minZ && cp.z < ROOM.maxZ && cp.y < ROOM.ceilingY)
           || (cp.x > MAIN.x0 && cp.x < MAIN.x1 && cp.z > MAIN.z0 && cp.z < MAIN.z1 && cp.y < MAIN.eave);
         const lim = inside ? [IN.lod0, IN.lod1, IN.lod2] : [DIST.lod0, DIST.lod1, DIST.lod2];
+        const band = inside ? IN_BAND : BAND;
+        if (inside !== wasInside) { wasInside = inside; for (let l = 1; l < 3; l++) fadeU[l].value.set(Math.max(band[l], 0.01), lim[l]); }
         for (const c of list) {
           const d = c.box.distanceToPoint(cp);
           c.dist = d;
@@ -232,6 +304,12 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
           // Out of sight chunks come off the scene altogether: every render walks the scene graph, and a hidden
           // group still costs a visit in each.
           if (vis !== c.on) { c.on = vis; if (vis) root.add(c.group); else root.remove(c.group); }
+          // Dissolving while any of it reaches into the last stretch before the draw distance.
+          if (c.on && c.fadeMeshes) {
+            const b = c.box, fx = Math.max(Math.abs(cp.x - b.min.x), Math.abs(cp.x - b.max.x)), fy = Math.max(Math.abs(cp.y - b.min.y), Math.abs(cp.y - b.max.y)), fz = Math.max(Math.abs(cp.z - b.min.z), Math.abs(cp.z - b.max.z));
+            const fading = band[c.lod] > 0 && Math.hypot(fx, fy, fz) > lim[c.lod] - band[c.lod];
+            if (fading !== c.fading) { c.fading = fading; for (const m of c.fadeMeshes) m.material = fading ? m.userData.lodFade : m.userData.lodSolid; }
+          }
           // Ambient occlusion only matters close up: far chunks skip the AO pass (it draws them all again).
           const far = d > AO_DIST;
           if (c.on && c.aoFar !== far) { c.aoFar = far; for (const m of c.group.children) if (!m.userData.alwaysNoAO) m.userData.noAO = far || !!m.userData.foliage; }

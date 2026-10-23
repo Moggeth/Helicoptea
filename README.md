@@ -156,6 +156,7 @@ node tests/e2e-crashes.mjs           # every crash kind on every aircraft, strik
 node tests/e2e-static.mjs            # the build on a plain static host (no /api): browser saving, reload, Download
 node tests/e2e-tuning.mjs            # flight tuning board: sliders, tabs, persistence, presets, export/import, and every preview clip at both ends of every range
 node tests/e2e-camera.mjs http://localhost:4196/  # camera modes, GoPro, cycling, frame cost per mode
+node tests/shot-lod.mjs http://localhost:4178/  # level-of-detail stills (each aircraft, chase and cockpit) and camera dollies that flag anything popping
 ```
 
 Phone batching preserves functional shader hooks, live vertex buffers and aircraft instances across

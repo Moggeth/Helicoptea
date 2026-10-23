@@ -52,10 +52,13 @@ const VERT_HEAD = `
   attribute vec2 aCell;
   uniform vec4 uWin; uniform vec2 uWinN; uniform vec4 uMaskRect; uniform sampler2D uMask;
   uniform vec4 uBlade; // width, min height, max height, near layer (1) / far layer (0)
-  uniform vec4 uOther; // the other layer's window (centre x, z, half size) for cross-fading
+  uniform vec4 uOther; // the other layer's window (centre x, z, radius) for cross-fading
+  uniform vec4 uFade;  // radial fade from inner to outer (fractions of the window's radius), root tint, unused
   uniform float uGroundY;
   uniform float uHeightScale; // the neighbourhood's lawns: mask alpha is the ground's height above uGroundY
-  uniform sampler2D uShadeMap; uniform float uShade; // ... and blades take the painted ground's light and shade
+  // The ground's colour map under the blades (1: the neighbourhood's, which also gives them its light and
+  // shade; 2: the garden's) and how its v runs (scale, offset) against the mask's.
+  uniform sampler2D uShadeMap; uniform float uShade; uniform vec2 uShadeV;
   varying vec3 vGrassCol;
   ${WIND_GLSL}
   vec3 gPos; vec3 gNrm;
@@ -64,21 +67,26 @@ const VERT_HEAD = `
     float X = uWin.x + mod(aCell.x - uWin.x, n);
     float Z = uWin.y + mod(aCell.y - uWin.y, m);
     vec2 cellId = vec2(X, Z);
+    // A cell can hold a tuft of a few blades (position.z numbers them), each rooted and shaped on its own.
+    cellId += position.z * vec2(0.4131, 0.7593);
     vec2 h2 = gHash22(cellId);
     float h1 = gHash12(cellId + 17.3), h3 = gHash12(cellId * 1.7 + 3.1);
     vec2 root = (cellId + h2) * uWin.z;
     vec2 muv = (root - uMaskRect.xy) / uMaskRect.zw;
     vec4 mk = (muv.x < 0.0 || muv.y < 0.0 || muv.x > 1.0 || muv.y > 1.0) ? vec4(0.0) : texture2D(uMask, muv);
-    // Window fades: the near layer fades out at its edge, the far layer fades out inside the near window.
+    // Window fades, round (a square window's corners showed as straight edges): the near layer thins out
+    // towards its rim and the far layer thins in under it by the same measure, so between them the lawn keeps
+    // its density. A blade doesn't shrink with the whole band: each one has its own point in the fade where
+    // it comes up out of the ground's colour, so the edge is a scatter of growing blades, not a mown ring.
     float fade = 1.0;
-    vec2 c = uWin.xy + vec2(n, m) * 0.5;
-    float dEdge = max(abs(X + 0.5 - c.x) / (n * 0.5), abs(Z + 0.5 - c.y) / (m * 0.5));
-    if (uBlade.w > 0.5) fade = 1.0 - smoothstep(0.72, 0.98, dEdge);
-    else if (uOther.z > 0.0) { float dn = max(abs(root.x - uOther.x), abs(root.y - uOther.y)) / uOther.z; fade = smoothstep(0.72, 0.98, dn); }
+    vec2 c = (uWin.xy + vec2(n, m) * 0.5) * uWin.z;
+    if (uBlade.w > 0.5) fade = 1.0 - smoothstep(uFade.x, uFade.y, length(root - c) / (min(n, m) * 0.5 * uWin.z));
+    else if (uOther.z > 0.0) fade = smoothstep(uFade.x, uFade.y, length(root - uOther.xy) / uOther.z);
+    float grow = clamp((fade - gHash12(cellId * 2.31 + 7.7) * 0.8) / 0.2, 0.0, 1.0);
     float bed = mk.b;
     float flower = bed > 0.5 ? step(0.55, h3) : step(0.965, h3) * step(0.35, mk.g);
-    float present = step(1.0 - mk.r, h1) * fade;
-    float H = mix(uBlade.y, uBlade.z, mk.g) * (0.55 + 0.75 * h3 * h3) * present;
+    float present = step(1.0 - mk.r, h1) * step(1e-3, grow);
+    float H = mix(uBlade.y, uBlade.z, mk.g) * (0.55 + 0.75 * h3 * h3) * present * (0.3 + 0.7 * grow);
     H *= mix(1.0, 1.25, flower);
     float W = uBlade.x * (0.7 + 0.6 * h1) * mix(1.0, 0.75, flower) * (present > 0.0 ? 1.0 : 0.0);
     float yaw = h2.x * 6.2832 + h3 * 3.0;
@@ -106,6 +114,12 @@ const VERT_HEAD = `
     // Colour: shaded at the root (close to the lawn under it, so blades never read as dark spikes), sunlit at
     // the tip; meadow grass drier; flower heads.
     vec3 base = vec3(0.115, 0.2, 0.055);
+    vec3 gcol = base;
+    if (uShade > 0.5) {
+      gcol = texture2D(uShadeMap, vec2(muv.x, muv.y * uShadeV.x + uShadeV.y)).rgb;
+      // Roots the colour of the lawn they stand in: sparse blades read as a lawn, not as spikes on it.
+      base = mix(base, gcol * 0.85, uFade.z);
+    }
     vec3 tip = mix(vec3(0.27, 0.46, 0.11), vec3(0.43, 0.47, 0.17), mk.g * (0.4 + 0.6 * h2.y));
     tip *= 0.8 + 0.4 * h1;
     vec3 col = mix(base, tip, smoothstep(0.0, 0.75, t));
@@ -116,8 +130,10 @@ const VERT_HEAD = `
         : (k < 0.6 ? vec3(0.98, 0.97, 0.92) : k < 0.85 ? vec3(0.98, 0.82, 0.22) : vec3(0.75, 0.55, 0.85));
       col = fc;
     }
-    if (uShade > 0.5) {
-      float l = dot(texture2D(uShadeMap, muv).rgb, vec3(0.3, 0.59, 0.11));
+    // A blade still coming up is the ground's colour, so the fade's edge melts into the lawn.
+    col = mix(gcol, col, grow);
+    if (uShade > 0.5 && uShade < 1.5) {
+      float l = dot(gcol, vec3(0.3, 0.59, 0.11));
       col *= clamp(l / 0.15, 0.35, 1.3);
     }
     vGrassCol = col;
@@ -125,7 +141,7 @@ const VERT_HEAD = `
 `;
 
 export class Grass {
-  constructor(scene, quality, mask, shadows) {
+  constructor(scene, quality, mask, shadows, groundMap = null) {
     this.scene = scene;
     this.mask = mask;
     this.uniforms = windUniforms();
@@ -135,14 +151,16 @@ export class Grass {
     const near = tier === 'high' ? { cell: 0.0058, n: 340 } : tier === 'medium' ? { cell: 0.0085, n: 170 } : { cell: 0.012, n: 104 };
     const farCell = tier === 'high' ? 0.03 : tier === 'medium' ? 0.05 : 0.065;
     const far = { cell: farCell, nx: Math.ceil((G.maxX - G.minX) / farCell), nz: Math.ceil((G.maxZ - G.minZ) / farCell) };
-    this.near = this.layer(near.n, near.n, near.cell, { width: 0.0026, hMin: 0.03, hMax: 0.26, near: true, segs: tier === 'low' ? 2 : 3 }, shadows);
-    this.far = this.layer(far.nx, far.nz, far.cell, { width: 0.0075, hMin: 0.03, hMax: 0.24, near: false, segs: 2 }, shadows);
+    // Both take the lawn's colour from the garden's ground map (a canvas texture: its v runs the other way).
+    const g = groundMap ? { shadeMap: groundMap, shadeKind: 2, shadeV: [-1, 1] } : {};
+    this.near = this.layer(near.n, near.n, near.cell, { width: 0.0026, hMin: 0.03, hMax: 0.26, near: true, segs: tier === 'low' ? 2 : 3, ...g }, shadows);
+    this.far = this.layer(far.nx, far.nz, far.cell, { width: 0.0075, hMin: 0.03, hMax: 0.24, near: false, segs: 2, tuft: 2, rootTint: 0.6, ...g }, shadows);
     // The far layer never moves: its window is the garden.
     const fu = this.far.material.userData.u;
     fu.uWin.value.set(Math.floor(G.minX / far.cell), Math.floor(G.minZ / far.cell), far.cell, 0);
     this.nearCell = near.cell;
     this.nearN = near.n;
-    this.blades = near.n * near.n + far.nx * far.nz;
+    this.blades = near.n * near.n + far.nx * far.nz * 2;
     this._box = new THREE.Box3();
     this._frustum = new THREE.Frustum();
     this._m = new THREE.Matrix4();
@@ -152,12 +170,16 @@ export class Grass {
   layer(nx, nz, cell, o, shadows) {
     const mask = o.mask || this.mask;
     // One blade: a tapered strip of `segs` segments ending in a point.
+    // (A tuft is that many blades per cell, numbered in z.)
     const pos = [], idx = [];
-    for (let s = 0; s < o.segs; s++) { const t = s / o.segs; pos.push(-0.5, t, 0, 0.5, t, 0); }
-    pos.push(0, 1, 0);
-    for (let s = 0; s < o.segs - 1; s++) { const a = s * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
-    const a = (o.segs - 1) * 2;
-    idx.push(a, a + 1, a + 2);
+    for (let b = 0; b < (o.tuft || 1); b++) {
+      const v0 = pos.length / 3;
+      for (let s = 0; s < o.segs; s++) { const t = s / o.segs; pos.push(-0.5, t, b, 0.5, t, b); }
+      pos.push(0, 1, b);
+      for (let s = 0; s < o.segs - 1; s++) { const a = v0 + s * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+      const a = v0 + (o.segs - 1) * 2;
+      idx.push(a, a + 1, a + 2);
+    }
     const geo = new THREE.InstancedBufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(new Array(pos.length).fill(0).map((_, i) => (i % 3 === 1 ? 1 : 0)), 3));
@@ -176,7 +198,9 @@ export class Grass {
       uMaskRect: { value: mask.rect },
       uHeightScale: { value: o.heightScale || 0 },
       uShadeMap: { value: o.shadeMap || null },
-      uShade: { value: o.shadeMap ? 1 : 0 },
+      uShade: { value: o.shadeMap ? o.shadeKind || 1 : 0 },
+      uShadeV: { value: new THREE.Vector2(...(o.shadeV || [1, 0])) },
+      uFade: { value: new THREE.Vector4(o.fadeIn ?? 0.45, 0.97, o.rootTint || 0, 0) },
       uBlade: { value: new THREE.Vector4(o.width, o.hMin, o.hMax, o.near ? 1 : 0) },
       uOther: { value: new THREE.Vector4(0, 0, 0, 0) },
       uGroundY: { value: GARDEN.groundY },
@@ -210,10 +234,11 @@ export class Grass {
   // follows the camera, drawn like the garden's far layer but with the ground's height and shade.
   addWorld(mask, shadeMap, quality) {
     const tier = quality.name === 'ultra' ? 'high' : quality.name;
-    const w = quality.lite ? { cell: 0.085, n: 110 } : tier === 'high' ? { cell: 0.05, n: 300 } : tier === 'medium' ? { cell: 0.065, n: 200 } : { cell: 0.085, n: 120 };
-    this.world = this.layer(w.n, w.n, w.cell, { width: 0.008, hMin: 0.03, hMax: 0.26, near: true, segs: 2, mask, shadeMap, heightScale: mask.heightScale }, false);
+    // tuft: blades per cell (phones fewer: they draw every one of them each frame).
+    const w = quality.lite ? { cell: 0.085, n: 110, tuft: 2 } : tier === 'high' ? { cell: 0.05, n: 300, tuft: 3 } : tier === 'medium' ? { cell: 0.065, n: 200, tuft: 3 } : { cell: 0.085, n: 120, tuft: 2 };
+    this.world = this.layer(w.n, w.n, w.cell, { width: 0.01, hMin: 0.03, hMax: 0.26, near: true, segs: 2, mask, shadeMap, heightScale: mask.heightScale, rootTint: 0.85, fadeIn: 0.55, tuft: w.tuft }, false);
     this.worldCell = w.cell; this.worldN = w.n;
-    this.blades += w.n * w.n;
+    this.blades += w.n * w.n * w.tuft;
     this.world.name = 'world-grass';
     // Culled like any mesh (by a sphere round its window, moved each frame), so a render that looks the
     // other way, or the hook camera's few metres, skips it.

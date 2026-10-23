@@ -41,8 +41,9 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
 
   // ---------------------------------------------------------------- ground: lawn colour, patio, grass
   const GW = GARDEN.maxX - GARDEN.minX, GD = GARDEN.maxZ - GARDEN.minZ;
+  const lawnTex = groundTexture(tier === 'high' ? 2048 : 1024);
   {
-    const tex = groundTexture(tier === 'high' ? 2048 : 1024);
+    const tex = lawnTex;
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(GW, GD), new THREE.MeshLambertMaterial({ map: tex }));
     ground.rotation.x = -Math.PI / 2;
     ground.position.set((GARDEN.minX + GARDEN.maxX) / 2, fy + 0.0005, (GARDEN.minZ + GARDEN.maxZ) / 2);
@@ -60,7 +61,7 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
     b.add(new THREE.BoxGeometry(pw, 0.02, 0.05), new THREE.MeshStandardMaterial({ map: flags, roughness: 0.9 }), T((PATIO.minX + PATIO.maxX) / 2, fy + 0.01, PATIO.minZ), 0xcfc2aa, { cast: false });
   }
   const mask = grassMask(tier === 'high' ? 512 : 384);
-  const grass = new Grass(scene, quality, mask, shadows && tier === 'high');
+  const grass = new Grass(scene, quality, mask, shadows && tier === 'high', lawnTex);
 
   // ---------------------------------------------------------------- materials
   const teak = new THREE.MeshStandardMaterial({ map: boardTexture(512, [168, 128, 90], true), roughness: 0.75 });
