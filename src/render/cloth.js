@@ -130,6 +130,10 @@ export class TableCloth {
     else this.awake -= dt;
     if (this.awake <= 0 && this.lastMax < 2e-6) { this.ms = 0; return; } // asleep: nothing to do, nothing to upload
     this.time += dt;
+    this.acc = Math.min(this.acc + dt, 3 / this.rate);
+    const h = 1 / this.rate;
+    // A frame between two of the cloth's steps (it runs at 60-90 Hz) has nothing to sample, step or upload.
+    if (this.acc < h) return;
     // Sample the air once per frame (positions don't move far within one).
     const A = this.air, P = this.p, _v = TableCloth._v;
     for (let k = 0; k < this.n; k++) {
@@ -137,8 +141,6 @@ export class TableCloth {
       air.sample(P[k * 3], P[k * 3 + 1], P[k * 3 + 2], _v);
       A[k * 3] = _v.x; A[k * 3 + 1] = _v.y; A[k * 3 + 2] = _v.z;
     }
-    this.acc = Math.min(this.acc + dt, 3 / this.rate);
-    const h = 1 / this.rate;
     while (this.acc >= h) { this.step(h, sim); this.acc -= h; }
     this.posAttr.array.set(this.p);
     this.posAttr.needsUpdate = true;
@@ -350,6 +352,7 @@ export class HangingCloth {
     this.t += dt;
     this.acc = Math.min(this.acc + dt, 3 / 60);
     const h = 1 / 60, P = this.p, Q = this.q, o = this.out, v = HangingCloth._v;
+    if (this.acc < h) return;   // between steps: nothing new to upload
     while (this.acc >= h) {
       this.acc -= h;
       let moved = 0;
