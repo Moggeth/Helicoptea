@@ -11,10 +11,14 @@ export class Batcher {
   add(geo, mat, matrix, color = 0xffffff, { cast = true, receive = true, rm = null } = {}) {
     // Kept indexed (shared vertices: a sphere or tube has a quarter of the vertices that way); pieces without
     // an index get a plain one so every piece merges alike.
-    const g = geo.clone();
-    if (!g.index) g.setIndex([...Array(g.attributes.position.count).keys()]);
+    // (Copies of just the attributes kept, rather than a clone of everything trimmed afterwards: thousands of
+    // pieces go through here while the world loads.)
+    const g = new THREE.BufferGeometry();
+    for (const k of ['position', 'normal', 'uv']) if (geo.attributes[k]) g.setAttribute(k, geo.attributes[k].clone());
+    const count = g.attributes.position.count;
+    if (geo.index) g.setIndex(geo.index.clone());
+    else { const ix = new (count - 1 > 65535 ? Uint32Array : Uint16Array)(count); for (let i = 0; i < count; i++) ix[i] = i; g.setIndex(new THREE.BufferAttribute(ix, 1)); }
     if (matrix) g.applyMatrix4(matrix);
-    for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
     if (rm) {
       const a = new Uint8Array(g.attributes.position.count * 2);
       for (let i = 0; i < a.length; i += 2) { a[i] = Math.round(rm[0] * 255); a[i + 1] = Math.round(rm[1] * 255); }

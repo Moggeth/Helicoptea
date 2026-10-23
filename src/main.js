@@ -161,6 +161,9 @@ async function boot() {
   }
   renderer.info.autoReset = false; // the AO composer renders several passes per frame; count them all
   sortOpaqueByProgram(renderer);
+  // Asked now, while nothing is queued for the GPU: three.js reads it with a getParameter() that waits for
+  // all queued GL work, and the first texture to ask for it during loading stalled ~130 ms.
+  renderer.capabilities.getMaxAnisotropy();
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -251,21 +254,38 @@ async function boot() {
     else if (renderer.compileAsync) await renderer.compileAsync(root, cam);
     else renderer.compile(root, cam);
   };
-  await warm(scene, camera, scene, 0.78, 0.88);
   // Materials drawn into a render target (the AO pipeline, the hook camera) use a different shader variant
   // from the screen's: build those now too, or each one compiles mid-flight the first time it is seen.
-  const hadTarget = !!post.target;
   // (Not on phones: there it is only the cockpit's hook camera, so its programs compile when that first runs
   // rather than doubling what loading compiles.)
-  if (!quality.phone) {
-    post.ensureTarget();
-    renderer.setRenderTarget(post.target);
-    await warm(scene, camera, scene, 0.88, 0.96);
-    renderer.setRenderTarget(null);
+  const hadTarget = !!post.target;
+  if (!stepped && renderer.compileAsync) {
+    // Desktops: the screen's variants, the target's and the cockpit's all start compiling at once, so the
+    // driver builds them side by side rather than in three waits one after another.
+    const jobs = [renderer.compileAsync(scene, camera)];
+    if (!quality.phone) {
+      post.ensureTarget();
+      renderer.setRenderTarget(post.target);
+      jobs.push(renderer.compileAsync(scene, camera));   // (compile() runs now, against the bound target)
+      renderer.setRenderTarget(null);
+    }
+    for (const it of Object.values(cockpit.interiors)) it.group.visible = true;
+    jobs.push(renderer.compileAsync(cockpit.scene, cockpit.camera));
+    for (const it of Object.values(cockpit.interiors)) it.group.visible = false;
+    await Promise.all(jobs);
+    setProgress(0.88);
+  } else {
+    await warm(scene, camera, scene, 0.78, 0.88);
+    if (!quality.phone) {
+      post.ensureTarget();
+      renderer.setRenderTarget(post.target);
+      await warm(scene, camera, scene, 0.88, 0.96);
+      renderer.setRenderTarget(null);
+    }
+    for (const it of Object.values(cockpit.interiors)) it.group.visible = true;
+    await warm(cockpit.scene, cockpit.camera, cockpit.scene, 0.96, 1);
+    for (const it of Object.values(cockpit.interiors)) it.group.visible = false;
   }
-  for (const it of Object.values(cockpit.interiors)) it.group.visible = true;
-  await warm(cockpit.scene, cockpit.camera, cockpit.scene, 0.96, 1);
-  for (const it of Object.values(cockpit.interiors)) it.group.visible = false;
   // compile() only reaches what is visible and in view, and never the shadow maps. On desktops, draw one
   // real frame of everything instead, hidden effects and off-screen props included, through every path a
   // flight uses (the shadow maps, the half-float target, the screen, the cockpit): otherwise each shader
