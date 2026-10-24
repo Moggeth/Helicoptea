@@ -100,7 +100,7 @@ try {
   await waitField(page, 3000);
   const hov = await surf(page, 0);
   check('hovering over the mug couples the wake to the tea', hov.forcing >= 1 && hov.I > 0.3, `I=${hov.I}, v_g=${hov.vg} m/s`);
-  check('the wash presses a dimple and rings into the tea (height field running)', hov.on === 1 && hov.fieldOn === 1 && hov.depthMm > 0.15 && hov.depthMm < 4, `deepest ${hov.depthMm} mm`);
+  check('the wash presses a dimple and rings into the tea (height field running)', hov.on === 1 && hov.fieldOn === 1 && hov.depthMm > 0.15 && hov.depthMm < 8, `deepest ${hov.depthMm} mm`);
   check('the roughened annulus is showing (shader wash intensity)', hov.washS > 0.2, `washS ${hov.washS}`);
   check('spray and mist come off the tea', hov.stats.spray > 20 && hov.stats.mist > 5 && hov.particles > 5, `spray ${hov.stats.spray}, mist ${hov.stats.mist}, live particles ${hov.particles}`);
   check('some spray falls back in (rings) and some clears the rim', hov.stats.landedInLiquid > 0 && hov.stats.landed > hov.stats.landedInLiquid, `landed ${hov.stats.landed}, in tea ${hov.stats.landedInLiquid}`);
@@ -137,6 +137,32 @@ try {
   const bb = await surf(page, 'bath');
   check('the bird bath water ripples under the wash', bb.forcing >= 1 && bb.on === 1 && bb.depthMm > 0.1, `I=${bb.I}, deepest ${bb.depthMm} mm`);
   await shot(page, 'birdbath-hover');
+  // ------------------------------------------------------------------ the cups' extras: slop, crowns, spots
+  check('a hard wash slops tea over the rim and splashes crowns', hov.stats.slop > 3 && hov.stats.crowns > 0, `slop ${hov.stats.slop}, crowns ${hov.stats.crowns}`);
+  check('spray landing on the cloth and table leaves wet spots', hov.stats.spots > 0, `spots ${hov.stats.spots}`);
+
+  // ------------------------------------------------------------------ open water outdoors
+  const outdoor = async (name, x, z) => {
+    const y = await page.evaluate(([x, z]) => window.__helicoptea.view.liquid.waterAt(x, z), [x, z]);
+    await page.evaluate(([x, y, z]) => {
+      const s = window.__helicoptea.sim; s.heli.body.setTranslation({ x, y, z }, true); s.heli.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      const P = window.__pilot; P.ap.target.set(x, y, z); P.ap.maxSpeed = 0.1;
+    }, [x + 0.03, y + 0.13, z]);
+    await sleep(3500);
+    const r = await page.evaluate(() => {
+      const L = window.__helicoptea.view.liquid, W = L.open;
+      return { forcing: W.forcing.length, on: W.on, depthMm: +(W.field.maxDepth * 1000).toFixed(2), washS: +W.washS.toFixed(2), openSpray: L.stats.openSpray, mist: L.stats.mist, particles: L.pool.count };
+    });
+    check(`${name}: the wash ripples, roughens and sprays the water`, Number.isFinite(y) && r.forcing >= 1 && r.on === 1 && r.depthMm > 0.1 && r.washS > 0.2 && r.openSpray > 20, `y ${Number(y).toFixed(3)}, ${JSON.stringify(r)}`);
+    await shot(page, `open-${name.replace(/\W+/g, '-')}`);
+    return r;
+  };
+  await outdoor('patio puddle', 1.78, -2.08);
+  await outdoor('lane puddle', -1.6, -7.1);
+  await outdoor('koi pond', -8.72, -2.22);
+  await outdoor('park pond', -9, -39);
+  const perfOpen = await measure(page, 3000);
+  check('desktop hover over the park pond holds frame rate', perfOpen.fps > 55, `${perfOpen.fps} fps, liquid work ${perfOpen.washMs} ms/frame (peak ${perfOpen.washPeak})`);
   check('no console errors (surface shaders compiled)', logs.length === 0, logs.slice(0, 3).join(' | '));
   await ctx.close();
 
@@ -158,6 +184,18 @@ try {
   // that the liquid work stays a small slice of a 30 fps frame.
   check('phone (emulated, CPU ×4): liquid work stays under 2.5 ms a frame', perfPh4.washMs < 2.5,
     `×1: ${perfPh1.fps} fps, liquid ${perfPh1.washMs} ms/frame; ×4: ${perfPh4.fps} fps, liquid ${perfPh4.washMs} ms/frame (peak ${perfPh4.washPeak})`);
+  // Out to a puddle on the patio: the water's wash shader (on the phones' Phong stand-in) was built while
+  // loading, so nothing compiles mid-flight.
+  const progs0 = await ph.page.evaluate(() => window.__helicoptea.renderer.info.programs.length);
+  const py = await ph.page.evaluate(() => window.__helicoptea.view.liquid.waterAt(1.78, -2.08));
+  await ph.page.evaluate(([x, y, z]) => {
+    const s = window.__helicoptea.sim; s.heli.body.setTranslation({ x, y, z }, true); s.heli.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    const P = window.__pilot; P.ap.target.set(x, y, z); P.ap.maxSpeed = 0.1;
+  }, [1.81, py + 0.13, -2.08]);
+  await sleep(3500);
+  const phOpen = await ph.page.evaluate(() => { const L = window.__helicoptea.view.liquid; return { on: L.open.on, forcing: L.open.forcing.length, programs: window.__helicoptea.renderer.info.programs.length }; });
+  await shot(ph.page, 'phone-patio-puddle');
+  check('phone: the patio puddle washes, with no shader compiled mid-flight', phOpen.on === 1 && phOpen.forcing >= 1 && phOpen.programs === progs0, `${JSON.stringify(phOpen)}, programs before ${progs0}`);
   check('phone: no console errors', ph.logs.length === 0, ph.logs.slice(0, 3).join(' | '));
   await ph.ctx.close();
 } catch (e) {

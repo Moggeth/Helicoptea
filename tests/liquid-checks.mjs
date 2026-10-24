@@ -5,6 +5,8 @@ import { performanceBudget } from './performance-budget.mjs';
 // itself off once the wash leaves, and the cost per frame.
 // Usage: node tests/liquid-checks.mjs
 import { RippleField, shear } from '../src/render/rippleField.js';
+import { OpenWash, registerWater, waterAt, clearWater, patchWaterMaterial } from '../src/render/openWater.js';
+import * as THREE from 'three';
 
 const results = [];
 const check = (name, ok, detail = '') => { results.push({ name, ok }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`); };
@@ -36,7 +38,7 @@ const steady = stats(steadyMug);
 check('volume is conserved: what is pressed down climbs the walls', Math.abs(s.mean) < 1e-7 && Math.abs(steady.mean) < 1e-7 && steady.wall > 0,
   `turbulent mean ${(s.mean * 1e6).toFixed(3)} µm, steady walls +${(steady.wall * 1000).toFixed(2)} mm`);
 steadyMug.texture.dispose();
-check('stays bounded under long forcing (within the ±4 mm texture range)', s.min > -0.004 && s.max < 0.004, `${(s.min * 1000).toFixed(2)} … ${(s.max * 1000).toFixed(2)} mm`);
+check('stays bounded under long forcing (within the ±8 mm texture range)', s.min > -0.008 && s.max < 0.008, `${(s.min * 1000).toFixed(2)} … ${(s.max * 1000).toFixed(2)} mm`);
 // The blade pulses keep it moving: the centre height varies frame to frame.
 const hs = [];
 for (let i = 0; i < 30; i++) { mug.step(1 / 60, [wash()]); hs.push(mug.heightAt(0.012, 0)); }
@@ -67,6 +69,43 @@ const b = stats(bath);
 check('the bird bath field is stable', Number.isFinite(b.min) && b.min > -0.004 && b.max < 0.004, `${(b.min * 1000).toFixed(2)} … ${(b.max * 1000).toFixed(2)} mm`);
 
 performanceBudget(check, 'cost per forced frame (40×40, 4 substeps) stays small', ms, 1.0, `${ms.toFixed(3)} ms in Node on this machine`);
+
+// ---------------------------------------------------------------- open water (openWater.js)
+// A pond 2 m across at y = -0.7 with a 30 cm puddle beside it at another level.
+clearWater();
+registerWater(new THREE.CircleGeometry(1, 32).rotateX(-Math.PI / 2).translate(0, -0.7, 0));
+registerWater(new THREE.CircleGeometry(0.15, 16).rotateX(-Math.PI / 2).translate(1.6, -0.756, 0));
+check('the water register finds the pond, the puddle and dry ground', Math.abs(waterAt(0.3, 0.2) + 0.7) < 1e-6 && Math.abs(waterAt(1.62, 0.02) + 0.756) < 1e-6 && Number.isNaN(waterAt(1.2, 0.5)),
+  `pond ${waterAt(0.3, 0.2)}, puddle ${waterAt(1.62, 0.02)}, dry ${waterAt(1.2, 0.5)}`);
+const ow = new OpenWash({ name: 'high' });
+const F = ow.field;
+ow.place(0.7, 0, -0.7);
+let dry = 0, wet = 0;
+for (let k = 0; k < F.n * F.n; k++) { if (Math.hypot(ow.x + F.cx[k], ow.z + F.cz[k]) > 1.02) dry += F.mask[k]; else if (Math.hypot(ow.x + F.cx[k], ow.z + F.cz[k]) < 0.95) wet += F.mask[k]; }
+check('the open field is masked to the water (the shore is a wall)', dry === 0 && wet > F.n * F.n * 0.3, `${wet} water cells, ${dry} past the shore`);
+const ofw = (x) => ({ ...wash({ x, a: 0.03, ring: 0.03, foot: 0.13, depth: 0.004, I: 1.2 }) });
+const o0 = performance.now();
+for (let i = 0; i < 120; i++) { ow.forcing = [ofw(-0.2)]; ow.update(1 / 60, i / 60); }
+const oms = (performance.now() - o0) / 120;
+const cell = -0.2 + F.dx / 2, before = F.heightAt(cell, F.dx / 2);
+check('a hover presses the pond and the wash runs', F.on === 1 && before < -2e-4, `${(before * 1000).toFixed(2)} mm under the rotor`);
+// Fly on: the field moves along and what was rippling stays where it was in the world.
+const wx = ow.x + cell;
+ow.place(ow.x + 0.4, 0, -0.7);
+check('moving the field on keeps the wake trail where it was', Math.abs(F.heightAt(wx - ow.x, F.dx / 2) - before) < 1e-9 && ow.moves === 2, `${(F.heightAt(wx - ow.x, F.dx / 2) * 1000).toFixed(2)} mm`);
+let oOff = 0;
+ow.forcing = [];
+while (F.live && oOff < 900) { ow.update(1 / 60, 2 + oOff / 60); oOff++; }
+check('the open field settles and switches off (the sponge soaks waves up)', !F.live && F.on === 0 && oOff < 600, `${(oOff / 60).toFixed(1)} s`);
+performanceBudget(check, 'open field cost per forced frame (64×64) stays small', oms, 1.5, `${oms.toFixed(3)} ms in Node on this machine`);
+// The water material's hook finds every chunk it rewrites, on the standard material and the phones' Phong.
+for (const lib of ['meshphysical', 'meshphong']) {
+  const m = patchWaterMaterial(new THREE.MeshStandardMaterial());
+  const sh = { uniforms: {}, vertexShader: THREE.ShaderLib[lib === 'meshphysical' ? 'standard' : 'phong'].vertexShader, fragmentShader: THREE.ShaderLib[lib === 'meshphysical' ? 'standard' : 'phong'].fragmentShader };
+  m.onBeforeCompile(sh);
+  const ok = ['vOWW =', 'owFroth', 'owG.x', 'owGl'].every((t) => (sh.vertexShader + sh.fragmentShader).includes(t)) && (lib === 'meshphong' || sh.fragmentShader.includes('roughnessFactor = min'));
+  check(`water shader hook applies to ${lib}`, ok && !!sh.uniforms.uOWBox);
+}
 
 const failed = results.filter((r) => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} liquid checks passed`);

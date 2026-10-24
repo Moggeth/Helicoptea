@@ -23,7 +23,10 @@ const STOCK_OBC = THREE.Material.prototype.onBeforeCompile;
 // the garden's swaying foliage (the world's is already still on phones), and the world kit's per-vertex
 // roughness and metalness (Lambert has neither). Each sway material was a shader program of its own.
 const COSMETIC = /^(?:grime$|sway\||world-kit-rm$)/;
-const plain = (m) => m.onBeforeCompile === STOCK_OBC || COSMETIC.test(m.customProgramCacheKey?.() || '');
+// Hooks written for the Phong and Lambert shaders too (userData.portableHook, such as the world's water
+// under the rotor wash): the stand-in keeps them.
+const portable = (m) => !!m.userData.portableHook && m.onBeforeCompile !== STOCK_OBC;
+const plain = (m) => m.onBeforeCompile === STOCK_OBC || portable(m) || COSMETIC.test(m.customProgramCacheKey?.() || '');
 const WALK_EVERY = 30;      // frames between walks for new materials
 function releaseArray() { this.array = null; }
 const _box = new THREE.Box3(), _sphere = new THREE.Sphere();
@@ -132,6 +135,7 @@ export class PhoneRender {
       // Clear glass (true transmission is off on phones anyway): keep it see-through.
       if (m.isMeshPhysicalMaterial && m.transmission > 0 && !m.transparent) { out.transparent = true; out.opacity = Math.min(m.opacity, 0.35); out.depthWrite = false; }
       out.userData = m.userData;
+      if (portable(m)) { out.onBeforeCompile = m.onBeforeCompile; out.customProgramCacheKey = () => `${m.customProgramCacheKey()}|phone`; }
       if (!(m.isMeshPhysicalMaterial && m.transmission > 0)) this.synced.push([m, out]);
       this.stats.materials++;
     } else this.stats.kept++;

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RippleField, FIELD_H_SCALE, FIELD_SLOPE } from './rippleField.js';
+import { RippleField } from './rippleField.js';
 
 // Tea colour ramp: hot water -> straw -> amber -> mahogany -> builder's.
 const RAMP = [
@@ -105,19 +105,20 @@ export class TeaSurface {
         uRim: { value: new THREE.Color(opts.rim ?? cup.rim ?? opts.wall ?? cup.glaze ?? 0xf2ece0) },
         uField: { value: this.field.texture },
         uFieldOn: { value: 0 },
-        uHScale: { value: FIELD_H_SCALE },
-        uSlope: { value: FIELD_SLOPE },
+        uHScale: { value: this.field.hScale },
+        uSlope: { value: this.field.slope },
         uClear: { value: opts.water ? 1 : 0 },
         envMap: { value: env },
         uEnvInt: { value: opts.envIntensity ?? 0.5 },
       },
       vertexShader: `
-        uniform sampler2D uField; uniform float uFieldOn, uRadius, uHScale;
+        uniform sampler2D uField; uniform float uFieldOn, uRadius, uHScale, uFree;
         varying vec3 vWorld; varying vec2 vLocal;
         void main(){
           vLocal = position.xz;
           vec3 p = position;
-          if (uFieldOn > 0.5) p.y += (texture2D(uField, vLocal / (2.0 * uRadius) + 0.5).b - 0.5) * uHScale;
+          // (Never through the vessel's floor or over its rim, however hard the wash heaps it up.)
+          if (uFieldOn > 0.5) p.y += clamp((texture2D(uField, vLocal / (2.0 * uRadius) + 0.5).b - 0.5) * uHScale, -0.02, uFree - 0.0008);
           vec4 w = modelMatrix * vec4(p, 1.0);
           vWorld = w.xyz;
           gl_Position = projectionMatrix * viewMatrix * w;
@@ -180,7 +181,7 @@ export class TeaSurface {
             float d = length(dw) + 1e-5, a = uWash.w;
             vec2 rd = dw / d;
             float ring = smoothstep(0.2 * a, 0.8 * a, d) * exp(-pow(max(0.0, d - 1.2 * a) / (0.6 * uFoot), 2.0));
-            float th = atan(dw.y, dw.x);
+            float th = atan(dw.y, dw.x) + d / a * 0.35;   // curling a little with the rotor's swirl
             // Streaks: long along the flow, narrow across it, racing outward.
             float paws = noise(vec2(th * 11.0, d / a * 2.0 - uTime * 5.5)) * noise(vec2(th * 27.0 + 3.0, d / a * 4.5 - uTime * 9.0));
             rough = uWash.z * ring * (0.25 + 2.4 * paws);
@@ -190,6 +191,9 @@ export class TeaSurface {
             grad += rough * (rd * c1 * 0.4 + vec2(-rd.y, rd.x) * c2 * 0.2);
           }
           rough = clamp(rough + energy * 0.9, 0.0, 1.0);
+          // Froth: where the wash works it hardest, flecks of foam stream across it (creamy on tea).
+          float fl = noise(vLocal * 260.0 + uTime * vec2(1.6, -1.1)) * noise(vLocal * 610.0 - uTime * vec2(0.8, 1.7));
+          float froth = smoothstep(0.5, 0.95, energy) * smoothstep(0.3, 0.55, fl);
           // Gentle idle shimmer.
           grad += 0.022 * vec2(noise(vLocal * 70.0 + uTime * 0.5) - 0.5, noise(vLocal * 70.0 - uTime * 0.4 + 7.0) - 0.5);
           vec3 n = normalize(vec3(-grad.x, 1.0, -grad.y));
@@ -222,6 +226,7 @@ export class TeaSurface {
           float rr = length(vLocal) / uRadius;
           float men = smoothstep(0.9, 1.0, rr);
           base = mix(base, base * 1.25 + 0.04, men * 0.6);
+          base = mix(base, mix(base * 1.4 + 0.2, vec3(0.97, 0.94, 0.88), 0.4), froth * 0.7);
           base *= mix(0.62, 1.0, sunlit);
           // Clear water: you see the vessel's floor through it, lit through the surface.
           base = mix(base, base * (0.75 + 0.35 * max(L.y, 0.0)) * mix(0.7, 1.0, sunlit), uClear);
@@ -234,7 +239,7 @@ export class TeaSurface {
           vec3 col = mix(base, refl, fres * 0.9) + spec * vec3(1.0, 0.95, 0.85);
           // Light crossing the tea at a slant travels further through it, so it hides the cup floor sooner.
           float op = 1.0 - pow(1.0 - uOpacity, 1.0 / max(abs(V.y), 0.2));
-          float alpha = clamp(op + fres * 0.5 + plume * 0.25 + men * 0.15 + spec, 0.0, 1.0);
+          float alpha = clamp(op + fres * 0.5 + plume * 0.25 + men * 0.15 + spec + froth * 0.5, 0.0, 1.0);
           gl_FragColor = vec4(col, alpha);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>

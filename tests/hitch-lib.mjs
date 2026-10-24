@@ -104,6 +104,9 @@ async function microRun(page, quick) {
   // The garden.
   await label(page, 'fly to garden'); await fly(page, 0.35, 0.3, -1.2, 0.6, 4000); await fly(page, 0.35, 0.15, -2.6, 0.6, 4000);
   await label(page, 'garden hover'); await sleep(2500);
+  // Down over a rain puddle on the patio: the open-water ripples, froth and spray (render/openWater.js).
+  await label(page, 'wash over puddle'); await fly(page, 1.78, -0.63, -2.08, 0.35, 5500);
+  await fly(page, 0.35, 0.15, -2.6, 0.6, 3500);
   await label(page, 'garden cockpit'); await ev(page, () => window.__helicoptea.setView('cockpit')); await sleep(1500); await ev(page, () => window.__helicoptea.setView('chase'));
   await crashes(page, quick ? ['rotor', 'dunk', 'impact'] : ['rotor', 'tail', 'dunk', 'rollover', 'impact', 'fall']);
   await menus(page);

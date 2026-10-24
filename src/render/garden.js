@@ -12,6 +12,12 @@ import { buildWorld } from './world/index.js';
 import { HEDGE_GATE, groundHeight } from '../sim/world/plan.js';
 import { SKY, HAZE_HEX } from './atmosphere.js';
 import { placeChair } from './chairs.js';
+import { worldKit } from './world/kit.js';
+import { patchWaterMaterial, registerWater } from './openWater.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+
+// Rain puddles on the patio: x, z, half-widths, yaw, shape seed.
+const PATIO_PUDDLES = [[-1.12, -1.98, 0.17, 0.11, 0.4, 1.3], [1.78, -2.08, 0.22, 0.13, -0.3, 4.1], [-0.42, -2.22, 0.09, 0.06, 1.1, 2.2], [0.62, -1.82, 0.12, 0.08, 0.2, 5.7]];
 
 const V2 = (x, y) => new THREE.Vector2(x, y);
 const _v = new THREE.Vector3(), _c = new THREE.Vector3();
@@ -58,6 +64,29 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
     patio.position.set((PATIO.minX + PATIO.maxX) / 2, fy + 0.003, (PATIO.minZ + PATIO.maxZ) / 2);
     patio.receiveShadow = true;
     scene.add(patio);
+    // Rain puddles in the dips of the flags: still water the rotor wash can work (see openWater.js).
+    {
+      const wet = patchWaterMaterial(worldKit(quality).water.clone());
+      wet.color.set(0x6d7a78);
+      wet.opacity = 0.8;
+      wet.polygonOffset = true; wet.polygonOffsetFactor = -2; wet.polygonOffsetUnits = -2;
+      const pg = [];
+      for (const [x, z, rx, rz, yaw, seed] of PATIO_PUDDLES) {
+        const s = new THREE.Shape();
+        for (let i = 0; i <= 28; i++) {
+          const a = (i / 28) * Math.PI * 2, rr = 1 + 0.16 * Math.sin(3 * a + seed) + 0.08 * Math.sin(5 * a + seed * 2.3);
+          if (i === 0) s.moveTo(Math.cos(a) * rr * rx, Math.sin(a) * rr * rz); else s.lineTo(Math.cos(a) * rr * rx, Math.sin(a) * rr * rz);
+        }
+        const g = new THREE.ShapeGeometry(s, 1).rotateX(-Math.PI / 2).rotateY(yaw).translate(x, fy + 0.0042, z);
+        pg.push(g);
+      }
+      const geo = mergeGeometries(pg);
+      registerWater(geo);
+      const m = new THREE.Mesh(geo, wet);
+      m.renderOrder = -1;
+      m.name = 'patio-puddles';
+      scene.add(m);
+    }
     // Edging between patio and lawn.
     b.add(new THREE.BoxGeometry(pw, 0.02, 0.05), new THREE.MeshStandardMaterial({ map: flags, roughness: 0.9 }), T((PATIO.minX + PATIO.maxX) / 2, fy + 0.01, PATIO.minZ), 0xcfc2aa, { cast: false });
   }

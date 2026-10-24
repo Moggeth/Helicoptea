@@ -89,3 +89,15 @@ test('liquid footprint cache preserves the analytic blade forcing for every airc
     field.texture.dispose();
   }
 });
+
+test('phone stand-in keeps the world water rotor-wash hook (portable hooks)', () => {
+  const phone = new PhoneRender({}, []);
+  const water = new THREE.MeshStandardMaterial({ roughness: 0.06, metalness: 0.2, transparent: true });
+  water.onBeforeCompile = () => {};
+  water.customProgramCacheKey = () => 'world-water-wash';
+  water.userData.portableHook = true;
+  const out = phone.convertMaterial(water);
+  assert.ok(out.isMeshPhongMaterial);
+  assert.equal(out.onBeforeCompile, water.onBeforeCompile);
+  assert.equal(out.customProgramCacheKey(), 'world-water-wash|phone');
+});

@@ -4,6 +4,7 @@ import { boxUV, T } from '../batch.js';
 import { WIND_GLSL } from '../grass.js';
 import { FY } from '../../sim/world/plan.js';
 import { roofSlabs, gables, chimneys } from '../../sim/world/shapes.js';
+import { patchWaterMaterial } from '../openWater.js';
 
 // The neighbourhood's shared materials and builders: houses, windows, doors, trees, hedges and fences.
 // Materials are white-based where they can be (tint each piece through ctx.add's colour) so the whole
@@ -36,6 +37,8 @@ export function worldKit(quality) {
   for (const [k, m] of Object.entries(lib)) m.name = `world-${k}`;
   lib.leafy.name = 'world-leaf';
   lib.water.name = 'world-glass-water';
+  // Ripples, cat's paws, froth and glitter under the rotor wash (see openWater.js).
+  patchWaterMaterial(lib.water);
   return lib;
 }
 

@@ -69,7 +69,8 @@ export class ParticlePool {
     this.kind[i] = o.kind ?? 0;
   }
 
-  // onLand(x, y, z): if given, heavy particles (drops) that reach the floor are absorbed and reported.
+  // onLand(x, y, z, size, speed): if given, heavy particles (drops) that reach the floor are absorbed and
+  // reported, with the drop's starting size and how fast it was falling.
   update(dt, floorFn, windFn, onLand) {
     const wv = this._wv || (this._wv = { x: 0, y: 0, z: 0, set(a, b, c) { this.x = a; this.y = b; this.z = c; return this; }, addScaledVector(v, s) { this.x += v.x * s; this.y += v.y * s; this.z += v.z * s; return this; } });
     let n = this.count;
@@ -96,7 +97,7 @@ export class ParticlePool {
       if (floorFn && this.kind[i] === 1) {
         const fy = floorFn(this.p[k], this.p[k + 2]);
         if (this.p[k + 1] < fy) {
-          if (onLand) { onLand(this.p[k], fy, this.p[k + 2]); this.age[i] = this.life[i]; this.c[i * 4 + 3] = 0; continue; }
+          if (onLand) { onLand(this.p[k], fy, this.p[k + 2], this.size0[i], -this.v[k + 1]); this.age[i] = this.life[i]; this.c[i * 4 + 3] = 0; continue; }
           this.p[k + 1] = fy; this.v[k + 1] *= -0.35; this.v[k] *= 0.6; this.v[k + 2] *= 0.6;
         }
       }

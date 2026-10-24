@@ -4,7 +4,7 @@ import * as THREE from 'three';
 //
 // Real water under a hovering rotor shows (in order of how hard you have to look):
 //   1. a shallow dimple pressed in by the wake's stagnation pressure, q = ½ρv² (about half a millimetre
-//      at 3 m/s; drawn ×2.5 so it reads at cup scale),
+//      at 3 m/s; drawn about ×4 so it reads at cup scale, and because over the top is more fun),
 //   2. a fast, taut-looking pounding: each blade's wake and its tip vortex slap the surface as they pass,
 //      so the dimple pulses at blade-passage rate and rotating lobes throw off tight spiral rings,
 //   3. a wind-roughened annulus where the outwash shears the surface (cat's paws racing outward, glassy
@@ -16,27 +16,35 @@ import * as THREE from 'three';
 // Reflecting (Neumann) walls at the vessel's inner radius. Stepped at 240 Hz on the CPU, a few
 // thousand cells, and only while forced or still ringing. The result goes to a byte texture
 // (slope x, slope z, height, energy) that the surface shader samples for displacement and normals.
+//
+// An open field (opts.open, see openWater.js) has no vessel: the caller marks which cells are water (so
+// shorelines and puddle edges reflect), the edge of the grid is a sponge that soaks waves up, and volume
+// isn't conserved (the pond goes on beyond the grid).
 
 const STEP = 1 / 240;
-export const FIELD_H_SCALE = 0.008;   // m: height texture spans ±4 mm
-export const FIELD_SLOPE = 1.2;       // slope texture spans ±1.2
+export const FIELD_H_SCALE = 0.016;   // m: height texture spans ±8 mm
+export const FIELD_SLOPE = 1.6;       // slope texture spans ±1.6
 
-// How hard the wash works the surface at a vessel-local point: the stagnation core, and the outwash
+// How hard the wash works the surface at a field-local point: the stagnation core, and the outwash
 // shearing across it out to the edge of the footprint.
 export function shear(f, x, z) {
   const d = Math.hypot(x - f.x, z - f.z);
   return Math.min(1, Math.exp(-(d * d) / (f.a * f.a)) + Math.exp(-(((d - f.ring) / (0.5 * f.foot)) ** 2)));
 }
 
+// opts: hScale and slope (the texture's range), c (wave speed), gamma (damping), open (above).
 export class RippleField {
-  constructor(radius, n = 40) {
+  constructor(radius, n = 40, opts = {}) {
     this.n = n;
     this.R = radius;
     this.dx = (2 * radius) / n;
+    this.open = !!opts.open;
+    this.hScale = opts.hScale ?? FIELD_H_SCALE;
+    this.slope = opts.slope ?? FIELD_SLOPE;
     // Wave speed: ~0.25 m/s in a cup (capillary-gravity ripples a few mm long), faster on a big bath.
-    this.c = 0.25 * Math.sqrt(Math.max(1, radius / 0.045));
-    this.k = 300;         // restoring spring (1/s²): sets how local the steady dimple stays
-    this.gamma = 3.5;     // damping (1/s): rings die in about a third of a second
+    this.c = opts.c ?? 0.25 * Math.sqrt(Math.max(1, radius / 0.045));
+    this.k = 300;                     // restoring spring (1/s²): sets how local the steady dimple stays
+    this.gamma = opts.gamma ?? 3.2;   // damping (1/s): rings die in about a third of a second
     const N = n * n;
     this.h = new Float32Array(N);
     this.v = new Float32Array(N);
@@ -50,11 +58,16 @@ export class RippleField {
     this.mask = new Uint8Array(N);
     this.cx = new Float32Array(N);
     this.cz = new Float32Array(N);
+    // Extra damping per cell: the open field's sponge round its edge.
+    this.damp = this.open ? new Float32Array(N) : null;
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
       const x = -radius + (i + 0.5) * this.dx, z = -radius + (j + 0.5) * this.dx;
       const k = j * n + i;
       this.cx[k] = x; this.cz[k] = z;
-      if (i > 0 && j > 0 && i < n - 1 && j < n - 1 && Math.hypot(x, z) < radius - 0.3 * this.dx) this.mask[k] = 1;
+      if (this.open) {
+        const edge = Math.min(i, j, n - 1 - i, n - 1 - j) / (n * 0.16);
+        this.damp[k] = edge < 1 ? 16 * (1 - edge) ** 2 : 0;
+      } else if (i > 0 && j > 0 && i < n - 1 && j < n - 1 && Math.hypot(x, z) < radius - 0.3 * this.dx) this.mask[k] = 1;
     }
     this.cells = this.mask.reduce((s, m) => s + m, 0);
     this.data = new Uint8Array(N * 4);
@@ -68,6 +81,7 @@ export class RippleField {
     this.on = 0;         // 0 when the texture is flat (shader skips it)
     this.steps = 0;      // substeps taken (for tests and the cost readout)
     this.maxDepth = 0;   // deepest point this frame (m, positive down)
+    this.rimSurge = 0;   // fastest rise near the vessel's wall this frame (m/s): slop over the rim
   }
 
   // A sudden local push (a drop, a dunk): kicks the surface velocity.
@@ -85,7 +99,7 @@ export class RippleField {
     this.live = true;
   }
 
-  // forcing: [{ x, z, a, depth, I, nb, omega, phase }] in vessel-local metres; depth is the steady dimple.
+  // forcing: [{ x, z, a, depth, I, nb, omega, phase }] in field-local metres; depth is the steady dimple.
   step(dt, forcing) {
     if (!forcing.length && !this.live) return false;
     const { n, F, mask } = this;
@@ -98,8 +112,8 @@ export class RippleField {
     for (let fi = 0; fi < nf; fi++) {
       const f = forcing[fi];
       const old = this.footprints[fi];
-      if (old && old.x === f.x && old.z === f.z && old.a === f.a && old.nb === f.nb) continue;
-      this.footprints[fi] = { x: f.x, z: f.z, a: f.a, nb: f.nb };
+      if (old && old.x === f.x && old.z === f.z && old.a === f.a && old.nb === f.nb && old.gen === this.gen) continue;
+      this.footprints[fi] = { x: f.x, z: f.z, a: f.a, nb: f.nb, gen: this.gen };
       this.shapeBuilds++;
       const g = this.shape[fi], lc = this.lobeCos[fi], ls = this.lobeSin[fi];
       const a2 = f.a * f.a, reach2 = 6.5 * a2;
@@ -135,11 +149,12 @@ export class RippleField {
           F[k] -= P * g[k] * (1 + pulse + lc[k] * cosTurn + ls[k] * sinTurn);
         }
         // Turbulent punches: gusts slap random spots, mostly in the core and where the outwash shears
-        // across the surface (which may be all the vessel sees when the wake lands beside it).
-        if (Math.random() < f.I * 0.8) {
-          const ang = Math.random() * Math.PI * 2, rr = this.R * 0.9 * Math.sqrt(Math.random());
-          const x = Math.cos(ang) * rr, z = Math.sin(ang) * rr;
-          if (Math.random() < shear(f, x, z)) this.impulse(x, z, f.depth * 22 * (0.5 + Math.random()), 0.0025 + Math.random() * 0.003);
+        // across the surface (which may be all the vessel sees when the wake lands beside it). An open
+        // field punches round the footprint rather than across its whole grid.
+        if (Math.random() < f.I * 1.3) {
+          const ang = Math.random() * Math.PI * 2, rr = (this.open ? f.foot * 1.3 : this.R * 0.9) * Math.sqrt(Math.random());
+          const x = (this.open ? f.x : 0) + Math.cos(ang) * rr, z = (this.open ? f.z : 0) + Math.sin(ang) * rr;
+          if (Math.random() < shear(f, x, z)) this.impulse(x, z, f.depth * 30 * (0.5 + Math.random()), 0.0025 + Math.random() * (this.open ? 0.006 : 0.003));
         }
       }
       this.substep(STEP);
@@ -150,14 +165,18 @@ export class RippleField {
   }
 
   substep(H) {
-    const { n, h, v, F, mask, k: K, gamma } = this;
+    const { n, h, v, F, mask, k: K, gamma, damp } = this;
     const c2 = (this.c * this.c) / (this.dx * this.dx);
     for (let k = 0; k < n * n; k++) {
       if (!mask[k]) continue;
       const hc = h[k];
       const l = mask[k - 1] ? h[k - 1] : hc, r = mask[k + 1] ? h[k + 1] : hc;
       const d = mask[k - n] ? h[k - n] : hc, u = mask[k + n] ? h[k + n] : hc;
-      v[k] += (c2 * (l + r + d + u - 4 * hc) - K * hc - gamma * v[k] + F[k]) * H;
+      v[k] += (c2 * (l + r + d + u - 4 * hc) - K * hc - (damp ? gamma + damp[k] : gamma) * v[k] + F[k]) * H;
+    }
+    if (this.open) {
+      for (let k = 0; k < n * n; k++) if (mask[k]) h[k] += v[k] * H;
+      return;
     }
     let sum = 0;
     for (let k = 0; k < n * n; k++) if (mask[k]) { h[k] += v[k] * H; sum += h[k]; }
@@ -168,14 +187,15 @@ export class RippleField {
 
   encode(forced) {
     const { n, h, v, e, mask, data } = this;
-    const inv2dx = 1 / (2 * this.dx), sH = 255 / FIELD_H_SCALE, sS = 127 / FIELD_SLOPE;
-    let peak = 0, deepest = 0;
+    const inv2dx = 1 / (2 * this.dx), sH = 255 / this.hScale, sS = 127 / this.slope;
+    const rimR2 = (this.R * 0.8) ** 2;
+    let peak = 0, deepest = 0, rim = 0;
     for (let k = 0; k < n * n; k++) {
       if (!mask[k]) continue;
       const hc = h[k];
       const gx = ((mask[k + 1] ? h[k + 1] : hc) - (mask[k - 1] ? h[k - 1] : hc)) * inv2dx;
       const gz = ((mask[k + n] ? h[k + n] : hc) - (mask[k - n] ? h[k - n] : hc)) * inv2dx;
-      // Energy: how agitated the surface is here (drives roughness and glitter in the shader).
+      // Energy: how agitated the surface is here (drives roughness, froth and glitter in the shader).
       e[k] = e[k] * 0.92 + 0.08 * Math.min(1, Math.abs(v[k]) * 35 + Math.hypot(gx, gz) * 1.5);
       const q = k * 4;
       data[q] = Math.max(0, Math.min(255, 128 + gx * sS));
@@ -185,20 +205,29 @@ export class RippleField {
       const m = Math.abs(hc) + Math.abs(v[k]) * 0.05 + e[k] * 1e-4;
       if (m > peak) peak = m;
       if (-hc > deepest) deepest = -hc;
+      if (v[k] > rim && this.cx[k] * this.cx[k] + this.cz[k] * this.cz[k] > rimR2) rim = v[k];
     }
     this.maxDepth = deepest;
+    this.rimSurge = this.open ? 0 : rim;
     this.texture.needsUpdate = true;
     this.on = 1;
     // Settled and unforced: zero it and stop stepping until something disturbs it again.
-    if (!forced && peak < 3e-6) {
-      h.fill(0); v.fill(0); e.fill(0);
-      for (let k = 0; k < n * n; k++) { data[k * 4] = 128; data[k * 4 + 1] = 128; data[k * 4 + 2] = 128; data[k * 4 + 3] = 0; }
-      this.live = false;
-      this.on = 0;
-    } else this.live = true;
+    if (!forced && peak < 3e-6) this.flatten();
+    else this.live = true;
   }
 
-  // Height (m) at a vessel-local point, nearest cell. For tests and effects.
+  // Flat and still: zero the state and the texture and stop stepping.
+  flatten() {
+    const { n, data } = this;
+    this.h.fill(0); this.v.fill(0); this.e.fill(0);
+    for (let k = 0; k < n * n; k++) { data[k * 4] = 128; data[k * 4 + 1] = 128; data[k * 4 + 2] = 128; data[k * 4 + 3] = 0; }
+    this.texture.needsUpdate = true;
+    this.live = false;
+    this.on = 0;
+    this.rimSurge = 0;
+  }
+
+  // Height (m) at a field-local point, nearest cell. For tests and effects.
   heightAt(x, z) {
     const i = Math.max(0, Math.min(this.n - 1, Math.floor((x + this.R) / this.dx)));
     const j = Math.max(0, Math.min(this.n - 1, Math.floor((z + this.R) / this.dx)));

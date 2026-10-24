@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Batcher, T, boxUV, planeUV, blobGeometry } from '../batch.js';
 import { kitMaterials, swayMaterial } from '../extras/kit.js';
 import { worldKit } from './kit.js';
+import { registerWater } from '../openWater.js';
 import { GroundPainter, buildGround } from './ground.js';
 import { AREAS, BOUNDS, MAIN, groundHeight } from '../../sim/world/plan.js';
 import { ROOM } from '../../sim/layout.js';
@@ -146,6 +147,8 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
       if (lod >= 2 && lite) return;
       // Phones get half the small leaves and petals (they are most of the world's triangles).
       if (lite && lod >= 1 && /leaf|petal/.test(mat.name) && (thin++ & 1)) return;
+      // Water is registered for the rotor wash (openWater.js): where it lies and how high.
+      if (mat === wk.water) registerWater(geo, matrix);
       if (!geo.boundingBox) geo.computeBoundingBox();
       geo.boundingBox.getCenter(_c);
       if (matrix) _c.applyMatrix4(matrix);
@@ -157,6 +160,7 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
     object(obj, lod = 1, at = null) {
       if (lod >= 2 && lite) return obj;
       obj.updateMatrixWorld(true);
+      obj.traverse((o) => { if (o.isMesh && o.material === wk.water) registerWater(o.geometry, o.matrixWorld); });
       _box.setFromObject(obj);
       if (at) { _c.set(at[0], 0, at[1]); _box.makeEmpty(); } else if (_box.isEmpty()) _c.copy(obj.position); else _box.getCenter(_c);
       const c = chunkAt(_c.x, _c.z, lod);
