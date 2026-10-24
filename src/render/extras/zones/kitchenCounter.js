@@ -70,12 +70,12 @@ function atlasTexture() {
   c.fillText('Serves 8 - 40 minutes', 34, 216);
   c.font = 'bold 15px Georgia, serif'; c.fillText('You will need', 34, 242);
   c.font = '14px Georgia, serif';
-  const ing = ['175g softened butter', '175g caster sugar', '3 large eggs', '175g self-raising flour', '1 tsp baking powder', '2 tbsp milk', 'raspberry jam, 4 tbsp', 'whipped cream, to fill'];
+  const ing = ['3 large eggs (about 175g)', '175g softened butter', '175g caster sugar', '175g self-raising flour', '1 tbsp milk', 'raspberry jam, 4 tbsp', 'whipped cream, to fill', 'icing sugar, to dust'];
   ing.forEach((t, i) => { c.fillText('- ' + t, 38, 266 + i * 19); });
   // Right page.
   c.font = 'bold 15px Georgia, serif'; c.fillText('Method', 276, 44);
   c.font = '13px Georgia, serif';
-  const steps = ['1. Heat the oven to 180C and', '   butter two 20cm tins.', '2. Cream the butter and sugar', '   until pale and fluffy.', '3. Beat in the eggs one at a', '   time with a spoon of flour.', '4. Fold in the rest of the', '   flour and the milk.', '5. Divide between the tins and', '   bake for 25 minutes.', '6. Cool on a wire rack, then', '   sandwich with jam and cream.', '7. Dust with icing sugar and', '   serve with a good pot of tea.'];
+  const steps = ['1. Heat the oven to 180C and', '   line two 20cm tins.', '2. Cream the butter and sugar', '   until pale and fluffy.', '3. Beat in the eggs one at a', '   time with a spoon of flour.', '4. Fold in the rest of the', '   flour and the milk.', '5. Divide between the tins and', '   bake for 25 minutes.', '6. Cool on a wire rack, then', '   sandwich with jam and cream.', '7. Dust with icing sugar and', '   serve with a good pot of tea.'];
   steps.forEach((t, i) => { c.fillText(t, 270, 74 + i * 21 + (i % 2 === 0 ? 4 : 0)); });
   c.fillStyle = '#7a2a22'; c.font = 'italic 12px Georgia, serif'; c.fillText('Cook\'s note: never open the oven door.', 270, 382);
   c.fillStyle = 'rgba(80,60,30,0.06)'; for (let i = 0; i < 90; i++) c.fillRect(Math.random() * 512, Math.random() * 400, 2 + Math.random() * 8, 1);
