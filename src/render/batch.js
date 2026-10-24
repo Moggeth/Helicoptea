@@ -29,9 +29,11 @@ export class Batcher {
     if (!g.attributes.normal) g.computeVertexNormals();
     // Tint as normalised shorts (linear colour needs more than a byte in the darks) and normals as bytes:
     // less than half the memory of floats, which phones need.
-    const c = new THREE.Color(color);
+    // A piece may carry a per-vertex 'shade' (baked occlusion and wear, see chairs.js) that scales its tint.
+    const c = new THREE.Color(color), sh = geo.attributes.shade;
     const col = new Uint16Array(n * 3), cr = Math.round(c.r * 65535), cg = Math.round(c.g * 65535), cb = Math.round(c.b * 65535);
-    for (let i = 0; i < n; i++) { col[i * 3] = cr; col[i * 3 + 1] = cg; col[i * 3 + 2] = cb; }
+    if (sh) for (let i = 0; i < n; i++) { const k = sh.getX(i); col[i * 3] = Math.min(65535, cr * k); col[i * 3 + 1] = Math.min(65535, cg * k); col[i * 3 + 2] = Math.min(65535, cb * k); }
+    else for (let i = 0; i < n; i++) { col[i * 3] = cr; col[i * 3 + 1] = cg; col[i * 3 + 2] = cb; }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3, true));
     const nf = g.attributes.normal.array, ni = new Int8Array(nf.length);
     for (let i = 0; i < nf.length; i++) ni[i] = Math.round(Math.max(-1, Math.min(1, nf[i])) * 127);

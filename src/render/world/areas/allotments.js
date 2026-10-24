@@ -5,6 +5,7 @@ import { buildHedge, buildTree, leafCards, mulberry } from '../kit.js';
 import { FY } from '../../../sim/world/plan.js';
 import { roofSlabs } from '../../../sim/world/shapes.js';
 import * as A from '../../../sim/world/allotments.js';
+import { placeChair } from '../../chairs.js';
 
 // Draws the back lane and the allotments (AREAS.allotments in src/sim/world/plan.js; colliders and every
 // number drawn here live in src/sim/world/allotments.js, so what you see is what you hit).
@@ -815,22 +816,17 @@ export function build(ctx) {
     B(k.zinc, 0xc8cccc, 0.28, 0.02, 0.2, 9.72, Tb.top + 0.01, -11.4, 0, 1);
     Cy(k.enamel, 0x6f4a2a, 0.05, 0.05, 0.12, 10.45, Tb.top + 0.06, -11.55, 10, 1); B(k.enamel, 0x6f4a2a, 0.12, 0.05, 0.08, 10.45, Tb.top + 0.045, -11.55, 0, 2);
     for (let i = 0; i < 3; i++) { Cy(k.ceramic, [0xe8d8b0, 0x6a8a9a, 0xc9663e][i], 0.036, 0.032, 0.08, 9.45 + i * 0.1, Tb.top + 0.04, -11.2 + 0.12 * (i % 2), 9, 1); }
-    // chairs: wooden, folding, deck chair, a second wooden one
-    for (const c of A.CHAIRS) {
-      const F = new Fr(c.x, c.z, c.yaw), dh = c.x > 6.7 && c.x < 10.9 && c.z > -11.8 ? Dk.top : 0;
-      const seat = c.kind === 'deck' ? 0.3 : c.kind === 'folding' ? 0.45 : 0.46, top = c.kind === 'wood2' ? 0.95 : c.kind === 'deck' ? 0.85 : 0.9;
-      const col = { wood: 0x8a5a3a, wood2: 0x3f6a7a, folding: 0xb8bcbc, deck: 0xc0392b }[c.kind];
-      if (c.kind === 'deck') {
-        FB(F, k.fabric, 0xe8d8a8, 0.42, 0.012, 0.6, 0, dh + 0.32, 0.0, 0, 1, 0.45); FB(F, k.fabric, 0xc0392b, 0.42, 0.012, 0.55, 0, dh + 0.55, -0.22, 0, 1, -0.5);
-        for (const sx of [-1, 1]) { FB(F, k.weathered, COL.pine, 0.03, 0.03, 0.9, sx * 0.23, dh + 0.5, -0.05, 0, 1, 0.9); FB(F, k.weathered, COL.pine, 0.03, 0.03, 0.55, sx * 0.23, dh + 0.25, 0.1, 0, 1, -0.7); }
-        for (let i = 0; i < 4; i++) FB(F, k.fabric, i % 2 ? 0xe8d8a8 : 0xc0392b, 0.42, 0.012, 0.15, 0, dh + 0.36 + i * 0.04, 0.1 - i * 0.1, 0, 2, 0.45);
-      } else {
-        FB(F, k.weathered, col, 0.42, 0.035, 0.4, 0, dh + seat, 0, 0, 1);
-        FB(F, k.weathered, jit(col), 0.4, top - seat - 0.02, 0.03, 0, dh + (top + seat) / 2, -0.19, 0, 1);
-        for (const sx of [-1, 1]) for (const sz of [-1, 1]) FB(F, k.weathered, jit(col), 0.03, seat, 0.03, sx * 0.17, dh + seat / 2, sz * 0.17, 0, 1);
-        if (c.kind === 'folding') FB(F, k.fabric, 0x3f6aa6, 0.38, 0.012, 0.36, 0, dh + seat + 0.02, 0, 0, 2);
-      }
-    }
+    // chairs from the chair kit: an old kitchen chair, a church-hall folding chair, a deckchair, a painted one
+    const pals = {
+      wood: ['ladder-board', { frame: [k.weathered, 0x8a5a3a], seat: [k.weathered, 0x977050] }],
+      wood2: ['ladder-board', { frame: [k.weathered, 0x3f6a7a], seat: [k.weathered, 0x4a7686] }],
+      folding: ['folding', { frame: [k.paint, 0x8f9a97], pad: [k.fabric, 0x3f6aa6], foot: [k.rubber, 0x2a2a28], metal: [k.steel, 0xb8bcbc] }],
+      deck: ['deck', { frame: [k.wood, 0xc29a62], stripeA: [k.fabric, 0xc0392b], stripeB: [k.fabric, 0xe8d8a8], metal: [k.brass, 0xc9a24e] }],
+    };
+    A.CHAIRS.forEach((c, i) => {
+      const dh = c.x > 6.7 && c.x < 10.9 && c.z > -11.8 ? Dk.top : 0, mx = T(c.x, FY + dh, c.z, c.yaw), [style, pal] = pals[c.kind];
+      placeChair(style, pal, (g, m, col, lod) => add(g, m, mx, col, lod), { lite: ctx.lite, seed: 41 + i });
+    });
     // a small shelf with enamel mugs beside the door, potted geraniums on the step, a stack of logs
     for (let i = 0; i < 3; i++) { Cy(k.terracotta, 0xb8643f, 0.09, 0.065, 0.14, 6.95 + i * 0.22, Dk.top + 0.07, Dk.z1 + 0.35, 9, 1); Blob(swMid, 0x4f7a3e, 0.12, 6.95 + i * 0.22, Dk.top + 0.2, Dk.z1 + 0.35, { sy: 0.7, lod: 1 }); Blob(swPetal, [0xc0392b, 0xe07a8a, 0xf0ece0][i], 0.05, 6.95 + i * 0.22, Dk.top + 0.27, Dk.z1 + 0.35, { lod: 2, detail: 0 }); }
     for (let i = 0; i < 9; i++) Cy(k.bark, 0x6a5a48, 0.07, 0.07, 0.4, H.x0 + 0.12 + (i % 3) * 0.15, 0.1 + Math.floor(i / 3) * 0.14, H.z0 - 0.32 + (i % 2) * 0.02, 7, 1, Math.PI / 2, 0, 0.0);

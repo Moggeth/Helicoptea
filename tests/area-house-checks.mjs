@@ -53,7 +53,7 @@ solid('the shut dining window glass', [3.6, 0.5, 3.55], [-1, 0, 0], 0.675, 0.06)
 solid('the shut bay side window glass', [-0.3, 0.6, 9.2], [1, 0, -1], 0.5, 0.45);
 solid('the landing window glass (shut)', [-1.9, 3.4, -1.0], [0, 0, 1], 3.2, 0.08);
 solid('the closed front door leaf', [-1.8, 0.4, 11.0], [0, 0, -1], 11 - 8.525, 0.05);
-solid('the sofa seat', [0.5, 1.2, 5.3], [0, -1, 0], 1.2 - (fy + 0.42), 0.08);
+solid('the sofa seat cushions', [0.5, 1.2, 5.3], [0, -1, 0], 1.2 - (fy + 0.54), 0.03);
 solid('a dining chair seat', [0.45, 1.0, 3.1], [0, -1, 0], 1.0 - (fy + 0.45), 0.05);
 solid('the dining table top', [1.0, 1.0, 3.6], [0, -1, 0], 1.0, 0.04);
 solid('the bed', [2.05, 4.0, 3.55], [0, -1, 0], 4.0 - (1.94 + 0.5), 0.1);

@@ -23,6 +23,7 @@ const rad = (d) => d * Math.PI / 180;
 // { k: 'box'|'cyl'|'ball'|'rail', x, y (abs centre), z, hx, hy, hz | r, hh | a, b, r, ry, rot:[rx,ry,rz], m (kit/world
 //   material key for the look), c (tint), ph (physical material), kind, lod, nocol (look only), novis (collider only) }
 export const SOLIDS = [];
+export const BISTRO_CHAIRS = [[-4.85, 1.78, Math.PI], [-5.7, 0.8, Math.PI / 2]];   // x, z, yaw (0 faces +z) on patio 1, facing the table
 const PH = { wood: 'wood', weathered: 'wood', paint: 'wood', wicker: 'wood', bark: 'wood', stone: 'stone', brick: 'brick', iron: 'metal', zinc: 'metal', steel: 'metal', brass: 'metal', copper: 'metal', enamel: 'metal', glass: 'glass', fabric: 'cloth', terracotta: 'ceramic', ceramic: 'ceramic', soil: 'plant', leaf: 'plant', leafy: 'plant', rubber: 'plastic', roof: 'tile', net: 'rope' };
 const put = (s, o = {}) => { SOLIDS.push({ m: 'paint', lod: 1, kind: 'garden', ...o, ...s }); return s; };
 // Box by footprint centre, size, bottom height and height.
@@ -254,18 +255,18 @@ export const PATIO1 = { x0: -5.95, x1: -3.55, z0: -0.5, z1: 2.4, table: { x: -4.
   cy(t.x, t.z, t.r, t.top - 0.03, 0.03, { m: 'paint', c: 0x3a4f43, kind: 'patio', ph: 'metal', seg: 16 });
   cy(t.x, t.z, 0.04, 0.0, t.top - 0.03, { ...wh, seg: 8 });
   for (let i = 0; i < 3; i++) { const a = i * Math.PI * 2 / 3 + 0.4; rl([t.x, 0.03, t.z], [t.x + Math.cos(a) * 0.32, 0.02, t.z + Math.sin(a) * 0.32], 0.014, wh); }
-  // Bistro chairs.
+  // Bistro chairs: drawn from the chair kit (src/render/chairs.js) at BISTRO_CHAIRS; these are their colliders.
   const chair = (cx, cz, yaw) => {
     const f = (lx, lz) => [cx + lx * Math.cos(yaw) + lz * Math.sin(yaw), cz - lx * Math.sin(yaw) + lz * Math.cos(yaw)];
-    bx(cx, cz, 0.4, 0.4, 0.43, 0.03, { ...wh, ry: yaw });
-    for (const [lx, lz] of [[-0.18, -0.18], [0.18, -0.18], [-0.18, 0.18], [0.18, 0.18]]) { const [px, pz] = f(lx, lz); rl([px, 0.0, pz], [px, 0.43, pz], 0.012, wh); }
-    const [b0x, b0z] = f(-0.18, -0.2), [b1x, b1z] = f(0.18, -0.2);
-    rl([b0x, 0.43, b0z], [b0x, 0.9, b0z], 0.012, wh); rl([b1x, 0.43, b1z], [b1x, 0.9, b1z], 0.012, wh);
-    const [bmx, bmz] = f(0, -0.2);
-    bx(bmx, bmz, 0.4, 0.03, 0.78, 0.12, { ...wh, ry: yaw });
-    bx(cx, cz, 0.36, 0.36, 0.455, 0.03, { m: 'fabric', c: 0xc9b891, kind: 'patio', ph: 'cloth', ry: yaw, lod: 2, nocol: true });
+    const solid = { ...wh, novis: true };
+    bx(cx, cz, 0.4, 0.4, 0.435, 0.03, { ...solid, ry: yaw });
+    for (const [lx, lz] of [[-0.193, -0.19], [0.193, -0.19], [-0.193, 0.2], [0.193, 0.2]]) { const [px, pz] = f(lx, lz); rl([px, 0.0, pz], [px, 0.44, pz], 0.012, solid); }
+    const [b0x, b0z] = f(-0.183, -0.2), [b1x, b1z] = f(0.183, -0.2);
+    rl([b0x, 0.44, b0z], [b0x, 0.88, b0z], 0.012, solid); rl([b1x, 0.44, b1z], [b1x, 0.88, b1z], 0.012, solid);
+    const [bmx, bmz] = f(0, -0.21);
+    bx(bmx, bmz, 0.37, 0.03, 0.61, 0.23, { ...solid, ry: yaw });
   };
-  chair(-4.85, 1.78, 0); chair(-5.7, 0.8, -Math.PI / 2);
+  for (const [x, z, yaw] of BISTRO_CHAIRS) chair(x, z, yaw);
   // Terracotta pots with geraniums along the house wall, a kettle barbecue at the end.
   for (const [x, z, r, h] of [[-4.0, 2.2, 0.17, 0.34], [-4.45, 2.28, 0.13, 0.26], [-5.6, 2.26, 0.15, 0.3]]) {
     cy(x, z, r, 0, h, { m: 'terracotta', c: 0xb9683f, kind: 'pot', seg: 10 });

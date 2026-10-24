@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { FY, HEDGE_GATE, groundHeight } from './plan.js';
 import { roofSlabs, treeColliders, runColliders } from './shapes.js';
+import { LADDER, ladderPostZ, FOLDING, foldingMainZ, DECK } from '../chairShapes.js';
 
 // The 'allotments' area (AREAS.allotments in plan.js): the back lane behind the gardens, the allotments
 // beyond it (z -9.5 to -24.5) and the hedge and stile at the park's edge. Fixed colliders, cups and the tea
@@ -373,14 +374,42 @@ export function colliders(w) {
     // the standpipe and tap beside it
     cy(0.03, 0.45, Tr.x + 0.55, 0.45, Tr.z - 0.45, 'pipe', 'metal');
   }
+  // Chair colliders fitted to the chair kit's models (src/sim/chairShapes.js; drawn by src/render/chairs.js).
   function chair(c) {
     const F = new Fr(c.x, c.z, c.yaw);
-    const seat = c.kind === 'deck' ? 0.3 : c.kind === 'folding' ? 0.45 : 0.46;
-    const top = c.kind === 'wood2' ? 0.95 : c.kind === 'deck' ? 0.85 : 0.9;
     const dh = c.x > 6.7 && c.x < 10.9 && c.z > -11.8 ? HUT.deck.top : 0;
-    fbx(F, 0.2, 0.02, 0.2, 0, dh + seat, 0, 'chair', 'wood');
-    fbx(F, 0.2, (top - seat) / 2, 0.02, 0, dh + (top + seat) / 2, -0.19, 'chair', 'wood');
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) fbx(F, 0.016, seat / 2, 0.016, sx * 0.17, dh + seat / 2, sz * 0.17, 'chair', 'wood');
+    // A bar in the chair's side plane at x = lx, from a to b given as [z, y] in the chair frame.
+    const bar = (lx, a, b, hw, hd) => {
+      const dz = b[0] - a[0], dy = b[1] - a[1];
+      fbq(F, hw, Math.hypot(dz, dy) / 2, hd, lx, dh + (a[1] + b[1]) / 2, (a[0] + b[0]) / 2, 'chair', 'wood', Math.atan2(dz, dy), 0, 0);
+    };
+    if (c.kind === 'deck') {
+      const D = DECK, zy = (p) => [p[0], p[1]];
+      for (const sx of [-1, 1]) {
+        bar(sx * D.railX, zy(D.foot), zy(D.top), 0.012, 0.02);
+        bar(sx * D.seatX, [D.hinge[0] - 0.09, D.hinge[1] - 0.06], [D.front[0] + 0.01, D.front[1]], 0.011, 0.017);
+        bar(sx * D.legX, zy(D.legFoot), [D.front[0] - 0.03, D.front[1] + 0.03], 0.011, 0.018);
+      }
+      bar(0, [D.top[0], D.top[1]], [0.02, 0.43], D.slingW / 2, 0.006);                     // the sagging sling, in two slabs
+      bar(0, [0.02, 0.43], [D.front[0], D.front[1] + 0.01], D.slingW / 2, 0.006);
+    } else if (c.kind === 'folding') {
+      const Fd = FOLDING, lean = Math.atan2(Fd.main[0][2] - Fd.main[1][2], Fd.main[1][1]);
+      for (const sx of [-1, 1]) {
+        bar(sx * 0.194, [Fd.main[0][2], 0], [Fd.main[1][2], Fd.main[1][1]], 0.011, 0.011);
+        bar(sx * 0.181, [Fd.rear[0][2], 0], [Fd.rear[1][2], Fd.rear[1][1]], 0.011, 0.011);
+      }
+      fbx(F, 0.19, 0.021, 0.18, 0, dh + 0.449, 0.01, 'chair', 'metal');
+      fbq(F, 0.185, 0.07, 0.012, 0, dh + Fd.backY, foldingMainZ(Fd.backY) - 0.02, 'chair', 'metal', -lean, 0, 0);
+    } else {
+      const L = LADDER;
+      fbx(F, 0.21, 0.051, 0.205, 0, dh + 0.411, 0, 'chair', 'wood');
+      for (const sx of [-1, 1]) {
+        fbx(F, 0.0185, 0.18, 0.0185, sx * L.front.x, dh + 0.18, L.front.z, 'chair', 'wood');
+        fbx(F, 0.017, 0.18, 0.017, sx * L.back.x, dh + 0.18, (L.postFootZ + L.back.z) / 2, 'chair', 'wood');
+        bar(sx * (L.back.x - 0.002), [L.back.z, L.rail], [L.postTop.z, L.postTop.y], 0.017, 0.016);
+      }
+      fbq(F, L.back.x - 0.01, 0.185, 0.015, 0, dh + 0.757, ladderPostZ(0.757) - 0.012, 'chair', 'wood', -L.rake, 0, 0);
+    }
   }
 
   // ---- sweet-pea cane rows: two foliage slabs leaning together per row

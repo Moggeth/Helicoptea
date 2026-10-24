@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { FY, MAIN, KITCHEN_HALL_DOOR, FRONT_DOOR } from './plan.js';
 import { roofSlabs } from './shapes.js';
+import { LADDER, ladderPostZ } from '../chairShapes.js';
 
 // The main house: two storeys and a loft in front of the kitchen extension (see MAIN in plan.js).
 // This module holds the whole design as data, shared by the colliders (here) and the meshes
@@ -615,29 +616,37 @@ function picture(x, y, z, yaw, w, h, col, frame = 0x6b4a2f) {
     B('paper', jit(col, 0.3, x + z), (w - 0.07) * 0.2, -h * 0.12, 0.015, (w - 0.07) * 0.45, (h - 0.07) * 0.4, 0.002, { lod: 2, solid: false });
   });
 }
+// Dining chairs are drawn from the chair kit (the ladder-back in src/render/chairs.js) where CHAIRS says;
+// these hidden boxes are their colliders, fitted to it (src/sim/chairShapes.js).
+export const CHAIRS = [];
 function chair(x, z, yaw, y0 = gf, col = WALNUT, seatCol = 0x9c4a3c) {
+  const [wx, wy, wz] = loc(x, y0, z);
+  CHAIRS.push({ x: wx, y: wy, z: wz, yaw: G.yaw + yaw, col, seatCol });
+  const L = LADDER, h = { kind: 'chair', role: 'hidden' }, lo = L.rail - 0.07;
   grp(x, y0, z, yaw, () => {
-    const sh = 0.45;
-    B('wood', col, 0, sh - 0.02, 0, 0.42, 0.04, 0.42, { kind: 'chair' });
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) B('wood', col, sx * 0.185, (sh - 0.04) / 2, sz * 0.185, 0.04, sh - 0.04, 0.04, { kind: 'chair' });
-    for (const sx of [-1, 1]) B('wood', col, sx * 0.185, sh + 0.22, -0.19, 0.04, 0.46, 0.035, { kind: 'chair' });
-    for (const y of [0.1, 0.22, 0.34]) B('wood', col, 0, sh + y, -0.19, 0.34, 0.06, 0.025, { kind: 'chair' });
-    B('fabric', seatCol, 0, sh + 0.005, 0.0, 0.37, 0.035, 0.37, { solid: false, lod: 2 });
+    B('wood', col, 0, (L.padTop + lo) / 2, 0, 0.42, L.padTop - lo, 0.41, h);
+    for (const sx of [-1, 1]) {
+      B('wood', col, sx * L.front.x, lo / 2, L.front.z, 0.037, lo, 0.037, h);
+      B('wood', col, sx * L.back.x, lo / 2, (L.postFootZ + L.back.z) / 2, 0.034, lo, 0.034, h);
+      const len = Math.hypot(L.postTop.y - L.rail, L.postTop.z - L.back.z);
+      B('wood', col, sx * (L.back.x - 0.002), (L.rail + L.postTop.y) / 2, (L.back.z + L.postTop.z) / 2, 0.034, len, 0.032, { ...h, rx: -L.rake });
+    }
+    B('wood', col, 0, 0.757, ladderPostZ(0.757) - 0.012, 2 * L.back.x - 0.02, 0.37, 0.03, { ...h, rx: -L.rake });
   });
 }
+// Sofas and armchairs are drawn from the chair kit (placeSofa in src/render/chairs.js: rolled arms, loose
+// cushions, turned feet) where SOFAS says; these hidden boxes are their colliders.
+export const SOFAS = [];
 function sofa(x, z, yaw, len, col, o = {}) {
   const d = o.d ?? 0.9, y0 = o.y0 ?? gf, n = Math.max(1, Math.round(len / 0.65));
+  const [wx, wy, wz] = loc(x, y0, z);
+  SOFAS.push({ x: wx, y: wy, z: wz, yaw: G.yaw + yaw, len, d, n, col, scatter: len > 1.3 ? [0xd9b45a, 0x5b7b8c] : [0xd9b45a] });
+  const h = { kind: 'sofa', role: 'hidden' };
   grp(x, y0, z, yaw, () => {
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) C('wood', DARKWOOD, sx * (len / 2 - 0.08), 0.05, sz * (d / 2 - 0.08), 0.03, 0.1, { lod: 1, r2: 0.022, solid: false });
-    B('fabric', col, 0, 0.1 + 0.16, 0.0, len, 0.32, d, { kind: 'sofa' });
-    for (const sx of [-1, 1]) B('fabric', jit(col, 0.06, x), sx * (len / 2 - 0.1), 0.1 + 0.27, 0.0, 0.2, 0.54, d, { kind: 'sofa' });
-    B('fabric', jit(col, 0.05, z), 0, 0.1 + 0.39, -d / 2 + 0.11, len - 0.4, 0.78, 0.22, { kind: 'sofa' });
-    for (let i = 0; i < n; i++) {
-      const cw = (len - 0.4) / n, cx = -(len - 0.4) / 2 + cw * (i + 0.5);
-      B('fabric', jit(col, 0.1, i + x), cx, 0.42 + 0.06, 0.1, cw - 0.015, 0.12, d - 0.3, { solid: false, lod: 1 });
-      B('fabric', jit(col, 0.1, i + z), cx, 0.42 + 0.3, -d / 2 + 0.3, cw - 0.03, 0.4, 0.14, { solid: false, lod: 1, rx: -0.18 });
-    }
-    for (const [sx, c] of [[-1, 0xd9b45a], [1, 0x5b7b8c]]) if (len > 1.3 || sx < 0) B('fabric', c, sx * (len / 2 - 0.3), 0.62, 0.1, 0.34, 0.3, 0.12, { solid: false, lod: 2, rx: -0.3, rz: sx * 0.2 });
+    B('fabric', col, 0, 0.1 + 0.16, 0.0, len, 0.32, d, h);
+    for (const sx of [-1, 1]) B('fabric', col, sx * (len / 2 - 0.1), 0.1 + 0.27, 0.0, 0.2, 0.54, d, h);
+    B('fabric', col, 0, 0.1 + 0.39, -d / 2 + 0.11, len - 0.4, 0.78, 0.22, h);
+    B('fabric', col, 0, 0.48, 0.08, len - 0.4, 0.12, d - 0.26, h);                  // the seat cushions
   });
 }
 // A rectangular table of top size w x d, top surface h above y0.

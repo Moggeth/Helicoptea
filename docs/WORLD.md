@@ -23,6 +23,10 @@ missions) and flight routes built on purpose.
   paints the ground ([ground.js](../src/render/world/ground.js)) and draws the horizon. The sky, the haze
   (scene fog) and the far hills' pre-mixed haze share one set of colours in
   [src/render/atmosphere.js](../src/render/atmosphere.js): change them there, not in each place.
+- **Chairs**: every chair, sofa and armchair comes from one kit, [src/render/chairs.js](../src/render/chairs.js)
+  (`placeChair`, `placeSofa`), whose measurements the colliders share in
+  [src/sim/chairShapes.js](../src/sim/chairShapes.js). Place a chair with its frame matrix and merge the pieces
+  into your batch; fit its colliders to the shared numbers.
 - **Shared assets**: [src/render/world/kit.js](../src/render/world/kit.js) (houses, windows, doors, trees,
   hedges, fences, leaf cards, world materials) and their colliders in
   [src/sim/world/shapes.js](../src/sim/world/shapes.js).
@@ -32,7 +36,7 @@ missions) and flight routes built on purpose.
 Each area is a pair, `src/sim/world/<area>.js` and `src/render/world/areas/<area>.js`.
 
 Sim side (DOM-free; the headless checks build it in Node). At the top level import only from `./plan.js`,
-`./shapes.js`, `three` and `../physics.js` (layout.js imports the area modules for their cups, so using
+`./shapes.js`, `../chairShapes.js`, `three` and `../physics.js` (layout.js imports the area modules for their cups, so using
 layout.js values at load time would be an import cycle; inside functions it is fine). Exports:
 
 - `CUPS`: cups like layout.js's (`id` prefixed with the area, `name`, `shape: 'teacup'` or a mug, `x, z`,

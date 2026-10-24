@@ -4,6 +4,7 @@ import { ROOM, WALL_T, BACKDOOR, WINDOW, SILL, COUNTER, KETTLE, CHAIRS, GARDEN, 
   ARCH, BIRDBATH, STUMP, BENCH, TREE, POTS, HEDGE, ROOF, CHIMNEY, FRIDGE, RADIO, CLOCK, FRAMES, CURTAINS,
   CAT, GNOME, LANTERN, CUPS, DRESSER, RANGE, LINE, FEEDER, BREADBIN, FRUITBOWL, CADDIES, CADDY, linePoint } from './layout.js';
 import { KITCHEN_HALL_DOOR, HEDGE_GATE } from './world/plan.js';
+import { WINDSOR, windsorPieces } from './chairShapes.js';
 import { buildWorldColliders } from './world/index.js';
 
 // Colliders for the house shell (back wall with an open door and window), the kitchen counter and chairs,
@@ -281,21 +282,24 @@ export function catBalls() {
   return [[at(-0.04), seat + 0.1, 0.105], [at(0.05), seat + 0.17, 0.085], [at(0.08), seat + 0.3, 0.068]];
 }
 
-// Kitchen Windsor chair, fitted to its model: round seat, splayed turned legs, spindle back and bent rail.
+// Kitchen Windsor chair, fitted to its model (src/sim/chairShapes.js): dished seat, splayed turned legs and
+// their H stretcher, seven spindles and the bow. The chair's own frame faces +z; the kitchen's chairs are
+// turned to face the table (yaw + half a turn).
 function windsorColliders(add, x, z, yaw) {
-  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
-  const P = (lx, ly, lz) => new THREE.Vector3(lx, ly, lz).applyQuaternion(q).add(new THREE.Vector3(x, 0, z));
-  const fy = ROOM.floorY;
-  let p = P(0, -0.3, 0);
-  add(RAPIER.ColliderDesc.cylinder(0.018, 0.205), p.x, p.y, p.z, 'chair', 'wood');
+  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw + Math.PI);
+  const fy = ROOM.floorY, W = WINDSOR, w = windsorPieces();
+  const P = (v) => v.clone().applyQuaternion(q).add(new THREE.Vector3(x, fy, z));
+  const p = P(new THREE.Vector3(0, (W.seatTop + W.seatBot) / 2, 0));
+  add(RAPIER.ColliderDesc.cylinder((W.seatTop - W.seatBot) / 2, 0.205), p.x, p.y, p.z, 'chair', 'wood');
   const seg = (a, b, r) => {
+    a = P(a); b = P(b);
     const mid = a.clone().add(b).multiplyScalar(0.5), dir = b.clone().sub(a), len = dir.length();
     add(RAPIER.ColliderDesc.capsule(len / 2, r), mid.x, mid.y, mid.z, 'chair', 'wood', new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize()));
   };
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) seg(P(sx * 0.15, fy + 0.016, sz * 0.14), P(sx * 0.113, -0.32, sz * 0.103), 0.016);
-  // Spindle back on an arc behind the seat, up to the rail.
-  for (let k = -3; k <= 3; k++) { const a = k * 0.17; seg(P(Math.sin(a) * 0.17, -0.28, 0.06 + Math.cos(a) * 0.12 - 0.02), P(Math.sin(a) * 0.17, 0.16, 0.06 + Math.cos(a) * 0.12 + 0.03), 0.011); }
-  for (let k = -4; k < 4; k++) { const a0 = k * 0.13, a1 = (k + 1) * 0.13; seg(P(Math.sin(a0) * 0.19, 0.17, 0.03 + Math.cos(a0) * 0.14), P(Math.sin(a1) * 0.19, 0.17, 0.03 + Math.cos(a1) * 0.14), 0.017); }
+  for (const [a, b] of w.legs) seg(a.clone().setY(a.y + 0.016), b, 0.016);
+  for (const [a, b] of [...w.side, w.cross]) seg(a, b, 0.012);
+  for (const [a, b] of w.spindles) seg(a, b, 0.009);
+  for (let i = 0; i < 10; i++) seg(w.bow[i * 6], w.bow[i * 6 + 6], W.bowR + 0.002);
 }
 
 function chairColliders(box, x, z, yaw, seatY, w, d, backH) {

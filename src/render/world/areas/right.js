@@ -3,6 +3,7 @@ import { FY, FRONT_DOORS } from '../../../sim/world/plan.js';
 import { buildHouse, buildTree, buildFence, windowAt, doorOnFace, leafCards, taperTube, mulberry } from '../kit.js';
 import { roofSlabs, gables } from '../../../sim/world/shapes.js';
 import * as S from '../../../sim/world/right.js';
+import { placeChair } from '../../chairs.js';
 
 // Draws the 'right' area: our right side passage, p+1's family garden, p+2's formal garden and the strip
 // (colliders and every number in src/sim/world/right.js; what is drawn here is what is hit there).
@@ -896,16 +897,11 @@ function patio(H) {
     }
     H.rod(k.steel, 0xb4b8ba, [P.x, P.apex - 0.04, P.z], [P.x + Math.sin(a0) * (P.r - 0.03), P.edge - 0.03, P.z + Math.cos(a0) * (P.r - 0.03)], 0.006, 4, 2);
   }
-  // four folding wooden chairs
-  for (const [cx, cz, yaw] of S.CHAIRS1) {
-    const s = Math.sin(yaw), c = Math.cos(yaw), at = (u, v) => [cx + c * u + s * v, cz - s * u + c * v];
-    const col = jit(rnd, 0xbf9b66, 0.9, 1.05);
-    for (let v = -0.2; v < 0.21; v += 0.08) { const [x, z] = at(0, v); H.boxC(k.wood, col, x, 0.445, z, 0.44, 0.03, 0.065, yaw, 1); }
-    for (const u of [-0.19, 0.19]) for (const v of [-0.19, 0.19]) { const [x, z] = at(u, v); H.box(k.wood, 0xa88458, x - 0.02, x + 0.02, 0, 0.43, z - 0.02, z + 0.02, 1); }
-    for (const u of [-0.19, 0.19]) { const [x, z] = at(u, -0.2); H.boxC(k.wood, 0xa88458, x, 0.7, z, 0.04, 0.5, 0.025, yaw, 1); }
-    for (const hh of [0.58, 0.7, 0.82]) { const [x, z] = at(0, -0.2); H.boxC(k.wood, col, x, hh, z, 0.4, 0.07, 0.02, yaw, 1); }
-    for (const u of [-0.19, 0.19]) { const [x1, z1] = at(u, 0.19), [x2, z2] = at(u, -0.19); H.rod(k.wood, 0xa88458, [x1, 0.25, z1], [x2, 0.25, z2], 0.01, 5, 2); }
-  }
+  // four teak garden chairs from the chair kit, each a slightly different honey
+  S.CHAIRS1.forEach(([cx, cz, yaw], i) => {
+    const mx = T(cx, g, cz, yaw), col = jit(rnd, 0xbf9b66, 0.9, 1.05);
+    placeChair('teak', { frame: ['wood', col], seat: ['wood', jit(rnd, col, 0.95, 1.06)] }, (geo, key, c, lod) => add(geo, k[key], mx, c, lod), { lite: ctx.lite, seed: 21 + i });
+  });
   // the barbecue: a black kettle on three legs with its lid on, a thermometer, a coal bag
   {
     const Bq = S.BBQ, blk = 0x1c1c1e;

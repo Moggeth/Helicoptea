@@ -4,8 +4,9 @@ import { boxUV, planeUV, T } from '../../batch.js';
 import * as TX from '../../textures.js';
 import { FY, MAIN } from '../../../sim/world/plan.js';
 import {
-  WALL_PIECES, PARTS, ROOF_PIECES, ROOMS, roomAt, cutRect, LV, VOID, STAIR_X1, HATCH, BAY, GABLE_WIN, P1, ARCH,
+  WALL_PIECES, PARTS, ROOF_PIECES, ROOMS, roomAt, cutRect, LV, VOID, STAIR_X1, HATCH, BAY, GABLE_WIN, P1, ARCH, CHAIRS, SOFAS,
 } from '../../../sim/world/house.js';
+import { placeChair, placeSofa } from '../../chairs.js';
 
 // Draws the main house (plan.js MAIN): brick walls with plaster inside, the roof and gables, and every
 // room's finishes; the furniture and fittings are the sim's PARTS (what you see is what you hit).
@@ -103,6 +104,17 @@ export function build(ctx) {
       default: break;
     }
   }
+
+  // Dining chairs: the chair kit's ladder-back with a drop-in seat, where the sim stood each one.
+  CHAIRS.forEach((c, i) => {
+    const mx = T(c.x, c.y, c.z, c.yaw);
+    placeChair('ladder', { frame: ['wood', c.col], pad: ['fabric', c.seatCol] }, (g, key, col, lod) => add(g, k[key], mx, col, lod), { lite: ctx.lite, seed: i + 3 });
+  });
+  // Sofas and armchairs, likewise.
+  SOFAS.forEach((s, i) => {
+    const mx = T(s.x, s.y, s.z, s.yaw);
+    placeSofa(s, { cover: ['fabric', s.col], frame: ['wood', 0x4f3423], metal: ['brass', 0xc9a24e] }, (g, key, col, lod) => add(g, k[key], mx, col, lod), { lite: ctx.lite, seed: i + 13 });
+  });
 
   // ------------------------------------------------------------------ walls: brick core outside, plaster skins inside
   const skirtCol = 0xf3efe6;

@@ -7,8 +7,10 @@ import { buildGarden } from './garden.js';
 import { TableCloth } from './cloth.js';
 import { cupModel, glazeMaterial, vesselGeometry, saucerGeometry, handleGeometry } from './models.js';
 import { teapotGeometry, buildTeaStand, tableTopGeometry, buildBookStack } from './tableware.js';
+import { Batcher, T } from './batch.js';
+import { kitMaterials } from './extras/kit.js';
+import { placeChair, releaseChairParts } from './chairs.js';
 
-const V2 = (x, y) => new THREE.Vector2(x, y);
 
 function shadowed(m, cast = true, receive = true) {
   m.traverse((o) => { if (o.isMesh) { o.castShadow = cast; o.receiveShadow = receive; } });
@@ -134,46 +136,14 @@ export function buildKitchen(scene, renderer, quality, progress, sim) {
     cord.position.set(0.05, (ROOM.ceilingY + 1.1) / 2, 0.05);
     scene.add(cord);
     out.pendant = { shade, bulb, cord }; // it swings: see charm.js
-    // Windsor chairs: oak seat, turned splayed legs, spindle back with a bent top rail.
-    const chairMat = new THREE.MeshStandardMaterial({ color: 0x8a5f40, map: wood.map, roughness: 0.6 });
-    const turned = (() => {
-      const p = [];
-      for (let i = 0; i <= 12; i++) { const t = i / 12; p.push(V2(0.011 + 0.005 * Math.sin(t * Math.PI) + (t > 0.82 && t < 0.9 ? 0.003 : 0), t * 0.47)); }
-      return new THREE.LatheGeometry(p, 10);
-    })();
-    for (const [x, z, yaw] of CHAIRS) {
-      const c = new THREE.Group();
-      const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.2, 0.035, 32), chairMat);
-      seat.scale.set(1, 1, 0.95);
-      seat.position.y = -0.3;
-      c.add(seat);
-      for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-        const l = new THREE.Mesh(turned, chairMat);
-        l.position.set(sx * 0.15, -0.76, sz * 0.14);
-        l.rotation.set(-sz * 0.08, 0, sx * 0.08);
-        c.add(l);
-      }
-      for (const sz of [-1, 1]) {
-        const st = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.32, 8), chairMat);
-        st.rotation.z = Math.PI / 2; st.position.set(0, -0.6, sz * 0.15);
-        c.add(st);
-      }
-      for (let k = -3; k <= 3; k++) {
-        const a = k * 0.17;
-        const sp = new THREE.Mesh(new THREE.CylinderGeometry(k % 3 === 0 ? 0.011 : 0.0065, k % 3 === 0 ? 0.012 : 0.0065, 0.44, 8), chairMat);
-        sp.position.set(Math.sin(a) * 0.17, -0.06, 0.06 + Math.cos(a) * 0.12);
-        sp.rotation.x = 0.12;
-        c.add(sp);
-      }
-      // Bent top rail over the spindles (the collider in house.js follows the same arc).
-      const railPts = [];
-      for (let k = -4; k <= 4; k++) { const a = k * 0.13; railPts.push(new THREE.Vector3(Math.sin(a) * 0.19, 0.17, 0.03 + Math.cos(a) * 0.14)); }
-      const rail = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railPts), 24, 0.016, 8, false), chairMat);
-      c.add(rail);
-      c.position.set(x, 0, z);
-      c.rotation.y = yaw;
-      scene.add(shadowed(c));
-    }
+    // Windsor bow-back chairs (src/render/chairs.js), both merged into one draw call.
+    const kit = kitMaterials(), cb = new Batcher();
+    CHAIRS.forEach(([x, z, yaw], i) => {
+      const M = T(x, ROOM.floorY, z, yaw + Math.PI);
+      placeChair('windsor', { frame: ['wood', 0x9a6a46], seat: ['wood', 0xb07c50] },
+        (g, k, c, lod) => { if (lod < 2 || !quality.lite) cb.add(g, kit[k], M, c); }, { lite: quality.lite, seed: i + 1 });
+    });
+    cb.build(scene);
   }
   progress?.('Hanging the curtains');
 
@@ -336,5 +306,6 @@ export function buildKitchen(scene, renderer, quality, progress, sim) {
   // (The teaspoon is loose: see props.js and charm.js.)
   progress?.('Setting out the china');
   out.garden = buildGarden(scene, quality, out, teaStand, sim);
+  releaseChairParts();                                    // every chair is merged into its batch by now
   return out;
 }

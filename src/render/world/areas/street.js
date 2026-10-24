@@ -3,6 +3,7 @@ import { buildTree, buildHedge, windowAt, mulberry } from '../kit.js';
 import { FY, FRONT_DOORS, FRONT_LINE } from '../../../sim/world/plan.js';
 import { roofSlabs, gables, chimneys } from '../../../sim/world/shapes.js';
 import * as S from '../../../sim/world/street.js';
+import { placeChair } from '../../chairs.js';
 
 // Draws the 'street' area (AREAS.street in src/sim/world/plan.js; colliders and numbers in
 // src/sim/world/street.js): the five front gardens, the street with its pavements, cars, lamps and telegraph
@@ -1062,18 +1063,12 @@ function cakeStand(H, x, y, z) {
     }
   });
 }
+// Chairs from the chair kit: bentwood with a red cushion inside the tea room, painted bistro chairs outside.
+let chairSeed = 0;
 function chair(H, x, base, z, yaw, col, cafe = false) {
-  const { k } = H;
-  const put = placeAt(H, x, base, z, yaw);
-  const mat = cafe ? k.wood : k.iron;
-  const T = H.T, B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
-  put(new THREE.CylinderGeometry(0.2, 0.2, 0.03, 14), mat, T(0, 0.45, 0), col, 1);
-  for (const [lx, lz] of [[-0.17, -0.17], [0.17, -0.17], [-0.17, 0.17], [0.17, 0.17]]) put(new THREE.CylinderGeometry(0.011, 0.011, 0.45, 5), mat, T(lx, 0.225, lz), col, 1);
-  for (const lx of [-0.17, 0.17]) put(B(0.022, 0.45, 0.022), mat, T(lx, 0.68, -0.185), col, 1);
-  put(B(0.38, 0.05, 0.025), mat, T(0, 0.88, -0.185), col, 1);
-  put(B(0.3, 0.04, 0.02), mat, T(0, 0.72, -0.185), col, 2);
-  put(B(0.3, 0.03, 0.02), mat, T(0, 0.58, -0.185), col, 2);
-  put(B(0.34, 0.015, 0.34), k.fabric, T(0, 0.47, 0), cafe ? 0x9a3a3a : col, 2);
+  const { k } = H, mx = H.T(x, base, z, yaw);
+  const pal = cafe ? { frame: ['wood', col], cane: ['wicker', 0xd6b47c], pad: ['fabric', 0x9a3a3a] } : { frame: ['paint', col], foot: ['rubber', 0x2a2a28] };
+  placeChair(cafe ? 'bentwood' : 'bistro', pal, (g, key, c, lod) => H.add(g, k[key], mx, c, lod), { lite: H.ctx.lite, seed: 31 + chairSeed++ });
 }
 function roundTable(H, x, base, z, col, cloth = null) {
   const { k, cyl } = H;
@@ -1302,7 +1297,7 @@ function forecourts(H) {
     if (i === 2) { cakeStand(H, 0.4, fl + 0.74, 22.88); teapot(H, 0.78, fl + 0.74, 22.82, 0x3f8a5a); box(0.3, 0.45, fl + 0.74, fl + 0.745, 23.1, 23.25, k.paper, 0xf2f0e8, 2); }
     if (i === 3) { cyl(0.035, 0.03, fl + 0.74, fl + 0.86, 1.55, 23.2, k.ceramic, 0x6a8ac8, 2, 7); for (let f = 0; f < 4; f++) ball(0.03, 1.55 + (f - 1.5) * 0.02, fl + 0.88, 23.2, k.petal, [0xe8c24a, 0xd96b8a, 0xf2f0e8, 0xb8283a][f], 2, 1, 1, 1, 5); }
   });
-  for (const [x, z, yaw] of F.chairs) chair(H, x, fl, z, yaw, 0x2a2a2a, false);
+  for (const [x, z, yaw] of F.chairs) chair(H, x, fl, z, yaw, 0x2c4a3c, false);
   // planters either side of the shopfront: tubs of box balls
   for (const x of [-6.45, 2.25]) {
     cyl(0.22, 0.26, fl, fl + 0.5, x, 23.45, k.wood, 0x2e5a48, 2, 10);

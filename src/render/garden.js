@@ -11,6 +11,7 @@ import { buildExtras } from './extras.js';
 import { buildWorld } from './world/index.js';
 import { HEDGE_GATE, groundHeight } from '../sim/world/plan.js';
 import { SKY, HAZE_HEX } from './atmosphere.js';
+import { placeChair } from './chairs.js';
 
 const V2 = (x, y) => new THREE.Vector2(x, y);
 const _v = new THREE.Vector3(), _c = new THREE.Vector3();
@@ -192,25 +193,12 @@ export function buildGarden(scene, quality, kitchen, teaStand, sim) {
       }
       b.add(new THREE.SphereGeometry(0.0055, 8, 6), foliage, T(tip.x, tip.y + 0.002, tip.z), 0xc98a1b, decor);
     }
-    // Bistro chairs (painted iron): seat, splayed legs, hoop back.
-    for (const [x, z, yaw] of GCHAIRS) {
-      const seatY = fy + 0.45;
-      b.add(new THREE.CylinderGeometry(0.2, 0.19, 0.02, 28), iron, T(x, seatY, z));
-      for (let k = 0; k < 4; k++) {
-        const a = k / 4 * Math.PI * 2 + Math.PI / 4 + yaw;
-        const top2 = new THREE.Vector3(x + Math.cos(a) * 0.15, seatY - 0.01, z + Math.sin(a) * 0.15);
-        const bot = new THREE.Vector3(x + Math.cos(a) * 0.19, fy, z + Math.sin(a) * 0.19);
-        b.add(new THREE.TubeGeometry(new THREE.LineCurve3(top2, bot), 1, 0.008, 6, false), iron, null);
-      }
-      const back = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
-      for (let k = -2; k <= 2; k++) {
-        const side = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)).multiplyScalar(k * 0.06);
-        const p0 = new THREE.Vector3(x, seatY, z).addScaledVector(back, 0.17).add(side);
-        b.add(new THREE.TubeGeometry(new THREE.LineCurve3(p0, p0.clone().add(new THREE.Vector3(0, 0.42, 0)).addScaledVector(back, 0.04)), 1, 0.006, 5, false), iron, null);
-      }
-      const hoop = new THREE.TorusGeometry(0.17, 0.009, 6, 24, Math.PI);
-      b.add(hoop, iron, T(x + back.x * 0.21, seatY + 0.3, z + back.z * 0.21, yaw));
-    }
+    // Painted steel bistro chairs (src/render/chairs.js), facing the table; the garden's iron is their paint.
+    GCHAIRS.forEach(([x, z, yaw], i) => {
+      const M = T(x, fy, z, yaw + Math.PI);
+      placeChair('bistro', { frame: ['paint', 0xffffff], foot: ['paint', 0x707070] },
+        (g, k, c, lod) => { if (lod < 2 || tier === 'high') b.add(g, iron, M, c, lod > 1 ? decor : undefined); }, { lite: quality.lite, seed: 7 + i });
+    });
   }
 
   // ---------------------------------------------------------------- rose arch

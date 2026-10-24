@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { buildHouse, windowAt, buildHedge, leafCards, taperTube, mulberry } from '../kit.js';
 import { FY, BACK_LINE, FRONT_LINE } from '../../../sim/world/plan.js';
 import * as L from '../../../sim/world/left.js';
+import { placeChair } from '../../chairs.js';
 
 // Draws the 'left' area (AREAS.left in src/sim/world/plan.js; colliders in src/sim/world/left.js): the two
 // neighbours' houses and gardens, the strip beyond the old wall and our own left side passage.
@@ -90,6 +91,7 @@ export function build(ctx) {
   paintGround(ctx);
   houses(ctx, { add, M, rnd });
   solids(ctx, { add, M, rnd });
+  chairs(ctx, { add });
   runs(ctx, { add });
   foliage(ctx, { add, M, rnd });
   gardenDetail(ctx, { add, M, rnd });
@@ -216,6 +218,14 @@ function houses(ctx, { add, M, rnd }) {
 }
 const jitCol = (hex, f) => col.setHex(hex).multiplyScalar(f).getHex();
 
+
+// ------------------------------------------------------------------ the patio's bistro chairs (the chair kit)
+function chairs(ctx, { add }) {
+  L.BISTRO_CHAIRS.forEach(([x, z, yaw], i) => {
+    const mx = ctx.T(x, FY, z, yaw);
+    placeChair('bistro', { frame: ['paint', 0x2b3a32], foot: ['rubber', 0x2a2a28] }, (g, key, col, lod) => add(g, key, mx, col, lod), { lite: ctx.lite, seed: 11 + i });
+  });
+}
 
 // ------------------------------------------------------------------ every solid in the list, drawn as it collides
 function solids(ctx, { add, rnd }) {
