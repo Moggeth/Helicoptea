@@ -72,6 +72,7 @@ export class ParticlePool {
   // onLand(x, y, z, size, speed): if given, heavy particles (drops) that reach the floor are absorbed and
   // reported, with the drop's starting size and how fast it was falling.
   update(dt, floorFn, windFn, onLand) {
+    if (!this.count) return;
     const wv = this._wv || (this._wv = { x: 0, y: 0, z: 0, set(a, b, c) { this.x = a; this.y = b; this.z = c; return this; }, addScaledVector(v, s) { this.x += v.x * s; this.y += v.y * s; this.z += v.z * s; return this; } });
     let n = this.count;
     for (let i = 0; i < n; i++) {
@@ -112,9 +113,13 @@ export class ParticlePool {
     }
     this.count = n;
     this.points.geometry.setDrawRange(0, n);
-    this.posAttr.needsUpdate = true;
-    this.colAttr.needsUpdate = true;
-    this.sizeAttr.needsUpdate = true;
+    // Only the live prefix can be drawn. Empty pools do not upload anything; when a pool wakes again
+    // the whole new live prefix is refreshed, including particles emitted by landing callbacks.
+    if (n) for (const attr of [this.posAttr, this.colAttr, this.sizeAttr]) {
+      attr.clearUpdateRanges();
+      attr.addUpdateRange(0, n * attr.itemSize);
+      attr.needsUpdate = true;
+    }
   }
 
   copy(from, to) {
