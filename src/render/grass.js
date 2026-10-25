@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { grassTiles } from './grassTiles.js';
 import { GARDEN, ROOM } from '../sim/layout.js';
 import { MAIN } from '../sim/world/plan.js';
 
@@ -64,16 +65,20 @@ const VERT_HEAD = `
   vec3 gPos; vec3 gNrm;
   void grassBlade(){
     float n = uWinN.x, m = uWinN.y;
-    float X = uWin.x + mod(aCell.x - uWin.x, n);
-    float Z = uWin.y + mod(aCell.y - uWin.y, m);
+    float X = uWin.x + aCell.x;
+    float Z = uWin.y + aCell.y;
     vec2 cellId = vec2(X, Z);
     // A cell can hold a tuft of a few blades (position.z numbers them), each rooted and shaped on its own.
     cellId += position.z * vec2(0.4131, 0.7593);
     vec2 h2 = gHash22(cellId);
-    float h1 = gHash12(cellId + 17.3), h3 = gHash12(cellId * 1.7 + 3.1);
     vec2 root = (cellId + h2) * uWin.z;
     vec2 muv = (root - uMaskRect.xy) / uMaskRect.zw;
     vec4 mk = (muv.x < 0.0 || muv.y < 0.0 || muv.x > 1.0 || muv.y > 1.0) ? vec4(0.0) : texture2D(uMask, muv);
+    // Masked blades collapse to a point. Avoid all wind, lighting and colour work for them.
+    gPos = vec3(root.x, uGroundY + mk.a * uHeightScale, root.y);
+    gNrm = vec3(0.0, 1.0, 0.0); vGrassCol = vec3(0.0);
+    if (mk.r <= 0.0) return;
+    float h1 = gHash12(cellId + 17.3), h3 = gHash12(cellId * 1.7 + 3.1);
     // Window fades, round (a square window's corners showed as straight edges): the near layer thins out
     // towards its rim and the far layer thins in under it by the same measure, so between them the lawn keeps
     // its density. A blade doesn't shrink with the whole band: each one has its own point in the fade where
@@ -86,6 +91,7 @@ const VERT_HEAD = `
     float bed = mk.b;
     float flower = bed > 0.5 ? step(0.55, h3) : step(0.965, h3) * step(0.35, mk.g);
     float present = step(1.0 - mk.r, h1) * step(1e-3, grow);
+    if (present < 0.5) return;
     float H = mix(uBlade.y, uBlade.z, mk.g) * (0.55 + 0.75 * h3 * h3) * present * (0.3 + 0.7 * grow);
     H *= mix(1.0, 1.25, flower);
     float W = uBlade.x * (0.7 + 0.6 * h1) * mix(1.0, 0.75, flower) * (present > 0.0 ? 1.0 : 0.0);
@@ -184,11 +190,6 @@ export class Grass {
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(new Array(pos.length).fill(0).map((_, i) => (i % 3 === 1 ? 1 : 0)), 3));
     geo.setIndex(idx);
-    const cells = new Float32Array(nx * nz * 2);
-    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) { const k = (j * nx + i) * 2; cells[k] = i; cells[k + 1] = j; }
-    geo.setAttribute('aCell', new THREE.InstancedBufferAttribute(cells, 2));
-    geo.instanceCount = nx * nz;
-    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e4);
     const mat = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide });
     const u = {
       ...this.uniforms,
@@ -220,12 +221,7 @@ export class Grass {
         .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n  normal = normalize(vNormal);');
     };
     mat.customProgramCacheKey = () => `grass-${o.near ? 'n' : 'f'}`; // one program for every layer (the world's lawns too)
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.frustumCulled = false;
-    mesh.receiveShadow = !!shadows;
-    mesh.castShadow = false;
-    mesh.userData.noAO = true;
-    mesh.renderOrder = -1;
+    const mesh = grassTiles(geo, mat, nx, nz, mask, { tuft: o.tuft || 1, shadows: !!shadows });
     this.scene.add(mesh);
     return mesh;
   }
@@ -240,10 +236,7 @@ export class Grass {
     this.worldCell = w.cell; this.worldN = w.n;
     this.blades += w.n * w.n * w.tuft;
     this.world.name = 'world-grass';
-    // Culled like any mesh (by a sphere round its window, moved each frame), so a render that looks the
-    // other way, or the hook camera's few metres, skips it.
-    this.world.frustumCulled = true;
-    this.world.geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), w.n * w.cell * 0.72);
+
   }
 
   // centre: where the dense layer should be (around the camera and what it looks at).
@@ -252,7 +245,7 @@ export class Grass {
       const n = this.worldN, c = this.worldCell;
       const bx = Math.floor(camera.position.x / c) - n / 2, bz = Math.floor(camera.position.z / c) - n / 2;
       this.world.material.userData.u.uWin.value.set(bx, bz, c, 0);
-      this.world.geometry.boundingSphere.center.set((bx + n / 2) * c, GARDEN.groundY + 0.5, (bz + n / 2) * c);
+      this.world.updateTiles();
       // Indoors (the kitchen and the house) the lawns are only seen through a window or two: no blades.
       const p = camera.position;
       this.world.visible = !((p.x > ROOM.minX && p.x < ROOM.maxX && p.z > ROOM.minZ && p.z < ROOM.maxZ && p.y < ROOM.ceilingY)
@@ -262,6 +255,8 @@ export class Grass {
     const nu = this.near.material.userData.u;
     const bx = Math.floor(centre.x / c) - n / 2, bz = Math.floor(centre.z / c) - n / 2;
     nu.uWin.value.set(bx, bz, c, 0);
+    this.near.updateTiles();
+    this.far.updateTiles();
     const half = n * c / 2;
     const cx = (bx + n / 2) * c, cz = (bz + n / 2) * c;
     this.far.material.userData.u.uOther.value.set(cx, cz, half, 0);
