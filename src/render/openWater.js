@@ -95,6 +95,9 @@ export class OpenWash {
     this.forcing = [];                                // field-local, filled by LiquidWash.couple()
     this.washS = 0;
     this.moves = 0;
+    this.shiftScratch = new Float32Array(this.field.h.length);
+    this.maskScratch = new Uint8Array(this.field.mask.length);
+    this.maskQueries = 0;
     // The look of spray thrown off it: pond water, a little milky with silt.
     this.spray = new THREE.Color(0.78, 0.84, 0.82);
   }
@@ -111,7 +114,8 @@ export class OpenWash {
     const keep = Number.isFinite(this.y) && Math.abs(y - this.y) < 0.01 && Math.abs(si) < n && Math.abs(sj) < n && F.live;
     if (keep) {
       for (const arr of [F.h, F.v, F.e]) {
-        const old = arr.slice();
+        const old = this.shiftScratch;
+        old.set(arr);
         arr.fill(0);
         for (let j = 0; j < n; j++) {
           const oj = j + sj;
@@ -120,12 +124,21 @@ export class OpenWash {
         }
       }
     } else { F.h.fill(0); F.v.fill(0); F.e.fill(0); }
+    const keepMask = this.y === y && Math.abs(si) < n && Math.abs(sj) < n;
     this.x = x; this.z = z; this.y = y;
+    const oldMask = this.maskScratch;
+    oldMask.set(F.mask);
     let cells = 0;
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
       const k = j * n + i;
-      const wy = i > 0 && j > 0 && i < n - 1 && j < n - 1 ? waterAt(x + F.cx[k], z + F.cz[k]) : NaN;
-      const m = Math.abs(wy - y) < 0.012 ? 1 : 0;
+      let m = 0;
+      if (i > 0 && j > 0 && i < n - 1 && j < n - 1) {
+        const oi = i + si, oj = j + sj;
+        // Water geometry is static. Reuse overlapping mask cells only at the identical water level;
+        // the old grid's border was forcibly dry, so newly interior border cells must be queried.
+        if (keepMask && oi > 0 && oj > 0 && oi < n - 1 && oj < n - 1) m = oldMask[oj * n + oi];
+        else { this.maskQueries++; m = Math.abs(waterAt(x + F.cx[k], z + F.cz[k]) - y) < 0.012 ? 1 : 0; }
+      }
       F.mask[k] = m;
       if (!m) { F.h[k] = 0; F.v[k] = 0; F.e[k] = 0; }
       cells += m;
@@ -204,17 +217,22 @@ ${NOISE}`)
   }
   owRough = clamp(owRough + owE * 0.9, 0.0, 1.0);
   // Froth: where it is worked hardest the surface whitens in flecks, streaming with the flow.
-  float owFl = owNoise(owL * 90.0 + uOWTime * vec2(1.3, -0.9)) * owNoise(owL * 210.0 - uOWTime * vec2(0.7, 1.6));
-  float owFroth = smoothstep(0.55, 0.95, owE) * smoothstep(0.3, 0.55, owFl);
+  float owFroth = 0.0;
+  if (owE > 0.55) {
+    float owFl = owNoise(owL * 90.0 + uOWTime * vec2(1.3, -0.9)) * owNoise(owL * 210.0 - uOWTime * vec2(0.7, 1.6));
+    owFroth = smoothstep(0.55, 0.95, owE) * smoothstep(0.3, 0.55, owFl);
+  }
   diffuseColor.rgb = mix(diffuseColor.rgb * (1.0 - 0.2 * owRough), vec3(0.9, 0.93, 0.9), owFroth * 0.75);
   diffuseColor.a = max(diffuseColor.a, owFroth * 0.9);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
   if (owRough + owE > 0.0) normal = normalize(normal + (viewMatrix * vec4(-owG.x, 0.0, -owG.y, 0.0)).xyz);`)
       .replace('#include <opaque_fragment>', `
   // Glitter: tiny glints winking in the roughened water.
+  if (owRough > 0.0) {
   vec2 owGc = owL * 300.0;
   float owGl = step(0.992 - 0.02 * owRough, owHash(floor(owGc) + floor(uOWTime * 24.0) * 0.37)) * smoothstep(0.42, 0.1, length(fract(owGc) - 0.5));
   outgoingLight += vec3(1.0, 0.96, 0.88) * owGl * owRough * 1.2;
+  }
 #include <opaque_fragment>`);
     // (Only the standard material has roughness; the Phong stand-in has no such chunk.)
     sh.fragmentShader = sh.fragmentShader.replace('#include <lights_physical_fragment>', `roughnessFactor = min(1.0, roughnessFactor + owRough * 0.45);
