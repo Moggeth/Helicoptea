@@ -12,10 +12,16 @@ const checks = [], samples = [];
 function check(name,ok,detail='') { checks.push({name,ok,detail}); console.log(`${ok?'PASS':'FAIL'}  ${name} ${typeof detail==='string'?detail:JSON.stringify(detail)}`); }
 async function open({pad=false,touch=false,via=browser}={}) {
   const ctx = await via.newContext({viewport:{width:1280,height:720},hasTouch:touch});
-  if(pad) await ctx.addInitScript(() => {
-    window.__pad={axes:[0,0,0,0],buttons:Array.from({length:17},()=>({pressed:false,value:0}))};
-    navigator.getGamepads=()=>[{...window.__pad,id:'Xbox 360 Controller (XInput STANDARD GAMEPAD)',index:0,connected:true,mapping:'standard',timestamp:performance.now()}];
-  });
+  // Host controllers can emit native connection events even when getGamepads is overridden.
+  // Keep their toasts/inputs out of this synthetic-device test (e.g. a connected Z3 Receiver).
+  await ctx.addInitScript(({pad}) => {
+    for (const type of ['gamepadconnected', 'gamepaddisconnected'])
+      window.addEventListener(type, e => { if (e.isTrusted) e.stopImmediatePropagation(); }, true);
+    if (pad) {
+      window.__pad={axes:[0,0,0,0],buttons:Array.from({length:17},()=>({pressed:false,value:0}))};
+      navigator.getGamepads=()=>[{...window.__pad,id:'Xbox 360 Controller (XInput STANDARD GAMEPAD)',index:0,connected:true,mapping:'standard',timestamp:performance.now()}];
+    } else navigator.getGamepads=()=>[];
+  }, {pad});
   const page=await ctx.newPage(), errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   await page.goto(`${base}?quality=low&dynres=0`);
