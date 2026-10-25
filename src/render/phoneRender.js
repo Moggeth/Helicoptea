@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { cacheBatchBounds } from './batchBounds.js';
 
 // The phone renderer: the same scene, drawn for a phone's CPU and GPU budget (120 Hz on a Galaxy S24 Ultra).
 //
@@ -30,7 +31,7 @@ const plain = (m) => m.onBeforeCompile === STOCK_OBC || portable(m) || COSMETIC.
 const WALK_EVERY = 30;      // frames between walks for new materials
 function releaseArray() { this.array = null; }
 const _box = new THREE.Box3(), _sphere = new THREE.Sphere();
-const _proj = new THREE.Matrix4(), _mat = new THREE.Matrix4(), _frustum = new THREE.Frustum();
+const _proj = new THREE.Matrix4(), _frustum = new THREE.Frustum();
 
 // A batch's onBeforeRender. three.js's culls each instance against the camera, then re-uploads the batch's
 // list of instances to draw on every render, even when the list is the same as last time (nearly always:
@@ -65,8 +66,7 @@ function cullBatch(renderer, scene, camera, geometry) {
   for (let i = 0, l = info.length; i < l; i++) {
     const d = info[i];
     if (!d.visible || !d.active) continue;
-    this.getMatrixAt(i, _mat);
-    if (!_frustum.intersectsSphere(this.getBoundingSphereAt(d.geometryIndex, _sphere).applyMatrix4(_mat))) continue;
+    if (!_frustum.intersectsSphere(this.cachedBound(i, d.geometryIndex))) continue;
     const r = ranges[d.geometryIndex];
     starts[count] = r.start * bytes;
     counts[count] = r.count;
@@ -277,6 +277,7 @@ export class PhoneRender {
       bm.sortObjects = false;            // opaque only: no sorting needed
       bm.matrixAutoUpdate = false;
       bm.onBeforeRender = cullBatch;
+      bm.cachedBound = cacheBatchBounds(bm);
       const ids = new Map();
       try { for (const [g, v] of views) ids.set(g, bm.addGeometry(v)); } catch (err) { console.warn('[Helicoptea] phone batch skipped', err.message); bm.dispose(); mat.dispose(); continue; }
       for (const o of list) {
