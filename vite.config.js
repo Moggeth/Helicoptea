@@ -14,5 +14,14 @@ export default defineConfig({
   plugins: [flightLogPlugin()],   // /api/flights: saves recorded flights and notes to logs/flights/
   server: { port: 5178, strictPort: true },
   preview: { port: 4178, strictPort: true },
-  build: { target: 'es2020', outDir: 'dist', chunkSizeWarningLimit: 4000, sourcemap: true },
+  build: {
+    target: 'es2020', outDir: 'dist', chunkSizeWarningLimit: 4000, sourcemap: true,
+    // Engine code changes much less often than the game. Stable content hashes let repeat visitors
+    // reuse Three/Rapier across game releases instead of downloading the embedded WASM every time.
+    rollupOptions: { output: { manualChunks(id) {
+      const path = id.replaceAll('\\', '/');
+      if (path.includes('/node_modules/@dimforge/')) return 'physics';
+      if (path.includes('/node_modules/three/')) return 'graphics';
+    } } },
+  },
 });
