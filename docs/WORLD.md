@@ -31,6 +31,26 @@ missions) and flight routes built on purpose.
   hedges, fences, leaf cards, world materials) and their colliders in
   [src/sim/world/shapes.js](../src/sim/world/shapes.js).
 
+## The neighbours
+
+Seven people sit out round the neighbourhood (one stands at the barbecue), each with a cup of tea that is
+theirs: [src/sim/people.js](../src/sim/people.js) places them on existing seats and names their cups ("Agnes's
+tea"). They are the sandbox's light missions, told without a HUD: they watch the helicopter that comes close,
+offer their cup with an open hand, are pleased (a nod, a wave, a smile and "mm") once it is brewed to their
+liking, and say "hmm" if it goes past it. Rotor blades on a person end the flight (the tail rotor alone is a
+tail strike); they say ow, flinch and put a hand to a small red nick where the blade touched, and the crash
+screen names them. With "Blades break on a strike" off they still say ow and keep the nick.
+
+- **Pose** ([src/sim/personPose.js](../src/sim/personPose.js)): 24 bones solved straight into person space
+  (two-bone IK for arms and legs), shared by the sim and the renderer. The animation (breathing, weight
+  shifts, blinking, where they look, each person's habit, the reactions) runs in the sim at 60 Hz near the
+  aircraft and less often further off, so the colliders (capsules and balls on the trunk, head and limbs)
+  follow the body. Like the areas' colliders they exist only while the aircraft, a bag or wreckage is near.
+- **Drawing** ([src/render/people.js](../src/render/people.js)): one skinned mesh per person (about 3,000
+  triangles, every part built in its bone's frame with vertex colours, nicks included) on one shared
+  material, so a person is one draw call and everyone shares one shader program, built in the warm-up. The
+  bone texture is uploaded only when the pose has changed. People sit in their area's level-1 chunks.
+
 ## Area module contract
 
 Each area is a pair, `src/sim/world/<area>.js` and `src/render/world/areas/<area>.js`.

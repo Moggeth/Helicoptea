@@ -11,6 +11,7 @@
 // the camera and the aircraft are.
 
 import { crashSound } from './crashAudio.js';
+import { say } from './voice.js';
 import { AircraftVoice, prewarm, PROFILES } from './aircraftVoice.js';
 import { noiseBuffer, brownBuffer, impulse } from './synth.js';
 import { Ambience } from './ambience.js';
@@ -421,6 +422,7 @@ export class Audio {
       switch (e.type) {
         case 'crash': this.drowned = e.kind === 'dunk'; crashSound(this, e, this.spot(e.pos, 1, 9)); break;
         case 'rotorShatter': case 'tailStrike': case 'teaStrike': crashSound(this, e, this.spot(e.pos, 1)); break;
+        case 'personSay': say(this, e.word, this.spot(e.pos, e.word === 'ow' ? 2.2 : 1.6, 2), e.voice); break;
         case 'rotorTick':
           if (now - (this.lastTick || 0) > 0.03) { this.lastTick = now; crashSound(this, e, this.spot(e.pos)); }
           break;

@@ -155,6 +155,7 @@ node tests/e2e-depth.mjs http://localhost:4192/   # depth cues: shadows on table
 node tests/e2e-touch-sticks.mjs      # phone twin sticks with real multi-touch: layouts, leash, double-tap, haptics (Android and iPhone), battery saver, pause menu fit
 node tests/e2e-replay.mjs            # flight recording, replay viewer, notes and saving on keyboard, gamepad and touch
 node tests/e2e-crashes.mjs           # every crash kind on every aircraft, strikes, the Rotor strikes setting, crash replays, effect cost
+node tests/e2e-people.mjs            # the neighbours: one draw each, watching, their tea, a rotor strike (ow, a nick, the crash)
 node tests/e2e-static.mjs            # the build on a plain static host (no /api): browser saving, reload, Download
 node tests/e2e-tuning.mjs            # flight tuning board: sliders, tabs, persistence, presets, export/import, and every preview clip at both ends of every range
 node tests/e2e-camera.mjs http://localhost:4196/  # camera modes, GoPro, cycling, frame cost per mode

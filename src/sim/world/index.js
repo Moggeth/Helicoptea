@@ -7,6 +7,7 @@ import * as right from './right.js';
 import * as street from './street.js';
 import * as allotments from './allotments.js';
 import * as park from './park.js';
+import * as people from '../people.js';
 
 // The neighbourhood's areas (see plan.js). Each area module is DOM-free and exports any of:
 //   CUPS: [...]        more cups to brew in (the same fields as layout.js CUPS; standY is what they stand on)
@@ -14,7 +15,7 @@ import * as park from './park.js';
 //   colliders(w)       fixed colliders, built on every device (see the helpers below)
 //   create(sim, lite)  dynamic set pieces, exactly like src/sim/extras modules (recorded, applyForces,
 //                      afterStep, reset); lite on phones and the low tier: fewer loose bodies
-export const AREA_MODULES = { house, left, right, street, allotments, park };
+export const AREA_MODULES = { house, left, right, street, allotments, park, people };
 
 export const WORLD_CUPS = Object.values(AREA_MODULES).flatMap((m) => m.CUPS || []);
 export const WORLD_STATIONS = Object.values(AREA_MODULES).flatMap((m) => m.STATIONS || []);

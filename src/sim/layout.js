@@ -1,6 +1,7 @@
 // Static table layout shared by physics colliders and render meshes (metres, table top at y = 0).
 import { WORLD_CUPS, WORLD_STATIONS } from './world/index.js';
 import { BOUNDS as WORLD_BOUNDS, groundHeight } from './world/plan.js';
+import { nameCups } from './people.js';
 
 export const TABLE = { halfX: 0.86, halfZ: 0.52, thickness: 0.045, height: 0.76 };
 
@@ -43,6 +44,8 @@ export const CUPS = [
   // The rest of the neighbourhood's cups (src/sim/world/*.js).
   ...WORLD_CUPS,
 ];
+// The neighbours' own cups take their names (src/sim/people.js).
+nameCups(CUPS);
 
 export const DISCARD = { x: 0.5, z: -0.29, radius: 0.078, rimHeight: 0.013, thickness: 0.006 };
 

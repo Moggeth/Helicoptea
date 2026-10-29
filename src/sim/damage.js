@@ -189,6 +189,16 @@ export class Damage {
       if (heli.rotorSpeed < 0.4) continue;
       const point = this.contactPoint(heli, s, hit.other);
       const material = hit.info.material || hit.info.kind;
+      // A person: they say ow and keep a nick, and the blades go (every main rotor: the aircraft is done for;
+      // the tail rotor alone is a tail strike).
+      if (hit.info.kind === 'person') {
+        const who = sim.people && sim.people.strike(hit.info, point, hit.other);
+        if (!this.rotorStrikes || D.hulk) continue;
+        if (who) D.who = D.who || who.def.name;
+        if (s.tail) this.loseTail(heli, point, 'person');
+        else for (let i = 0; i < rotorsOf(heli.type).length; i++) this.shedRotor(heli, i, point, 'person');
+        continue;
+      }
       if (!this.rotorStrikes) {
         // Blades pass through: a light brush now and then, nothing more.
         if (D.tickT <= 0) { D.tickT = 0.12; sim.emit('rotorTick', { pos: point, material, harmless: true }); }
@@ -346,6 +356,7 @@ export class Damage {
     const D = heli.dmg;
     const material = other ? other.material || other.kind : null;
     const v = this.judge(heli, impact, anyContact, material, speed);
+    if (v && D && D.who && (v.reason === 'rotor strike' || v.reason === 'tail strike' || v.material === 'person')) v.who = D.who; // the person the blades hit
     if (dunk && (dunk.wet || v)) return { reason: 'dunk', impact: Math.max(impact, speed), cup: dunk.index, at: dunk.pos, material: 'tea' };
     return v;
   }

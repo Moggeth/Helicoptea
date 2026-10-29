@@ -14,6 +14,7 @@ import * as street from './areas/street.js';
 import * as allotments from './areas/allotments.js';
 import * as park from './areas/park.js';
 import * as horizon from './areas/horizon.js';
+import { buildPeople } from '../people.js';
 
 // Draws the neighbourhood (src/sim/world/plan.js) and streams its detail by distance.
 //
@@ -193,9 +194,12 @@ export function buildWorld(scene, quality, { kitchen, sim, wind, teaStand, charm
     current = { name, box: AREAS[name] };
     ctx.area = current.box;
     mod.build(ctx);
+    buildPeople(ctx, name);
     built.push(name);
   }
   current = null;
+  // The tea garden's neighbour (its chunks belong to no area).
+  if (skip !== 'all') buildPeople(ctx, null);
   // The areas' tea stands (their pegs and bags are the sim's).
   if (teaStand) for (const S of WORLD_STATIONS) ctx.object(teaStand(S), 1).traverse((o) => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
 

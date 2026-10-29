@@ -110,7 +110,7 @@ export const EVENT_FIELDS = {
   crash: ['reason', 'kind', 'impact', 'material', 'cup', 'spin', 'scale', 'pos', 'vel', 'up'], bump: ['dv', 'pos'], touchdown: ['speed', 'pos'], scrape: ['speed', 'pos', 'hose'],
   snatch: ['speed', 'mass', 'pos', 'hose'], attach: ['hook', 'fromPeg'], release: [], splash: ['speed', 'pos'], extract: ['speed'],
   rotorTick: ['material', 'harmless', 'wear', 'pos'], rotorShatter: ['rotor', 'material', 'dir', 'scale', 'pos', 'point', 'up'],
-  tailStrike: ['material', 'pos', 'point'], teaStrike: ['cupIndex', 'pos'], restart: [], reset: [], aircraft: ['id'], bucketSplash: ['speed'], autoFill: ['phase'], radio: ['on'],
+  tailStrike: ['material', 'pos', 'point'], teaStrike: ['cupIndex', 'pos'], personSay: ['person', 'word', 'pos'], personStrike: ['person', 'bone', 'pos'], restart: [], reset: [], aircraft: ['id'], bucketSplash: ['speed'], autoFill: ['phase'], radio: ['on'],
 };
 
 // ---------------------------------------------------------------- chunked row storage

@@ -27,7 +27,7 @@ export class CrashCinema {
 }
 
 const WON = { ceramic: 'The china won.', glass: 'The glass won.', brick: 'The bricks won.', plaster: 'The wall won.', plant: 'The garden won.',
-  metal: 'The metal won.', stone: 'The stone won.', tile: 'The floor won.', fur: 'The cat won.', cloth: 'The curtains won.' };
+  metal: 'The metal won.', stone: 'The stone won.', tile: 'The floor won.', fur: 'The cat won.', cloth: 'The curtains won.', person: 'Mind the neighbours.' };
 const BLADES = {
   ceramic: 'Blades and china do not mix.', glass: 'Blades and glass do not mix.', wood: 'Blades and woodwork do not mix.',
   plant: 'You pruned it, and it pruned you.', brick: 'The wall kept the blades.', plaster: 'The wall kept the blades.', stone: 'The stone kept the blades.',
@@ -41,8 +41,8 @@ export const crashTitle = (e) => TITLES[e.kind] || 'Ka-boom.';
 export function crashMessage(e) {
   switch (e.reason) {
     case 'impact': return `Hit at ${(e.impact || 0).toFixed(1)} m/s. ${WON[e.material] || 'The table won.'}`;
-    case 'rotor strike': return `Rotor strike. ${BLADES[e.material] || 'The blades went first, then everything else.'}`;
-    case 'tail strike': return 'Tail rotor gone. Round and round, and down.';
+    case 'rotor strike': return e.who ? `Rotor strike. ${e.who} said ow.` : `Rotor strike. ${BLADES[e.material] || 'The blades went first, then everything else.'}`;
+    case 'tail strike': return e.who ? `Tail rotor strike. ${e.who} said ow.` : 'Tail rotor gone. Round and round, and down.';
     case 'rollover': return 'Tipped over and the blades bit in. Keep it level near the surface.';
     case 'fall': case 'floor': return 'A long way down. Gravity always wins.';
     case 'dunk': return 'Dunked. Biscuits go in the tea; helicopters do not.';

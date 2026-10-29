@@ -11,6 +11,7 @@ import { Props } from './props.js';
 import { Extras } from './extras.js';
 import { MilkSystem } from './milk.js';
 import { Damage, CRASH_KINDS } from './damage.js';
+import { People } from './people.js';
 
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _q = new THREE.Quaternion();
 
@@ -103,6 +104,8 @@ export class Sim {
     this.milk = new MilkSystem(this);
     this.props = new Props(this, !!opts.lite);
     this.extras = new Extras(this, !!opts.lite);
+    // The neighbours (animated with their colliders, like a set piece).
+    if (!this.bare) { this.people = new People(this); this.extras.list.push(this.people); }
     // A bare sim keeps only the table and pad: the milk station, lamp, cat and other set pieces
     // still exist (their code expects them) but take no part in collisions.
     if (this.bare) {
@@ -408,9 +411,9 @@ export class Sim {
     this.limitDebris();
     const kind = CRASH_KINDS[reason] || 'impact';
     const spin = dmg && dmg.tail ? dmg.spin : 0; // yaw rate it went in with (before the ground stopped it)
-    this.crashInfo = { reason, kind, pos, vel, impact, time: this.time, wreckId, aircraft: def.id, material: extra.material || null };
+    this.crashInfo = { reason, kind, pos, vel, impact, time: this.time, wreckId, aircraft: def.id, material: extra.material || null, who: extra.who || null };
     this.emit('crash', { pos, vel, reason, kind, impact, wreckId, parts, aircraft: def.id, scale: def.scale, up, spin,
-      material: extra.material || null, cup: extra.cup ?? null, at: extra.at || null });
+      material: extra.material || null, who: extra.who || null, cup: extra.cup ?? null, at: extra.at || null });
   }
 
   limitDebris() {

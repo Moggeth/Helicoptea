@@ -1,5 +1,8 @@
 import { PAD, DISCARD } from '../sim/layout.js';
 
+// "the windowsill cup", or someone's own ("Agnes's tea").
+const theCup = (c) => (c.owner ? c.name : `the ${c.name.toLowerCase()}`);
+
 // Contextual onboarding: short hints that advance on what the player actually does. No forced tutorial.
 const STEPS = ['lift', 'hook', 'carry', 'dip', 'discard', 'land', 'assist', 'done'];
 
@@ -93,14 +96,14 @@ export class Flow {
       if (h.hose.submerged && t.vol < t.capacity * 0.97) return `Intake in the milk: hold ${k('pump')} to pump`;
       if (t.vol < 1e-7) return `Hover low over the milk crock and hold ${k('pump')} to pump (${k('autofill')}: auto-fill)`;
       const cup = sim.cups.find((c) => Math.hypot(h.pos.x - c.x, h.pos.z - c.z) < c.rIn + 0.02);
-      return cup ? `${k('doors')} opens the belly doors over the ${cup.name.toLowerCase()} (${k('salvo')}: salvo)` : `Fly over a cup, then ${k('doors')} to drop the milk`;
+      return cup ? `${k('doors')} opens the belly doors over ${theCup(cup)} (${k('salvo')}: salvo)` : `Fly over a cup, then ${k('doors')} to drop the milk`;
     }
     if (!bk || !sim.carriedCargo().includes(bk)) return null;
     if (bk.vessel && bk.vessel.isBowl) return bk.fill > 0.97 ? 'Full. Lift it out gently' : 'Hold it in the milk: it fills through its base';
     if (bk.vol < 1e-7) return 'Dip the bucket in the milk crock to fill it';
     if (bk.valveOpen) return null;
     const cup = sim.cups.find((c) => Math.hypot(bk.pos.x - c.x, bk.pos.z - c.z) < c.rIn);
-    return cup ? `Hold ${k('pour')} to pour into the ${cup.name.toLowerCase()}` : `Hold ${k('pour')} to pour milk`;
+    return cup ? `Hold ${k('pour')} to pour into ${theCup(cup)}` : `Hold ${k('pour')} to pour milk`;
   }
 
   overDiscard(bag) {
