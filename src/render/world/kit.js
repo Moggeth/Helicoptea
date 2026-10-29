@@ -32,7 +32,9 @@ export function worldKit(quality) {
     // Dense foliage for canopies and hedges (tile ~0.6 m), and tree bark.
     leafy, bark,
     // Water you can see through a little (ponds, puddles): drawn last, no depth write.
-    water: new THREE.MeshStandardMaterial({ color: 0x40564e, roughness: 0.06, metalness: 0.2, transparent: true, opacity: 0.86, depthWrite: false }),
+    // (The environment is the kitchen's room light box: outdoors its square ceiling panels would show as square
+    // glints on the ponds, so the water takes only a little of it.)
+    water: new THREE.MeshStandardMaterial({ color: 0x40564e, roughness: 0.1, metalness: 0.2, envMapIntensity: 0.2, transparent: true, opacity: 0.86, depthWrite: false }),
   };
   for (const [k, m] of Object.entries(lib)) m.name = `world-${k}`;
   lib.leafy.name = 'world-leaf';
@@ -189,7 +191,7 @@ export function buildTree(ctx, s) {
     const n = kind === 'conifer' ? 1 : 3;
     for (let i = 0; i < n; i++) {
       const rr = n === 1 ? r : r * (0.55 + rnd() * 0.25);
-      const g = kind === 'conifer' ? new THREE.ConeGeometry(r, r * 2.6, 9, 3) : blob(rr, rnd, ctx.lite);
+      const g = kind === 'conifer' ? coniferTier(r, r * 2.6, ctx.lite ? 10 : 14, rnd) : blob(rr, rnd, ctx.lite);
       const ox = n === 1 ? 0 : (rnd() - 0.5) * r * 0.9, oy = n === 1 ? 0 : (rnd() - 0.4) * r * 0.6, oz = n === 1 ? 0 : (rnd() - 0.5) * r * 0.9;
       ctx.add(g, wk.leafy, T(s.x + dx + ox, y + dy + oy, s.z + dz + oz, rnd() * 6), tones[i % tones.length], 0);
     }
@@ -206,6 +208,27 @@ export function buildTree(ctx, s) {
     }
     ctx.object(leafCards(ctx, pts, { size: 0.28, hue: kind === 'birch' ? 80 : 100 }), 2);
   }
+}
+
+// One tier of a conifer: a cone whose skirt is cut into drooping branch tips (every other point of the rim
+// pushed out and down) and whose sides are a little uneven, so a stack of them reads as layered boughs rather
+// than a toy's cones.
+export function coniferTier(r, h, seg, rnd) {
+  const g = new THREE.ConeGeometry(r, h, seg, 2);
+  const p = g.attributes.position, wob = [];
+  for (let i = 0; i <= seg; i++) wob.push(1 + (rnd() - 0.5) * 0.16);
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), rr = Math.hypot(x, z);
+    if (rr < 1e-5) continue;
+    const a = Math.atan2(z, x), k = Math.round(((a / (Math.PI * 2)) + 1) % 1 * seg) % seg;
+    const t = (h / 2 - y) / h;                       // 0 at the tip, 1 at the skirt
+    let f = wob[k], dy = 0;
+    if (t > 0.99) { if (k % 2) { f *= 1.2; dy = -0.13 * h; } else f *= 0.86; }
+    else f *= 1 + 0.05 * Math.sin(a * 3 + rr * 7);
+    p.setXYZ(i, x * f, y + dy, z * f);
+  }
+  g.computeVertexNormals();
+  return g;
 }
 
 function blob(r, rnd, lite = false) {

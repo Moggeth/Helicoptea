@@ -212,7 +212,13 @@ function houses(ctx, { add, M, rnd }) {
     for (const xc of [-16.3, -12.7]) {
       const w = xc === -16.3 ? 1.0 : 1.35;
       add(new THREE.BoxGeometry(w, 0.15, 0.17), 'weathered', T(xc, Y(0.88), FRONT_LINE + 0.1), 0x5a6b5a, 1);
-      for (let i = 0; i < 6; i++) add(ctx.blobGeometry(0.12, 1, i + xc), 'leaf', T(xc - w * 0.42 + i * w * 0.17, Y(1.04), FRONT_LINE + 0.1, 0, 0, 0, 1, 0.8, 1), jit(i % 2 ? 0xb5303a : 0x4f7a3a, rnd, 0.05), 2);
+      // Geraniums: low mounds of leaves along the box, red flower heads standing above them on stalks.
+      const n = Math.round(w / 0.15);
+      for (let i = 0; i < n; i++) {
+        const fx = xc - w / 2 + (i + 0.5) * w / n;
+        add(ctx.blobGeometry(0.1, 1, i + xc * 3), 'leaf', T(fx, Y(1.0), FRONT_LINE + 0.1 + (rnd() - 0.5) * 0.04, rnd() * 6, 0, 0, 1, 0.62, 0.9), jit(0x4f7a3a, rnd, 0.1), 1);
+        if (i % 2 === 0 || rnd() < 0.4) add(ctx.blobGeometry(0.042, 1, i * 7 + xc), 'petal', T(fx + (rnd() - 0.5) * 0.05, Y(1.11 + rnd() * 0.04), FRONT_LINE + 0.1 + (rnd() - 0.5) * 0.05, 0, 0, 0, 1, 0.8, 1), jit(rnd() < 0.7 ? 0xc8323d : 0xe0607a, rnd, 0.08), 2);
+      }
     }
   }
 }

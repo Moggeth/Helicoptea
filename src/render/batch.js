@@ -19,6 +19,7 @@ export class Batcher {
     if (geo.index) g.setIndex(geo.index.clone());
     else { const ix = new (count - 1 > 65535 ? Uint32Array : Uint16Array)(count); for (let i = 0; i < count; i++) ix[i] = i; g.setIndex(new THREE.BufferAttribute(ix, 1)); }
     if (matrix) g.applyMatrix4(matrix);
+    if (globalThis.__pieceAudit) auditPiece(g, mat);
     if (rm) {
       const a = new Uint8Array(g.attributes.position.count * 2);
       for (let i = 0; i < a.length; i += 2) { a[i] = Math.round(rm[0] * 255); a[i + 1] = Math.round(rm[1] * 255); }
@@ -54,12 +55,21 @@ export class Batcher {
       const m = new THREE.Mesh(merged, vc);
       m.castShadow = cast; m.receiveShadow = receive;
       m.matrixAutoUpdate = false;
+      if (globalThis.__pieceAudit) m.userData.audited = true;
       parent.add(m);
       out.push(m);
     }
     this.groups.clear();
     return out;
   }
+}
+
+// tests/audit-world.mjs sets globalThis.__pieceAudit to an array before the game loads: every static piece's
+// world box, material and the line that placed it, for finding floating, buried and stray props.
+function auditPiece(g, mat) {
+  g.computeBoundingBox();
+  const b = g.boundingBox, site = (new Error().stack || '').split('\n').slice(2, 7).map((l) => l.replace(/^.*\/src\//, '').replace(/[?][^:]*/, '').replace(/\)$/, '')).join(' < ');
+  globalThis.__pieceAudit.push([b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z, mat.name || mat.type, site]);
 }
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new THREE.Vector3(), _s = new THREE.Vector3();

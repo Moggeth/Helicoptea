@@ -89,6 +89,13 @@ Every area is judged against the same bar.
    everything, instancing for repeated small things, no textures over 512² (and few), cheap `update`s that
    early-out, few dynamic bodies (fewer still with `lite`).
 
+Check set dressing with `node tests/audit-world.mjs http://localhost:PORT/` (a dev server, so the report names
+source lines): it lists groups of pieces that touch neither the ground nor anything that does (floating props)
+and small pieces deep inside wall-shaped boxes (props pushed through a wall). It works from bounding boxes, so
+it cannot see a shelf left across a doorway or grass growing through a floor: look at every area with
+`tests/shot-world.mjs --view=...` too, and paint the ground under anything with a floor of its own (pools,
+tiled paths, buildings) as a hard or soil surface so the grass doesn't come up through it.
+
 ## Cost, and how it is kept down
 
 - **Physics**: Rapier's step grows with every collider in the world, so the areas' colliders (about 3,900,

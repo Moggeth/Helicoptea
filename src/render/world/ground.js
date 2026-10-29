@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { makeNoise, fbm } from '../gardenTextures.js';
 import { FY, PARK, MAIN, STREAM, POND, groundHeight, shadowOffset } from '../../sim/world/plan.js';
 import { ROOM, WALL_T, GARDEN } from '../../sim/layout.js';
+import * as LEFT from '../../sim/world/left.js';
+import * as RIGHT from '../../sim/world/right.js';
 
 // The ground of the neighbourhood: one big painted map (colour, and what the surface is made of) under
 // tiling detail, with soft sun shadows painted in under the big things. The tea garden and the house keep
@@ -159,6 +161,9 @@ function grassMask(g) {
   hole(GARDEN.minX, GARDEN.minZ, GARDEN.maxX, ROOM.minZ - WALL_T);
   hole(ROOM.minX - WALL_T, ROOM.minZ - WALL_T, ROOM.maxX + WALL_T, ROOM.maxZ);
   hole(MAIN.outer.x0, MAIN.outer.z0, MAIN.outer.x1, MAIN.outer.z1 + 0.7);
+  // Nor inside the neighbours' houses (solid, but the camera can look in from close by) or the paddling pool.
+  for (const h of [LEFT.P1, LEFT.P2, RIGHT.H1, RIGHT.H2]) hole(h.x0, h.z0, h.x1, h.z1);
+  ctx.beginPath(); ctx.arc(X(RIGHT.POOL.x), Z(RIGHT.POOL.z), RIGHT.POOL.r * ppm, 0, Math.PI * 2); ctx.fill();
   const src = ctx.getImageData(0, 0, W, H).data, d = new Uint8Array(W * H * 4);
   for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
     const k = (j * W + i) * 4, x = MAP.x0 + (i + 0.5) / ppm, z = MAP.z0 + (j + 0.5) / ppm;

@@ -7,6 +7,7 @@ import {
   WALL_PIECES, PARTS, ROOF_PIECES, ROOMS, roomAt, cutRect, LV, VOID, STAIR_X1, HATCH, BAY, GABLE_WIN, P1, ARCH, CHAIRS, SOFAS,
 } from '../../../sim/world/house.js';
 import { placeChair, placeSofa } from '../../chairs.js';
+import { mulberry } from '../kit.js';
 
 // Draws the main house (plan.js MAIN): brick walls with plaster inside, the roof and gables, and every
 // room's finishes; the furniture and fittings are the sim's PARTS (what you see is what you hit).
@@ -57,6 +58,54 @@ const jit = (hex, amt, seed) => {
 const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(1, 1, 1), _u = new THREE.Vector3(0, 1, 0), _d = new THREE.Vector3();
 const matrix = (x, y, z, q) => new THREE.Matrix4().compose(_p.set(x, y, z), q || _q.identity(), _s);
 
+// A leaf one unit long: a pointed oval blade on y (0 at the stalk, 1 the tip), x across, z its face; cupped
+// along the midrib and arching back at the tip.
+let blade = null;
+function bladeGeometry() {
+  if (blade) return blade;
+  const nx = 4, ny = 6, pos = [], uv = [], idx = [];
+  for (let j = 0; j <= ny; j++) {
+    const t = j / ny, half = 0.25 * Math.pow(Math.sin(Math.PI * Math.min(1, t * 0.94 + 0.03)), 0.7) * (1 - 0.2 * t);
+    for (let i = 0; i <= nx; i++) {
+      const u = i / nx * 2 - 1;
+      pos.push(u * half, t, 0.07 * u * u * (half / 0.25) - 0.3 * t * t);
+      uv.push(0.5 + u * half, t);
+    }
+  }
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) { const a = j * (nx + 1) + i, b = a + nx + 1; idx.push(a, a + 1, b, a + 1, b + 1, b); }
+  blade = new THREE.BufferGeometry();
+  blade.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  blade.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  blade.setIndex(idx);
+  blade.computeVertexNormals();
+  return blade;
+}
+// A spray of leaves on stalks from the soil of a pot: the inner ones upright, the outer ones arching out.
+function housePlant(add, k, p, lite) {
+  const rnd = mulberry(Math.floor(p.seed) + 7), leaf = bladeGeometry();
+  const n = lite ? Math.ceil(p.n * 0.6) : p.n, stalk = new THREE.CylinderGeometry(0.0025, 0.004, 1, 5);
+  const up = new THREE.Vector3(0, 1, 0), d = new THREE.Vector3(), xv = new THREE.Vector3(), zv = new THREE.Vector3(), base_ = new THREE.Vector3();
+  for (let i = 0; i < n; i++) {
+    const f = (i + 0.5) / n, az = i * 2.39996 + p.seed, el = 1.35 - 0.95 * f + (rnd() - 0.5) * 0.25;
+    const len = p.leafH * (0.42 + 0.3 * (1 - f) + 0.15 * rnd()), stem = p.leafH * (0.1 + 0.4 * (1 - f) * rnd());
+    const sr = p.r * 0.5 * rnd();
+    base_.set(p.x + Math.cos(az) * sr, p.y + stem, p.z + Math.sin(az) * sr);
+    // Stalk from the soil to the leaf.
+    const s0 = new THREE.Vector3(p.x + Math.cos(az) * sr * 0.3, p.y, p.z + Math.sin(az) * sr * 0.3);
+    d.subVectors(base_, s0);
+    const sl = d.length();
+    if (sl > 0.01) add(stalk, k.leaf, new THREE.Matrix4().compose(s0.clone().addScaledVector(d, 0.5), new THREE.Quaternion().setFromUnitVectors(up, d.normalize()), new THREE.Vector3(1, sl, 1)), jit(0x5f7a3a, 0.1, i + p.seed), 2);
+    // Leaf: its y along (az, el), x level, z (its face) towards the sky.
+    d.set(Math.cos(az) * Math.cos(el), Math.sin(el), Math.sin(az) * Math.cos(el));
+    xv.crossVectors(up, d).normalize();
+    zv.crossVectors(xv, d).normalize();
+    const twist = (rnd() - 0.5) * 0.5;
+    const m = new THREE.Matrix4().makeBasis(xv, d, zv).multiply(new THREE.Matrix4().makeRotationY(twist));
+    m.scale(new THREE.Vector3(len * (0.9 + 0.3 * rnd()), len, len)).setPosition(base_);
+    add(leaf, k.leaf, m, jit(p.col, 0.22, i * 3.3 + p.seed), 1);
+  }
+}
+
 export function build(ctx) {
   const k = ctx.kit, wk = ctx.wk, S = sharedMaterials();
   const mats = { ...k, brick: wk.brick, roof: wk.roof, plaster: S.plaster, tile: S.tile, glow: S.glow };
@@ -100,6 +149,7 @@ export function build(ctx) {
       }
       case 't': add(new THREE.TorusGeometry(p.R, p.r, 6, p.seg), m, matrix(p.x, p.y, p.z, new THREE.Quaternion(p.q[0], p.q[1], p.q[2], p.q[3])), p.col, p.lod); break;
       case 'h': add(polyGeo(p.pts, p.y0, p.y1), m, null, p.col, p.lod); break;
+      case 'f': housePlant(add, k, p, ctx.lite); break;
       case 'x': add(new ConvexGeometry(chunk3(p.pts)), m, null, p.col, p.lod); break;
       default: break;
     }

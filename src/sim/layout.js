@@ -99,7 +99,7 @@ export const CLOCK = { x: -1.62, y: 1.2, r: 0.14 };                             
 export const FRAMES = [
   { wall: 'left', z: -0.55, y: 0.78, w: 0.42, h: 0.32 },
   { wall: 'left', z: 0.15, y: 0.9, w: 0.26, h: 0.34 },
-  { wall: 'front', x: -0.5, y: 0.82, w: 0.56, h: 0.4 },
+  { wall: 'front', x: -0.6, y: 0.82, w: 0.56, h: 0.4 },
 ];
 export const CURTAINS = { rail: 1.24, panels: [[-1.24, -1.06], [0.52, 0.68]], depth: 0.07 };
 export const LAMP = { x: 0.05, z: 0.05, length: 0.45, shadeR: 0.16, shadeH: 0.14 };           // hangs from the ceiling

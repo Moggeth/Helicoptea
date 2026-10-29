@@ -174,6 +174,15 @@ export function buildCharm(scene, quality, kitchen, sim) {
     const rg = new THREE.Group();
     rg.add(rail);
     for (const x of [x0, x1]) { const f = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 10), brass); f.position.set(x, CURTAINS.rail, ROOM.minZ + 0.06); rg.add(f); }
+    // Brackets holding the rail off the wall: a round wall plate and an arm to a ring round the rail.
+    for (const x of [x0 + 0.1, (x0 + x1) / 2, x1 - 0.1]) {
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.06, 8), brass);
+      arm.rotation.x = Math.PI / 2; arm.position.set(x, CURTAINS.rail, ROOM.minZ + 0.03); rg.add(arm);
+      const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.006, 12), brass);
+      plate.rotation.x = Math.PI / 2; plate.position.set(x, CURTAINS.rail, ROOM.minZ + 0.003); rg.add(plate);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.014, 0.0035, 6, 12), brass);
+      ring.rotation.y = Math.PI / 2; ring.position.set(x, CURTAINS.rail, ROOM.minZ + 0.06); rg.add(ring);
+    }
     bake(rg);
   }
 

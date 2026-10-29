@@ -113,6 +113,8 @@ export function buildHouseShell(scene, quality) {
   }
   // Outside lantern by the door.
   b.add(new THREE.BoxGeometry(0.1, 0.16, 0.1), dark, T(D.x1 + 0.22, D.top + 0.05, zo - 0.07));
+  b.add(new THREE.BoxGeometry(0.06, 0.08, 0.012), dark, T(D.x1 + 0.22, D.top + 0.06, zo - 0.006));      // its wall plate
+  b.add(new THREE.BoxGeometry(0.02, 0.02, 0.02), dark, T(D.x1 + 0.22, D.top + 0.06, zo - 0.02));       // and stub
 
   // Roof: back slope, fascia and gutter, gable ends, soffit.
   const eaveZ = zo - 0.28, eaveY = top + 0.02, ridgeZ = czz, ridgeY = top + 1.15;

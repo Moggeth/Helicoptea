@@ -62,7 +62,7 @@ export function build(ctx) {
       s.moveTo(0, 0); s.lineTo(d, 0); s.lineTo(d, front); s.lineTo(0, back); s.closePath();
       const g = new THREE.ExtrudeGeometry(s, { depth: th, bevelEnabled: false });
       // shape x -> -z (away from the wall), y -> up, extrude -> x
-      g.rotateY(-Math.PI / 2);
+      g.rotateY(Math.PI / 2);
       batch.add(g, kit.wood, T(N.x + (sx > 0 ? w / 2 : -w / 2 - th), N.y0, z0), wood, { cast: true });
     }
     batch.add(boxUV(w, back, th, 3), kit.wood, T(N.x, N.y0 + back / 2, z0 - th / 2), wood, { cast: false });

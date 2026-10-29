@@ -51,8 +51,10 @@ export let BOOKS_END = BOOKS_X0;
 }
 export const CLOCK = { x: 1.2, z: 2.0, w: 0.2, d: 0.095, base: 0.012, lower: 0.15, arch: 0.1 };
 
-// The wall shelf on the front wall (z = ROOM.maxZ), two boards.
-export const SHELF = { x0: -1.62, x1: -0.9, depth: 0.15, t: 0.02, ys: [0.5, 0.84] };
+// The wall shelf on the front wall (z = ROOM.maxZ), two boards, on the plain wall between the picture and the
+// dresser (the hall doorway is at x -1.85..-1.05).
+export const SHELF = { x0: -0.2, x1: 0.52, depth: 0.15, t: 0.02, ys: [0.5, 0.84] };
+const JX = SHELF.x0 + 1.62;   // the jars' x below are laid out for a shelf starting at -1.62
 // Jars: kind, x, shelf index, radius, height.
 export const JARS = [
   { kind: 'jam', x: -1.575, s: 0, r: 0.036, h: 0.105, fill: 0x8a1520, label: 0, lid: 0 },
@@ -66,8 +68,8 @@ export const JARS = [
   { kind: 'crock', x: -1.335, s: 1, r: 0.05, h: 0.11 },
   { kind: 'kilner', x: -1.215, s: 1, r: 0.05, h: 0.13, fill: 0x8a5a2a, label: -1 },
   { kind: 'kilner', x: -1.1, s: 1, r: 0.045, h: 0.11, fill: 0x9c5a25, label: -1 },
-];
-export const LAV = { x: -0.93, y: SHELF.ys[0] - SHELF.t / 2 - 0.004, z: ROOM.maxZ - 0.045, len: 0.21 };
+].map((j) => ({ ...j, x: j.x + JX }));
+export const LAV = { x: SHELF.x1 - 0.03, y: SHELF.ys[0] - SHELF.t / 2 - 0.004, z: ROOM.maxZ - 0.045, len: 0.21 };
 
 const RHO = 1.2, WASH = 140;
 

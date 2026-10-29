@@ -207,7 +207,7 @@ function paintGround(H) {
   path(FRONT_DOORS['p+2'], FRONT_LINE, 12.9, 0.9, '#c2b28e', 0.3);
   hard(FRONT_DOORS['p+2'] - 0.7, FRONT_LINE, FRONT_DOORS['p+2'] + 0.7, 9.2, '#c2b28e', 0.3);
   // ours: Victorian tiles (laid as thin 3D tiles in frontGardens)
-  hard(-2.0, FRONT_LINE, -1.0, 8.9, '#a09585', 0.3, 0.9);
+  hard(-2.0, FRONT_LINE, -1.0, 12.9, '#3a3632', 0.3);   // under the whole path: no grass through the tiles
   // --- the road: tarmac, white and yellow lines, patches, stains
   g.rect(X0, S.ROAD.z0, X1, S.ROAD.z1, { type: 'tarmac', color: '#4a4b4e' });
   hard(X0, S.NEAR_PAV.z0, X1, S.NEAR_PAV.z1, '#a8a296', 0.6);
@@ -1206,6 +1206,9 @@ function teaRoom(H) {
     for (const [xa, xb, za, zb] of [[g0, g1, gz0, gz0 + 0.01], [g0, g1, gz1 - 0.01, gz1], [g0, g0 + 0.01, gz0, gz1], [g1 - 0.01, g1, gz0, gz1]]) box(xa, xb, y + 0.04, y + 0.36, za, zb, k.glass, 0xdfeaec, 1);
     box(g0, g1, y + 0.36, y + 0.38, gz0, gz1, k.paint, 0xf0eadc, 1);
     box(g0 + 0.03, g1 - 0.03, y + 0.2, y + 0.215, gz0 + 0.03, gz1 - 0.03, k.glass, 0xdfeaec, 2);
+    // the glass shelf's chrome edge and the four posts it rests on, so it reads as a shelf
+    box(g0 + 0.03, g1 - 0.03, y + 0.198, y + 0.217, gz0 + 0.028, gz0 + 0.036, k.steel, 0xd0d4d8, 2);
+    for (const px of [g0 + 0.035, g1 - 0.035]) for (const pz of [gz0 + 0.035, gz1 - 0.035]) cyl(0.006, 0.006, y + 0.06, y + 0.2, px, pz, k.steel, 0xd0d4d8, 2, 6);
     const cakes = [0xd9a05a, 0x6a3f24, 0xe8a0b0, 0xf0e8d0, 0xb8283a, 0xd9a05a];
     for (let i = 0; i < 6; i++) { const x = g0 + 0.15 + i * 0.24; cyl(0.1, 0.1, y + 0.06, y + 0.14, x, (gz0 + gz1) / 2, k.paper, cakes[i], 2, 10); if (i % 2) cyl(0.1, 0.1, y + 0.215, y + 0.28, x, (gz0 + gz1) / 2, k.paper, cakes[(i + 2) % 6], 2, 10); }
     // till, a steel tea urn, a stack of saucers

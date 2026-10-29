@@ -267,7 +267,11 @@ export const stairLine = (z) => gf + STAIRS.rise + (STAIRS.z0 - z) * (STAIRS.ris
     // Balusters (a panel per step) up to the handrail.
     const rail = stairLine(zf) + 0.9 - 0.045;
     B('paint', WHITE, STAIR_X1 - 0.02, (top + rail) / 2, zm, 0.04, rail - top, S.go, { lod: 1, kind: 'rail', role: 'hidden' });
-    for (const dz of [-0.1, 0.0, 0.1]) B('paint', WHITE, STAIR_X1 + 0.002, (top + rail) / 2 + 0.01, zm + dz, 0.035, rail - top, 0.03, { lod: 1, solid: false });
+    // Each baluster runs from the tread to the underside of the sloping handrail above it.
+    for (const dz of [-0.1, 0.0, 0.1]) {
+      const bt = stairLine(zm + dz) + 0.9 - 0.025;
+      B('paint', WHITE, STAIR_X1 + 0.002, (top + bt) / 2, zm + dz, 0.035, bt - top, 0.03, { lod: 1, solid: false });
+    }
   }
   // Under-stairs cupboard's end wall (under the landing).
   wall('z', 3.7, 3.76, IX0, STAIR_X1 - 0.07, gf, c1, [], {});
@@ -391,6 +395,9 @@ for (const w of WINDOWS) if (w.face) windowIn(w, FACE[w.face](w.a0, w.a1));
     grp(cx, gf, cz, f.yaw, () => {
       // Brick sill panel under the glass.
       B('brick', 0xffffff, 0, sill / 2, 0, len, sill, t, { lod: 0, kind: 'house' });
+      // Inside it is plastered and painted like the room, with a skirting board.
+      B('plaster', 0xb8c8bd, 0, sill / 2, -t / 2 - 0.004, len, sill, 0.008, { lod: 0, solid: false });
+      B('paint', WHITE, 0, 0.06, -t / 2 - 0.019, len, 0.12, 0.022, { lod: 1, solid: false });
       B('stone', 0xd2cabb, 0, sill + 0.01, 0.0, len + 0.04, 0.03, t + 0.1, { lod: 1 });
     });
     // Windows' own frame sits on the panel: build in a group at the sill height.
@@ -504,8 +511,15 @@ const RAF = 0xb59468, TIMBER = 0x8a6b46, DUSTY = 0x9a8e78;
   }
   for (const x of [-2.2, 2.4]) for (const z of [3.6, 7.15]) B('wood', TIMBER, x, (loft + roofUnder(z) - 0.15) / 2, z, 0.1, roofUnder(z) - 0.15 - loft, 0.1, { lod: 1, kind: 'timber' });
   // Boarded walkway and insulation on the joists (the floor itself is the collider).
-  B('wood', 0xa89170, -0.3, loft + 0.008, 5.0, 4.9, 0.016, 2.3, { lod: 1, solid: false });
-  for (const [z0, z1] of [[IZ0, 3.0], [7.8, IZ1]]) B('fabric', 0xd9cf86, 0.2, loft + 0.06, (z0 + z1) / 2, IX1 - IX0, 0.12, z1 - z0, { lod: 1, solid: false });
+  // The boards and the insulation cover the whole loft floor (the rooms' ceilings below are seen only from
+  // underneath), with the hatch left open.
+  const walk = [IX0, 2.15, 3.85, 6.15], hole = [HATCH.x0 - 0.04, HATCH.x1 + 0.04, HATCH.z0 - 0.04, HATCH.z1 + 0.04];
+  for (const r of cutRect(walk, hole)) B('wood', 0xa89170, (r[0] + r[1]) / 2, loft + 0.008, (r[2] + r[3]) / 2, r[1] - r[0], 0.016, r[3] - r[2], { lod: 1, solid: false });
+  cutRect([IX0, IX1, IZ0, IZ1], walk).forEach((r, i) => {
+    B('fabric', [0xd9cf86, 0xd2c67c, 0xdcd38f][i % 3], (r[0] + r[1]) / 2, loft + 0.05, (r[2] + r[3]) / 2, r[1] - r[0], 0.1, r[3] - r[2], { lod: 1, solid: false });
+  });
+  // Joists showing through the insulation at the walkway's edges.
+  for (const z of [walk[2] - 0.03, walk[3] + 0.03]) B('wood', TIMBER, (IX0 + IX1) / 2, loft + 0.03, z, IX1 - IX0, 0.06, 0.05, { lod: 1, solid: false });
   // Hatch: lining, the lid propped open on the boards, and the folding ladder.
   const hz = (HATCH.z0 + HATCH.z1) / 2, hxm = (HATCH.x0 + HATCH.x1) / 2, hw = HATCH.x1 - HATCH.x0, hd = HATCH.z1 - HATCH.z0;
   B('paint', WHITE, hxm, (c2 + loft) / 2, HATCH.z0 - 0.02, hw + 0.08, loft - c2, 0.04, { lod: 1, solid: false });
@@ -599,15 +613,15 @@ function books(x, y, z, w, h, seed, o = {}) {
     u += t + 0.002; i++;
   }
 }
+// A house plant: a pot of soil and a spray of arching leaves (drawn by the area: a 'f' part), solid as one ball
+// at about 0.8 of the foliage. leafH is how tall the foliage stands above the pot.
 function plant(x, y, z, r = 0.12, h = 0.28, leafH = 0.5, o = {}) {
-  C('terracotta', o.potCol ?? 0xb8643f, x, y + h / 2, z, r, h, { lod: 1, r2: r * 0.78, seg: 10 });
-  C('terracotta', 0xa5532f, x, y + h - 0.012, z, r * 1.08, 0.03, { lod: 2, solid: false });
-  C('soil', 0x4b3a2c, x, y + h - 0.005, z, r * 0.88, 0.02, { lod: 2, solid: false });
-  const n = o.n ?? 5;
-  for (let i = 0; i < n; i++) {
-    const a = i * 2.4 + hash(x * 7 + z * 3) * 6, rr = r * 1.1 * (i / n + 0.2), hh = leafH * (0.45 + 0.55 * hash(x + i * 5.1));
-    O('leaf', jit(o.leafCol ?? 0x4e7a3f, 0.18, x * 5 + i), x + Math.cos(a) * rr, y + h + hh * 0.6, z + Math.sin(a) * rr, r * 1.25 + 0.03 * (i % 3), { lod: 1, sy: hh / (r * 1.6), solid: i < 3 });
-  }
+  C('terracotta', o.potCol ?? 0xb8643f, x, y + h / 2, z, r, h, { lod: 1, r2: r * 0.78, seg: 12 });
+  C('terracotta', jit(o.potCol ?? 0xb8643f, 0.1, x * 3 + z), x, y + h - 0.012, z, r * 1.08, 0.03, { lod: 2, solid: false, seg: 12 });
+  C('soil', 0x4b3a2c, x, y + h - 0.005, z, r * 0.9, 0.02, { lod: 2, solid: false, seg: 12 });
+  const [wx, wy, wz] = loc(x, y + h - 0.004, z);
+  PARTS.push({ ...base('f', 'leaf', o.leafCol ?? 0x4e7a3f, { lod: 1, solid: false }), x: wx, y: wy, z: wz, r, leafH, seed: hash(x * 7.3 + z * 3.1) * 1000, n: o.n ?? Math.round(10 + leafH * 14) });
+  O('leaf', o.leafCol ?? 0x4e7a3f, x, y + h + leafH * 0.42, z, Math.max(r, leafH * 0.34), { role: 'hidden', cm: 'plant' });
 }
 function picture(x, y, z, yaw, w, h, col, frame = 0x6b4a2f) {
   grp(x, y, z, yaw, () => {

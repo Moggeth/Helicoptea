@@ -197,7 +197,13 @@ export function build(ctx) {
     g.rect(A.HUT.x0 - 0.2, A.HUT.z0 - 0.2, A.HUT.deck.x1 + 0.1, A.HUT.deck.z1 + 0.05, { type: 'dirt', color: '#74644d' });
     g.circle(A.BONFIRE.x, A.BONFIRE.z, 1.5, { type: 'dirt', color: '#3a3128', alpha: 0.85 });
     g.circle(A.BONFIRE.x, A.BONFIRE.z, 0.9, { type: 'soil', color: '#2a231c', alpha: 0.9 });
-    for (const [x, z, r] of [[-10.6, -16.8, 0.9], [-7.2, -19.1, 0.8], [15.8, -19.0, 0.9], [1.2, -22.1, 0.8], [-16.2, -17.6, 1.4], [8.6, -17.2, 1.0]]) g.circle(x, z, r, { type: 'dirt', color: '#b9a266', alpha: 0.75 });
+    // straw mulch spread round crops: a few overlapping, ragged patches rather than one bright disc
+    for (const [x, z, r] of [[-10.6, -16.8, 0.9], [-7.2, -19.1, 0.8], [15.8, -19.0, 0.9], [1.2, -22.1, 0.8], [-16.2, -17.6, 1.4], [8.6, -17.2, 1.0]]) {
+      for (let i = 0; i < 4; i++) {
+        const a = i * 1.9 + x, d = r * 0.35 * (i ? 1 : 0);
+        g.circle(x + Math.cos(a) * d, z + Math.sin(a) * d, r * (i ? 0.55 : 0.7), { type: 'dirt', color: i % 2 ? '#9a8656' : '#8a7650', alpha: 0.45 });
+      }
+    }
     // the polytunnel's floor
     g.rect(A.PT.x0, A.PT.zc - 1.4, A.PT.x1, A.PT.zc + 1.4, { type: 'soil', color: '#3f3022' });
     g.rect(A.PT.x0, A.PT.zc - 0.45, A.PT.x1, A.PT.zc + 0.45, { type: 'dirt', color: '#8f7b5c' });
@@ -1073,7 +1079,12 @@ export function build(ctx) {
       const F = new Fr(b.x, b.z, b.yaw);
       { const [tx, tz] = F.p(0, -0.1); add(new THREE.CylinderGeometry(0.4, 0.25, 0.26, 4).rotateY(Math.PI / 4).scale(1, 1, 1.3), k.zinc, T(tx, FY + 0.5, tz, b.yaw), 0xaab2b2, 1); }
       FCy(F, k.rubber, 0x1c1c1c, 0.2, 0.2, 0.08, 0, 0.2, 0.46, 12, 1, 0, Math.PI / 2);
-      for (const sx of [-1, 1]) { const [x1, z1] = F.p(sx * 0.24, -0.1), [x2, z2] = F.p(sx * 0.24, -0.88); Rod(k.weathered, 0xa88a60, [x1, 0.4, z1], [x2, 0.62, z2], 0.02, 0.02, 5, 1); const [lx, lz] = F.p(sx * 0.24, -0.82); Rod(k.weathered, 0xa88a60, [lx, 0, lz], [lx, 0.55, lz], 0.016, 0.016, 5, 1); }
+      for (const sx of [-1, 1]) {
+        const [x1, z1] = F.p(sx * 0.24, -0.1), [x2, z2] = F.p(sx * 0.24, -0.88); Rod(k.weathered, 0xa88a60, [x1, 0.4, z1], [x2, 0.62, z2], 0.02, 0.02, 5, 1);
+        const [lx, lz] = F.p(sx * 0.24, -0.82); Rod(k.weathered, 0xa88a60, [lx, 0, lz], [lx, 0.55, lz], 0.016, 0.016, 5, 1);
+        // the handles run on under the tub to the wheel's axle
+        const [ax, az] = F.p(sx * 0.055, 0.46); Rod(k.weathered, 0xa88a60, [x1, 0.4, z1], [ax, 0.2, az], 0.018, 0.016, 5, 1);
+      }
       for (let i = 0; i < 5; i++) { const [x, z] = F.p(rr(-0.2, 0.2), rr(-0.25, 0.1)); add(blade(0.3, 0.1, { yaw: rnd() * TAU, lean: 0.8, curl: 0.5 }), swLow, T(x, FY + 0.6, z), jit(0x5f8a3a), 2); }
     }
     // the scarecrow: post, crossbar, sack body and head, straw hands, a battered straw hat, CDs on strings, a crow

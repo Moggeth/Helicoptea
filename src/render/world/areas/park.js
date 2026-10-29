@@ -4,7 +4,7 @@ import {
   PK, frameAt, octagon, bandstandInfo, parkTrees, oakSpec, swingInfo, jettyInfo, bridgeInfo, steppingStones, bankBoulders, pondStones,
   logBoulder, denBranches, woodStumps, playInfo, slideInfo, picnicInfo, bandstandCup, kiteInfo,
 } from '../../../sim/world/park.js';
-import { taperTube, mulberry } from '../kit.js';
+import { taperTube, mulberry, coniferTier } from '../kit.js';
 import { WIND_GLSL } from '../../grass.js';
 import { boxUV } from '../../batch.js';
 
@@ -863,11 +863,11 @@ function drawTree(S, t, { detail = 1, density = 1 } = {}) {
     }
   }
   for (const [dx, dy, dz, r] of t.crown) {
-    const n = kind === 'conifer' ? 2 : 2 + (r > 1.4 ? 1 : 0);
+    const n = kind === 'conifer' ? (ctx.lite ? 2 : 3) : 2 + (r > 1.4 ? 1 : 0);
     for (let i = 0; i < n; i++) {
       const rr = r * (0.55 + rnd() * 0.2);
-      const g = kind === 'conifer' ? new THREE.ConeGeometry(r * (i ? 0.78 : 1), r * 1.9, ctx.lite ? 8 : 11, 2) : ctx.blobGeometry(rr, detail, rnd() * 40, 0.2);
-      const ox = kind === 'conifer' ? 0 : (rnd() - 0.5) * r * 0.6, oy = kind === 'conifer' ? i * r * 0.7 : (rnd() - 0.4) * r * 0.4, oz = kind === 'conifer' ? 0 : (rnd() - 0.5) * r * 0.6;
+      const g = kind === 'conifer' ? coniferTier(r * (1 - i * (n > 2 ? 0.2 : 0.22)), r * (1.9 - i * 0.2), ctx.lite ? 10 : 14, rnd) : ctx.blobGeometry(rr, detail, rnd() * 40, 0.2);
+      const ox = kind === 'conifer' ? 0 : (rnd() - 0.5) * r * 0.6, oy = kind === 'conifer' ? i * r * (n > 2 ? 0.5 : 0.7) : (rnd() - 0.4) * r * 0.4, oz = kind === 'conifer' ? 0 : (rnd() - 0.5) * r * 0.6;
       S.add(g, S.k.leaf, t.x + dx + ox, y + dy + oy, t.z + dz + oz, jitc(tones[i % tones.length], 0.88, 1.1), 0, rnd() * 6, 0, 0, 1, kind === 'conifer' ? 1 : 0.85, 1);
     if (kind !== 'conifer' && i === 0) S.add(ctx.blobGeometry(r * 0.62, 1, rnd() * 40, 0.15), wk.leafy, t.x + dx, y + dy - r * 0.1, t.z + dz, 0x8aa070, 0, rnd() * 6);
     }
