@@ -63,6 +63,60 @@ const leather = (base, repeat) => canvasTex(256, (g, s) => {
   g.strokeStyle = 'rgba(255,230,200,0.18)'; g.setLineDash([4, 5]); g.lineWidth = 1.5;
   for (const x of [s * 0.25, s * 0.5, s * 0.75]) { g.beginPath(); g.moveTo(x + 5, 0); g.lineTo(x + 5, s); g.stroke(); }
 }, repeat);
+// Pebble-grain vinyl for the glare shields: matte, with a fine grain the sun rakes across.
+const vinyl = (base, repeat) => canvasTex(256, (g, s) => {
+  g.fillStyle = base; g.fillRect(0, 0, s, s);
+  for (let i = 0; i < 5200; i++) {
+    const x = Math.random() * s, y = Math.random() * s, r = 0.8 + Math.random() * 1.8;
+    g.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.045)' : 'rgba(0,0,0,0.16)';
+    g.beginPath(); g.ellipse(x, y, r, r * (0.6 + Math.random() * 0.4), Math.random() * 3, 0, Math.PI * 2); g.fill();
+  }
+}, repeat);
+// Windscreen grime (linear, red channel): settled dust, a few wiped smears and fine scratches. Tiled in
+// object space by the glass shader below, so it needs no UVs on the lofted shells.
+let _grime = null;
+function grimeTex() {
+  if (_grime) return _grime;
+  const s = 256, c = document.createElement('canvas'); c.width = c.height = s;
+  const g = c.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0, 0, s, s);
+  for (let i = 0; i < 14; i++) {
+    const x = Math.random() * s, y = Math.random() * s, r = 20 + Math.random() * 50;
+    const rg = g.createRadialGradient(x, y, 0, x, y, r);
+    rg.addColorStop(0, `rgba(255,255,255,${0.10 + Math.random() * 0.12})`); rg.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = rg; g.save(); g.translate(x, y); g.scale(1.8, 0.6); g.translate(-x, -y); g.fillRect(x - r, y - r, 2 * r, 2 * r); g.restore();
+  }
+  for (let i = 0; i < 2200; i++) { g.fillStyle = `rgba(255,255,255,${0.15 + Math.random() * 0.5})`; g.fillRect(Math.random() * s, Math.random() * s, 1, 1); }
+  g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 0.7;
+  for (let i = 0; i < 26; i++) {
+    const x = Math.random() * s, y = Math.random() * s, a = Math.random() * 6.28, l = 6 + Math.random() * 30;
+    g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(a) * l * 0.5 + 3, y + Math.sin(a) * l * 0.5, x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return (_grime = t);
+}
+// Cockpit glazing: a little fresnel (glass shows more at grazing angles) and, off the lite tier, grime in
+// object space. One program shared by every interior's glass.
+function glazing(mat, scale, grime) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uGrime = { value: grimeTex() };
+    sh.uniforms.uGrimeScale = { value: scale };
+    sh.vertexShader = 'varying vec3 vGrimeP;\nvarying vec3 vGrimeN;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vGrimeP = position; vGrimeN = normal;');
+    sh.fragmentShader = 'uniform sampler2D uGrime;\nuniform float uGrimeScale;\nvarying vec3 vGrimeP;\nvarying vec3 vGrimeN;\n' + sh.fragmentShader.replace('#include <opaque_fragment>', `{
+      float fres = pow(1.0 - clamp(abs(dot(normalize(vViewPosition), normal)), 0.0, 1.0), 4.0);
+      float grime = 0.0;
+      ${grime ? `vec3 an = abs(normalize(vGrimeN)) + 1e-3;
+      vec3 q = vGrimeP * uGrimeScale;
+      grime = (texture2D(uGrime, q.xy).r * an.z + texture2D(uGrime, q.zy).r * an.x + texture2D(uGrime, q.xz).r * an.y) / (an.x + an.y + an.z);` : ''}
+      diffuseColor.a = min(0.6, diffuseColor.a + grime * 0.45 + fres * 0.3);
+      outgoingLight += vec3(0.3, 0.295, 0.28) * grime;
+    }
+    #include <opaque_fragment>`);
+  };
+  mat.customProgramCacheKey = () => (grime ? 'glazing-grime' : 'glazing');
+  return mat;
+}
 // Pilot's kneeboard: a clipped checklist.
 const kneeboardTex = () => canvasTex(256, (g, s) => {
   g.fillStyle = '#f1ece0'; g.fillRect(0, 0, s, s);
@@ -107,8 +161,8 @@ function twoTone(geo, lower, trim = [0.5, 0.49, 0.47]) {
   return geo;
 }
 
-function materials(kind) {
-  const micro = kind === 'micro';
+function materials(kind, lite = false) {
+  const micro = kind !== 'chinook';
   const liningMap = fabric(micro ? '#8d8a82' : '#4a4f42', [34, 20]);
   return {
     lining: new THREE.MeshStandardMaterial({ map: liningMap, bumpMap: liningMap, bumpScale: 0.6, roughness: 0.95, side: THREE.BackSide }),
@@ -117,11 +171,11 @@ function materials(kind) {
     // Window frames: satin paint with a little sheen, so their roundness reads against the light.
     post: new THREE.MeshPhysicalMaterial({ color: micro ? 0x2c2e31 : 0x2a2d27, roughness: 0.38, metalness: 0.15, clearcoat: 0.5, clearcoatRoughness: 0.3 }),
     seal: new THREE.MeshStandardMaterial({ color: 0x0e0e0f, roughness: 0.85 }),
-    glass: new THREE.MeshPhysicalMaterial({ color: micro ? 0xd2e2de : 0xbccac6, roughness: 0.22, metalness: 0, transparent: true, opacity: 0.08, envMapIntensity: 0.55, side: THREE.DoubleSide, depthWrite: false }),
+    glass: glazing(new THREE.MeshPhysicalMaterial({ color: micro ? 0xd2e2de : 0xbccac6, roughness: 0.22, metalness: 0, transparent: true, opacity: 0.06, envMapIntensity: 0.55, side: THREE.DoubleSide, depthWrite: false }), FULL_SCALE[kind] / 0.7, !lite),
     hidden: new THREE.MeshBasicMaterial({ visible: false }),
     floor: new THREE.MeshStandardMaterial({ map: tread([5, 7]), roughness: 0.92 }),
     panelBody: (() => { const t = crinkle(micro ? '#2a2c2f' : '#24261f', [3, 3]); return new THREE.MeshStandardMaterial({ map: t, bumpMap: t, bumpScale: 0.5, roughness: 0.78, metalness: 0.1 }); })(),
-    glare: (() => { const t = crinkle('#141516', [6, 2]); return new THREE.MeshStandardMaterial({ map: t, bumpMap: t, bumpScale: 0.6, roughness: 0.98 }); })(),
+    glare: (() => { const t = vinyl('#222326', [10, 4]); return new THREE.MeshStandardMaterial({ map: t, bumpMap: t, bumpScale: 0.9, roughness: 0.86 }); })(),
     trim: new THREE.MeshStandardMaterial({ map: fabric(micro ? '#4c4a46' : '#3a3e33', [6, 6]), roughness: 0.9 }),
     seat: new THREE.MeshStandardMaterial({ map: micro ? leather('#6c4f37', [1, 1]) : fabric('#40463a', [4, 4]), roughness: micro ? 0.58 : 0.9 }),
     seatFrame: new THREE.MeshStandardMaterial({ color: 0x3a3c3f, roughness: 0.45, metalness: 0.7 }),
@@ -265,6 +319,13 @@ function hoodGeometry(w, back, front, top, lipDrop, thick) {
   // Profile u -> -z (so `back` and `front` are distances ahead of the origin), extrusion -> +x.
   g.rotateY(-Math.PI / 2).translate(w, 0, 0);
   return g;
+}
+
+// The padded roll along the glare shield's lip (the edge toward the crew), as on real shields.
+function hoodRoll(mat, x0, w, front, top, lipDrop) {
+  const r = lipDrop * 0.55;
+  const g = new THREE.CapsuleGeometry(r, w - 2 * r, 4, 12).rotateZ(Math.PI / 2).translate(x0 + w / 2, top - lipDrop * 0.5, -front + r * 0.4);
+  return new THREE.Mesh(g, mat);
 }
 
 export class Cockpit {
@@ -438,7 +499,7 @@ export class Cockpit {
 
   // ---------------------------------------------------------------- micro heli (Bell 206-style)
   buildMicro() {
-    const M = materials('micro');
+    const M = materials('micro', this.slimTier);
     const root = new THREE.Group();
     // From inside, the windscreen runs right down to the nose (the opaque nose cap is below the sill).
     const shell = cabinShellGeometry(true, (a, z, outside) => (z < -0.022 && z > -0.0628 && Math.sin(a) > 0.02 ? 1 : outside(a, z)));
@@ -480,7 +541,7 @@ export class Cockpit {
     root.add(box(M.floor, 0.033, 0.0008, 0.046, 0, -0.0246, -0.021));
     const hood = new THREE.Mesh(hoodGeometry(0.0322, 0.0478, 0.0423, -0.0031, 0.0009, 0.0005), M.glare);
     hood.position.x = -0.0146;
-    root.add(hood);
+    root.add(hood, hoodRoll(M.glare, -0.0146, 0.0322, 0.0423, -0.0031, 0.0009));
     const P = this.panelGroup('micro', M, 0.030, 0.0105);
     P.group.position.set(0.0015, -0.0091, -0.0414);
     P.group.rotation.x = -0.3;
@@ -515,7 +576,7 @@ export class Cockpit {
 
   // ---------------------------------------------------------------- Chinook (CH-47F-style)
   buildChinook() {
-    const M = materials('chinook');
+    const M = materials('chinook', this.slimTier);
     const s = 0.36;
     const root = new THREE.Group();
     // Inside, the windscreen posts are glazed over and drawn as clean round tubes instead (a strip of the
@@ -571,7 +632,7 @@ export class Cockpit {
     // Glare shield, panel and centre/overhead consoles.
     const hood = new THREE.Mesh(hoodGeometry(0.033, 0.0838, 0.0802, 0.0054, 0.0006, 0.0003), M.glare);
     hood.position.x = -0.0165;
-    root.add(hood);
+    root.add(hood, hoodRoll(M.glare, -0.0165, 0.033, 0.0802, 0.0054, 0.0006));
     // A low, wide panel so the pilot sees over the glare shield to the load (real-size displays).
     const P = this.panelGroup('chinook', M, 0.031, 0.0056);
     P.group.position.set(0, 0.0019, -0.0800);
@@ -610,7 +671,7 @@ export class Cockpit {
   // The lofted cab (shared with the outside), two crew side by side over analogue instruments, the
   // aft-facing pilot's station behind them, and the fittings in render/cockpitSkycrane.js.
   buildSkycrane() {
-    const M = materials('micro');
+    const M = materials('skycrane', this.slimTier);
     const liningMap = fabric('#6a6c6a', [30, 18]);
     M.shellLining = new THREE.MeshStandardMaterial({ map: liningMap, bumpMap: liningMap, bumpScale: 0.6, roughness: 0.95, side: THREE.BackSide, vertexColors: true });
     M.suit = new THREE.MeshStandardMaterial({ map: fabric('#3b4a5a', [3, 3]), roughness: 0.9 });
@@ -632,9 +693,11 @@ export class Cockpit {
     const PP = { x: 0.0018, y: 0.0067, z: -0.0751, w: 0.0101, h: 0.0036 };
     const hood = new THREE.Mesh(hoodGeometry(0.0222, 0.0790, 0.0756, 0.0092, 0.0005, 0.0003), M.glare);
     hood.position.x = -0.0111;
-    root.add(hood);
-    const P = this.panelGroup('skycrane', M, PP.w, PP.h);
-    P.group.position.set(PP.x, PP.y, PP.z);
+    root.add(hood, hoodRoll(M.glare, -0.0111, 0.0222, 0.0756, 0.0092, 0.0005));
+    // The engine gauges widen the panel to the right of the original dial block (2.96 panel heights).
+    const PW = PP.h * 2.96;
+    const P = this.panelGroup('skycrane', M, PW, PP.h);
+    P.group.position.set(PP.x + (PW - PP.w) / 2, PP.y, PP.z);
     P.group.rotation.x = -0.2;
     root.add(P.group);
     const K = this.kit('skycrane', M);

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RAPIER, GROUPS } from '../sim/physics.js';
 import { CFG } from '../config.js';
 import { milkyTea, brewName } from './water.js';
@@ -9,8 +10,8 @@ import { GlassLayer, buildAtlas } from './glass.js';
 // Each panel is split by how often its pixels change, so the GPU only re-uploads what moved:
 //   - static: bezels, dial faces, tick marks, numerals and placards, painted once into one large
 //     mipmapped texture when the panel comes into use (and freed when another aircraft is chosen);
-//   - per frame, for free: needles, bugs and the heading card are meshes that rotate, and the attitude
-//     ball is a shader, so they move at the full frame rate and stay sharp at any resolution;
+//   - per frame, for free: needles are instances of one mesh (one draw call), bugs and the heading card
+//     are meshes that rotate, and the attitude ball is a shader, so they move at the full frame rate and stay sharp at any resolution;
 //   - glass pages (hover map, load, tank, PFD tapes): small canvases redrawn in turn at 15-30 Hz,
 //     one page per frame at most;
 //   - digit windows and caution lights: redrawn only when their text changes, or just re-tinted.
@@ -19,6 +20,8 @@ import { GlassLayer, buildAtlas } from './glass.js';
 // x L^3), so a micro heli 30 cm over the table reads like a real one at 30 ft. Only what the flight
 // model has is shown: thrust against weight, momentum (speed, drift, a predicted track), attitude,
 // heading and height above whatever is underneath. Nothing implies rotor aerodynamics it does not have.
+// The engine gauges (torque, turbine temperature, rotor and engine rpm, fuel, transmission oil, generator)
+// come from a small engine model driven by rotor speed and thrust against weight (InstrumentPanel.engine).
 
 const D2R = Math.PI / 180;
 const FT = 3.281;
@@ -33,6 +36,7 @@ const C = {
 };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const _f = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3(), _col = new THREE.Color();
+const _q = new THREE.Quaternion(), _z = new THREE.Vector3(0, 0, 1), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _m4 = new THREE.Matrix4();
 
 // ---------------------------------------------------------------- flight data (every frame, no allocation)
 // What lies straight under a point: a vessel's liquid, its rim, or (from the sim's own ground probe) the
@@ -184,6 +188,52 @@ const DIALS = {
     ticks: Array.from({ length: 21 }, (_, i) => [i * 5, i % 4 === 0 ? 2 : i % 2 === 0 ? 1 : 0]), nums: [0, 20, 40, 60, 80, 100] },
 };
 
+// Engine and system gauges: small 2-inch dials beside the flight instruments, linear over a 270-degree
+// sweep (240 for the dual tach). arcs: [from, to, colour]; red: limit lines. Markings are our own.
+const ARC_G = '#3fae4a', ARC_Y = '#e3b22b', ARC_R = '#d8382c';
+const lin = (min, max, sweep = 270) => (v) => (-sweep / 2 + sweep * clamp((v - min) / (max - min), -0.02, 1.03)) * D2R;
+const ticksOf = (min, max, step, every) => Array.from({ length: Math.round((max - min) / step) + 1 }, (_, i) => { const v = min + i * step; return [v, Math.abs(v / every - Math.round(v / every)) < 1e-6 ? 2 : 0]; });
+const GAUGES = {
+  trq: { name: 'TORQUE', unit: '%', ang: lin(0, 120), ticks: ticksOf(0, 120, 5, 20), nums: [0, 20, 40, 60, 80, 100, 120],
+    arcs: [[0, 85, ARC_G], [85, 100, ARC_Y]], red: [100] },
+  tot: { name: 'T.O.T.', unit: '°C ×100', ang: lin(0, 10), ticks: ticksOf(0, 10, 0.5, 2), nums: [0, 2, 4, 6, 8, 10],
+    arcs: [[3, 7.4, ARC_G], [7.4, 8.1, ARC_Y]], red: [8.1] },
+  nr: { name: 'ROTOR', unit: 'R  % RPM  E', ang: lin(0, 120, 240), ticks: ticksOf(0, 120, 5, 20), nums: [0, 20, 40, 60, 80, 100, 120],
+    arcs: [[95, 104, ARC_G]], red: [92, 104], dual: true },
+  fuel: { name: 'FUEL', unit: 'LBS ×10', ang: lin(0, 40), ticks: ticksOf(0, 40, 2, 10), nums: [0, 10, 20, 30, 40], arcs: [[4, 40, ARC_G], [0, 4, ARC_Y]] },
+  fuelH: { name: 'FUEL', unit: 'LBS ×1000', ang: lin(0, 12), ticks: ticksOf(0, 12, 0.5, 2), nums: [0, 2, 4, 6, 8, 10, 12], arcs: [[1.2, 12, ARC_G], [0, 1.2, ARC_Y]] },
+  xp: { name: 'XMSN OIL', unit: 'PSI', ang: lin(0, 100), ticks: ticksOf(0, 100, 5, 20), nums: [0, 20, 40, 60, 80, 100], arcs: [[30, 70, ARC_G]], red: [30, 70] },
+  xt: { name: 'XMSN OIL', unit: '°C', ang: lin(0, 150), ticks: ticksOf(0, 150, 10, 50), nums: [0, 50, 100, 150], arcs: [[15, 110, ARC_G]], red: [110] },
+  amps: { name: 'GEN LOAD', unit: 'AMPS', ang: lin(0, 150), ticks: ticksOf(0, 150, 10, 50), nums: [0, 50, 100, 150], arcs: [[0, 105, ARC_G], [105, 150, ARC_Y]] },
+};
+function paintGauge(g, x, y, r, type) {
+  const G = GAUGES[type];
+  bezel(g, x, y, r);
+  // Coloured range arcs inside the tick ring, then the limit lines across it.
+  for (const [a, b, col] of G.arcs || []) {
+    g.strokeStyle = col; g.lineWidth = r * 0.075; g.lineCap = 'butt';
+    g.beginPath(); g.arc(x, y, r * 0.885, G.ang(a) - Math.PI / 2, G.ang(b) - Math.PI / 2); g.stroke();
+  }
+  g.strokeStyle = '#ecE8dc';
+  for (const [v, big] of G.ticks) {
+    const a = G.ang(v) - Math.PI / 2;
+    g.lineWidth = r * (big ? 0.05 : 0.025);
+    g.beginPath(); g.moveTo(x + Math.cos(a) * r * (big ? 0.74 : 0.8), y + Math.sin(a) * r * (big ? 0.74 : 0.8)); g.lineTo(x + Math.cos(a) * r * 0.93, y + Math.sin(a) * r * 0.93); g.stroke();
+  }
+  for (const v of G.red || []) {
+    const a = G.ang(v) - Math.PI / 2;
+    g.strokeStyle = ARC_R; g.lineWidth = r * 0.07;
+    g.beginPath(); g.moveTo(x + Math.cos(a) * r * 0.7, y + Math.sin(a) * r * 0.7); g.lineTo(x + Math.cos(a) * r * 0.98, y + Math.sin(a) * r * 0.98); g.stroke();
+  }
+  for (const n of G.nums) {
+    const a = G.ang(n) - Math.PI / 2;
+    text(g, String(n), x + Math.cos(a) * r * 0.55, y + Math.sin(a) * r * 0.55, r * 0.22, '#f1eee6', { font: DIAL_FONT, weight: 700 });
+  }
+  text(g, G.name, x, y + r * 0.36, r * 0.17, '#c9c5ba', { font: DIAL_FONT, weight: 700 });
+  text(g, G.unit, x, y + r * 0.56, r * 0.12, '#9a968c', { font: DIAL_FONT, weight: 600 });
+  glint(g, x, y, r);
+}
+
 function bezel(g, x, y, r) {
   const rim = g.createLinearGradient(x - r, y - r, x + r, y + r);
   rim.addColorStop(0, '#4a4d50'); rim.addColorStop(0.5, '#2a2c2e'); rim.addColorStop(1, '#151617');
@@ -295,8 +345,11 @@ const LIGHTS = {
   hook: ['HOOK', '#41c86a'], reach: ['IN REACH', '#f0a830'], steep: ['STEEP', '#45c3ef'], wow: ['ON GND', '#d8dde0'],
   pump: ['PUMP', '#41c86a'], doors: ['DOORS', '#f0a830'], intake: ['INTAKE IN', '#45c3ef'], auto: ['AUTO', '#d8dde0'],
   hook0: ['FWD HOOK', '#41c86a'], hook1: ['CTR HOOK', '#41c86a'], hook2: ['AFT HOOK', '#41c86a'],
+  mcaut: ['MASTER CAUTION', '#f0a830'], lorpm: ['ROTOR RPM', '#e8402f'],
 };
 const LIGHT_KEYS = Object.keys(LIGHTS);
+// Annunciator capsules: a black lens with the legend engraved in its colour. Lit, lens and legend glow
+// (the material is tinted to full); dark, the legend still shows faintly, as a real unlit capsule does.
 function lightAtlas() {
   const w = 256, h = 96;
   const c = document.createElement('canvas'); c.width = w; c.height = h * LIGHT_KEYS.length;
@@ -304,14 +357,18 @@ function lightAtlas() {
   LIGHT_KEYS.forEach((k, i) => {
     const [label, col] = LIGHTS[k];
     const y = i * h;
-    const grd = g.createLinearGradient(0, y, 0, y + h);
-    grd.addColorStop(0, col); grd.addColorStop(1, new THREE.Color(col).multiplyScalar(0.72).getStyle());
-    g.fillStyle = grd; g.fillRect(0, y, w, h);
+    const lens = g.createLinearGradient(0, y, 0, y + h);
+    const tint = new THREE.Color(col);
+    lens.addColorStop(0, tint.clone().multiplyScalar(0.3).getStyle()); lens.addColorStop(1, tint.clone().multiplyScalar(0.16).getStyle());
+    g.fillStyle = lens; g.fillRect(0, y, w, h);
+    // Lens cell divider and a frosted edge.
+    g.strokeStyle = 'rgba(255,255,255,0.10)'; g.lineWidth = 4; g.strokeRect(3, y + 3, w - 6, h - 6);
+    const ink = tint.clone().lerp(new THREE.Color(1, 1, 1), 0.35).getStyle();
     const words = label.split(' ');
     if (words.length > 1 && label.length > 7) {
-      text(g, words[0], w / 2, y + h * 0.33, h * 0.32, '#0b0c0b', { weight: 800 });
-      text(g, words.slice(1).join(' '), w / 2, y + h * 0.7, h * 0.32, '#0b0c0b', { weight: 800 });
-    } else text(g, label, w / 2, y + h * 0.53, h * 0.4, '#0b0c0b', { weight: 800 });
+      text(g, words[0], w / 2, y + h * 0.33, h * 0.3, ink, { weight: 800, font: DIAL_FONT });
+      text(g, words.slice(1).join(' '), w / 2, y + h * 0.7, h * 0.3, ink, { weight: 800, font: DIAL_FONT });
+    } else text(g, label, w / 2, y + h * 0.53, h * 0.38, ink, { weight: 800, font: DIAL_FONT });
   });
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -375,18 +432,24 @@ function adiMaterial(rect, aspect) {
 
 // ---------------------------------------------------------------- panel layouts (units of panel height)
 // Each panel is a strip `aspect` panel-heights wide. x, y from the top left. Pilots sit on the right.
-const ANALOGUE = (aspect, cols, page, cam, lights) => ({
+const ANALOGUE = (aspect, cols, page, cam, lights, gx) => ({
   aspect, cam: { x: 0.07, y: 0.14, s: 0.56, label: cam },
   glass: [{ id: 'mfd', page, x: 0.70, y: 0.05, w: 0.62, h: 0.9 }],
-  lights: lights.map((k, i) => ({ k, x: 1.375, y: 0.1 + i * 0.205, w: 0.17, h: 0.15 })),
+  // Annunciators in a column between the display and the flight instruments, master caution on top.
+  lights: lights.map((k, i) => ({ k, x: 1.375, y: 0.06 + i * (0.9 / lights.length), w: 0.17, h: 0.9 / lights.length - 0.04 })),
   dials: [['gs', cols[0], 0.27], ['adi', cols[1], 0.27], ['ralt', cols[2], 0.27], ['pwr', cols[0], 0.73], ['hdg', cols[1], 0.73], ['vsi', cols[2], 0.73]]
     .map(([type, x, y]) => ({ type, x, y, r: 0.165 })),
+  // Engine instruments: a column right of the flight instruments, systems in a row under the camera.
+  gauges: [['trq', gx, 0.2, 0.07], ['tot', gx, 0.5, 0.07], ['nr', gx, 0.8, 0.07],
+    [page === 'hoverTank' ? 'fuelH' : 'fuel', 0.135, 0.885, 0.058], ['xp', 0.278, 0.885, 0.058], ['xt', 0.421, 0.885, 0.058], ['amps', 0.564, 0.885, 0.058]]
+    .map(([type, x, y, r]) => ({ type, x, y, r })),
 });
 const LAYOUTS = {
-  micro: ANALOGUE(30 / 10.5, [1.725, 2.095, 2.465], 'hoverLoad', 'HOOK CAM', ['hook', 'reach', 'steep', 'wow']),
-  skycrane: ANALOGUE(18.5 / 6.6, [1.745, 2.115, 2.485], 'hoverTank', 'BELLY CAM', ['pump', 'doors', 'intake', 'auto']),
+  micro: ANALOGUE(30 / 10.5, [1.725, 2.095, 2.465], 'hoverLoad', 'HOOK CAM', ['mcaut', 'hook', 'reach', 'steep', 'wow'], 2.765),
+  skycrane: ANALOGUE(2.96, [1.745, 2.115, 2.485], 'hoverTank', 'BELLY CAM', ['mcaut', 'pump', 'doors', 'intake', 'auto'], 2.8),
   // Glass cockpit: copilot PFD and hover page, standby instruments, the centre display (hook camera over
-  // the cargo-hook page), standby, pilot hover page and PFD, then the caution lights at each end.
+  // the cargo-hook page), standby, pilot hover page and PFD, then the caution lights at each end under a
+  // master caution capsule.
   chinook: {
     aspect: 31 / 5.6,
     cam: { x: 2.538, y: 0.07, s: 0.46, label: null },
@@ -397,9 +460,10 @@ const LAYOUTS = {
       { id: 'hover', page: 'hover', x: 1.606, y: 0.06, w: 0.56, h: 0.88 },
       { id: 'load', page: 'load', x: 2.438, y: 0.58, w: 0.66, h: 0.36 },
     ],
-    lights: [4.66, 0.396].flatMap((x0) => [['hook0', 0, 0], ['hook1', 0, 1], ['hook2', 0, 2], ['reach', 1, 0], ['steep', 1, 1], ['wow', 1, 2]]
-      .map(([k, c, r]) => ({ k, x: x0 + 0.03 + c * 0.24, y: 0.2 + r * 0.24, w: 0.2, h: 0.15 }))),
+    lights: [4.66, 0.396].flatMap((x0) => [{ k: 'mcaut', x: x0 + 0.03, y: 0.04, w: 0.44, h: 0.12 }, ...[['hook0', 0, 0], ['hook1', 0, 1], ['hook2', 0, 2], ['reach', 1, 0], ['steep', 1, 1], ['wow', 1, 2]]
+      .map(([k, c, r]) => ({ k, x: x0 + 0.03 + c * 0.24, y: 0.22 + r * 0.24, w: 0.2, h: 0.15 }))]),
     dials: [{ type: 'adi', x: 2.31, y: 0.27, r: 0.075 }, { type: 'vsi', x: 2.31, y: 0.71, r: 0.075 }, { type: 'ralt', x: 3.226, y: 0.27, r: 0.075 }, { type: 'pwr', x: 3.226, y: 0.71, r: 0.075 }],
+    gauges: [],
   },
 };
 
@@ -499,23 +563,29 @@ export class InstrumentPanel {
       group.add(m);
     }
     // Dials: needles, bugs, the attitude ball and the heading card.
-    const needleMat = new THREE.MeshStandardMaterial({ color: 0xf4f0e6, emissive: 0xf4f0e6, emissiveIntensity: 0.3, roughness: 0.5 });
+    const needleMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xf4f0e6, emissiveIntensity: 0.3, roughness: 0.5 });
     const hubMat = new THREE.MeshStandardMaterial({ color: 0x151617, roughness: 0.4, metalness: 0.5 });
     const bugMat = new THREE.MeshBasicMaterial({ color: 0xffb648, toneMapped: false });
     const trackMat = new THREE.MeshBasicMaterial({ color: 0xff74d9, toneMapped: false });
     this.dials = [];
+    // Every pointer on the panel is an instance of one needle (one draw call), set from the readings each
+    // frame: [centre, radius, length, angle function, reading key, colour].
+    const needles = [];
+    const addNeedle = (c, r, len, col = 0xf4f0e6) => { needles.push({ c, r, len, col }); return needles.length - 1; };
     // Raised bezels and cover glasses give each dial depth; the glass catches the cockpit's reflections.
+    // The covers are one merged transparent mesh.
     const bezelMat = new THREE.MeshPhysicalMaterial({ color: 0x1b1c1e, roughness: 0.35, metalness: 0.4, clearcoat: 0.6, clearcoatRoughness: 0.2 });
     const coverMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.07, envMapIntensity: 1.4, depthWrite: false });
-    for (const d of LY.dials) {
-      const r = d.r * h, c = P(d.x, d.y);
-      const rim = new THREE.Mesh(new THREE.TorusGeometry(r * 1.075, r * 0.07, 10, 56).scale(1, 1, 0.6), bezelMat);
+    const covers = [];
+    const rimAndCover = (c, r) => {
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(r * 1.075, r * 0.07, 10, r > 0.1 * h ? 56 : 36).scale(1, 1, 0.6), bezelMat);
       rim.position.copy(c).setZ(0.004 * h);
       group.add(rim);
-      const cover = new THREE.Mesh(new THREE.CircleGeometry(r * 1.03, 48), coverMat);
-      cover.position.copy(c).setZ(0.0062 * h);
-      cover.renderOrder = 3; cover.userData.keep = true;
-      group.add(cover);
+      covers.push(new THREE.CircleGeometry(r * 1.03, 40).translate(c.x, c.y, 0.0062 * h));
+    };
+    for (const d of LY.dials) {
+      const r = d.r * h, c = P(d.x, d.y);
+      rimAndCover(c, r);
       const D = { type: d.type, val: null, parts: {} };
       if (d.type === 'adi') {
         const mat = adiMaterial(false, 1);
@@ -535,13 +605,10 @@ export class InstrumentPanel {
         group.add(trk);
         D.parts = { card, sym, trk };
       } else {
-        const nd = new THREE.Mesh(this.needleGeo(r, d.type === 'vsi' ? 0.9 : 0.86), needleMat);
-        nd.position.copy(c).setZ(0.003 * h);
-        group.add(nd);
+        D.ni = addNeedle(c, r, d.type === 'vsi' ? 0.9 : 0.86);
         const hub = new THREE.Mesh(new THREE.CircleGeometry(r * 0.085, 24), hubMat);
         hub.position.copy(c).setZ(0.0045 * h);
         group.add(hub);
-        D.parts.needle = nd;
         D.ang = DIALS[d.type].ang;
         if (d.type === 'pwr') {
           const bug = new THREE.Mesh(this.bugGeo(r, 0.86, 1.0, 0.1), bugMat);
@@ -554,6 +621,50 @@ export class InstrumentPanel {
       for (const o of Object.values(D.parts)) o.userData.keep = true;
       this.dials.push(D);
     }
+    // Engine and system gauges.
+    this.gauges = [];
+    for (const d of LY.gauges || []) {
+      const r = d.r * h, c = P(d.x, d.y);
+      rimAndCover(c, r);
+      const G = { type: d.type, ang: GAUGES[d.type].ang, val: null, ni: addNeedle(c, r, 0.84) };
+      // The dual tach: a long rotor needle (R) and a shorter amber engine needle (E) on one hub.
+      if (GAUGES[d.type].dual) { G.ni2 = addNeedle(c, r, 0.62, 0xf0a830); G.val2 = null; }
+      const hub = new THREE.Mesh(new THREE.CircleGeometry(r * 0.11, 20), hubMat);
+      hub.position.copy(c).setZ(0.0045 * h);
+      group.add(hub);
+      this.gauges.push(G);
+    }
+    // Raised bezels round the displays and the annunciators, with real soft keys beside each display:
+    // one merged mesh in the dial-rim material (no draw call of its own once the panel is merged).
+    const frames = [];
+    const rectFrame = (x, y, fw, fh, b, d) => {
+      const a = P(x - b, y - b), c = P(x + fw + b, y + fh + b), ia = P(x, y), ic = P(x + fw, y + fh);
+      const s = new THREE.Shape();
+      s.moveTo(a.x, c.y); s.lineTo(c.x, c.y); s.lineTo(c.x, a.y); s.lineTo(a.x, a.y); s.closePath();
+      const hole = new THREE.Path();
+      hole.moveTo(ia.x, ic.y); hole.lineTo(ia.x, ia.y); hole.lineTo(ic.x, ia.y); hole.lineTo(ic.x, ic.y); hole.closePath();
+      s.holes.push(hole);
+      frames.push(new THREE.ExtrudeGeometry(s, { depth: d * h * 0.6, bevelEnabled: true, bevelThickness: d * h * 0.4, bevelSize: b * h * 0.3, bevelSegments: 2, curveSegments: 1 }));
+    };
+    rectFrame(cam.x, cam.y, cam.s, cam.s, 0.024, 0.008);
+    for (const gl of LY.glass) {
+      rectFrame(gl.x, gl.y, gl.w, gl.h, 0.024, 0.008);
+      for (let k = 0; k < 4; k++) for (const kx of [gl.x - 0.016, gl.x + gl.w + 0.016]) {
+        const c = P(kx, gl.y + gl.h * (0.2 + k * 0.22));
+        frames.push(new THREE.BoxGeometry(0.011 * h, gl.h * 0.075 * h, 0.006 * h).translate(c.x, c.y, 0.009 * h));
+      }
+    }
+    for (const L of LY.lights) rectFrame(L.x, L.y, L.w, L.h, 0.01, 0.005);
+    group.add(new THREE.Mesh(mergeGeometries(frames.map((f) => (f.index ? f.toNonIndexed() : f)).map((f) => { for (const n of Object.keys(f.attributes)) if (!['position', 'normal', 'uv'].includes(n)) f.deleteAttribute(n); return f; })), bezelMat));
+    const cover = new THREE.Mesh(mergeGeometries(covers), coverMat);
+    cover.renderOrder = 3; cover.userData.keep = true;
+    group.add(cover);
+    const nm = this.needles = new THREE.InstancedMesh(this.needleGeo(1, 1), needleMat, needles.length);
+    nm.userData.keep = true; nm.frustumCulled = false;
+    this.needleSpec = needles;
+    needles.forEach((n, i) => { nm.setColorAt(i, _col.set(n.col)); this.setNeedle(i, 0); });
+    nm.instanceColor.needsUpdate = true;
+    group.add(nm);
     return group;
   }
 
@@ -561,6 +672,14 @@ export class InstrumentPanel {
   // on it neither cast nor receive, which keeps them out of the shadow pass.
   fixShadows() {
     this.group.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = o === this.face; } });
+  }
+
+  setNeedle(i, ang) {
+    const n = this.needleSpec[i];
+    _q.setFromAxisAngle(_z, -ang);
+    _s.set(n.r, n.r * n.len, 1);
+    _p.copy(n.c).setZ(0.003 * this.h);
+    this.needles.setMatrixAt(i, _m4.compose(_p, _q, _s));
   }
 
   needleGeo(r, len) {
@@ -653,10 +772,22 @@ export class InstrumentPanel {
       else paintDial(g, d.x, d.y, d.r, d.type);
     }
     for (const d of LY.dials) if (d.type !== 'adi' && d.type !== 'hdg') glint(g, d.x, d.y, d.r);
+    for (const d of LY.gauges || []) paintGauge(g, d.x, d.y, d.r, d.type);
+    // Engraved group titles and the instrument lighting placard.
+    if (LY.gauges && LY.gauges.length) {
+      const gx = LY.gauges[0].x;
+      text(g, 'ENGINE', gx, 0.055, 0.03, '#8f8b82', { font: DIAL_FONT, weight: 700 });
+      g.strokeStyle = '#3a3c3f'; g.lineWidth = 0.004;
+      roundRect(g, 0.06, 0.8, 0.58, 0.17, 0.02); g.stroke();
+    }
     // Placards.
     if (this.kind === 'chinook') {
       text(g, 'HOOK CAM', 2.768, 0.555, 0.035, '#b9b5aa', { font: DIAL_FONT, weight: 700 });
-      for (const x of [0.396, 4.66]) text(g, 'CARGO  ·  CAUTION', x + 0.24, 0.08, 0.04, '#9b978d', { font: DIAL_FONT, weight: 700 });
+      for (const x of [0.396, 4.66]) {
+        text(g, 'CARGO', x + 0.15, 0.19, 0.026, '#8f8b82', { font: DIAL_FONT, weight: 700 });
+        text(g, 'HOVER', x + 0.39, 0.19, 0.026, '#8f8b82', { font: DIAL_FONT, weight: 700 });
+        text(g, 'PRESS TO TEST', x + 0.25, 0.96, 0.022, '#6f6c66', { font: DIAL_FONT, weight: 700 });
+      }
     }
   }
 
@@ -693,9 +824,18 @@ export class InstrumentPanel {
       }
       const v = D.type === 'gs' ? F.gsKt : D.type === 'ralt' ? F.radFt : D.type === 'vsi' ? F.fpm : F.pwr;
       D.val = D.val === null || dt <= 0 ? v : D.val + (v - D.val) * k;
-      D.parts.needle.rotation.z = -D.ang(D.val);
+      this.setNeedle(D.ni, D.ang(D.val));
       if (D.parts.bug) D.parts.bug.rotation.z = -D.ang(clamp(F.hoverPwr, 0, 102));
     }
+    // Engine and systems.
+    const E = this.engine(dt, h, F);
+    for (const G of this.gauges) {
+      const v = E[G.type === 'fuelH' ? 'fuel' : G.type] * (G.type === 'fuelH' ? 0.001 : G.type === 'fuel' ? 0.1 : 1);
+      G.val = G.val === null || dt <= 0 ? v : G.val + (v - G.val) * k;
+      this.setNeedle(G.ni, G.ang(G.val));
+      if (G.ni2 !== undefined) { G.val2 = G.val2 === null || dt <= 0 ? E.n2 : G.val2 + (E.n2 - G.val2) * k; this.setNeedle(G.ni2, G.ang(G.val2)); }
+    }
+    this.needles.instanceMatrix.needsUpdate = true;
     if (this.pfdMat) { this.pfdMat.uniforms.uPitch.value = F.pitch; this.pfdMat.uniforms.uRoll.value = F.roll; }
     // Mission data and the glass layer, at the glass rate.
     this.missionDt += dt;
@@ -710,9 +850,39 @@ export class InstrumentPanel {
     this.ms = performance.now() - t0;
   }
 
+  // A small engine model behind the gauges, driven by what the flight model has: rotor speed and thrust
+  // against weight. Torque reads 68% in a hover, turbine temperature follows it with thermal lag,
+  // fuel burns with power, and the transmission oil warms slowly. Fuel starts again with each aircraft.
+  engine(dt, h, F) {
+    const E = this.E || (this.E = {});
+    const fresh = E.h !== h;
+    if (fresh) {
+      E.h = h; E.t = 0;
+      E.fuelMax = this.kind === 'micro' ? 400 : 10000;
+      E.fuel = E.fuelMax * 0.86; E.xt = 62;
+    }
+    E.t += dt;
+    E.nr = (h.rotorSpeed ?? 1) * 100;
+    E.n2 = E.nr >= 97 ? E.nr : Math.min(100, E.nr * 1.08 + 2);
+    // Torque: 68% in a hover, and full thrust just over the 100% limit (pulling everything overtorques).
+    const hp = clamp(F.hoverPwr, 5, 95);
+    const trq = F.pwr <= hp ? F.pwr / hp * 68 : 68 + (F.pwr - hp) / (100 - hp) * 38;
+    E.trq = trq;
+    const totT = 4.1 + 3.5 * trq / 100;
+    E.tot = fresh || dt <= 0 ? totT : E.tot + (totT - E.tot) * (1 - Math.exp(-dt / 2.5));
+    E.fuel = Math.max(0, E.fuel - E.fuelMax * 0.00009 * (0.45 + trq / 100) * dt);
+    E.xp = 12 + 40 * E.nr / 100 + 4 * trq / 100;
+    E.xt += (55 + 28 * trq / 100 - E.xt) * (1 - Math.exp(-dt / 40));
+    E.amps = 34 + 4 * Math.sin(E.t * 0.37) + 2 * Math.sin(E.t * 1.9);
+    E.caution = trq > 100 || E.tot > 8.1 || (E.nr < 95 && !F.grounded) || E.fuel < E.fuelMax * 0.1;
+    return E;
+  }
+
   updateLights(F, M, h) {
     const T = M.tank;
+    const E = this.E || {};
     const state = {
+      mcaut: !!E.caution, lorpm: (E.nr ?? 100) < 92,
       hook: M.loads.length > 0, reach: !!M.cand, steep: M.loads.some((l) => !l.bucket && l.immersion > 0.03), wow: F.grounded,
       pump: !!(T && T.pumping), doors: !!(T && T.doors > 0.02), intake: !!(T && T.submerged), auto: !!(T && (T.auto || T.salvo)),
       hook0: M.loads.some((l) => l.hook === 0), hook1: M.loads.some((l) => l.hook === 1), hook2: M.loads.some((l) => l.hook === 2),
@@ -721,7 +891,7 @@ export class InstrumentPanel {
       const on = !!state[L.k];
       if (on === L.on) continue;
       L.on = on;
-      L.mat.color.setScalar(on ? 1.0 : 0.045);
+      L.mat.color.setScalar(on ? 1.0 : 0.1);
     }
   }
 
