@@ -116,6 +116,9 @@ if (diedLastTime && !PRESETS[qualitySetting]) {
   safeTier = lowerTier(safeTier && TIERS.indexOf(safeTier) < TIERS.indexOf(autoTier) ? safeTier : autoTier);
   store.set('safeTier', safeTier);
 }
+// Where the last load got to (see setProgress): when it died, the start screen says so, so a crash that
+// leaves no other trace (the browser killed) can still be pinned to a step.
+const lastStep = diedLastTime ? store.get('bootStep', '') : '';
 store.set('booting', String(Date.now()));
 const autoPreset = safeTier && TIERS.indexOf(safeTier) < TIERS.indexOf(autoTier) ? (safeTier === 'safe' ? SAFE : PRESETS[safeTier]) : PRESETS[autoTier];
 const quality = { ...(PRESETS[qualitySetting] || autoPreset) };
@@ -136,9 +139,19 @@ applyAoParam();
 const SOFTWARE_GL = /SwiftShader|Basic Render Driver|llvmpipe|softpipe|Software Rasterizer|WARP/i;
 const SOFTWARE_PIXELS = 100000;
 
+let stepText = 'Starting';
 function setProgress(frac, text) {
   $('load-fill').style.width = `${Math.round(frac * 100)}%`;
-  if (text) $('load-status').textContent = text;
+  if (text) { $('load-status').textContent = text; stepText = text.replace(/…$/, ''); }
+  breadcrumb(`${stepText} (${Math.round(frac * 100)}%)`);
+}
+function breadcrumb(step) { store.set('bootStep', `${step} · ${quality.safe ? 'safe mode' : quality.name}${quality.phone ? ', phone renderer' : ''}`); }
+if (lastStep) {
+  const p = document.createElement('p');
+  p.className = 'load-hint last-step';
+  p.textContent = `Last time the game stopped at: ${lastStep}`;
+  $('load-status').after(p);
+  console.warn('[Helicoptea] the last load stopped at:', lastStep);
 }
 
 async function boot() {
@@ -333,7 +346,8 @@ async function boot() {
     setTimeout(async () => {
       const t = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType });
       // A context lost meanwhile ends it quietly (the loss has its own handling above).
-      try { await warmInSteps(renderer, scene, camera, scene, { batch: 8, target: t, stop: () => renderer.getContext().isContextLost() }); } catch (err) { if (!renderer.getContext().isContextLost()) console.warn('[Helicoptea] background warm-up', err); } finally { t.dispose(); }
+      breadcrumb('Start screen, warming the hook camera shaders');
+      try { await warmInSteps(renderer, scene, camera, scene, { batch: 8, target: t, stop: () => renderer.getContext().isContextLost() }); } catch (err) { if (!renderer.getContext().isContextLost()) console.warn('[Helicoptea] background warm-up', err); } finally { t.dispose(); if (!started) breadcrumb('Start screen'); }
     }, 300);
   }
 
@@ -879,6 +893,9 @@ async function boot() {
     if (started) return;
     started = true;
     setTimeout(settled, 60000);
+    breadcrumb('Start tapped');
+    setTimeout(() => breadcrumb('Flying for 5 s'), 5000);
+    setTimeout(() => breadcrumb('Flying for 30 s'), 30000);
     // Phones: the start tap is the gesture that may hide the browser's bars (Android; iPhone Safari can't,
     // but Add to Home Screen opens the game full screen anyway).
     if (IS_TOUCH && wantFullscreen()) setFullscreen(true);
