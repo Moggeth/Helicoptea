@@ -50,6 +50,13 @@ export class Post {
     this.target = null;
   }
 
+  // Build the output pass's program without allocating the full-screen target (phones: otherwise it
+  // compiles mid-flight, the first time the hook camera runs).
+  warmOutput() {
+    if (!this.output) this.output = new FullScreenQuad(this.outputMaterial());
+    this.renderer.compile(this.output._mesh, new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1));
+  }
+
   build(quality) {
     const r = this.renderer;
     const size = r.getDrawingBufferSize(new THREE.Vector2());
@@ -84,7 +91,7 @@ export class Post {
     const ao = this.ao;
     return new THREE.RawShaderMaterial({
       name: 'HeliOutput',
-      uniforms: { tDiffuse: { value: this.target.texture }, tAO: { value: ao ? ao.pdRenderTarget.texture : null }, intensity: { value: 1 }, toneMappingExposure: { value: 1 } },
+      uniforms: { tDiffuse: { value: this.target ? this.target.texture : null }, tAO: { value: ao ? ao.pdRenderTarget.texture : null }, intensity: { value: 1 }, toneMappingExposure: { value: 1 } },
       defines: ao ? { USE_AO: '' } : {},
       vertexShader: /* glsl */`
         precision highp float;
