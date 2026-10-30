@@ -70,11 +70,15 @@ const state = (page) => H(page, () => {
   await page.screenshot({ path: `${outDir}/e2e-micro-cockpit.png` });
   // Mouse free-look and zoom.
   const f0 = s.fov;
-  await page.mouse.move(800, 450); await page.mouse.down(); await page.mouse.move(600, 520, { steps: 6 }); await page.mouse.up();
+  await page.mouse.move(800, 450); await page.mouse.down(); await page.mouse.move(600, 520, { steps: 6 });
   await page.mouse.wheel(0, 300);
   await sleep(200);
   s = await state(page);
   check('mouse drag turns the head (left and down)', s.yaw > 0.4 && s.pitch < -0.15, `yaw ${s.yaw.toFixed(2)} pitch ${s.pitch.toFixed(2)}`);
+  await page.mouse.up();
+  await page.waitForFunction(() => { const r = window.__helicoptea.fpRig; return Math.abs(r.lookYaw) < 0.02 && Math.abs(r.lookPitch) < 0.02; }, null, { timeout: 5000 }).catch(() => {});
+  s = await state(page);
+  check('letting go of free look springs the head back, keeping the zoom', Math.abs(s.yaw) < 0.02 && Math.abs(s.pitch) < 0.02 && s.zoom !== 0, `yaw ${s.yaw.toFixed(2)} pitch ${s.pitch.toFixed(2)} zoom ${s.zoom.toFixed(1)}`);
   check('wheel zooms the cockpit field of view', s.fov > f0 + 2 || s.fov < f0 - 2, `${f0.toFixed(1)} -> ${s.fov.toFixed(1)}`);
   await page.keyboard.press('KeyU');
   // The head eases back over about half a second of frame time; a software renderer below 10 fps (frames
@@ -289,10 +293,13 @@ const state = (page) => H(page, () => {
   const tp = (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y, id: 7 }] });
   await tp('touchStart', 420, 120);
   for (let k = 1; k <= 6; k++) { await tp('touchMove', 420 - k * 18, 120 + k * 6); await sleep(16); }
-  await tp('touchEnd');
   await sleep(150);
   s = await state(page);
   check('touch: dragging open screen looks around', s.yaw > 0.25, `yaw ${s.yaw.toFixed(2)} pitch ${s.pitch.toFixed(2)}`);
+  await tp('touchEnd');
+  await page.waitForFunction(() => Math.abs(window.__helicoptea.fpRig.lookYaw) < 0.02, null, { timeout: 5000 }).catch(() => {});
+  s = await state(page);
+  check('touch: lifting the finger springs the view back', Math.abs(s.yaw) < 0.02, `yaw ${s.yaw.toFixed(2)}`);
   const overlaps = await H(page, () => {
     const r = document.querySelector('.loadcam').getBoundingClientRect();
     const hit = (e) => { const q = e.getBoundingClientRect(); return q.width > 0 && !(q.right <= r.left || q.left >= r.right || q.bottom <= r.top || q.top >= r.bottom); };

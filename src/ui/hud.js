@@ -491,6 +491,7 @@ export class Hud {
       camera: [
         seg('Camera', 'Camera', 'radiogroup', CAM_MODES.map(({ id, name, blurb }) => radio('view', id, name, opts.view === id, blurb)).join('')),
         `<div class="opt seg-row cam-row" role="group" aria-label="Cameras in the C / L3 cycle">${lbl(opts.touch ? 'Camera button cycles' : 'Next camera cycles', opts.touch ? '' : '<kbd>C</kbd> or L3')}<span class="seg">${CAM_MODES.map(({ id, name }) => { const on = (opts.camCycle || []).includes(id); return `<button class="secondary chk${on ? ' on' : ''}" aria-pressed="${on}" data-act="camcycle" data-id="${id}">${name}</button>`; }).join('')}</span></div>`,
+        toggle('Look springs back', 'data-setting="lookReturn"', opts.lookReturn !== false, opts.lookHow ? opts.lookHow[0].toUpperCase() + opts.lookHow.slice(1) : ''),
         slider('Speed feel', `min="0" max="1" step="0.05" value="${opts.camFeel ?? 0.5}" data-setting="camFeel" aria-label="Speed feel on the locked chase"`, 'rigid', 'lots'),
         slider('Cockpit field of view', `min="60" max="110" step="1" value="${opts.fpFov}" data-setting="fpFov" aria-label="Cockpit field of view"`, `${opts.fpFov}°`),
         slider('Head motion', `min="0" max="1" step="0.05" value="${opts.fpMotion}" data-setting="fpMotion" aria-label="Head motion in the cockpit"`, 'off', 'lots'),
@@ -540,7 +541,7 @@ export class Hud {
       </div>`;
     const on = (sel, ev, fn) => this.modal.querySelector(sel)?.addEventListener(ev, fn);
     on('[data-setting=quality]', 'change', (e) => this.h.setting('quality', e.target.value));
-    for (const k of ['debug', 'fpsMeter', 'rotorStrikes', 'batterySaver', 'haptics', 'fullscreen']) on(`[data-setting=${k}]`, 'change', (e) => this.h.setting(k, e.target.checked));
+    for (const k of ['debug', 'fpsMeter', 'rotorStrikes', 'batterySaver', 'haptics', 'fullscreen', 'lookReturn']) on(`[data-setting=${k}]`, 'change', (e) => this.h.setting(k, e.target.checked));
     on('[data-setting=weight]', 'input', (e) => this.h.setting('weight', parseFloat(e.target.value)));
     for (const k of ['fpMotion', 'fpVibration', 'fpFov', 'camFeel']) {
       const el = this.modal.querySelector(`[data-setting=${k}]`);
@@ -631,7 +632,7 @@ export class Hud {
     return [['Left thumb', stick('left')], ['Right thumb', stick('right')],
       ['', 'Put a thumb down anywhere in its half of the screen: that spot is the centre. Slide past the rim and the centre follows you. Pick another layout or stick size in Pause.'],
       ['<kbd>Hook</kbd>', 'Hook / release (glows when a loop is in reach)'], ['<kbd>Pour</kbd> (hold)', 'Pour milk (appears while you carry the bucket); double-tap latches it open'], ['<kbd>Doors</kbd> (hold)', 'Skycrane belly doors, opening wider as you hold; double-tap = salvo'], ['<kbd>Pump</kbd> (hold)', 'Skycrane pump; double-tap = auto-fill'], ['<kbd>Hose ▲</kbd> <kbd>Hose ▼</kbd>', 'Reel the snorkel in / out'],
-      ['<kbd>GoPro</kbd> (hold)', 'Bolted camera looking straight down'], ['Assist switch (top left)', 'Flight Assist on / off'], ['Camera icon (top right)', 'Next camera'], ['Drag the open screen', 'Look around in the cockpit, or orbit the chase camera'], ['Double-tap the open screen', 'Look ahead again'], ['↻ (top right)', 'Restart flight'], ['‖ (top right)', 'Pause: sticks, sound, aircraft, cameras, mark a moment']];
+      ['<kbd>GoPro</kbd> (hold)', 'Bolted camera looking straight down'], ['Assist switch (top left)', 'Flight Assist on / off'], ['Camera icon (top right)', 'Next camera'], ['Drag the open screen', 'Look around (springs back when you let go)'], ['Double-tap the open screen', 'Look ahead again'], ['↻ (top right)', 'Restart flight'], ['‖ (top right)', 'Pause: sticks, sound, aircraft, cameras, mark a moment']];
   }
 
   // The keyboard sheet, like the gamepad's, is written from the layout in force.
@@ -642,7 +643,7 @@ export class Hud {
       ['Scheme', `${kbPresetName(layout)} (change it in Pause or Controls and remapping)`],
       ...describeKb(layout).map((r) => [keys(r.keys), r.label]),
       ['<kbd>Shift</kbd>+restart', 'Reset sandbox'],
-      ['<kbd>1</kbd>', 'Cockpit and back. Drag the mouse to look around, wheel to zoom'], ['<kbd>2</kbd> / <kbd>3</kbd>', 'Chase / locked chase'],
+      ['<kbd>1</kbd>', 'Cockpit and back (the wheel zooms)'], ['<kbd>2</kbd> / <kbd>3</kbd>', 'Chase / locked chase'],
       ['<kbd>Home</kbd>', 'Recenter camera or look ahead'], ['<kbd>M</kbd>', 'Mute'], ['<kbd>Esc</kbd> / <kbd>P</kbd>', 'Pause (Esc also lets go of the mouse)'], ['<kbd>H</kbd>', 'This sheet'], ['<kbd>F2</kbd>', 'Frame rate readout'], ['<kbd>`</kbd>', 'Debug overlay'],
     ];
   }
@@ -655,7 +656,7 @@ export class Hud {
     const rows = [
       ['Stick', `Tilt (${ax('roll')}, ${ax('pitch')}). Twist to turn (${ax('yaw')})`],
       ['Throttle', P.lift === 'lever' ? 'Is the collective: where you leave it is the lift. With Assist on, the middle holds height' : 'Lift like the pad\'s lift stick: past half way climbs, below sinks (Lift stick setting applies)'],
-      ['Hat', 'Orbit and zoom the camera; glance around in the cockpit'],
+      ['Hat', 'Look around (springs back when you let go); up / down zooms the chase camera'],
     ];
     for (const A of HOTAS_ACTIONS) if (P.buttons[A.id].length) rows.push([P.buttons[A.id].map((r) => `<kbd>${H.refName(r)}</kbd>`).join(' '), A.label]);
     rows.push(['', `${P.taught ? 'Taught on your device.' : 'X56 defaults, not yet taught: if a control does the wrong thing, use Teach in Controls → Flight stick.'} Chrome and Edge only see a stick after you press one of its buttons.`]);
@@ -677,7 +678,7 @@ export class Hud {
     for (const a of tank.axes) if (a.source !== heli.axes.find((x) => x.axis === a.axis).source) rows.push([`Skycrane ${a.sourceLabel}`, `${a.label} (the triggers run the tank)`]);
     const cam = (heli.buttons.filter((b) => skip.has(b.id)).flatMap((b) => b.buttons));
     if (cam.length) rows.push([keys([...new Set(cam)]), 'Orbit and zoom camera; in the cockpit, glance around']);
-    rows.push(['Hold the view button + right stick', 'Look around (the right stick stops flying while you look)']);
+    rows.push(['Hold the view button + right stick', 'Look around, in any camera (the right stick stops flying while you look; it springs back when you let go)']);
     rows.push(['After a crash', '<kbd>A</kbd> also restarts'], ['In menus', 'D-pad or left stick to move, <kbd>A</kbd> select, <kbd>B</kbd> back, ◀ ▶ adjust sliders and switch layouts']);
     return rows;
   }

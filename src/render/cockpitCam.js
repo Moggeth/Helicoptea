@@ -47,6 +47,8 @@ export class CockpitRig {
   }
 
   recenter() { this.recentering = true; this.fovZoom = 0; }
+  // Free look let go: the head turns back to the front (the zoom stays where it was put).
+  springBack() { if (this.lookYaw || this.lookPitch) this.recentering = true; }
 
   // Physical feedback from sim events, felt through the seat. Sized for comfort: about a millimetre
   // of head travel (3 cm full size) and a degree or so of nod at most, scaled by Head motion.

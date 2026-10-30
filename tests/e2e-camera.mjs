@@ -163,7 +163,16 @@ try {
     s = await state(page);
     check('cycle toggles: cockpit out', !s.cycle.includes('cockpit') && s.cycle.length === 2, s.cycle.join(','));
     check('speed feel slider in the pause menu', await H(page, () => !!document.querySelector('[data-setting=camFeel]')));
+    const lookOpt = await H(page, () => { const el = document.querySelector('[data-setting=lookReturn]'); return el ? { on: el.checked, hint: el.closest('.opt').querySelector('small')?.textContent || '' } : null; });
+    check('Look springs back switch, on, saying how to look', !!lookOpt && lookOpt.on && /look/i.test(lookOpt.hint), JSON.stringify(lookOpt));
     await page.keyboard.press('Escape'); await sleep(200);
+    // Free look in the locked chase: a drag swings the camera round the airframe, and it springs back.
+    await page.mouse.move(700, 400); await page.mouse.down(); await page.mouse.move(560, 400, { steps: 6 }); await sleep(150);
+    const lk = await H(page, () => ({ yaw: window.__helicoptea.input.camOrbit.yaw, cam: window.__helicoptea.camMode }));
+    check('locked chase: dragging swings the camera round', lk.cam === 'locked' && Math.abs(lk.yaw) > 0.3, JSON.stringify(lk));
+    await page.mouse.up();
+    await page.waitForFunction(() => window.__helicoptea.input.camOrbit.yaw === 0, null, { timeout: 5000 }).catch(() => {});
+    check('locked chase: free look springs back on release', await H(page, () => window.__helicoptea.input.camOrbit.yaw === 0));
     check('no console errors (micro)', logs.length === 0, logs.slice(0, 4).join(' | '));
     // Reload: the camera and the cycle come back as left.
     await page.goto(base + '?aircraft=micro', { waitUntil: 'load' });

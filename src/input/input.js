@@ -299,7 +299,9 @@ export class Input {
         return;
       }
       if (!this.dragging || e.pointerId !== this.dragging.id) return;
-      lookBy(e.clientX - this.dragging.x, e.clientY - this.dragging.y, this.dragging.touch ? 0.006 : 0.004);
+      const dx = e.clientX - this.dragging.x, dy = e.clientY - this.dragging.y;
+      if (dx || dy) this.dragging.moved = true;   // a tap is not a look (it should not spring the view back)
+      lookBy(dx, dy, this.dragging.touch ? 0.006 : 0.004);
       this.dragging.x = e.clientX; this.dragging.y = e.clientY;
     });
     const end = (e) => {
@@ -577,6 +579,13 @@ export class Input {
     if (LOOK_MODES.has(this.viewMode)) { this.look.yaw -= c.yaw * 1.5 * dt; this.look.pitch -= c.zoom * 1.1 * dt; }
     else if (c.look) { this.camOrbit.yaw -= c.yaw * 1.8 * dt; this.camOrbit.pitch -= c.zoom * 1.2 * dt; }
     else { this.camOrbit.yaw += c.yaw * 1.8 * dt; this.camOrbit.zoom += c.zoom * 1.2 * dt; }
+  }
+
+  // Is a free-look control held (a drag, Alt or middle mouse, the pad's look hold or d-pad, the hat)?
+  // When none is, the view springs back to the front.
+  lookHeld() {
+    const pc = this.pads.cam, hc = this.hotas.cam;
+    return !!this.dragging?.moved || this.isHeld('freeLook') || !!this.pads.look || !!(pc && (pc.yaw || pc.zoom)) || !!(hc && (hc.yaw || hc.zoom)) || this.hotas.isHeld('look');
   }
 
   takeLook() { const l = { ...this.look }; this.look.yaw = this.look.pitch = this.look.zoom = 0; return l; }

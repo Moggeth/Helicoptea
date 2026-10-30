@@ -32,7 +32,7 @@ export const MOUNTS = {
 
 const G = new THREE.Vector3(0, 9.81, 0);
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3();
-const _q = new THREE.Quaternion(), _qi = new THREE.Quaternion(), _e = new THREE.Euler(), _m = new THREE.Matrix4();
+const _q = new THREE.Quaternion(), _qi = new THREE.Quaternion(), _lq = new THREE.Quaternion(), _e = new THREE.Euler(), _m = new THREE.Matrix4();
 const clamp = THREE.MathUtils.clamp;
 
 // Shortens a camera arm so it stays on the near side of walls, window bars and furniture.
@@ -69,7 +69,8 @@ class GSense {
 export class LockedRig {
   constructor() { this.g = new GSense(); this.off = new THREE.Vector3(); this.offVel = new THREE.Vector3(); this.pos = new THREE.Vector3(); this.quat = new THREE.Quaternion(); this.fovKick = 0; }
   reset() { this.g.reset(); this.off.set(0, 0, 0); this.offVel.set(0, 0, 0); this.fovKick = 0; }
-  update(dt, h, pos, quat, type, scale, feel, carrying, sim) {
+  // look: { yaw, pitch } free-look orbit (radians) round the airframe, as on the chase camera.
+  update(dt, h, pos, quat, type, scale, feel, carrying, sim, look = null) {
     const M = MOUNTS[type] || MOUNTS.micro;
     const aB = this.g.update(dt, h, quat);
     // Arm stretch: the camera trails acceleration (about 1.5 cm per g at full feel, micro scale), sprung.
@@ -81,10 +82,11 @@ export class LockedRig {
       this.off.addScaledVector(this.offVel, s);
     }
     const up = M.locked[0] * scale * (carrying ? 1.25 : 1), back = M.locked[1] * scale * (carrying ? 1.15 : 1);
-    _v.set(0, up, back).add(this.off).applyQuaternion(quat).add(pos);
+    const lq = _lq.setFromEuler(_e.set(look ? -look.pitch : 0, look ? look.yaw : 0, 0, 'YXZ'));
+    _v.set(0, up, back).add(this.off).applyQuaternion(lq).applyQuaternion(quat).add(pos);
     const pivot = _b.set(0, up * 0.5, 0).applyQuaternion(quat).add(pos);
     keepClear(sim, pivot, _v, this.pos);
-    this.quat.copy(quat).multiply(_q.setFromEuler(_e.set(M.lockedPitch - (carrying ? 0.12 : 0), 0, 0)));
+    this.quat.copy(quat).multiply(lq).multiply(_q.setFromEuler(_e.set(M.lockedPitch - (carrying ? 0.12 : 0), 0, 0)));
     const fwd = h ? -_w.copy(h.vel).applyQuaternion(_qi.copy(quat).invert()).z : 0;
     const want = feel * (9 * clamp(fwd / 1.2, -0.3, 1) + clamp(-aB.z * 0.6, -3, 5));
     this.fovKick += (want - this.fovKick) * (1 - Math.exp(-dt * 4));

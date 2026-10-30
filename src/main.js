@@ -373,6 +373,7 @@ async function boot() {
     motion: numSetting('fpMotion', 0.5, 0, 1),
     vibration: numSetting('fpVibration', 0.5, 0, 1),
     loadCam: ['auto', 'always', 'off'].includes(store.get('loadCam', 'auto')) ? store.get('loadCam', 'auto') : 'auto',
+    lookReturn: store.get('lookReturn', '1') !== '0',  // free look springs back to the front when let go
     crashT: 0, flash: 0, wasLive: false, readT: 0, readText: '',
   };
   // Camera modes beyond chase and cockpit (render/cameraModes.js), the C / L3 cycle and the held GoPro.
@@ -381,6 +382,7 @@ async function boot() {
     feel: numSetting('camFeel', 0.5, 0, 1),
     last: fp.mode === 'cockpit' ? 'chase' : fp.mode,   // where 1 returns to from the cockpit
     eff: fp.mode, bolt: false,
+    lookRelease: 0, lookSpring: false,   // free look: time left before the spring back, and springing now
     locked: new LockedRig(), boltRig: new BoltRig(),
   };
   const hud = new Hud($('hud'), {
@@ -394,6 +396,7 @@ async function boot() {
       if (k === 'fpFov' || k === 'fpMotion' || k === 'fpVibration') { fp[{ fpFov: 'fov', fpMotion: 'motion', fpVibration: 'vibration' }[k]] = v; store.set(k, String(v)); }
       if (k === 'loadCam') { fp.loadCam = v; store.set('loadCam', v); }
       if (k === 'camFeel') { cam.feel = v; store.set('camFeel', String(v)); }
+      if (k === 'lookReturn') { fp.lookReturn = !!v; store.set(k, v ? '1' : '0'); }
       if (k.startsWith('cue.')) { depth.set(k.slice(4), v); store.set(k, v ? '1' : '0'); }
       if (k === 'collectiveMode') { CFG.collective.mode = v === 'hold' ? 'hold' : 'spring'; store.set(k, CFG.collective.mode); }
       if (k === 'rotorStrikes') { sim.damage.rotorStrikes = !!v; store.set(k, v ? '1' : '0'); }
@@ -497,14 +500,17 @@ async function boot() {
     } else hud.openPause(pauseOpts());
   }
 
-  function pauseOpts() { return { lesson: tutorial.active, quality: quality.setting, debug: debug.enabled, fpsMeter: fpsMeter.shown, aircraft: sim.aircraft, weight, view: fp.mode, camCycle: cam.cycle, camFeel: cam.feel, fpFov: fp.fov, fpMotion: fp.motion, fpVibration: fp.vibration, loadCam: fp.loadCam, cues: { ...depth.settings }, rotorStrikes: sim.damage.rotorStrikes, collectiveMode: CFG.collective.mode,
+  function pauseOpts() { return { lesson: tutorial.active, quality: quality.setting, debug: debug.enabled, fpsMeter: fpsMeter.shown, aircraft: sim.aircraft, weight, view: fp.mode, camCycle: cam.cycle, camFeel: cam.feel, fpFov: fp.fov, fpMotion: fp.motion, fpVibration: fp.vibration, loadCam: fp.loadCam, lookReturn: fp.lookReturn, lookHow: lookHow(), cues: { ...depth.settings }, rotorStrikes: sim.damage.rotorStrikes, collectiveMode: CFG.collective.mode,
     touch: IS_TOUCH, batterySaver: fpsCap === 30, haptics: haptics.supported ? haptics.enabled : null, fullscreen: document.fullscreenEnabled ? !!document.fullscreenElement : null, homeScreenTip: IS_IOS && !navigator.standalone, touchLayout: input.touchLayout, touchSize: input.touchSize, volume: audio.volume, muted: audio.muted }; }
 
-  const CAM_TIPS = {
-    gamepad: { cockpit: 'hold L3 and use the right stick to look around' },
-    keyboard: { cockpit: 'drag to look around, wheel to zoom' },
-    touch: { cockpit: 'drag the open screen to look around' },
-  };
+  function inputHow() { return input.source === 'gamepad' || input.source === 'hotas' ? input.source : input.source === 'touch' || IS_TOUCH ? 'touch' : 'keyboard'; }
+  // How to look around on the input in use, for the camera toast and the Camera tab.
+  function lookHow(how = inputHow()) {
+    if (how === 'gamepad') return 'hold L3 + right stick to look';
+    if (how === 'hotas') return 'hat to look';
+    if (how === 'touch') return 'drag the screen to look';
+    return input.mouseFlies ? 'hold Alt or middle mouse to look' : 'drag to look';
+  }
   function setView(mode, quiet = false) {
     if (!CAM_IDS.includes(mode)) return;
     if (mode === fp.mode) return;
@@ -521,13 +527,13 @@ async function boot() {
     }
     if (mode === 'locked') cam.locked.reset();
     if (mode === 'chase' || was === 'cockpit') camRig.recenter(sim.heli ? sim.heli.heading() : camRig.yaw);
-    if (mode === 'chase') input.camOrbit.yaw = input.camOrbit.pitch = input.camOrbit.zoom = 0;
+    if (mode === 'chase' || mode === 'locked') input.camOrbit.yaw = input.camOrbit.pitch = input.camOrbit.zoom = 0;
     if (started && input.source === 'gamepad') input.pads.rumble(0, 0.12, 22);   // a click through the grip
     if (started && !quiet) tutorial.noteCamera();
     if (started && !quiet) {
-      const how = input.source === 'gamepad' ? 'gamepad' : (input.source === 'touch' || IS_TOUCH ? 'touch' : 'keyboard');
+      const how = inputHow();
       const next = how === 'gamepad' ? 'L3: next' : how === 'touch' ? '' : 'C: next';
-      hud.toast([CAM_NAME[mode], CAM_TIPS[how][mode], next].filter(Boolean).join(' · '), 2.4);
+      hud.toast([CAM_NAME[mode], lookHow(how), next].filter(Boolean).join(' · '), 2.4);
     }
   }
   // Next / previous camera in the player's cycle.
@@ -1095,6 +1101,17 @@ async function boot() {
     const heading = sim.heli ? sim.heli.heading() : camRig.yaw;
     camRig.sizeScale += (({ chinook: 1.45, skycrane: 1.55 }[sim.aircraft] || 1) - camRig.sizeScale) * Math.min(1, rd * 3);
     const look = input.takeLook();
+    // Free look springs back to the front once every look control is let go, after a beat so a quick
+    // re-grab carries on from where it was (Camera tab: Look springs back).
+    if (input.lookHeld()) { cam.lookRelease = 0.25; cam.lookSpring = false; }
+    else if (cam.lookRelease > 0 && (cam.lookRelease -= rd) <= 0 && fp.lookReturn) { cam.lookSpring = true; fpRig.springBack(); }
+    const orbit = input.camOrbit;
+    orbit.pitch = THREE.MathUtils.clamp(orbit.pitch, -0.35, 0.7);
+    if (cam.lookSpring) {
+      const k = Math.exp(-rd * 6);
+      orbit.yaw = Math.atan2(Math.sin(orbit.yaw), Math.cos(orbit.yaw)) * k; orbit.pitch *= k;
+      if (Math.abs(orbit.yaw) + Math.abs(orbit.pitch) < 2e-3) { orbit.yaw = orbit.pitch = 0; cam.lookSpring = false; }
+    }
     if (fp.crashT > 0) fp.crashT -= frameDt;
     // The held GoPro overrides whatever mode is selected, while there is an airframe to bolt it to.
     cam.bolt = started && !paused && !!sim.heli && !!input.ctl.boltCam;
@@ -1107,7 +1124,7 @@ async function boot() {
     if (!fpView && started && sim.heli) {
       const hh = sim.heli, carrying = sim.carriedCargo().length > 0;
       if (mode === 'bolt') rig = cam.boltRig.update(wd, hh, view.heliPos, view.heliQuat, hh.type, fp.vibration);
-      else if (mode === 'locked') rig = cam.locked.update(wd, hh, view.heliPos, view.heliQuat, hh.type, camRig.sizeScale, cam.feel, carrying, sim);
+      else if (mode === 'locked') rig = cam.locked.update(wd, hh, view.heliPos, view.heliQuat, hh.type, camRig.sizeScale, cam.feel, carrying, sim, orbit);
     }
     cam.eff = fpView ? 'cockpit' : rig ? mode : 'chase';
     if (fpView) {
@@ -1141,7 +1158,7 @@ async function boot() {
       view.setFirstPerson(false);
       applyLens(false);
       camRig.orbitYaw = input.camOrbit.yaw;
-      camRig.orbitPitch = THREE.MathUtils.clamp(input.camOrbit.pitch, -0.35, 0.7);
+      camRig.orbitPitch = input.camOrbit.pitch;
       camRig.zoom = THREE.MathUtils.clamp(1 + input.camOrbit.zoom, CFG.camera.minDistance / CFG.camera.distance, CFG.camera.maxDistance / CFG.camera.distance);
       camTarget.copy(view.focusPoint());
       camRig.dip = depth.dip;

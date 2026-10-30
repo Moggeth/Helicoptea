@@ -41,6 +41,12 @@ check('every aircraft has GoPro and locked mounts', ['micro', 'chinook', 'skycra
   check('speed feel: accelerating forward pulls the camera back and widens the lens', R.pos.z > Z.pos.z + 0.002 && R.fovKick > 2, `dz ${(R.pos.z - Z.pos.z).toFixed(4)} m, fov +${R.fovKick.toFixed(1)}°`);
   const zOff = Z.pos.clone().sub(pos);
   check('speed feel off: perfectly rigid offset', Math.abs(zOff.z - MOUNTS.micro.locked[1]) < 1e-9 && Math.abs(zOff.y - MOUNTS.micro.locked[0]) < 1e-9 && Math.abs(Z.fovKick) < 1e-9);
+  // Free look orbits the locked chase round the airframe and keeps it looking at the aircraft.
+  const F = new LockedRig();
+  F.update(1 / 60, heli(), pos, lvl, 'micro', 1, 0, false, null, { yaw: Math.PI / 2, pitch: 0.3 });
+  const fOff = F.pos.clone().sub(pos), toHeli = pos.clone().sub(F.pos).normalize();
+  check('locked chase free look: swings round to the side and up', fOff.x > 0.2 && Math.abs(fOff.z) < 0.08 && fOff.y > MOUNTS.micro.locked[0] + 0.03, fOff.toArray().map((v) => v.toFixed(3)).join(', '));
+  check('locked chase free look: still looks at the aircraft', fwdOf(F.quat).dot(toHeli) > 0.9, fwdOf(F.quat).dot(toHeli).toFixed(3));
 }
 
 // ---------------------------------------------------------------- GoPro
