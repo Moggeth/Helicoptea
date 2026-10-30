@@ -126,6 +126,8 @@ kbd {
 .pill kbd { margin-left: 2px; }
 .assist-invite { font-size: 12.5px; color: var(--cream); text-shadow: 0 1px 3px rgba(0,0,0,0.6); padding-left: 10px; opacity: 0.95; }
 .assist-invite b { color: var(--honey); }
+/* Phones: the switch itself is right there, and the space under it belongs to the hose buttons and gauges. */
+body.touch-ui .assist-invite { display: none; }
 .icon-btn {
   width: 42px; height: 42px; border-radius: 50%; border: 0; background: var(--paper); box-shadow: var(--shadow);
   display: grid; place-items: center; color: var(--ink); position: relative;
@@ -395,6 +397,8 @@ body.touch-ui:not(.pad-nav) .panel button:focus-visible, body.touch-ui:not(.pad-
 .pause-tabs button { min-height: 44px; border: 0; border-radius: 10px; background: none; color: var(--ink-soft); font: 650 16px/1 var(--sans); }
 .pause-tabs button.on { background: #fffaf1; color: var(--ink); box-shadow: 0 1px 3px rgba(42, 29, 22, 0.2); }
 .pause-page { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 0 -8px; padding: 0 8px 8px; }
+/* More settings below the fold: the page fades out at the bottom edge, so it reads as scrollable. */
+.pause-page.more { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent); }
 .pause .opt { min-height: 54px; box-sizing: border-box; font-size: 16.5px; font-weight: 600; padding: 7px 0 !important; }
 .pause-page > .opt:first-child { border-top: 0 !important; }
 .pause .opt-l { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -497,8 +501,10 @@ body.touch-ui:not(.pad-nav) .panel button:focus-visible, body.touch-ui:not(.pad-
 .stick-zone.active .stick-base { opacity: 1; transition: none; }
 .stick-knob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%; background: rgba(250,244,233,0.9); box-shadow: 0 3px 10px rgba(0,0,0,0.3); }
 .stick-zone.active .stick-knob { background: #fff; }
-.stick-label { position: absolute; bottom: calc(8px + var(--safe-b)); left: 0; right: 0; text-align: center; color: rgba(250,244,233,0.6); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; text-shadow: 0 1px 2px rgba(0,0,0,0.5); display: flex; justify-content: center; gap: 12px; pointer-events: none; transition: opacity 0.4s; }
+.stick-label { position: absolute; bottom: calc(8px + var(--safe-b)); left: calc(34% + var(--safe-l)); transform: translateX(-50%); white-space: nowrap; text-align: center; color: rgba(250,244,233,0.6); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; text-shadow: 0 1px 2px rgba(0,0,0,0.5); display: flex; justify-content: center; gap: 12px; pointer-events: none; transition: opacity 0.4s; }
 .stick-zone.active .stick-label { opacity: 0; }
+/* Each stick's name sits centred under where that stick rests. */
+.stick-zone.right .stick-label { left: calc(66% - var(--safe-r)); }
 .touch-btn {
   position: absolute; border: 0; border-radius: 50%; background: rgba(250,244,233,0.88); color: var(--ink); box-shadow: 0 4px 14px rgba(0,0,0,0.3);
   display: grid; place-items: center; align-content: center; gap: 1px; font-weight: 700; touch-action: none; padding: 0; transition: opacity 0.2s, transform 0.08s;
@@ -550,12 +556,13 @@ body.touch-ui .toast { max-width: min(460px, calc(100vw - 32px)); text-align: ce
   .touch-btn.reel-out { bottom: var(--row); }
   .stick-base { top: 56%; left: calc(40% + var(--safe-l)); }
   .stick-zone.right .stick-base { left: 60%; }
+  .stick-label { left: calc(40% + var(--safe-l)); }
+  .stick-zone.right .stick-label { left: 60%; }
   .hint { max-width: calc(100vw - 32px); top: calc(104px + var(--safe-t)); font-size: 13.5px; }
   .rotate-nudge { display: block !important; }
   body.touch-ui .prompt { top: auto; bottom: calc(42vh + 84px); bottom: calc(42dvh + 84px); max-width: calc(100vw - 32px); }
   body.touch-ui .toast { bottom: auto; top: calc(64px + var(--safe-t)); }
   body.touch-ui .tank-gauge.tank-gauge { top: 24%; }
-  .assist-invite { display: none; }
 }
 .tank-gauge { position: absolute; left: calc(18px + var(--safe-l, 0px)); top: 50%; transform: translateY(-50%); display: flex; gap: 8px; align-items: flex-end; pointer-events: none;
   color: var(--cream, #fbf5ea); text-shadow: 0 1px 3px rgba(0,0,0,0.6); font-size: 12px; }
@@ -615,6 +622,9 @@ body.pad-nav .panel :focus, body.pad-nav .crash :focus, body.pad-nav #start-btn:
 /* touch: the hook-camera inset sits top centre, so tips and prompts move below it */
 body.pip-top .hint, body.pip-top .prompt { top: calc(var(--pip-bottom, 120px) + 8px + var(--safe-t)); bottom: auto; }
 body.pip-top .hint:not(.show), body.pip-top .prompt:not(.show) { pointer-events: none !important; }
+/* ...except on a landscape phone, where below the inset is the middle of the windscreen: the tip stays
+   down between the sticks. */
+@media (max-height: 480px) and (orientation: landscape) { body.pip-top .hint { top: auto; bottom: calc(10px + var(--safe-b)); } }
 /* Plumb-line height readout beside the laser dot */
 .plumb-read { position: absolute; left: 0; top: 0; pointer-events: none !important; font: 600 11px/1 ui-monospace, Consolas, monospace; color: #fff4e2; text-shadow: 0 1px 2px rgba(0,0,0,0.85), 0 0 4px rgba(0,0,0,0.5); letter-spacing: 0.03em; white-space: nowrap; will-change: transform; padding: 2px 5px; border-radius: 4px; background: rgba(28,20,14,0.42); }
 

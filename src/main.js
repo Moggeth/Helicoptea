@@ -305,6 +305,7 @@ async function boot() {
     for (const w of wrecks) extra.add(w);
     await warm(extra, camera, scene, 1, 1);
     await warm(cockpit.pipScene, cockpit.pipCam, cockpit.pipScene, 1, 1);
+    post.warmOutput();   // the pass that puts the world on screen while the hook camera runs
   } else {
     setProgress(0.9, 'Warming the shaders…');
     await tick();

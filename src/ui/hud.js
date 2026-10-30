@@ -48,7 +48,7 @@ export class Hud {
     root.innerHTML = `
       <div class="hud-tl">
         <button class="pill on" data-act="assist" aria-pressed="true"><span class="switch"></span><span><span class="full">Flight </span>Assist</span><span class="state">On</span><kbd class="kb">F</kbd></button>
-        <div class="assist-invite">Steady hands? Try <b>Assist Off</b> for the real thing.</div>
+        <div class="assist-invite">Try <b>Assist Off</b> for full control</div>
       </div>
       <div class="hud-tr">
         <button class="icon-btn" data-act="restart" title="Restart flight (R)" aria-label="Restart flight">${ICONS.restart}<span class="key kb">R</span></button>
@@ -85,6 +85,7 @@ export class Hud {
     this.q = (s) => root.querySelector(s);
     this.assistBtn = this.q('[data-act=assist]');
     this.invite = this.q('.assist-invite');
+    addEventListener('resize', () => { if (this.modalKind === 'pause') this.markMore(); });
     this.hint = this.q('.hint');
     this.hintStep = this.hint.querySelector('.step');
     this.hintText = this.hint.querySelector('.txt');
@@ -556,7 +557,9 @@ export class Hud {
     for (const el of this.modal.querySelectorAll('[data-cue]')) el.addEventListener('change', () => this.h.setting(`cue.${el.dataset.cue}`, el.checked));
     for (const k of ['touchLayout', 'touchSize']) on(`[data-setting=${k}]`, 'change', (e) => this.h.setting(k, e.target.value));
     on('[data-setting=volume]', 'input', (e) => this.h.volume(parseFloat(e.target.value)));
+    for (const p of this.modal.querySelectorAll('.pause-page')) p.addEventListener('scroll', () => this.markMore(p), { passive: true });
     this.modal.classList.add('show');
+    this.markMore();
     // A choice that redraws the menu (a camera, an aircraft) keeps the pad's place in it.
     const again = back && this.modal.querySelector(back);
     if (again && this.focusables(this.modal).includes(again)) again.focus({ preventScroll: true });
@@ -568,6 +571,12 @@ export class Hud {
     this.pauseTab = tab;
     for (const b of this.modal.querySelectorAll('.pause-tabs button')) { const on = b.dataset.tab === tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); }
     for (const p of this.modal.querySelectorAll('.pause-page')) { p.classList.toggle('hidden', p.dataset.page !== tab); p.scrollTop = 0; }
+    this.markMore();
+  }
+
+  // Fade the bottom of a settings page while there is more of it to scroll to.
+  markMore(page = this.modal.querySelector('.pause-page:not(.hidden)')) {
+    if (page) page.classList.toggle('more', page.scrollTop + page.clientHeight < page.scrollHeight - 4);
   }
 
   // Bumpers on a pad: the next or previous tab of whichever menu is open.
@@ -640,7 +649,7 @@ export class Hud {
     const layout = this.input ? this.input.kbLayout : defaultKbLayout();
     const keys = (l) => l.map((k) => `<kbd>${k}</kbd>`).join(' ');
     return [
-      ['Scheme', `${kbPresetName(layout)} (change it in Pause or Controls and remapping)`],
+      ['Scheme', `${kbPresetName(layout)}. Change it in Pause → Controls`],
       ...describeKb(layout).map((r) => [keys(r.keys), r.label]),
       ['<kbd>Shift</kbd>+restart', 'Reset sandbox'],
       ['<kbd>1</kbd>', 'Cockpit and back (the wheel zooms)'], ['<kbd>2</kbd> / <kbd>3</kbd>', 'Chase / locked chase'],
@@ -668,7 +677,7 @@ export class Hud {
     const layout = this.pads ? this.pads.layout : defaultLayout();
     const keys = (l) => l.map((b) => `<kbd>${b}</kbd>`).join(' ');
     const heli = describe(layout, 'heli'), tank = describe(layout, 'tank');
-    const rows = [['Layout', `${presetName(layout)} (change it in Controller settings)`]];
+    const rows = [['Layout', `${presetName(layout)}. Change it in Controller settings`]];
     for (const a of heli.axes) rows.push([a.sourceLabel, `${a.label}${a.inverted ? ', inverted' : ''}`]);
     const skip = new Set(['camLeft', 'camRight', 'zoomIn', 'zoomOut']);
     for (const b of heli.buttons) if (!skip.has(b.id)) rows.push([keys(b.buttons), b.label]);
