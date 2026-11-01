@@ -16,7 +16,7 @@ export const HOTAS_AXES = ['roll', 'pitch', 'yaw', 'collective'];
 export const HOTAS_AXIS_LABEL = { roll: 'Tilt sideways (roll)', pitch: 'Tilt forward / back (pitch)', yaw: 'Turn (yaw)', collective: 'Lift (collective)' };
 export const HOTAS_ACTIONS = [
   { id: 'attach', label: 'Hook / release' },
-  { id: 'pour', label: 'Pour milk, or the skycrane\'s belly doors (hold)', held: true },
+  { id: 'pour', label: 'Pour milk, let the biscuit line down, or the skycrane\'s belly doors (hold)', held: true },
   { id: 'boltCam', label: 'Bolted-on GoPro (hold)', held: true },
   { id: 'look', label: 'Look around (hold: the hat looks instead of orbiting)', held: true },
   { id: 'camNext', label: 'Next camera' },

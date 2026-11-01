@@ -25,6 +25,7 @@ export function hookedMass(sim) {
   for (const b of sim.bags) if (b.attach && b.attach.kind === 'heli') m += b.mass;
   const k = sim.milk && sim.milk.bucket;
   if (k && k.attach && k.attach.kind === 'heli') m += k.mass;
+  if (sim.biscuits) for (const b of sim.biscuits.list) if (b.attach && b.attach.kind === 'heli') m += b.mass;
   return m;
 }
 

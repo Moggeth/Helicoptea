@@ -554,7 +554,7 @@ async function boot() {
 
   const AIRCRAFT_TOASTS = {
     micro: 'Micro heli: 24 g, nimble, one hook',
-    chinook: 'Chinook: tandem rotors, three hooks, a lot more mass to stop',
+    chinook: 'Chinook: tandem rotors, three hooks, the biscuit run',
     skycrane: 'Skycrane: snorkel the milk up, drop it through the belly doors',
   };
   // A cockpit built after load: compile its shaders now, in the background where the browser can (parallel
@@ -1017,8 +1017,8 @@ async function boot() {
       input.attachBtn.classList.toggle('idle', !cand && !sim.carriedCargo().length);
       input.touchRoot.classList.toggle('down', crashShown);   // nothing to press after a crash but Restart
       input.attachBtn.querySelector('.lbl').textContent = !cand && sim.carriedCargo().length ? 'Drop' : 'Hook';
-      const bk = sim.milk.bucket, carryingBucket = !!(bk && sim.carriedCargo().includes(bk));
-      input.setTouchMode(sim.aircraft === 'skycrane', carryingBucket);
+      const bk = sim.milk.bucket, carried = sim.carriedCargo(), carryingBucket = !!(bk && carried.includes(bk));
+      input.setTouchMode(sim.aircraft === 'skycrane', carryingBucket, carried.some((b) => b.isBiscuit));
       input.pourBtn.classList.toggle('empty', carryingBucket && bk.vol < 1e-7);
     }
 

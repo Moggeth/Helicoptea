@@ -99,6 +99,7 @@ export function nameCups(cups) {
 
 // ------------------------------------------------------------------------------------- the people, live
 const NEAR = 2.6;             // m: the helicopter is close enough to be watched closely
+const REACH = 0.55;           // m from the shoulder: a biscuit brought this close is taken off its line
 const COLLIDE_R = 2.4;        // m (plus speed): colliders exist while the aircraft is this near
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _u = new THREE.Vector3(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion();
 const UP = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
@@ -166,6 +167,7 @@ class Person {
     this.P.nicks = this.nicks;
     this.flinch = new THREE.Vector3();
     this.lastStrike = -99;
+    this.treatT = 0;                      // smiling after a biscuit
   }
 
   // World point to person space (into out).
@@ -254,6 +256,34 @@ class Person {
           freeHand = { up, wave: 0, target: _w.clone(), side: R.side };
         }
         if (k > 6) this.react = null;
+      } else if (R.kind === 'biscuit') {
+        // A biscuit brought within reach: take it off the line, bring it to the mouth, eat it in bites.
+        const b = R.b, bs = this.sim.biscuits;
+        if (!b.held) {
+          if (!b.body || !bs.list.includes(b)) this.react = null;
+          else {
+            this.local(b.pos, R.at);
+            lookAt = R.at; lookRate = 7;
+            freeHand = { up: ease(k / 0.5), wave: 0, target: R.at, side: R.side };
+            if (k > 0.5 && R.at.distanceTo(R.side > 0 ? J.shL : J.shR) < REACH * B.s && bs.take(b, this)) { R.th = 0; R.from = R.at.clone(); R.bites = 0; }
+            else if (k > 1.6) this.react = null;
+          }
+        }
+        if (b.held === this) {
+          R.th += dt;
+          const th = R.th;
+          const mouth = _w.set(J.head.x, J.head.y - 0.04 * B.s, J.head.z + 0.075 * B.s);
+          freeHand = { up: 1, wave: 0, target: R.at.lerpVectors(R.from, mouth, ease(th / 0.55)), side: R.side };
+          lookAt = th < 0.4 ? R.at : (heli ? hp : null);
+          const bites = Math.min(3, Math.max(0, Math.floor((th - 0.65) / 0.5) + 1));
+          if (bites > R.bites) {
+            R.bites = bites;
+            b.eaten = bites / 3;
+            this.sim.emit('biscuitBite', { pos: mouth.clone().applyMatrix4(this.place), who: def.name, last: bites === 3 });
+            if (bites === 1) { this.treatT = 6; this.asleep = false; this.sayAt('mm'); }
+          }
+          if (th > 2.4) { bs.eat(b); this.react = null; if (b.slam) this.sayAt('mm'); }
+        }
       }
     }
 
@@ -298,13 +328,20 @@ class Person {
       if (freeHand.palm) { if (side > 0) P.rollL -= 1.2 * freeHand.up; else P.rollR += 1.2 * freeHand.up; }
     }
     setv(P.handL, this.hl); setv(P.handR, this.hr);
+    // A biscuit in hand goes where the hand goes.
+    if (R && R.kind === 'biscuit' && R.b.held === this) {
+      const b = R.b, tr = b.track;
+      b.pos.copy(R.side > 0 ? this.hl : this.hr).applyMatrix4(this.place);
+      tr.prevP.copy(tr.currP); tr.currP.copy(b.pos); tr.prevQ.copy(tr.currQ); tr.currQ.copy(b.quat);
+    }
 
     // ------------------------------------------------- the face
     this.blinkT -= dt;
     if (this.blinkT < -0.14) this.blinkT = 1.6 + this.rand() * 3.8 + (this.rand() < 0.15 ? -1.4 : 0);
     P.blink = this.asleep ? 0.08 : this.blinkT < 0 ? Math.abs(this.blinkT / 0.07 + 1) : 1;
     const ow = R && R.kind === 'ow' ? Math.max(0, 1 - R.t / 0.8) : 0;
-    const smile = this.tea === 'pleased' && !ow ? 1 : 0;
+    if (this.treatT > 0) this.treatT -= dt;
+    const smile = (this.tea === 'pleased' || this.treatT > 0) && !ow ? 1 : 0;
     P.mouth[0] = 1 - Math.max(ow, smile, this.asleep ? 1 : 0); P.mouth[1] = smile; P.mouth[2] = this.asleep ? 0.55 : ow;
 
     this.poser.solve(P);
@@ -459,6 +496,27 @@ class Person {
       if (this.nearT > 1.4) { this.offered = true; this.react = { kind: 'offer', t: 0 }; }
     }
     if (!alive || hd > NEAR * 1.8) { this.offered = false; this.nearT = 0; }
+  }
+
+  // ------------------------------------------------------------------------------------ biscuits
+  // A biscuit on the aircraft's line, close enough to reach: they reach for it (once it is in hand the sim
+  // lets go of it). Returns whether they will.
+  offerBiscuit(b) {
+    const R = this.react;
+    if (this.asleep || (R && R.kind !== 'offer') || this.sim.time - this.lastStrike < 3) return false;
+    const pl = this.local(b.pos, _u), J = this.poser.j, s = this.b.s;
+    const dl = pl.distanceTo(J.shL), dr = pl.distanceTo(J.shR);
+    if (Math.min(dl, dr) > REACH * s * 0.92) return false;
+    this.react = { kind: 'biscuit', t: 0, b, side: dl < dr ? 1 : -1, at: new THREE.Vector3() };
+    return true;
+  }
+
+  // A piece of biscuit fell into their tea.
+  crumbsInTea() {
+    const R = this.react;
+    if (R && R.kind !== 'offer') return;
+    this.react = { kind: 'stewed', t: 0 };
+    this.sayAt('hmm');
   }
 
   // ------------------------------------------------------------------------------------ rotor strikes

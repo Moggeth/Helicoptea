@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { CHAIRS, TABLE, ROOM, PAD, STATION, CUPS, DISCARD, TEAPOT, SUGAR, VASE, JUG, PLATE, BOOKS } from '../sim/layout.js';
+import { BISCUIT_STAND } from '../sim/biscuits.js';
 import * as TX from './textures.js';
 import { buildGarden } from './garden.js';
 import { TableCloth } from './cloth.js';
@@ -161,6 +162,7 @@ export function buildKitchen(scene, renderer, quality, progress, sim) {
   // Tea stands: the kitchen's, and the garden table's (built with the garden).
   const teaStand = (S) => buildTeaStand(S, wood);
   scene.add(shadowed(teaStand(STATION)));
+  scene.add(shadowed(teaStand(BISCUIT_STAND)));
 
   // Cups.
   for (const C of CUPS) {

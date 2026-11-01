@@ -19,7 +19,13 @@ On first launch the game offers a short guided flight (or **Pause → Guided fir
 
 ## Three aircraft
 
-Pick on the start screen, in **Pause → Aircraft**, or press **V** in flight (`?aircraft=chinook` in the URL also works; the choice is remembered). The **micro heli** is the nimble single-rotor original. The **Chinook** is a 94 g tandem-rotor heavy lifter: two counter-rotating rotors, no tail rotor, three cargo hooks, much more inertia, and its own breakup. See [docs/DESIGN.md](docs/DESIGN.md#chinook-srcsimchinookjs). The **skycrane** is the milk tanker (below).
+Pick on the start screen, in **Pause → Aircraft**, or press **V** in flight (`?aircraft=chinook` in the URL also works; the choice is remembered). The **micro heli** is the nimble single-rotor original. The **Chinook** is a 94 g tandem-rotor heavy lifter: two counter-rotating rotors, no tail rotor, three cargo hooks, much more inertia, and its own breakup. It flies the biscuit run (below). See [docs/DESIGN.md](docs/DESIGN.md#chinook-srcsimchinookjs). The **skycrane** is the milk tanker (below).
+
+## Chinook biscuit run
+
+Flying the Chinook, a six-peg biscuit stand at the far end of the kitchen table holds one of each: a wheatmeal digestive, a rich tea, a ginger nut, an oat crunch, a shortbread finger and a chocolate cream finger. Each hangs from a small clip on a line; hook it like a bag (three at once on the three hooks). Over a cup, hold **G** (gamepad **RT**, which lowers the line as far as you pull it; X56 **A**; touch **Dunk**) to winch the line down, and let go to reel it back up. A biscuit takes up tea where it is under and the wet part goes soft: hold it in too long, or shake it, and the soggy edge breaks off and sinks. Rich tea goes in a second or two, the ginger nut lasts about ten. Bring a biscuit to a neighbour and they reach up, take it off the line and eat it; drop a soggy piece in their tea and they won't be pleased.
+
+The chocolate cream finger is for a straw: knock each end against a cup's rim or the table to snap it off, dip one end with the other end out, and it draws tea up through the middle. You then have a few seconds to get it to someone before it goes soft and collapses. The brands on the stand are stand-ins for sponsors ([docs/SPONSORS.md](docs/SPONSORS.md)). See [docs/DESIGN.md](docs/DESIGN.md#biscuits-srcsimbiscuitsjs).
 
 ## Skycrane milk tanker
 
@@ -149,6 +155,7 @@ node tests/perf-liquid.mjs --baseline=4565a40 # seven paired CPU samples per rot
 node tests/e2e.mjs                   # browser checks against npm run preview (port 4178)
 node tests/e2e.mjs http://localhost:5178/ --headed --only=desktop
 node tests/e2e-chinook.mjs           # Chinook through keyboard, gamepad and touch, picker, breakup
+node tests/e2e-biscuits.mjs          # biscuit stand, winch on G / RT / Dunk, a dunk on screen
 node tests/e2e-milk.mjs              # milk bucket: hook, dip, carry, pour with G / RB / touch, puddles
 node tests/e2e-skycrane.mjs          # skycrane: snorkel, pump, doors, salvo, auto-fill on keyboard, gamepad and touch
 node tests/e2e-depth.mjs http://localhost:4192/   # depth cues: shadows on table and tea, plumb line, rim glint, camera, toggles
@@ -294,6 +301,7 @@ connector calls or broaden repository permissions.
 | Yaw | A / D (or Q / E) | Right stick ↔ | Left stick ↔ |
 | Hook / release | Space (Chinook: each press hooks the nearest bag or the milk bucket to a free hook; with none in reach it drops them all) | A or RB (Classic and Arcade: A or LB) | Hook button |
 | Pour milk (hold) | G | RT (past half-way) | Pour button (shown while carrying the bucket) |
+| Chinook: lower the biscuit line (hold; reels in when let go) | G | RT (as far as it is pulled) | Dunk button (shown while carrying a biscuit) |
 | Salvo (latch the bucket valve open) | double-tap G, or Shift+G | two quick RT pulls | double-tap Pour |
 | GoPro, straight down (hold) | B, or the right mouse button | LT (Aim layouts; R3 in Arcade) | GoPro button |
 | Switch aircraft | V (micro, Chinook, skycrane) | Pause menu | Pause menu |

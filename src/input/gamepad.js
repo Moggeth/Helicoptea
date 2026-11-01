@@ -110,7 +110,7 @@ export class Gamepads {
 
   zero() {
     this.out.pitch = this.out.roll = this.out.yaw = this.out.collective = 0;
-    this.pour = false; this.doors = 0; this.pump = 0; this.reel = 0; this.look = null; this.viewHeldT = 0; this.viewLooked = false;
+    this.pour = false; this.pourLevel = 0; this.doors = 0; this.pump = 0; this.reel = 0; this.look = null; this.viewHeldT = 0; this.viewLooked = false;
     this.holds = {};
   }
   list() { return [...(navigator.getGamepads ? navigator.getGamepads() : [])].filter((g) => g && !(this.exclude && this.exclude(g))); }
@@ -241,6 +241,7 @@ export class Gamepads {
     const tank = ctx === 'tank';
     if (!menuMode) {
       this.pour = !tank && level(btn.pour) > 0.5;
+      this.pourLevel = tank ? 0 : level(btn.pour);   // the Chinook's biscuit winch follows the trigger's travel
       this.doors = tank ? curve(level(btn.doors), { deadZone: 0.04, expo: 0.3 }) : 0;
       this.pump = tank ? Math.min(1, level(btn.pump) * 1.15) : 0;
       const both = held(btn.reelOut) && held(btn.reelIn);

@@ -13,6 +13,7 @@ import { newBagLook, updateWetLine, updateStringStain, placeTag } from './bagLoo
 import { radialTexture } from './textures.js';
 import { buildChinook, cloneChinookPart } from './chinookModel.js';
 import { MilkView } from './milkView.js';
+import { BiscuitView } from './biscuitView.js';
 import { SkycraneView } from './skycraneView.js';
 import { AircraftFxSet } from './aircraftFx.js';
 import { cloneSkycranePart } from './skycraneModel.js';
@@ -124,6 +125,7 @@ export class View {
     this.wreckFocus = null;
     this.cupScreen = [];
     this.milkView = new MilkView(this, kitchen.sun.position.clone().sub(kitchen.sun.target.position));
+    this.biscuitView = new BiscuitView(this);
     this.skycrane = new SkycraneView(this);
     // Rotor wash on open liquid: every cup, the milk crock and the bird bath's water.
     this.liquid = new LiquidWash(this);
@@ -196,6 +198,7 @@ export class View {
   handleEvents(events, camera, camRig) {
     for (const e of events) {
       this.milkView.handleEvent(e);
+      this.biscuitView.handleEvent(e);
       switch (e.type) {
         case 'splash': this.splash(e); break;
         case 'extract': this.extractDrops(e); break;
@@ -600,6 +603,7 @@ export class View {
 
     this.liquid.couple();
     this.milkView.update(alpha, dt);
+    this.biscuitView.update(alpha, dt);
 
     // Surfaces, flash, scorch fade, particles.
     // Cups far across the neighbourhood are a few pixels: they (and their tea) stop drawing and rippling.
@@ -636,7 +640,7 @@ export class View {
   // along the string, so it always reads as tied on.
   pinString(b, pts, bagPos, bagQuat) {
     const N = b.N, hy = b.anchorY;
-    const a = _pinA.set(0, hy, 0).applyQuaternion(bagQuat).add(bagPos);
+    const a = (b.anchorLocal ? _pinA.copy(b.anchorLocal) : _pinA.set(0, hy, 0)).applyQuaternion(bagQuat).add(bagPos);
     const d0x = a.x - pts[0], d0y = a.y - pts[1], d0z = a.z - pts[2];
     let dNx = 0, dNy = 0, dNz = 0;
     if (b.attach) {

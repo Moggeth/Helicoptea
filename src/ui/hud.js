@@ -631,7 +631,7 @@ export class Hud {
     };
     return [['Left thumb', stick('left')], ['Right thumb', stick('right')],
       ['', 'Put a thumb down anywhere in its half of the screen: that spot is the centre. Slide past the rim and the centre follows you. Pick another layout or stick size in Pause.'],
-      ['<kbd>Hook</kbd>', 'Hook / release (glows when a loop is in reach)'], ['<kbd>Pour</kbd> (hold)', 'Pour milk (appears while you carry the bucket); double-tap latches it open'], ['<kbd>Doors</kbd> (hold)', 'Skycrane belly doors, opening wider as you hold; double-tap = salvo'], ['<kbd>Pump</kbd> (hold)', 'Skycrane pump; double-tap = auto-fill'], ['<kbd>Hose ▲</kbd> <kbd>Hose ▼</kbd>', 'Reel the snorkel in / out'],
+      ['<kbd>Hook</kbd>', 'Hook / release (glows when a loop is in reach)'], ['<kbd>Pour</kbd> (hold)', 'Pour milk (appears while you carry the bucket); double-tap latches it open'], ['<kbd>Dunk</kbd> (hold)', 'Let the biscuit line down; let go and it reels back in (appears while the Chinook carries a biscuit)'], ['<kbd>Doors</kbd> (hold)', 'Skycrane belly doors, opening wider as you hold; double-tap = salvo'], ['<kbd>Pump</kbd> (hold)', 'Skycrane pump; double-tap = auto-fill'], ['<kbd>Hose ▲</kbd> <kbd>Hose ▼</kbd>', 'Reel the snorkel in / out'],
       ['<kbd>GoPro</kbd> (hold)', 'Bolted camera looking straight down'], ['Assist switch (top left)', 'Flight Assist on / off'], ['Camera icon (top right)', 'Next camera'], ['Drag the open screen', 'Look around (springs back when you let go)'], ['Double-tap the open screen', 'Look ahead again'], ['↻ (top right)', 'Restart flight'], ['‖ (top right)', 'Pause: sticks, sound, aircraft, cameras, mark a moment']];
   }
 

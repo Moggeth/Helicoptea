@@ -27,7 +27,7 @@ export const TRIGGER_BUTTONS = [BTN.LT, BTN.RT];
 // left stick move), so no layout can lock you out of the settings that would fix it.
 export const ACTIONS = [
   { id: 'attach', label: 'Hook / release', ctx: 'all' },
-  { id: 'pour', label: 'Pour milk from the bucket (hold; pull twice quickly to latch)', ctx: 'heli', analog: true },
+  { id: 'pour', label: 'Pour milk from the bucket, or let the biscuit line down (hold; pull twice quickly to latch the bucket)', ctx: 'heli', analog: true },
   { id: 'look', label: 'Look around (hold: the right stick looks instead of flying)', ctx: 'all' },
   { id: 'view', label: 'Change camera view (tap) · look around (hold)', ctx: 'all' },
   { id: 'boltCam', label: 'Bolted-on camera (hold)', ctx: 'all' },

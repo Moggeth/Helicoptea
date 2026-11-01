@@ -494,6 +494,25 @@ export class Audio {
           this.ui('release');
           break;
         }
+        // Biscuits: a dry snap, a crunch for each bite, a soft plop when a soggy piece lets go.
+        case 'biscuitSnap': {
+          const o = this.spot(e.pos);
+          this.noiseBurst({ freq: 3400, q: 1.6, gain: 0.16, attack: 0.001, decay: 0.03, out: o });
+          for (let i = 0; i < 4; i++) this.noiseBurst({ freq: 2000 + Math.random() * 3000, q: 4, gain: 0.05, decay: 0.012, out: o, delay: 0.01 + i * 0.012 + Math.random() * 0.01 });
+          break;
+        }
+        case 'biscuitBite': {
+          const o = this.spot(e.pos, 1.2);
+          for (let i = 0; i < 5; i++) this.noiseBurst({ freq: 1400 + Math.random() * 2600, q: 2.5, gain: 0.06, decay: 0.02, out: o, delay: i * 0.03 + Math.random() * 0.02 });
+          break;
+        }
+        case 'biscuitBreak':
+          if (e.why === 'soak') {
+            const o = this.spot(e.pos);
+            this.tone({ freq: 520, to: 260, gain: 0.05, attack: 0.004, decay: 0.08, out: o, delay: 0.05 });
+            this.noiseBurst({ freq: 900, q: 1.2, gain: 0.04, decay: 0.06, out: o, delay: 0.05 });
+          }
+          break;
         case 'restart': this.ui('restart'); break;
         case 'extra': extraSound(this, e, now); break;
         default: break;

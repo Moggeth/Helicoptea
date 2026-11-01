@@ -113,9 +113,9 @@ export function teapotGeometry(T) {
 // ---------------------------------------------------------------- tea stand
 // Oak plinth with a moulded edge, two turned posts with acorn finials, a crossbar with collars, brass
 // pegs on little rosettes, and a brass plaque. Dimensions follow the station's colliders (layout.js).
-let plaqueTex = null;
-function plaqueTexture() {
-  if (plaqueTex) return plaqueTex;
+const plaqueTex = {};
+function plaqueTexture(text = 'Tea Bags') {
+  if (plaqueTex[text]) return plaqueTex[text];
   const c = document.createElement('canvas'); c.width = 512; c.height = 128;
   const x = c.getContext('2d', { willReadFrequently: true });
   const g = x.createLinearGradient(0, 0, 0, 128);
@@ -132,12 +132,12 @@ function plaqueTexture() {
   }
   // engraved lettering: a dark cut with a bright lower edge
   x.font = 'italic 600 62px Georgia, "Times New Roman", serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-  x.fillStyle = 'rgba(255,236,180,0.7)'; x.fillText('Tea Bags', 257, 68);
-  x.fillStyle = '#3f2a0e'; x.fillText('Tea Bags', 256, 66);
-  plaqueTex = new THREE.CanvasTexture(c);
-  plaqueTex.colorSpace = THREE.SRGBColorSpace;
-  plaqueTex.anisotropy = 8;
-  return plaqueTex;
+  x.fillStyle = 'rgba(255,236,180,0.7)'; x.fillText(text, 257, 68);
+  x.fillStyle = '#3f2a0e'; x.fillText(text, 256, 66);
+  const t = plaqueTex[text] = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
 }
 
 // A rounded-rectangle plinth with a cove and bead round its top edge (a short lathe would be round;
@@ -218,7 +218,7 @@ export function buildTeaStand(S, wood) {
   }
   g.add(new THREE.Mesh(mergeGeometries(brassParts, false), brass));
   // Brass plaque on the plinth's front edge, tipped back a little to face the pad.
-  const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.084, 0.021), new THREE.MeshStandardMaterial({ map: plaqueTexture(), metalness: 0.85, roughness: 0.35, color: 0xffffff }));
+  const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.084, 0.021), new THREE.MeshStandardMaterial({ map: plaqueTexture(S.plaque), metalness: 0.85, roughness: 0.35, color: 0xffffff }));
   plaque.position.set(0, S.baseHalf[1] * 2 + 0.00025, S.baseHalf[2] - 0.019);
   plaque.rotation.x = -Math.PI / 2;
   g.add(plaque);

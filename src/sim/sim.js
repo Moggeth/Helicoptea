@@ -10,6 +10,7 @@ import { lazySceneQueries } from './sceneQueries.js';
 import { Props } from './props.js';
 import { Extras } from './extras.js';
 import { MilkSystem } from './milk.js';
+import { BiscuitSystem } from './biscuits.js';
 import { Damage, CRASH_KINDS } from './damage.js';
 import { People } from './people.js';
 
@@ -102,6 +103,7 @@ export class Sim {
     if (this.bare) this.pegs = [];
     for (const p of this.pegs) this.refillPeg(p);
     this.milk = new MilkSystem(this);
+    this.biscuits = new BiscuitSystem(this);
     this.props = new Props(this, !!opts.lite);
     this.extras = new Extras(this, !!opts.lite);
     // The neighbours (animated with their colliders, like a set piece).
@@ -217,7 +219,8 @@ export class Sim {
     const endNow = endWorld();
     const dist = endNow.distanceTo(bag.anchorWorld);
     const length = Math.max(bag.ropeLength, dist + 0.001);
-    const jd = RAPIER.JointData.rope(length, { x: anchor1.x, y: anchor1.y, z: anchor1.z }, { x: 0, y: bag.anchorY, z: 0 });
+    const a2 = bag.anchorLocal || { x: 0, y: bag.anchorY, z: 0 };
+    const jd = RAPIER.JointData.rope(length, { x: anchor1.x, y: anchor1.y, z: anchor1.z }, { x: a2.x, y: a2.y, z: a2.z });
     const joint = this.world.createImpulseJoint(jd, body1, bag.body, true);
     bag.attach = { kind: target.kind, joint, length, peg: target.peg || null, heli: target.heli || null, hook: target.hook || 0, anchor: anchor1, endWorld };
   }
@@ -241,15 +244,22 @@ export class Sim {
     return this.heli ? this.bags.filter((b) => b.attach && b.attach.kind === 'heli') : [];
   }
 
-  // Everything on the hooks: bags plus the milk bucket.
+  // Everything on the hooks: bags, the milk bucket and biscuits.
   carriedCargo() {
     const out = this.carriedBags();
     const k = this.milk && this.milk.bucket;
     if (this.heli && k && k.attach && k.attach.kind === 'heli') out.push(k);
+    if (this.heli && this.biscuits) for (const b of this.biscuits.list) if (b.attach && b.attach.kind === 'heli') out.push(b);
     return out;
   }
 
-  cargoItems() { return this.milk && this.milk.bucket ? [...this.bags, this.milk.bucket] : this.bags; }
+  cargoItems() {
+    const out = this.milk && this.milk.bucket ? [...this.bags, this.milk.bucket] : this.bags;
+    if (!this.biscuits || !this.biscuits.list.length) return out;
+    const all = out === this.bags ? [...out] : out;
+    for (const b of this.biscuits.list) if (b.body) all.push(b);
+    return all;
+  }
 
   // Nearest bag loop within reach of a free hook (proximity attach). The Chinook has three hooks.
   attachCandidateInfo() {
@@ -447,6 +457,7 @@ export class Sim {
     }
     this.spawnHeli();
     for (const p of this.pegs) this.refillPeg(p);
+    if (this.biscuits) this.biscuits.sync();
     // Guarantee usable cargo even if every bag slot was taken by bags in cups.
     if (this.pegs.length && !this.pegs.some((p) => p.bag && p.station === 0)) {
       const p = this.pegs[1];
@@ -463,6 +474,7 @@ export class Sim {
     this.drips.length = 0;
     for (const c of this.cups) { c.brew = 0; c.steep = 0; }
     this.milk.reset();
+    this.biscuits.reset();
     this.props.reset();
     this.extras.reset();
     this.air.clear();
@@ -483,6 +495,7 @@ export class Sim {
     }
     for (const b of this.bags) b.applyForces(dt);
     this.milk.applyForces(dt, ctl);
+    this.biscuits.applyForces(dt, ctl);
     this.props.applyForces(dt);
     this.extras.applyForces(dt);
 
@@ -571,6 +584,7 @@ export class Sim {
       this.updateRope(b);
     }
     this.milk.afterStep(dt);
+    this.biscuits.afterStep(dt);
     this.props.afterStep(dt);
     this.extras.afterStep(dt);
     if (this.heli) {
@@ -597,7 +611,8 @@ export class Sim {
         this.world.removeImpulseJoint(b.attach.joint, true);
         b.attach.length = Math.max(b.ropeLength, d + 0.001);
         const h = b.attach.anchor;
-        const jd = RAPIER.JointData.rope(b.attach.length, { x: h.x, y: h.y, z: h.z }, { x: 0, y: b.anchorY, z: 0 });
+        const a2 = b.anchorLocal || { x: 0, y: b.anchorY, z: 0 };
+        const jd = RAPIER.JointData.rope(b.attach.length, { x: h.x, y: h.y, z: h.z }, { x: a2.x, y: a2.y, z: a2.z });
         b.attach.joint = this.world.createImpulseJoint(jd, heli.body, b.body, true);
       }
       const taut = d > b.attach.length * 0.985;
@@ -614,6 +629,7 @@ export class Sim {
 
   housekeeping(dt) {
     this.milk.housekeeping(dt);
+    this.biscuits.housekeeping(dt);
     for (const p of this.pegs) {
       if (!p.bag) {
         p.emptyFor += dt;

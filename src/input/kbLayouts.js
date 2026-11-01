@@ -29,7 +29,7 @@ export const KB_FLIGHT = [
 // held: read every frame while down. Otherwise a press fires once, as an action of the same id.
 export const KB_ACTIONS = [
   { id: 'attach', label: 'Hook / release' },
-  { id: 'pour', label: 'Pour milk, or the skycrane\'s belly doors (hold; double-tap or Shift: salvo)', held: true },
+  { id: 'pour', label: 'Pour milk, let the biscuit line down, or the skycrane\'s belly doors (hold; double-tap or Shift: salvo)', held: true },
   { id: 'pump', label: 'Skycrane: pump (hold; double-tap or Shift: auto-fill)', held: true },
   { id: 'reelIn', label: 'Skycrane: reel the hose in (hold)', held: true },
   { id: 'reelOut', label: 'Skycrane: reel the hose out (hold)', held: true },

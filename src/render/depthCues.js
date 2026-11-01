@@ -123,9 +123,10 @@ export class DepthCues {
     const bk = sim.milk.bucket;
     for (const b of sim.carriedCargo()) {
       const isB = b === bk;
-      const g = isB ? view.milkView.bucketV?.group : view.bags.get(b.id)?.group;
+      const g = isB ? view.milkView.bucketV?.group : b.isBiscuit ? view.biscuitView.groupOf(b.id) : view.bags.get(b.id)?.group;
       const p = g ? g.position : b.pos;
-      out.push({ x: p.x, y: p.y + (isB ? BUCKET.yBot : -0.03), z: p.z, w: isB ? BUCKET.R1 + BUCKET.WALL : 0.024, immersed: b.immersion > 0.03, wet: isB ? 0.85 : 1 });
+      const w = isB ? BUCKET.R1 + BUCKET.WALL : b.isBiscuit ? b.G.half * 0.8 : 0.024;
+      out.push({ x: p.x, y: p.y + (isB ? BUCKET.yBot : b.isBiscuit ? -b.G.half * 0.7 : -0.03), z: p.z, w, immersed: b.immersion > 0.03, wet: isB ? 0.85 : 1 });
     }
     const h = sim.heli;
     if (h && h.type === 'skycrane' && h.hose) {
