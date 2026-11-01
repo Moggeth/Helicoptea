@@ -115,10 +115,13 @@ try {
 
   // ---------------------------------------------------------------- a load that never finished
   {
-    const { ctx, page } = await open('&crashguard=1', { clear: false, init: () => { try { if (!sessionStorage.getItem('t.seeded')) { localStorage.clear(); localStorage.setItem('helicoptea.booting', '1'); sessionStorage.setItem('t.seeded', '1'); } } catch { /* ignore */ } } });
-    const r = await page.evaluate(() => ({ tier: window.__helicoptea.quality.name, noWorld: !!window.__helicoptea.quality.noWorld, safe: localStorage.getItem('helicoptea.safeTier'), status: document.getElementById('load-status').textContent }));
+    const { ctx, page } = await open('&crashguard=1', { clear: false, init: () => { try { if (!sessionStorage.getItem('t.seeded')) { localStorage.clear(); localStorage.setItem('helicoptea.booting', '1'); localStorage.setItem('helicoptea.bootStep', 'Warming the shaders (84%) · medium, phone renderer'); sessionStorage.setItem('t.seeded', '1'); } } catch { /* ignore */ } } });
+    const r = await page.evaluate(() => ({ tier: window.__helicoptea.quality.name, noWorld: !!window.__helicoptea.quality.noWorld, safe: localStorage.getItem('helicoptea.safeTier'), status: document.getElementById('load-status').textContent, last: document.querySelector('.last-step')?.textContent || '' }));
     check('after a load that died, Auto comes back in safe mode', r.tier === 'low' && r.safe === 'safe' && r.noWorld, r);
     check('the start screen says why', /safe mode/.test(r.status), r.status);
+    check('the start screen says where the last load stopped', /stopped at: Warming the shaders/.test(r.last), r.last);
+    const step = await page.evaluate(() => localStorage.getItem('helicoptea.bootStep'));
+    check('this load leaves its own breadcrumb', /^(Ready|Start screen).*safe mode/.test(step || ''), step);
     // Putting the page away clears the mark: the next load is not taken as a crash.
     await page.evaluate(() => dispatchEvent(new PageTransitionEvent('pagehide')));
     const mark = await page.evaluate(() => localStorage.getItem('helicoptea.booting'));
