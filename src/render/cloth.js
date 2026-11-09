@@ -9,7 +9,8 @@ import { TABLE, PAD, CUPS, TEAPOT, SUGAR, VASE, JUG, PLATE, STATION, DISCARD } f
 
 const WIDTH = 0.36;     // across the table (z)
 const HANG = 0.2;       // down each end of the table
-const EDGE_R = 0.012;   // the table's rounded end edge
+const EDGE_R = 0.008;   // the table's rounded end edge (its eased edge, see tableTopGeometry)
+const FLAT = TABLE.halfX - EDGE_R; // where the flat top ends and the edge starts to round over
 const LIFT = 0.0012;    // cloth thickness above the table top
 export const RUNNER = { halfZ: WIDTH / 2, lift: LIFT }; // where milk puddles on the table sit on the linen
 
@@ -24,7 +25,7 @@ export class TableCloth {
     this.iters = tier === 'high' ? 4 : 3;
     this.ms = 0;
     this.NX = NX; this.NZ = NZ;
-    const topLen = TABLE.halfX * 2 + EDGE_R * Math.PI; // across the top and round both edges
+    const topLen = FLAT * 2 + EDGE_R * Math.PI; // across the top and round both edges
     const L = topLen + HANG * 2;
     this.n = NX * NZ;
     this.p = new Float32Array(this.n * 3);
@@ -32,12 +33,11 @@ export class TableCloth {
     this.rest = new Float32Array(this.n * 3);
     this.pin = new Uint8Array(this.n);
     this.edge = new Float32Array(this.n);    // 1 at a free edge, fading inwards (air gets under edges)
-    this.phase = new Float32Array(this.n);
     this.air = new Float32Array(this.n * 3);
     // Lay it out along its length s: down one end, across the top (round the edges), down the other.
     const at = (s, out) => {
       const half = L / 2, a = s - half; // -half..half, 0 at the middle of the table
-      const flat = TABLE.halfX, round = EDGE_R * Math.PI / 2;
+      const flat = FLAT, round = EDGE_R * Math.PI / 2;
       const m = Math.abs(a), sg = Math.sign(a) || 1;
       if (m <= flat) { out[0] = a; out[1] = LIFT; }
       else if (m <= flat + round) { const th = (m - flat) / EDGE_R; out[0] = sg * (flat + Math.sin(th) * (EDGE_R + LIFT)); out[1] = LIFT - (1 - Math.cos(th)) * (EDGE_R + LIFT); }
@@ -46,16 +46,33 @@ export class TableCloth {
     };
     const tmp = [0, 0];
     this.ds = L / (NX - 1); this.dz = WIDTH / (NZ - 1);
+    // Tethers for the hanging ends: each point past the table's edge stays within its length of cloth from
+    // the edge, so the flaps hang their true length at every quality tier instead of sagging and stretching
+    // the cloth thin over the rounded edge (a few constraint rounds can't hold 20 cm of linen on their own).
+    this.tether = [];
     for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
       const k = j * NX + i;
-      at(i * this.ds, tmp);
+      const s = i * this.ds;
+      at(s, tmp);
       const z = -WIDTH / 2 + j * this.dz;
       this.rest[k * 3] = tmp[0]; this.rest[k * 3 + 1] = tmp[1]; this.rest[k * 3 + 2] = z;
-      const de = Math.min(j, NZ - 1 - j, i, NX - 1 - i);
-      this.edge[k] = Math.max(0, 1 - de / 4.5);
-      this.phase[k] = fract(Math.sin(i * 12.9898 + j * 78.233) * 43758.5453) * 6.283;
+      // How far in from a free edge, in metres (so every tier gets the same band of edge lift).
+      const de = Math.min(WIDTH / 2 - Math.abs(z), L / 2 - Math.abs(s - L / 2));
+      this.edge[k] = Math.max(0, 1 - de / 0.045) ** 1.5;
+      const over = Math.abs(s - L / 2) - FLAT;
+      if (over > 0) this.tether.push(k, Math.sign(s - L / 2) * FLAT, z, over * 1.01);
     }
+    this.tether = new Float32Array(this.tether);
     this.p.set(this.rest); this.q.set(this.rest);
+    this.p0 = new Float32Array(this.rest);   // positions before the latest step (drawn between the two)
+    // The air each point feels, eased towards what the air field says so gusts arrive and leave smoothly
+    // (no pops when the outwash switches on or off, or a point crosses a cell of the air grid).
+    this.airTarget = new Float32Array(this.n * 3);
+    // Where the outwash comes from, and how hard: drives the ripples that roll outward from under the rotor.
+    this.src = new THREE.Vector2(0, 0);
+    this.gust = 0;       // eased outwash strength (m/s at the footprint's edge)
+    this.wave = 0;       // phase of the outward-rolling billows
+    this.nrm = null;     // the drawn mesh's normals (pressure acts along the cloth's real facing)
 
     // What stands on the cloth: circles [x, z, radius, top] and boxes [x, z, halfX, halfZ, top].
     this.circles = [
@@ -128,34 +145,79 @@ export class TableCloth {
     if (air && !windy) for (const wk of air.wakes) if (wk.active && Math.abs(wk.hub.x) < TABLE.halfX + 0.5 && Math.abs(wk.hub.z) < WIDTH + 0.4 && wk.hub.y < 0.9) windy = true;
     if (windy) this.awake = 3;
     else this.awake -= dt;
-    if (this.awake <= 0 && this.lastMax < 2e-6) { this.ms = 0; return; } // asleep: nothing to do, nothing to upload
+    if (this.awake <= 0 && this.lastMax < 2e-6 && this.gust < 0.01) {
+      // Asleep: nothing to do, nothing to upload (once the drawn cloth has caught up with the last step).
+      if (this.acc > 0) { this.acc = 0; this.draw(1); }
+      this.ms = 0; return;
+    }
     this.time += dt;
     this.acc = Math.min(this.acc + dt, 3 / this.rate);
     const h = 1 / this.rate;
-    // A frame between two of the cloth's steps (it runs at 60-90 Hz) has nothing to sample, step or upload.
-    if (this.acc < h) return;
-    // Sample the air once per frame (positions don't move far within one).
-    const A = this.air, P = this.p, _v = TableCloth._v;
-    for (let k = 0; k < this.n; k++) {
-      if (this.pin[k] || !windy) { A[k * 3] = A[k * 3 + 1] = A[k * 3 + 2] = 0; continue; }
-      air.sample(P[k * 3], P[k * 3 + 1], P[k * 3 + 2], _v);
-      A[k * 3] = _v.x; A[k * 3 + 1] = _v.y; A[k * 3 + 2] = _v.z;
+
+    // Where the outwash comes from and how strong it is, eased so the billows build and fade.
+    let vg = 0;
+    if (windy && air) for (const wk of air.wakes) {
+      if (!wk.active || !(wk.vg > vg)) continue;
+      vg = wk.vg;
+      this.src.x += (wk.hit.x - this.src.x) * Math.min(1, dt * 8);
+      this.src.y += (wk.hit.z - this.src.y) * Math.min(1, dt * 8);
     }
-    while (this.acc >= h) { this.step(h, sim); this.acc -= h; }
-    this.posAttr.array.set(this.p);
-    this.posAttr.needsUpdate = true;
-    this.geo.computeVertexNormals();
+    if (windy && !vg) vg = Math.sqrt(air.energy);   // a gust still rolling over the table after the rotor's gone
+    this.gust += (vg - this.gust) * (1 - Math.exp(-dt / (vg > this.gust ? 0.25 : 0.6)));
+    // The billows roll outward a little faster the harder it blows (phase integrated, so it never jumps).
+    this.wave += dt * (7 + 5 * Math.min(1, this.gust / 3));
+
+    // Sample the air once per frame (positions don't move far within one) and ease each point towards it.
+    if (this.acc >= h) {
+      const T = this.airTarget, A = this.air, P = this.p, _v = TableCloth._v, hx = TABLE.halfX;
+      const ease = 1 - Math.exp(-Math.min(this.acc, 0.05) / 0.05);
+      for (let k = 0; k < this.n; k++) {
+        const i3 = k * 3;
+        if (this.pin[k] || !windy) { T[i3] = T[i3 + 1] = T[i3 + 2] = 0; }
+        else {
+          const x = P[i3], y = P[i3 + 1], z = P[i3 + 2];
+          air.sample(x, y, z, _v);
+          T[i3] = _v.x; T[i3 + 1] = _v.y; T[i3 + 2] = _v.z;
+          // Past the table's end the air field has no outwash layer (it's over the floor there), but the
+          // outwash doesn't stop at the edge: it spills off and curls down over the hanging flap.
+          const ax = Math.abs(x);
+          if (ax > hx && Math.abs(z) < TABLE.halfZ) {
+            air.sampleSurface(Math.sign(x) * (hx - 0.01), z, _s);
+            const f = Math.exp(-Math.max(0, -y) / 0.07) * Math.exp(-Math.max(0, ax - hx - 0.01) / 0.06);
+            const u = Math.hypot(_s.x, _s.z);
+            T[i3] += _s.x * f; T[i3 + 2] += _s.z * f; T[i3 + 1] -= 0.35 * u * f;
+          }
+        }
+        A[i3] += (T[i3] - A[i3]) * ease; A[i3 + 1] += (T[i3 + 1] - A[i3 + 1]) * ease; A[i3 + 2] += (T[i3 + 2] - A[i3 + 2]) * ease;
+      }
+    }
+    while (this.acc >= h) { this.p0.set(this.p); this.step(h, sim); this.acc -= h; }
+    // Draw between the last two steps, so the cloth moves every frame at any frame rate (it steps at 60 or
+    // 90 Hz; on a 120 Hz screen it would otherwise move on some frames and stand still on others).
+    this.draw(this.acc / h);
     this.ms = this.ms * 0.9 + (performance.now() - t0) * 0.1;
   }
 
+  draw(f) {
+    const R = this.posAttr.array, P = this.p, P0 = this.p0;
+    if (f >= 1) R.set(P);
+    else for (let i = 0; i < R.length; i++) R[i] = P0[i] + (P[i] - P0[i]) * f;
+    this.posAttr.needsUpdate = true;
+    this.geo.computeVertexNormals();
+    this.nrm = this.geo.attributes.normal.array;
+  }
+
   step(h, sim) {
-    const P = this.p, Q = this.q, A = this.air, n = this.n;
+    const P = this.p, Q = this.q, A = this.air, n = this.n, N = this.nrm, E = this.edge;
     const g = 9.81 * h * h;
     // Linen at ~220 g/m^2: each particle carries its share of mass; the air acts on its share of area.
     const area = this.ds * this.dz, mass = 0.22 * area;
     const kn = 0.5 * 1.2 * 1.1 * area / mass, kt = 0.5 * 1.2 * 0.03 * area / mass;
-    const t = this.time;
-    let maxMove = 0;
+    const t = this.time, hx = FLAT;
+    // Rolling billows: a ripple travelling outward from under the rotor, its wavelength about a hand's
+    // width, so the runner lifts in soft connected pillows that roll away to the edges.
+    const sx = this.src.x, sz = this.src.y, K = 2 * Math.PI / 0.15, wph = this.wave;
+    const gust = Math.min(1, this.gust / 2.5);
     for (let k = 0; k < n; k++) {
       const i3 = k * 3;
       if (this.pin[k]) { P[i3] = this.rest[i3]; P[i3 + 1] = this.rest[i3 + 1]; P[i3 + 2] = this.rest[i3 + 2]; Q[i3] = P[i3]; Q[i3 + 1] = P[i3 + 1]; Q[i3 + 2] = P[i3 + 2]; continue; }
@@ -164,37 +226,48 @@ export class TableCloth {
       let ax = 0, ay = 0, az = 0;
       const wx = A[i3], wy = A[i3 + 1], wz = A[i3 + 2];
       const w2 = wx * wx + wz * wz;
-      if (w2 + wy * wy > 1e-4) {
-        // Pressure on the face (normal approximated as up for the top, as the cloth's own facing for the
-        // hanging ends: x), a little skin friction, and lift where the outwash gets under a free edge.
+      if (w2 + wy * wy > 1e-5) {
+        // Pressure on the face, along the cloth's real facing (it bends smoothly from flat on the table to
+        // hanging down the ends, so the push turns with it instead of switching at the edge).
         const rx = wx - vx, ry = wy - vy, rz = wz - vz;
-        const hanging = Math.abs(x) > TABLE.halfX;
-        const vn = hanging ? rx : ry;
+        let nx = 0, ny = 1, nz = 0;
+        if (N) { nx = N[i3]; ny = N[i3 + 1]; nz = N[i3 + 2]; }
+        const vn = rx * nx + ry * ny + rz * nz;
         const fn = kn * vn * Math.abs(vn);
-        if (hanging) ax += fn; else ay += fn;
+        ax += fn * nx; ay += fn * ny; az += fn * nz;
+        // A little skin friction along it.
         const sp = Math.sqrt(rx * rx + ry * ry + rz * rz);
         ax += kt * rx * sp; ay += kt * ry * sp; az += kt * rz * sp;
-        if (!hanging) ay += this.edge[k] * 2.0 * kn * w2 * (0.55 + 0.45 * Math.sin(t * 7 + this.phase[k] + x * 20));
-        // Turbulent buffeting: slow, broad wobbles rather than a fizz.
-        const s = Math.sqrt(w2);
-        const tb = 0.35 * kn * s * s * 0.15;
-        ax += tb * Math.sin(t * 5.3 + this.phase[k] + x * 9);
-        az += tb * Math.sin(t * 4.1 + this.phase[k] * 1.7 + z * 11);
-        ay += tb * 0.6 * Math.sin(t * 6.7 + this.phase[k] * 0.6 + x * 13);
+        // Lift where the outwash gets under the cloth: at a free edge, and anywhere it's already lifted off
+        // the table (air fills the pillow, so a lifted patch billows up and rolls on). Fades out smoothly
+        // over the table's rounded end, where the cloth turns down.
+        const top = smooth01((hx + 0.006 - Math.abs(x)) / 0.02);
+        if (top > 0) {
+          const open = smooth01((y - LIFT) / 0.014);
+          const r = Math.hypot(x - sx, z - sz);
+          const ripple = 0.5 + 0.5 * Math.sin(K * r - wph);
+          const under = E[k] * (0.45 + 0.55 * ripple) + open * 0.8 * ripple * gust;
+          ay += top * under * 1.9 * kn * w2;
+        }
+        // Buffeting: broad, slow swells in the air, the same at neighbouring points, so the cloth wobbles
+        // as a sheet rather than fizzing point by point.
+        const tb = 0.06 * kn * w2;
+        ax += tb * Math.sin(t * 5.3 + x * 9 + z * 4);
+        az += tb * Math.sin(t * 4.1 - x * 5 + z * 11);
+        ay += tb * 0.6 * Math.sin(t * 6.7 + x * 13 - z * 6);
       }
       // Never more than a few g from the air: heavy linen lifts and rolls, it doesn't snap about.
       const am = Math.sqrt(ax * ax + ay * ay + az * az), lim = 3 * 9.81;
       if (am > lim) { ax *= lim / am; ay *= lim / am; az *= lim / am; }
-      const damp = 0.985;
+      const damp = 0.982;
       const nx = x + (x - Q[i3]) * damp + ax * h * h;
       const ny = y + (y - Q[i3 + 1]) * damp + ay * h * h - g;
       const nz = z + (z - Q[i3 + 2]) * damp + az * h * h;
       Q[i3] = x; Q[i3 + 1] = y; Q[i3 + 2] = z;
       P[i3] = nx; P[i3 + 1] = ny; P[i3 + 2] = nz;
-      maxMove = Math.max(maxMove, Math.abs(nx - x) + Math.abs(ny - y) + Math.abs(nz - z));
     }
     // Constraints and collisions, a few rounds.
-    const C = this.cons;
+    const C = this.cons, TT = this.tether;
     for (let it = 0; it < this.iters; it++) {
       for (let c = 0; c < C.length; c += 4) {
         const a = C[c] * 3, b = C[c + 1] * 3, rest = C[c + 2], stiff = C[c + 3];
@@ -210,14 +283,26 @@ export class TableCloth {
         P[a] += dx * diff * wa; P[a + 1] += dy * diff * wa; P[a + 2] += dz * diff * wa;
         P[b] -= dx * diff * wb; P[b + 1] -= dy * diff * wb; P[b + 2] -= dz * diff * wb;
       }
+      // The hanging flaps never reach further from the table's edge than their length of cloth.
+      for (let c = 0; c < TT.length; c += 4) {
+        const k3 = TT[c] * 3, dx = P[k3] - TT[c + 1], dy = P[k3 + 1] - LIFT, dz = P[k3 + 2] - TT[c + 2];
+        const d = Math.sqrt(dx * dx + dy * dy + dz * dz), lim = TT[c + 3];
+        if (d > lim) { const s = lim / d; P[k3] = TT[c + 1] + dx * s; P[k3 + 1] = LIFT + dy * s; P[k3 + 2] = TT[c + 2] + dz * s; }
+      }
       if (it === this.iters - 1 || it === 0) this.collide(sim);
     }
+    // How far anything actually moved this step, after the constraints and collisions (a point resting on
+    // the table or hanging from its tether is pulled down by gravity and put back every step: that's not
+    // movement, and counting it kept the cloth from ever sleeping).
+    let maxMove = 0;
+    const P0 = this.p0;
+    for (let i = 0; i < P.length; i++) { const d = Math.abs(P[i] - P0[i]); if (d > maxMove) maxMove = d; }
     this.lastMax = maxMove;
   }
 
   collide(sim) {
     const P = this.p, n = this.n;
-    const hx = TABLE.halfX, hz = TABLE.halfZ;
+    const hx = FLAT, hz = TABLE.halfZ;
     const heli = sim.heli, circles = this.circles, boxes = this.boxes, bags = sim.bags;
     for (let k = 0; k < n; k++) {
       if (this.pin[k]) continue;
@@ -225,10 +310,17 @@ export class TableCloth {
       let x = P[i3], y = P[i3 + 1], z = P[i3 + 2];
       // Table top and its rounded ends.
       if (Math.abs(z) < hz) {
-        if (Math.abs(x) <= hx) { if (y < LIFT && y > -TABLE.thickness) { this.note(LIFT - y); y = LIFT; } }
+        if (Math.abs(x) <= hx) {
+          if (y < LIFT && y > -TABLE.thickness) {
+            // Lands without a bounce, and linen on wood drags: it settles where it falls rather than skating.
+            this.note(LIFT - y); y = LIFT;
+            const Q = this.q;
+            Q[i3 + 1] = LIFT; Q[i3] += (x - Q[i3]) * 0.35; Q[i3 + 2] += (z - Q[i3 + 2]) * 0.35;
+          }
+        }
         else {
           const ex = x - Math.sign(x) * hx, R = EDGE_R + LIFT;
-          if (y > -EDGE_R) { const d = Math.sqrt(ex * ex + y * y); if (d < R) { const s = R / (d || 1e-6); this.note(R - d); x = Math.sign(x) * hx + ex * s; y *= s; } }
+          if (y > -EDGE_R) { const ey = y + EDGE_R, d = Math.sqrt(ex * ex + ey * ey); if (d < R) { const s = R / (d || 1e-6); this.note(R - d); x = Math.sign(x) * hx + ex * s; y = -EDGE_R + ey * s; } }
           else if (Math.abs(ex) < R && y > -TABLE.thickness - 0.08) { x = Math.sign(x) * (hx + R); }
         }
       }
@@ -276,7 +368,7 @@ export class TableCloth {
     for (let k = 0; k < this.n; k++) {
       if (this.pin[k]) continue;
       const x = P[k * 3], y = P[k * 3 + 1], z = P[k * 3 + 2];
-      if (Math.abs(x) < TABLE.halfX && Math.abs(z) < TABLE.halfZ) worst = Math.max(worst, -y);
+      if (Math.abs(x) < FLAT && Math.abs(z) < TABLE.halfZ) worst = Math.max(worst, -y);
       for (const [cx, cz, r, top] of this.circles) {
         const d = Math.hypot(x - cx, z - cz);
         if (d < r && y < top) worst = Math.max(worst, Math.min(r - d, top - y));
@@ -293,7 +385,8 @@ export class TableCloth {
 }
 TableCloth._v = new THREE.Vector3();
 
-function fract(v) { return v - Math.floor(v); }
+const _s = { x: 0, z: 0 };
+function smooth01(v) { v = v < 0 ? 0 : v > 1 ? 1 : v; return v * v * (3 - 2 * v); }
 
 // A small hanging cloth (tea towel): a grid pinned along its top edge, falling under gravity, pushed by
 // the rotor's air and (outdoors) the breeze, kept off a wall plane if it has one, and shoved aside by
